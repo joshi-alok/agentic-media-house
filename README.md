@@ -39,6 +39,9 @@ Run everything from the repository root.
 npm ci               # install exactly what package-lock.json pins
 npm run typecheck    # tsc in every workspace that has a typecheck script
 npm test             # Vitest in every workspace that has a test script
+npm run evals:seeded # break the golden piece in known ways and check the gate catches each one
 ```
 
-`npm run verify` runs every check in CI order: typecheck, tests, seeded-defect evals, fixture drift, production build and audit, fixture build and audit, then Lighthouse. It arrives with the site milestone. Until then `typecheck` and `test` are the checks that exist.
+`npm run evals:seeded` is the proof that the gate works. It takes one golden piece, breaks it in a known way once for every failure code of the nine checks, and fails if the gate misses any. It writes the result to `evals/scoreboard/seeded.json`, which is committed and which the site's /method page will show; a test fails if the committed file is out of date, so run the command and commit the file after any change to the gate.
+
+`npm run verify` runs every check in CI order: typecheck, tests, seeded-defect evals, fixture drift, production build and audit, fixture build and audit, then Lighthouse. It arrives with the site milestone. Until then `typecheck`, `test` and `evals:seeded` are the checks that exist.

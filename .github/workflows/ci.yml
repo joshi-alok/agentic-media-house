@@ -29,3 +29,6 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Seeded-defect evals
+        run: npm run evals:seeded

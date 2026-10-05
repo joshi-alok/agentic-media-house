@@ -49,6 +49,11 @@ describe('the cases', () => {
     }
   });
 
+  it('are listed in the order of the checks, G1 to G9, so the scoreboard reads in order', () => {
+    const positions = SEEDED_CASES.map((item) => CHECK_IDS.indexOf(item.check));
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
   it.each(SEEDED_CASES.map((item) => [item.id, item] as const))('%s names a check and a failure code that exist', (_id, item) => {
     expect(CHECK_IDS).toContain(item.check);
     expect(ALL_FAILURE_CODES).toContain(item.code);

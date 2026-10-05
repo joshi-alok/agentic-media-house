@@ -1,0 +1,288 @@
+{
+  "total": 40,
+  "caught": 40,
+  "rate": 1,
+  "baselinePasses": true,
+  "cases": [
+    {
+      "id": "empty-title",
+      "check": "G1",
+      "code": "G1_TITLE_EMPTY",
+      "description": "The title is empty.",
+      "caught": true
+    },
+    {
+      "id": "long-description",
+      "check": "G1",
+      "code": "G1_DESCRIPTION_TOO_LONG",
+      "description": "The description is longer than the 155 characters a search result shows.",
+      "caught": true
+    },
+    {
+      "id": "impossible-date",
+      "check": "G1",
+      "code": "G1_BAD_DATE",
+      "description": "The publication date is 30 February.",
+      "caught": true
+    },
+    {
+      "id": "bad-slug",
+      "check": "G1",
+      "code": "G1_SLUG_FORMAT",
+      "description": "The slug has capital letters and spaces.",
+      "caught": true
+    },
+    {
+      "id": "no-categories",
+      "check": "G1",
+      "code": "G1_CATEGORY_COUNT",
+      "description": "The piece has no category.",
+      "caught": true
+    },
+    {
+      "id": "repeated-category",
+      "check": "G1",
+      "code": "G1_CATEGORY_COUNT",
+      "description": "The same category is listed twice.",
+      "caught": true
+    },
+    {
+      "id": "unknown-category",
+      "check": "G1",
+      "code": "G1_CATEGORY_UNKNOWN",
+      "description": "A category is not in the closed vocabulary.",
+      "caught": true
+    },
+    {
+      "id": "funding-without-beat",
+      "check": "G1",
+      "code": "G1_CATEGORY_NO_BEAT",
+      "description": "The piece is tagged funding but has no beat.",
+      "caught": true
+    },
+    {
+      "id": "blank-author",
+      "check": "G1",
+      "code": "G1_AUTHOR_MISSING",
+      "description": "The author name is blank.",
+      "caught": true
+    },
+    {
+      "id": "short-opening",
+      "check": "G2",
+      "code": "G2_OPENING_LENGTH",
+      "description": "The opening paragraph is one sentence, far under 40 words.",
+      "caught": true
+    },
+    {
+      "id": "two-takeaways",
+      "check": "G2",
+      "code": "G2_TAKEAWAYS_COUNT",
+      "description": "There are two key takeaways, not three to five.",
+      "caught": true
+    },
+    {
+      "id": "short-body",
+      "check": "G2",
+      "code": "G2_BODY_LENGTH",
+      "description": "Half the limitations are cut, which leaves the piece under 600 words.",
+      "caught": true
+    },
+    {
+      "id": "long-body",
+      "check": "G2",
+      "code": "G2_BODY_LENGTH",
+      "description": "A sentence is padded until the piece is over 850 words.",
+      "caught": true
+    },
+    {
+      "id": "one-section",
+      "check": "G2",
+      "code": "G2_SECTIONS_MIN",
+      "description": "All the paragraphs sit under one heading.",
+      "caught": true
+    },
+    {
+      "id": "question-heading",
+      "check": "G2",
+      "code": "G2_HEADING_QUESTION",
+      "description": "A section heading ends in a question mark.",
+      "caught": true
+    },
+    {
+      "id": "no-limitations",
+      "check": "G2",
+      "code": "G2_LIMITATIONS_MISSING",
+      "description": "The piece rests on datasheet and press-release claims but has no 'What we couldn't verify' section.",
+      "caught": true
+    },
+    {
+      "id": "unsupported-sentence",
+      "check": "G3",
+      "code": "G3_NO_CLAIM",
+      "description": "A fact sentence is added that cites no claim at all.",
+      "caught": true
+    },
+    {
+      "id": "unknown-claim",
+      "check": "G3",
+      "code": "G3_UNKNOWN_CLAIM",
+      "description": "A sentence cites a claim, c-99, that is not in the piece.",
+      "caught": true
+    },
+    {
+      "id": "swapped-number",
+      "check": "G4",
+      "code": "G4_NUMBER_UNSUPPORTED",
+      "description": "A sentence says the arm weighs 83 kg; the claim it cites says 38 kg.",
+      "caught": true
+    },
+    {
+      "id": "swapped-unit",
+      "check": "G4",
+      "code": "G4_NUMBER_UNSUPPORTED",
+      "description": "A sentence gives the payload as 12 lb; the claim it cites says 12 kg.",
+      "caught": true
+    },
+    {
+      "id": "swapped-date",
+      "check": "G4",
+      "code": "G4_DATE_UNSUPPORTED",
+      "description": "A sentence gives the first sale as 29 October 2026; the filing says 29 September 2026.",
+      "caught": true
+    },
+    {
+      "id": "invented-name",
+      "check": "G4",
+      "code": "G4_NAME_UNSUPPORTED",
+      "description": "A sentence names Harlow Capital as lead investor; the filing names Corvane Partners.",
+      "caught": true
+    },
+    {
+      "id": "value-outside-span",
+      "check": "G4",
+      "code": "G4_VALUE_NOT_IN_SPAN",
+      "description": "A claim lists a value, 38 kg, that is not in the quotation it says it was taken from.",
+      "caught": true
+    },
+    {
+      "id": "invented-quote",
+      "check": "G5",
+      "code": "G5_QUOTE_NOT_VERBATIM",
+      "description": "A sentence puts words in quotation marks that the cited source never said.",
+      "caught": true
+    },
+    {
+      "id": "altered-quote",
+      "check": "G5",
+      "code": "G5_QUOTE_NOT_VERBATIM",
+      "description": "A quotation changes one word of the source's: ten weeks, not nine.",
+      "caught": true
+    },
+    {
+      "id": "tier2-only-claim",
+      "check": "G6",
+      "code": "G6_TIER2_UNATTRIBUTED",
+      "description": "A claim that comes only from another outlet is stated as plain fact, with no attribution.",
+      "caught": true
+    },
+    {
+      "id": "tier2-outlet-not-named",
+      "check": "G6",
+      "code": "G6_TIER2_UNATTRIBUTED",
+      "description": "A sentence is marked attributed to a tier-2 outlet but never says which outlet.",
+      "caught": true
+    },
+    {
+      "id": "tier2-in-analysis",
+      "check": "G6",
+      "code": "G6_TIER2_IN_ANALYSIS",
+      "description": "An analysis sentence rests on another outlet's reporting.",
+      "caught": true
+    },
+    {
+      "id": "analysis-in-opening",
+      "check": "G7",
+      "code": "G7_ANALYSIS_PLACEMENT",
+      "description": "A sentence of the opening paragraph is the Desk's own analysis.",
+      "caught": true
+    },
+    {
+      "id": "analysis-flood",
+      "check": "G7",
+      "code": "G7_ANALYSIS_SHARE",
+      "description": "Eleven analysis sentences are added, which takes analysis over 20% of the body.",
+      "caught": true
+    },
+    {
+      "id": "analysis-new-number",
+      "check": "G7",
+      "code": "G7_ANALYSIS_NEW_VALUE",
+      "description": "An analysis sentence works out a percentage, 22%, that no fact sentence states.",
+      "caught": true
+    },
+    {
+      "id": "analysis-new-name",
+      "check": "G7",
+      "code": "G7_ANALYSIS_NEW_VALUE",
+      "description": "An analysis sentence brings in a company, Harlow Logistics, that no fact sentence mentions.",
+      "caught": true
+    },
+    {
+      "id": "limitation-in-body",
+      "check": "G8",
+      "code": "G8_LIMITATION_PLACEMENT",
+      "description": "A limitation sentence is placed in a body paragraph instead of 'What we couldn't verify'.",
+      "caught": true
+    },
+    {
+      "id": "limitation-unknown-claim",
+      "check": "G8",
+      "code": "G8_LIMITATION_CLAIMS",
+      "description": "A limitation sentence cites a claim, c-99, that is not in the piece.",
+      "caught": true
+    },
+    {
+      "id": "limitation-edited-text",
+      "check": "G8",
+      "code": "G8_LIMITATION_MISMATCH",
+      "description": "A limitation sentence is reworded to say the datasheet figure was independently confirmed.",
+      "caught": true
+    },
+    {
+      "id": "limitation-wrong-template",
+      "check": "G8",
+      "code": "G8_LIMITATION_MISMATCH",
+      "description": "A limitation sentence keeps its text but is labelled with the wrong template.",
+      "caught": true
+    },
+    {
+      "id": "slug-collision",
+      "check": "G9",
+      "code": "G9_SLUG_COLLISION",
+      "description": "The slug is the slug of a piece that is already published.",
+      "caught": true
+    },
+    {
+      "id": "duplicate-title",
+      "check": "G9",
+      "code": "G9_TITLE_DUPLICATE",
+      "description": "The title repeats a recent title with only a stop word changed.",
+      "caught": true
+    },
+    {
+      "id": "banned-phrase",
+      "check": "G9",
+      "code": "G9_BANNED_PHRASE",
+      "description": "A takeaway calls the shipment a 'game-changer'.",
+      "caught": true
+    },
+    {
+      "id": "banned-phrase-in-heading",
+      "check": "G9",
+      "code": "G9_BANNED_PHRASE",
+      "description": "A section heading says 'revolutionary'.",
+      "caught": true
+    }
+  ]
+}
