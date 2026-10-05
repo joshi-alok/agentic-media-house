@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Pure-function checks G1-G9 that decide whether a draft may publish.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./fixtures": "./src/fixtures/index.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
