@@ -1,3 +1,4 @@
+import { renderBody } from '@robywire/gate';
 import type { DeskState, LedgerEntry, NewsFrontmatter } from '@robywire/gate';
 import { latestCorrectionDay } from './desk-state';
 
@@ -13,6 +14,11 @@ export interface Keyed<T> {
   data: T;
 }
 
+/** A piece: its frontmatter, and the text of the file below the frontmatter, which Astro keeps as `body`. */
+export interface KeyedPiece extends Keyed<NewsFrontmatter> {
+  body?: string;
+}
+
 export interface Matched<N, L> {
   slug: string;
   news: N;
@@ -23,17 +29,66 @@ const sameList = (a: readonly string[], b: readonly string[]): boolean => a.leng
 
 const byId = <T extends { id: string }>(a: T, b: T): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
+/** The most characters of a line that a message shows, and how many of them come before the first difference. */
+const WINDOW = 70;
+const LEAD = 30;
+
+/** `line` from character `from`, at most 70 characters, with "..." where it is cut. */
+const excerpt = (line: string, from: number): string =>
+  `${from > 0 ? '...' : ''}${line.slice(from, from + WINDOW)}${line.length > from + WINDOW ? '...' : ''}`;
+
+/**
+ * Where two texts first differ, as a short description, or undefined if they are equal. Lines are
+ * counted from 1, and so are the columns. `actual` is the text of the file and `expected` what the
+ * ledger renders. A paragraph is one long line, so the message shows the stretch of each line around
+ * the first character that differs, not the start of it.
+ */
+export function firstDifference(actual: string, expected: string): string | undefined {
+  const have = actual.split('\n');
+  const want = expected.split('\n');
+  for (let at = 0; at < Math.max(have.length, want.length); at++) {
+    const [now, then] = [have[at], want[at]];
+    if (now === then) continue;
+    if (now === undefined) return `line ${at + 1}: the file ends before this line, where the ledger gives "${excerpt(then as string, 0)}"`;
+    if (then === undefined) return `line ${at + 1}: the file has "${excerpt(now, 0)}" where the ledger has nothing`;
+    let column = 0;
+    while (now[column] === then[column]) column++;
+    const from = Math.max(0, column - LEAD);
+    return `line ${at + 1}, column ${column + 1}: the file has "${excerpt(now, from)}" but the ledger gives "${excerpt(then, from)}"`;
+  }
+  return undefined;
+}
+
+/**
+ * What is wrong with the body of a piece, or undefined when it is exactly what its ledger renders. A ledger
+ * that `renderBody` cannot write (a sentence cites a claim the order lacks, a body sentence has no heading)
+ * is a problem of its own, named by the piece.
+ */
+function bodyProblem(id: string, body: string | undefined, ledger: LedgerEntry): string | undefined {
+  let expected: string;
+  try {
+    expected = renderBody(ledger);
+  } catch (error) {
+    return `the ledger entry "${id}" cannot be written as a body: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  // Astro keeps the body without the blank lines around it, so both sides are trimmed.
+  const difference = firstDifference((body ?? '').trim(), expected.trim());
+  return difference === undefined ? undefined : `the body of the piece "${id}" differs from its ledger at ${difference}`;
+}
+
 /**
  * Join pieces with their ledger entries and sort them newest first. Pieces of
  * the same day stay in slug order, because the lists are sorted by id first and
  * the sort is stable. Throws one error that lists every problem found: a piece
  * with no ledger entry, a ledger entry with no piece, a ledger entry whose
  * slug, title, date or categories disagree with its piece, and a piece whose
- * `updatedAt` does not agree with the corrections recorded for it: a piece with
+ * `updatedAt` does not agree with the corrections recorded for it (a piece with
  * a correction or retraction needs `updatedAt` equal to the day of the latest
- * one, and a piece that says it was updated needs a record that explains it.
+ * one, and a piece that says it was updated needs a record that explains it),
+ * and a piece whose body is not what `renderBody` writes from its ledger, so
+ * that the article and its receipts cannot drift apart.
  */
-export function matchPieces<N extends Keyed<NewsFrontmatter>, L extends Keyed<LedgerEntry>>(
+export function matchPieces<N extends KeyedPiece, L extends Keyed<LedgerEntry>>(
   news: readonly N[],
   ledgers: readonly L[],
   corrections: DeskState['corrections'],
@@ -54,6 +109,9 @@ export function matchPieces<N extends Keyed<NewsFrontmatter>, L extends Keyed<Le
     if (ledger.data.publishedAt !== piece.data.publishedAt) problems.push(`the date in the ledger entry "${piece.id}" differs from the piece`);
     if (!sameList(ledger.data.categories, piece.data.categories)) problems.push(`the categories in the ledger entry "${piece.id}" differ from the piece`);
     matched.push({ slug: piece.id, news: piece, ledger });
+
+    const bodyIssue = bodyProblem(piece.id, piece.body, ledger.data);
+    if (bodyIssue !== undefined) problems.push(bodyIssue);
 
     const recorded = latestCorrectionDay(corrections, piece.id);
     const { updatedAt } = piece.data;

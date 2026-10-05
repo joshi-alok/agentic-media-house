@@ -6,7 +6,8 @@ import { cloneGolden, makeTier2Variant } from '../src/fixtures';
 import { runGate } from '../src/gate';
 import type { GateInput, GateResult } from '../src/gate';
 import { LedgerEntry } from '../src/schemas';
-import { NewsFrontmatter, escapeMdx, renderDraft } from '../src/render';
+import type { Draft } from '../src/schemas';
+import { NewsFrontmatter, escapeMdx, renderBody, renderDraft } from '../src/render';
 import type { RenderMeta } from '../src/render';
 import { allSentences } from '../src/sentences';
 import { claimById, findSentence, mutate } from './helpers';
@@ -185,7 +186,7 @@ describe('renderDraft: the ledger', () => {
     const located = allSentences(golden.draft);
     expect(ledger.sentences).toHaveLength(located.length);
     expect(ledger.sentences.map((s) => s.index)).toEqual(located.map((_s, at) => at));
-    expect(ledger.sentences[0]).toEqual({ index: 0, section: 'title', kind: 'fact', text: golden.draft.title.text, claimIds: ['c-1'] });
+    expect(ledger.sentences[0]).toEqual({ index: 0, section: 'title', paragraph: 0, kind: 'fact', text: golden.draft.title.text, claimIds: ['c-1'] });
     expect(ledger.sentences[1]!.section).toBe('description');
     const body = ledger.sentences.find((s) => s.section === 'body')!;
     expect(body.heading).toBe('What shipped');
@@ -193,6 +194,17 @@ describe('renderDraft: the ledger', () => {
     expect(last.section).toBe('limitations');
     expect(last.kind).toBe('limitation');
     expect(ledger.sentences.filter((s) => 'heading' in s).every((s) => s.section === 'body')).toBe(true);
+  });
+
+  it('numbers the paragraph of each sentence: the opening and the limitations are paragraph 0, each takeaway has its own, a section counts its paragraphs from 0', () => {
+    const paragraphs = (section: string, heading?: string) =>
+      ledger.sentences.filter((s) => s.section === section && (heading === undefined || s.heading === heading)).map((s) => s.paragraph);
+    expect(new Set(paragraphs('opening'))).toEqual(new Set([0]));
+    expect(paragraphs('takeaways')).toEqual([0, 1, 2, 3]);
+    expect(new Set(paragraphs('limitations'))).toEqual(new Set([0]));
+    expect(new Set(paragraphs('body', 'What shipped'))).toEqual(new Set([0, 1, 2]));
+    expect(new Set(paragraphs('body', 'What the filing shows'))).toEqual(new Set([0, 1]));
+    expect(paragraphs('title')).toEqual([0]);
   });
 
   it('orders the claims by first appearance in the body, then claims only the title or description cite', () => {
@@ -340,6 +352,128 @@ describe('renderDraft: sentences that rest on another outlet', () => {
 
   it('keeps the ledger valid against the LedgerEntry schema', () => {
     expect(LedgerEntry.parse(ledger)).toEqual(ledger);
+  });
+});
+
+describe('renderBody: the body is a function of the ledger', () => {
+  const golden = cloneGolden();
+  const { mdx, ledger } = render(golden);
+  const bodyOf = (text: string) => splitMdx(text).body;
+
+  it('is exactly the body renderDraft writes, so the page and the ledger cannot say different things', () => {
+    expect(renderBody(ledger)).toBe(bodyOf(mdx));
+    expect(mdx.endsWith(`\n---\n\n${renderBody(ledger)}`)).toBe(true);
+  });
+
+  it('is exactly the body for the piece that rests on another outlet as well', () => {
+    const tier2 = render(makeTier2Variant(cloneGolden()));
+    expect(renderBody(tier2.ledger)).toBe(bodyOf(tier2.mdx));
+    expect(renderBody(tier2.ledger)).toContain('**Unconfirmed.** Mercer Wire reports');
+  });
+
+  it('needs nothing but the ledger: a ledger read back from its JSON gives the same body', () => {
+    const readBack = LedgerEntry.parse(JSON.parse(JSON.stringify(ledger)));
+    expect(renderBody(readBack)).toBe(renderBody(ledger));
+  });
+
+  it('ends with one newline and starts with the opening paragraph, with no frontmatter', () => {
+    const body = renderBody(ledger);
+    expect(body.endsWith('\n')).toBe(true);
+    expect(body.endsWith('\n\n')).toBe(false);
+    expect(body.startsWith('Fixture Robotics has begun shipping its FX-1 warehouse arm')).toBe(true);
+    expect(body).not.toContain('---');
+  });
+
+  it('follows the ledger: a sentence changed in the ledger is changed in the body', () => {
+    const edited = structuredClone(ledger);
+    edited.sentences.find((sentence) => sentence.text === 'It lists 7 investors in the round.')!.text = 'It lists 8 investors in the round.';
+    expect(renderBody(edited)).toContain('It lists 8 investors in the round.');
+    expect(renderBody(edited)).not.toBe(renderBody(ledger));
+  });
+
+  it('follows the paragraph numbers: moving a sentence to the next paragraph moves it in the body', () => {
+    const edited = structuredClone(ledger);
+    const first = edited.sentences.find((sentence) => sentence.section === 'body')!;
+    edited.sentences.filter((sentence) => sentence.heading === first.heading && sentence.paragraph === 1).forEach((sentence) => (sentence.paragraph = 0));
+    const count = (body: string) => body.trimEnd().split('\n\n').length;
+    expect(count(renderBody(edited))).toBe(count(renderBody(ledger)) - 1);
+  });
+
+  it('numbers markers by the order of the ledger, so reordering the claims renumbers them', () => {
+    const edited = structuredClone(ledger);
+    edited.order = [...edited.order.slice(1), edited.order[0]!];
+    expect(renderBody(edited)).toContain(`Tarnmoor.[${edited.order.length}](${RECEIPTS}#c-1) The first site`);
+  });
+
+  it('throws, naming the claim, when a sentence cites a claim that the order does not list', () => {
+    const edited = structuredClone(ledger);
+    edited.order = edited.order.filter((id) => id !== 'c-19');
+    expect(() => renderBody(edited)).toThrow('renderBody: a sentence cites c-19, but the order of the ledger does not list it');
+  });
+
+  it('writes nothing for a part with no sentence, and no heading for a section with none', () => {
+    const edited = structuredClone(ledger);
+    edited.sentences = edited.sentences.filter((sentence) => sentence.section !== 'takeaways' && sentence.section !== 'limitations' && sentence.heading !== 'What shipped');
+    const body = renderBody(edited);
+    expect(body).not.toContain('Key takeaways');
+    expect(body).not.toContain("couldn't verify");
+    expect(body).not.toContain('What shipped');
+    expect(body).toContain('## What the customer reports');
+  });
+
+  it('writes the takeaways heading and a bullet for a single takeaway', () => {
+    const edited = structuredClone(ledger);
+    const first = edited.sentences.find((sentence) => sentence.section === 'takeaways')!;
+    edited.sentences = edited.sentences.filter((sentence) => sentence.section !== 'takeaways' || sentence === first);
+    const lines = renderBody(edited).split('\n');
+    expect(lines[lines.indexOf('## Key takeaways') + 2]!.startsWith(`- ${first.text}`)).toBe(true);
+    expect(lines.filter((line) => line.startsWith('- '))).toHaveLength(1);
+  });
+
+  it('throws, naming the sentence, when a body sentence has no heading', () => {
+    const edited = structuredClone(ledger);
+    const body = edited.sentences.find((sentence) => sentence.section === 'body')!;
+    delete body.heading;
+    expect(() => renderBody(edited)).toThrow(`renderBody: the body sentence ${body.index} has no heading`);
+  });
+});
+
+describe('renderDraft: a draft the ledger cannot tell apart', () => {
+  const sentence = (text: string): Draft['opening'][number] => ({ kind: 'fact', text, claimIds: ['c-1'] });
+  const withSections = (sections: Draft['sections']) =>
+    mutate(cloneGolden(), (g) => {
+      g.draft.sections = sections;
+    });
+
+  it('writes neighbouring sections that share a heading as one section, because the ledger holds them as one', () => {
+    const { mdx, ledger } = render(
+      withSections([
+        { heading: 'Same', paragraphs: [[sentence('First.')]] },
+        { heading: 'Same', paragraphs: [[sentence('Second.')]] },
+        { heading: 'Other', paragraphs: [[sentence('Third.')]] },
+      ]),
+    );
+    expect(splitMdx(mdx).body.split('\n').filter((line) => line.startsWith('## '))).toContain('## Same');
+    expect(splitMdx(mdx).body.split('\n').filter((line) => line === '## Same')).toHaveLength(1);
+    expect(ledger.sentences.filter((s) => s.heading === 'Same').map((s) => [s.text, s.paragraph])).toEqual([['First.', 0], ['Second.', 1]]);
+    expect(renderBody(ledger)).toBe(splitMdx(mdx).body);
+  });
+
+  it('keeps two sections that share a heading apart when another section stands between them', () => {
+    const { mdx } = render(
+      withSections([
+        { heading: 'Same', paragraphs: [[sentence('First.')]] },
+        { heading: 'Other', paragraphs: [[sentence('Second.')]] },
+        { heading: 'Same', paragraphs: [[sentence('Third.')]] },
+      ]),
+    );
+    expect(splitMdx(mdx).body.split('\n').filter((line) => line === '## Same')).toHaveLength(2);
+  });
+
+  it('leaves out a section that has no sentence, heading and all', () => {
+    const { mdx } = render(withSections([{ heading: 'Nothing here', paragraphs: [[]] }, { heading: 'Something', paragraphs: [[sentence('Text.')]] }]));
+    expect(mdx).not.toContain('Nothing here');
+    expect(mdx).toContain('## Something');
   });
 });
 

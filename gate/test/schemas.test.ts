@@ -76,10 +76,11 @@ const VALID_LEDGER = {
   claims: [VALID_CLAIM],
   order: ['c-1'],
   sentences: [
-    { index: 0, section: 'title', kind: 'fact', text: 'Fixture Robotics ships the FX-1 arm.', claimIds: ['c-1'] },
+    { index: 0, section: 'title', paragraph: 0, kind: 'fact', text: 'Fixture Robotics ships the FX-1 arm.', claimIds: ['c-1'] },
     {
       index: 1,
       section: 'body',
+      paragraph: 0,
       heading: 'What shipped',
       kind: 'fact',
       text: 'The FX-1 arm is rated for 12 kg.',
@@ -453,6 +454,13 @@ describe('LedgerEntry', () => {
   it('applies the tier 2 outlet rule to the sources list too', () => {
     const bad = patch(VALID_LEDGER, 'sources.0.tier', 2);
     expect(failedPaths(LedgerEntry, bad)).toEqual(['sources.0.outlet']);
+  });
+
+  it('requires the paragraph of a ledger sentence, a whole number from 0', () => {
+    expect(failedPaths(LedgerEntry, patch(VALID_LEDGER, 'sentences.1.paragraph', undefined))).toEqual(['sentences.1.paragraph']);
+    expect(failedPaths(LedgerEntry, patch(VALID_LEDGER, 'sentences.1.paragraph', -1))).toEqual(['sentences.1.paragraph']);
+    expect(failedPaths(LedgerEntry, patch(VALID_LEDGER, 'sentences.1.paragraph', 1.5))).toEqual(['sentences.1.paragraph']);
+    expectValid(LedgerEntry, patch(VALID_LEDGER, 'sentences.1.paragraph', 3));
   });
 
   it('accepts attributed on a ledger sentence, as true or false, and refuses anything else', () => {

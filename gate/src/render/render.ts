@@ -1,9 +1,9 @@
 import type { GateResult } from '../gate';
 import { dayNumber } from '../normalise';
-import type { Claim, Draft, LedgerEntry, LedgerSentence, Sentence } from '../schemas';
+import type { Claim, Draft, LedgerEntry, LedgerSentence } from '../schemas';
 import { allSentences } from '../sentences';
 import type { LocatedSentence } from '../sentences';
-import { escapeMdx } from './escape';
+import { renderBody } from './body';
 
 /** What the renderer needs besides the draft and the claims. */
 export interface RenderMeta {
@@ -23,8 +23,6 @@ export interface RenderedPiece {
   ledger: LedgerEntry;
 }
 
-const TAKEAWAYS_HEADING = 'Key takeaways';
-const LIMITATIONS_HEADING = "What we couldn't verify";
 const PLAIN_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Order by UTF-16 code units, so the result does not depend on the machine's locale. */
@@ -45,6 +43,11 @@ function claimOrder(located: readonly LocatedSentence[]): string[] {
  * Render a gated draft as MDX plus its ledger entry. The output is a pure
  * function of the arguments: no clock, no randomness, newline line endings.
  * No text from the draft reaches the MDX unescaped.
+ *
+ * The body of the MDX is `renderBody(ledger)`: the ledger is built first and
+ * the body is written from it, not from the draft. A section with no sentence
+ * has nothing in the ledger, so the page has no heading for it, and neighbouring
+ * sections with the same heading come out as one.
  */
 export function renderDraft(draft: Draft, claims: readonly Claim[], meta: RenderMeta): RenderedPiece {
   const located = allSentences(draft);
@@ -54,17 +57,6 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
   for (const id of order) {
     if (!claimsById.has(id)) throw new Error(`renderDraft: a sentence cites ${id}, but no claim has that id`);
   }
-  const markerOf = new Map(order.map((id, at) => [id, at + 1]));
-
-  const receipts = `/news/${draft.slug}/receipts/`;
-  const marker = (id: string) => `[${markerOf.get(id)}](${receipts}#${id})`;
-  const sentence = (item: Sentence): string => {
-    // A sentence has at most one label: analysis is the Desk's reading, "Unconfirmed." marks a fact it only attributes.
-    const label = item.kind === 'analysis' ? '**Analysis.** ' : item.kind === 'fact' && item.attributed === true ? '**Unconfirmed.** ' : '';
-    const markers = [...new Set(item.claimIds)].map(marker).join('');
-    return `${label}${escapeMdx(item.text)}${markers}`;
-  };
-  const paragraph = (items: readonly Sentence[]): string => items.map(sentence).join(' ');
 
   for (const category of draft.categories) {
     if (!PLAIN_SLUG.test(category)) throw new Error(`renderDraft: the category "${category}" is not a plain slug`);
@@ -89,22 +81,6 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
     '---',
   ].join('\n');
 
-  const blocks: string[] = [];
-  if (draft.opening.length > 0) blocks.push(paragraph(draft.opening));
-  if (draft.takeaways.length > 0) {
-    blocks.push(`## ${TAKEAWAYS_HEADING}`);
-    blocks.push(draft.takeaways.map((item) => `- ${sentence(item)}`).join('\n'));
-  }
-  for (const section of draft.sections) {
-    blocks.push(`## ${escapeMdx(section.heading)}`);
-    for (const paragraphOf of section.paragraphs) blocks.push(paragraph(paragraphOf));
-  }
-  if (draft.limitations.length > 0) {
-    blocks.push(`## ${LIMITATIONS_HEADING}`);
-    blocks.push(paragraph(draft.limitations));
-  }
-  const mdx = `${frontmatter}\n\n${blocks.join('\n\n')}\n`;
-
   const cited = order.map((id) => claimsById.get(id) as Claim);
   const sources = new Map<string, LedgerEntry['sources'][number]>();
   for (const claim of cited) {
@@ -115,7 +91,14 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
 
   const sentences: LedgerSentence[] = located.map((item) => {
     const { sentence: written } = item;
-    const entry: LedgerSentence = { index: item.index, section: item.section, kind: written.kind, text: written.text, claimIds: [...written.claimIds] };
+    const entry: LedgerSentence = {
+      index: item.index,
+      section: item.section,
+      paragraph: item.paragraph,
+      kind: written.kind,
+      text: written.text,
+      claimIds: [...written.claimIds],
+    };
     if (item.heading !== undefined) entry.heading = item.heading;
     if (written.kind === 'fact' && written.attributed === true) entry.attributed = true;
     return entry;
@@ -135,5 +118,5 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
     ...(meta.verifier === undefined ? {} : { verifier: structuredClone(meta.verifier) }),
     sources: [...sources.values()].sort((a, b) => byText(a.url, b.url)),
   };
-  return { mdx, ledger };
+  return { mdx: `${frontmatter}\n\n${renderBody(ledger)}`, ledger };
 }

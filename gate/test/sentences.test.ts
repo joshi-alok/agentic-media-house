@@ -50,6 +50,57 @@ describe('allSentences', () => {
     }
   });
 
+  it('numbers the paragraph of each sentence from 0 within its section or list: the opening and the limitations are one paragraph, each takeaway is its own', () => {
+    const paragraphs = (section: string) => located.filter((item) => item.section === section).map((item) => item.paragraph);
+    expect(paragraphs('title')).toEqual([0]);
+    expect(paragraphs('description')).toEqual([0]);
+    expect(located.filter((item) => item.section === 'description').map((item) => item.position)).toEqual([1]);
+    expect(new Set(paragraphs('opening'))).toEqual(new Set([0]));
+    expect(paragraphs('takeaways')).toEqual(GOLDEN_DRAFT.takeaways.map((_item, at) => at));
+    expect(new Set(paragraphs('limitations'))).toEqual(new Set([0]));
+  });
+
+  it('numbers the paragraphs of a body section from 0 under its heading, a paragraph holding all its sentences', () => {
+    for (const section of GOLDEN_DRAFT.sections) {
+      const inSection = located.filter((item) => item.heading === section.heading);
+      expect(inSection.map((item) => item.paragraph)).toEqual(section.paragraphs.flatMap((paragraph, at) => paragraph.map(() => at)));
+    }
+  });
+
+  describe('when headings repeat or sections are empty', () => {
+    const sentence = (text: string): Draft['opening'][number] => ({ kind: 'fact', text, claimIds: ['c-1'] });
+    const draftWith = (sections: Draft['sections']): Draft => ({ ...GOLDEN_DRAFT, opening: [], takeaways: [], limitations: [], sections });
+    const body = (draft: Draft) => allSentences(draft).filter((item) => item.section === 'body').map((item) => [item.sentence.text, item.paragraph]);
+
+    it('goes on counting across neighbouring sections that share a heading, as the page shows them as one section', () => {
+      const draft = draftWith([
+        { heading: 'Same', paragraphs: [[sentence('a')], [sentence('b')]] },
+        { heading: 'Same', paragraphs: [[sentence('c')]] },
+        { heading: 'Other', paragraphs: [[sentence('d')]] },
+      ]);
+      expect(body(draft)).toEqual([['a', 0], ['b', 1], ['c', 2], ['d', 0]]);
+    });
+
+    it('starts again from 0 when the same heading comes back after another one', () => {
+      const draft = draftWith([
+        { heading: 'Same', paragraphs: [[sentence('a')], [sentence('b')]] },
+        { heading: 'Other', paragraphs: [[sentence('c')]] },
+        { heading: 'Same', paragraphs: [[sentence('d')]] },
+      ]);
+      expect(body(draft)).toEqual([['a', 0], ['b', 1], ['c', 0], ['d', 0]]);
+    });
+
+    it('does not count an empty paragraph', () => {
+      const draft = draftWith([{ heading: 'Same', paragraphs: [[sentence('a')], [], [sentence('b')]] }]);
+      expect(body(draft)).toEqual([['a', 0], ['b', 1]]);
+    });
+
+    it('lists nothing for a section with no sentence in it', () => {
+      const draft = draftWith([{ heading: 'Empty', paragraphs: [[]] }, { heading: 'Full', paragraphs: [[sentence('a')]] }]);
+      expect(body(draft)).toEqual([['a', 0]]);
+    });
+  });
+
   it('handles a draft with nothing but a title and a description', () => {
     const bare: Draft = {
       ...GOLDEN_DRAFT,

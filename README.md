@@ -63,6 +63,14 @@ Until the Desk has published something there is nothing real to show, so the sit
 - The generated files are committed. `npm run fixtures:check` fails if they are out of date.
 - The site reads `site/src/content-fixtures/` only when `ROBYWIRE_FIXTURES=1`, which `npm run build:fixtures` sets. Otherwise it reads `site/src/content/`, which holds no pieces. A fixture build shows a ribbon at the top of every page that reads FIXTURE DATA and says it is not real reporting. A production build has neither the ribbon nor the words Fixture Robotics anywhere, and `npm run audit:prod` fails if it does.
 
+## What the site refuses to build
+
+A piece is two files: the MDX that readers see and the ledger JSON behind its receipts. `site/src/lib/match-pieces.ts` joins them and stops the build, with a message that names the piece, when they do not belong together:
+
+- the ledger has no piece, or the piece has no ledger, or their slug, title, date or categories differ;
+- the body of the MDX is not exactly what `renderBody` (in `gate/src/render/body.ts`) writes from the ledger, so a hand edit of the article, or of the ledger, is caught on the first build;
+- a correction or retraction is recorded in the desk state for the piece and its `updatedAt` is not the day of the latest one, or it has an `updatedAt` and nothing is recorded.
+
 ## The audit
 
 `npm run audit` reads the built pages in `site/dist` and checks them against the rules of the design and of the content. The checks are listed, with a sentence for each, in `site/scripts/audit/checks.mjs`; every check has a test that gives it a page it must accept and a page it must reject. They include: every page parses and has one `h1`, a title, a description and a skip link; no images, no italics, no web fonts, no border over one pixel, no rounded corner; every colour is one of the design tokens in `site/src/styles/tokens.css`; every internal link and `#fragment` resolves; every article links to its receipts page and has `NewsArticle` data; every claim marker in an article leads to its claim; and the feed, the sitemap, `robots.txt` and the 404 page are there and agree.

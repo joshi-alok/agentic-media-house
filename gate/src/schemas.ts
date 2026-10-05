@@ -138,6 +138,9 @@ export type Draft = z.infer<typeof Draft>;
 export const LedgerSentence = z.object({
   index: z.number().int().nonnegative(),
   section: z.enum(LEDGER_SECTIONS),
+  // The paragraph the sentence is in, counted from 0 within its section (see LocatedSentence in sentences.ts).
+  // With the text, the claims and the order of the ledger it is all that renderBody needs to write the article's body.
+  paragraph: z.number().int().nonnegative(),
   heading: z.string().optional(),
   kind: z.enum(SENTENCE_KINDS),
   text: z.string(),
