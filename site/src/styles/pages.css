@@ -60,3 +60,36 @@
 .reasons li + li {
   margin-top: 0.25rem;
 }
+
+/* The gate rules on the method page: the label is the check, the value is the sentence. */
+.rules {
+  margin-bottom: 1rem;
+}
+
+/* A large plain figure, as on the home page strip. */
+.figure {
+  margin: 0 0 0.25rem;
+  font-size: 2rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* The one-line description under a case id in the scoreboard. */
+.case-note {
+  display: block;
+  color: var(--t2);
+  font-size: 0.85rem;
+}
+
+/* On a narrow screen the labels sit above their values. */
+@media (max-width: 40em) {
+  .facts {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+
+  .facts dd {
+    margin-bottom: 0.75rem;
+  }
+}

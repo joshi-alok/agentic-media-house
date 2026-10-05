@@ -1,0 +1,168 @@
+---
+import board from '@robywire/evals/scoreboard';
+import TableWrap from '../../components/TableWrap.astro';
+import Base from '../../layouts/Base.astro';
+import { PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../../lib/method';
+import '../../styles/pages.css';
+
+const rules = gateRules();
+---
+
+<Base
+  title="Method"
+  description="How Robywire is made: the two kinds of source, the claim ledger, the nine rules of the gate, what the Desk never does, and the scoreboard of defects the gate was tested against."
+  canonicalPath="/method/"
+>
+  <div class="container">
+    <header class="page-head">
+      <h1>Method</h1>
+      <p class="dek">How a piece gets here, and what stops it.</p>
+    </header>
+
+    <div class="prose">
+      <h2 id="what">What the Desk is</h2>
+      <p>
+        Robywire is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code
+        decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot
+        trace is not published.
+      </p>
+
+      <h2 id="today">What exists today, and what does not</h2>
+      <p>
+        Built and tested: the gate with its nine checks, the format of the claim ledger, the renderer that turns a checked draft into a page, the receipts pages, the status, holds and corrections
+        pages, and the scoreboard at the end of this page.
+      </p>
+      <p>
+        Not running yet: the pipeline that finds, fetches and writes stories, the independent model check, and the daily schedule. Before the Desk publishes on its own it will run for five days in
+        shadow, writing and checking but publishing nothing, and then for fourteen days in public, and a short written report will cover that trial. The parts that are not running are described in
+        the future tense below.
+      </p>
+
+      <h2 id="sources">Two kinds of source</h2>
+      <p>
+        A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet. The Desk writes from tier 1 sources. A tier 2 source
+        is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an
+        attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk does not rewrite a
+        competitor's reporting; the story is held.
+      </p>
+
+      <h2 id="pipeline">How a piece is made</h2>
+      <p>The Desk is designed as seven stages. Each stage will read only the typed output of the one before it.</p>
+      <ol>
+        {
+          PIPELINE_STAGES.map((stage) => (
+            <li>
+              <strong>{stage.name}.</strong> {stage.text}
+            </li>
+          ))
+        }
+      </ol>
+
+      <h2 id="ledger">The claim ledger and the receipts</h2>
+      <p>
+        Every factual sentence is built from claims. A claim is one atomic statement, such as a number with its unit, a date or a name. It carries the exact passage of the source it rests on (at most
+        300 characters, word for word), the address of the source, a hash of the source as it was fetched, and the time it was fetched. It also records the basis of the figure, such as a datasheet, a
+        press release, a filing, a paper, a measurement or a demonstration, and its status: demonstrated, deployed, planned or unspecified.
+      </p>
+      <p>
+        Each sentence cites the claims it rests on. On the page, a small numbered link follows the sentence and leads to the receipt for that claim: the passage, the source, the hash and the time.
+        The receipts page of a piece also shows the result of every check. The full text of a source is not republished.
+      </p>
+
+      <h2 id="gate">The gate: nine rules</h2>
+      <p>
+        The gate is code. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same
+        answer. If one fails, the draft is not published; it goes back for revision with the exact failures. In plain English the rules are these.
+      </p>
+    </div>
+    <dl class="facts rules">
+      {
+        rules.map((rule) => (
+          <>
+            <dt>
+              {rule.id} {rule.name}
+            </dt>
+            <dd>{rule.text}</dd>
+          </>
+        ))
+      }
+    </dl>
+
+    <div class="prose">
+      <h2 id="model-check">The independent model check</h2>
+      <p>
+        On every piece, once the Desk is live, a second model call will read each factual sentence beside the passages it cites and judge whether they say the same thing, and whether the basis and
+        status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. This check will be a
+        second layer on top of the nine rules, never the only one. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some
+        subtly distorted. It is not running yet.
+      </p>
+
+      <h2 id="holds">Holds</h2>
+      <p>
+        A piece is held when the gate cannot clear it: a check still fails after two rounds of revision, or a rule asks for a human decision, as G6 does for any piece that uses another outlet's
+        reporting. A held draft is not published. It is designed to go to the owner as a draft pull request that carries the gate report. What was stopped and why is public on the
+        <a href="/holds/">holds page</a>: the date, the beats and the reasons. The held text is not. A hold is the normal result when the Desk is unsure. A day with no piece is better than a day with a
+        wrong one.
+      </p>
+
+      <h2 id="corrections">Corrections and retractions</h2>
+      <p>
+        Nothing is edited or removed in silence. A correction fixes a factual error: the article gets a notice at the top that says what changed and when, the page's updated date is set, and the
+        correction is listed on the <a href="/corrections/">corrections page</a>. A retraction withdraws a piece: the page stays up with a visible notice, and its receipts stay public.
+      </p>
+
+      <h2 id="disclosure">Disclosure</h2>
+      <p>
+        Every page says in its footer that the site is written by an automated pipeline, and the byline of every article says the same. No piece carries a human author's name, and none pretends to
+        have been reported by a person.
+      </p>
+
+      <h2 id="never">What the Desk never does</h2>
+      <ul>
+        <li>It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".</li>
+        <li>It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.</li>
+        <li>It uses no photographs. Each piece gets a fact card drawn from its own claims.</li>
+        <li>It does not rewrite another outlet's reporting as its own. A story with no reachable primary source is held.</li>
+        <li>It does not publish a sentence the gate cannot trace to a source.</li>
+      </ul>
+
+      <h2 id="scoreboard">The scoreboard</h2>
+      <p>
+        A gate is worth what it catches. To test this one, the golden example piece is broken on purpose, once for every failure code of the nine checks, and the gate has to catch every break. A
+        missed defect fails the tests. The result is kept with the code, and this table is read from it.
+      </p>
+      <p class="figure">{scoreboardHeadline(board)}</p>
+      <p>The unbroken golden piece {board.baselinePasses ? 'publishes' : 'does not publish'}.</p>
+    </div>
+    <TableWrap label="Seeded defects and the gate's result for each">
+      <table>
+        <caption class="visually-hidden">Seeded defects, the check and code that should catch each, and whether the gate caught it</caption>
+        <thead>
+          <tr>
+            <th scope="col">Case</th>
+            <th scope="col">Check</th>
+            <th scope="col">Code</th>
+            <th scope="col">Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            board.cases.map((item) => (
+              <tr>
+                <td>
+                  <span class="mono">{item.id}</span>
+                  <span class="case-note">{item.description}</span>
+                </td>
+                <td>{item.check}</td>
+                <td class="mono">{item.code}</td>
+                <td>
+                  <span class={item.caught ? 'chip chip--pass' : 'chip chip--fail'}>{item.caught ? 'caught' : 'missed'}</span>
+                </td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </TableWrap>
+  </div>
+</Base>
