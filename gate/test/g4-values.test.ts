@@ -297,6 +297,46 @@ describe('G4 names', () => {
   });
 });
 
+describe('G4 names: the outlet of a tier-2 claim', () => {
+  const fromOutlet = (id: string, outlet: string) =>
+    claimOf([num('7', '7')], { id, source: { ...claimOf([]).source, tier: 2, outlet } });
+
+  it('is a name the sentence may use, because an attribution has to say who reported it', () => {
+    const claim = fromOutlet('c-1', 'The Robot Report');
+    expect(codes(mini('Sales rose to 7, The Robot Report says.', [claim]))).toEqual([]);
+  });
+
+  it('is accepted word by word, in any case', () => {
+    expect(codes(mini('Sales rose to 7, says MERCER wire.', [fromOutlet('c-1', 'Mercer Wire')]))).toEqual([]);
+  });
+
+  it('is not accepted from a claim the sentence does not cite', () => {
+    const claim = fromOutlet('c-2', 'Mercer Wire');
+    expect(codes(mini('Sales rose to 7, says Mercer Wire.', [claim], ['c-2']))).toEqual([]);
+    expect(codes(mini('Sales rose to 7, says Mercer Wire.', [claim, claimOf([num('7', '7')], { id: 'c-1' })], ['c-1']))).toEqual([
+      'G4_NAME_UNSUPPORTED',
+      'G4_NAME_UNSUPPORTED',
+    ]);
+  });
+
+  it('does not make any other capitalised word acceptable', () => {
+    expect(codes(mini('Sales rose to 7, says Mercer Wire in Harlow.', [fromOutlet('c-1', 'Mercer Wire')]))).toEqual([
+      'G4_NAME_UNSUPPORTED',
+    ]);
+  });
+
+  it('lets the golden piece name the outlet of an attributed tier-2 sentence', () => {
+    const failures = goldenCodes((g) => {
+      const claim = g.claims.find((item) => item.id === 'c-19')!;
+      claim.source.tier = 2;
+      claim.source.outlet = 'Mercer Wire';
+      findSentence(g.draft, (sentence) => sentence.text === 'It lists 7 investors in the round.').text =
+        'The Mercer Wire reports that 7 investors took part in the round.';
+    });
+    expect(failures).toEqual([]);
+  });
+});
+
 describe('G4: which sentences it reads', () => {
   it('does not read quoted text, which G5 checks', () => {
     expect(codes(mini('Jane said "Acme ships 500 units on 3 May 2027" today.', [claimOf([])]))).toEqual([]);

@@ -38,7 +38,7 @@ const claimDate = (value: ClaimValue): string => parseDateToken(value.raw)?.iso 
  * A number matches a claim number with the same canonical value, and the same
  * canonical unit if the sentence gives one. A date matches a claim date at the
  * precision the sentence uses. A name matches when each of its words is a word
- * of a cited claim's name value or is on the allow-list. Name detection is
+ * of a cited claim's name value or outlet, or is on the allow-list. Name detection is
  * deliberately strict (see `extractTokens`): a false positive only costs a
  * revision round, a false negative would let an invented name through.
  *
@@ -59,7 +59,13 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
     const values = cited.flatMap((claim) => claim.values);
     const supportedNumbers = values.filter((value) => value.kind === 'number').map(claimNumber);
     const supportedDates = values.filter((value) => value.kind === 'date').map(claimDate);
-    const supportedNames = new Set(values.filter((value) => value.kind === 'name').flatMap((value) => nameTokensOf(value.raw)));
+    // The outlet of a cited claim counts as a name too: a tier-2 claim can only
+    // be used as an attribution ("Mercer Wire reports ..."), and G6 requires the
+    // sentence to say so. The outlet is recorded by the pipeline, not written by the composer.
+    const supportedNames = new Set([
+      ...values.filter((value) => value.kind === 'name').flatMap((value) => nameTokensOf(value.raw)),
+      ...cited.flatMap((claim) => nameTokensOf(claim.source.outlet ?? '')),
+    ]);
 
     const tokens = extractTokens(sentence.text);
     const fail = (code: string, message: string) => failures.push({ check: 'G4', code, message, where });
