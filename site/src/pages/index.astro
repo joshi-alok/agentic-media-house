@@ -1,0 +1,16 @@
+---
+import { getCollection } from 'astro:content';
+
+const news = await getCollection('news');
+const ledger = await getCollection('ledger');
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Robywire</title>
+  </head>
+  <body>
+    <p>news: {news.length}, ledger: {ledger.length}</p>
+  </body>
+</html>
