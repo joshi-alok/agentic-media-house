@@ -1,0 +1,64 @@
+/* The home page, and the lists of pieces that the topic pages share. */
+
+.home-title {
+  max-width: 32ch;
+  margin: 0 0 2rem;
+  color: var(--t2);
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.lead {
+  max-width: 65ch;
+  margin-bottom: 3rem;
+}
+
+.lead__title {
+  margin: 0 0 0.75rem;
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+.lead__title a,
+.piece-list__title {
+  color: var(--t1);
+}
+
+.beat-group {
+  max-width: 65ch;
+  margin-bottom: 2rem;
+}
+
+.beat-group h2 {
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+}
+
+.piece-list {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.piece-list li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.piece-list__title {
+  font-weight: 600;
+}
+
+.piece-list__meta,
+.piece-list__dek {
+  display: block;
+  color: var(--t2);
+  font-size: 0.85rem;
+}
+
+.empty {
+  max-width: 65ch;
+  margin-bottom: 3rem;
+  color: var(--t2);
+}

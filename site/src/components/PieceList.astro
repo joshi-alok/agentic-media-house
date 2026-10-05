@@ -1,0 +1,25 @@
+---
+import { formatDate } from '../lib/format';
+import { articlePath } from '../lib/paths';
+import type { Piece } from '../lib/pieces';
+
+interface Props {
+  pieces: readonly Pick<Piece, 'slug' | 'data'>[];
+}
+
+const { pieces } = Astro.props;
+---
+
+<ul class="piece-list">
+  {
+    pieces.map((piece) => (
+      <li>
+        <a class="piece-list__title" href={articlePath(piece.slug)}>
+          {piece.data.title}
+        </a>
+        <span class="piece-list__meta">{formatDate(piece.data.publishedAt)}</span>
+        <span class="piece-list__dek">{piece.data.description}</span>
+      </li>
+    ))
+  }
+</ul>

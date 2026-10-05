@@ -1,0 +1,23 @@
+---
+import type { StripItem } from '../lib/stats';
+
+interface Props {
+  items: readonly StripItem[];
+}
+
+const { items } = Astro.props;
+---
+
+<dl class="strip" aria-label="The ledger in numbers">
+  {
+    items.map((item) => (
+      <div class="stat">
+        <dt>{item.label}</dt>
+        <dd>
+          {item.value}
+          {item.note !== undefined && <span class="stat__note">{item.note}</span>}
+        </dd>
+      </div>
+    ))
+  }
+</dl>

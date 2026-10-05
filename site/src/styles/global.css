@@ -177,6 +177,23 @@ code,
   color: var(--t2);
 }
 
+/* The line under a headline, and the line with the date. Shared by the article and the home page. */
+.dek {
+  margin: 0 0 1rem;
+  color: var(--t2);
+  font-size: 1.15rem;
+}
+
+.byline {
+  margin: 0;
+  color: var(--t2);
+  font-size: 0.85rem;
+}
+
+.byline a {
+  color: var(--t2);
+}
+
 /* A row of beat chips; each links to its topic page. */
 .chips {
   display: flex;
@@ -244,6 +261,14 @@ th {
   font-weight: 400;
   letter-spacing: -0.02em;
   line-height: 1.2;
+}
+
+.stat__note {
+  display: block;
+  color: var(--t2);
+  font-size: 0.85rem;
+  letter-spacing: 0;
+  line-height: 1.4;
 }
 
 @media (prefers-reduced-motion: reduce) {

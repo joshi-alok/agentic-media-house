@@ -1,13 +1,63 @@
 ---
-import { getCollection } from 'astro:content';
+import BeatChips from '../components/BeatChips.astro';
+import LedgerStrip from '../components/LedgerStrip.astro';
+import PieceList from '../components/PieceList.astro';
 import Base from '../layouts/Base.astro';
+import { getDeskState } from '../lib/desk-state';
+import { beatLabel, formatDate } from '../lib/format';
+import { groupByBeat } from '../lib/group';
+import { articlePath, topicPath } from '../lib/paths';
+import { getPieces } from '../lib/pieces';
+import { ledgerStats, stripItems } from '../lib/stats';
+import '../styles/home.css';
 
-const news = await getCollection('news');
-const ledger = await getCollection('ledger');
+// How many pieces below the lead the home page lists: about two weeks of a daily site.
+const RECENT = 14;
+
+const pieces = await getPieces();
+const [lead, ...older] = pieces;
+const groups = groupByBeat(older.slice(0, RECENT));
+const items = stripItems(
+  ledgerStats(
+    pieces.map((piece) => piece.ledger),
+    await getDeskState(),
+  ),
+);
 ---
 
-<Base title="Robywire" description="Daily robotics news, with every factual sentence traced to a primary source." canonicalPath="/">
+<Base
+  title="Robywire"
+  description="Robotics news written by an automated pipeline. Every factual sentence links to the passage of a primary source that it rests on."
+  canonicalPath="/"
+>
   <div class="container">
-    <p>news: {news.length}, ledger: {ledger.length}</p>
+    <h1 class="home-title">Robotics news with a receipt for every claim.</h1>
+    {
+      lead === undefined ? (
+        <p class="empty">No pieces yet.</p>
+      ) : (
+        <section class="lead" aria-labelledby="lead-title">
+          <BeatChips categories={lead.data.categories} />
+          <h2 class="lead__title" id="lead-title">
+            <a href={articlePath(lead.slug)}>{lead.data.title}</a>
+          </h2>
+          <p class="dek">{lead.data.description}</p>
+          <p class="byline">
+            <time datetime={lead.data.publishedAt}>{formatDate(lead.data.publishedAt)}</time>
+          </p>
+        </section>
+      )
+    }
+    {
+      groups.map((group) => (
+        <section class="beat-group">
+          <h2>
+            <a href={topicPath(group.beat)}>{beatLabel(group.beat)}</a>
+          </h2>
+          <PieceList pieces={group.pieces} />
+        </section>
+      ))
+    }
+    <LedgerStrip items={items} />
   </div>
 </Base>

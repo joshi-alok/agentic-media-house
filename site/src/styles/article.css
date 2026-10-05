@@ -11,22 +11,6 @@
   line-height: 1.15;
 }
 
-.dek {
-  margin: 0 0 1rem;
-  color: var(--t2);
-  font-size: 1.15rem;
-}
-
-.byline {
-  margin: 0;
-  color: var(--t2);
-  font-size: 0.85rem;
-}
-
-.byline a {
-  color: var(--t2);
-}
-
 .notice {
   max-width: 65ch;
   margin: 0 0 1.5rem;
