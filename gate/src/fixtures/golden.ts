@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import type { Claim, ClaimValue } from '../schemas';
+import { renderLimitation } from '../limitations';
+import type { AnalysisSentence, Claim, ClaimValue, Draft, FactSentence, LimitationSentence } from '../schemas';
 
 // The golden fixture: one complete, fictional news piece that passes every
 // check. Fixture Robotics, the FX-1 arm, Brindle Logistics and every URL on a
@@ -403,3 +404,157 @@ const CLAIMS: Claim[] = [
 ];
 
 export const GOLDEN_CLAIMS: Claim[] = deepFreeze(CLAIMS);
+
+const claimById = (id: string): Claim => {
+  const found = CLAIMS.find((item) => item.id === id);
+  if (found === undefined) throw new Error(`the golden fixture has no claim ${id}`);
+  return found;
+};
+
+const fact = (text: string, ...claimIds: string[]): FactSentence => ({ kind: 'fact', text, claimIds });
+const analysis = (text: string, ...claimIds: string[]): AnalysisSentence => ({ kind: 'analysis', text, claimIds });
+// A limitation sentence is rendered from the claim it describes, so the
+// fixture and the gate's templates cannot drift apart.
+const limitation = (id: string, template: 'basis' | 'status'): LimitationSentence => ({
+  kind: 'limitation',
+  text: renderLimitation(claimById(id), template),
+  claimIds: [id],
+  template,
+});
+
+const DRAFT: Draft = {
+  slug: 'fixture-robotics-ships-fx-1-to-second-plant',
+  publishedAt: '2026-10-04',
+  categories: ['industrial-warehouse', 'funding'],
+  author: { name: 'Robywire Desk' },
+  title: fact('Fixture Robotics ships its FX-1 warehouse arm to a second plant', 'c-1'),
+  description: fact(
+    'Fixture Robotics has begun shipping the FX-1 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor.',
+    'c-1',
+    'c-8',
+  ),
+  opening: [
+    fact(
+      'Fixture Robotics has begun shipping its FX-1 warehouse arm to a second plant run by Brindle Logistics, at Tarnmoor.',
+      'c-1',
+    ),
+    fact('The first site, at Ashvale, now runs 40 of the arms, and a third site is planned.', 'c-23', 'c-26'),
+    fact(
+      'The company also reported a $450 million funding round, led by Corvane Partners, in a regulatory filing.',
+      'c-17',
+      'c-18',
+    ),
+  ],
+  takeaways: [
+    fact('Tarnmoor is the second Brindle Logistics plant to receive FX-1 arms.', 'c-1'),
+    fact('The datasheet lists a 12 kg rated payload and a 1.4 m maximum reach.', 'c-8', 'c-9'),
+    fact('Brindle Logistics measured an 18% cut in cycle time at Ashvale.', 'c-20'),
+    fact('The filing dates the first sale of the $450 million round to 29 September 2026.', 'c-16', 'c-17'),
+  ],
+  sections: [
+    {
+      heading: 'What shipped',
+      paragraphs: [
+        [
+          fact(
+            "Fixture Robotics announced on 1 October 2026 that deliveries of the FX-1 warehouse arm to Brindle Logistics have started at Tarnmoor, the customer's second plant.",
+            'c-1',
+            'c-2',
+          ),
+          fact('The company says the arm is built for tote picking and trailer unloading.', 'c-1'),
+          fact('It also says the arm mounts on existing conveyor frames without a new safety cage.', 'c-3'),
+          fact('Fixture Robotics lists the arm from $38,000, with delivery within 12 weeks of an order.', 'c-4'),
+        ],
+        [
+          fact(
+            'The datasheet lists a rated payload of 12 kg at full reach and a maximum reach of 1.4 m from the base.',
+            'c-8',
+            'c-9',
+          ),
+          fact('Peak tool speed is 2.3 m/s, and repeatability is 0.05 mm.', 'c-10', 'c-11'),
+          fact('The same document gives a throughput of up to 1,200 picks an hour.', 'c-12'),
+          fact('The arm itself weighs 38 kg and draws 650 W in typical use.', 'c-13', 'c-14'),
+          fact(
+            'It lists an ingress protection rating of IP54, which the company describes as suitable for dusty warehouse floors.',
+            'c-15',
+          ),
+        ],
+        [
+          fact('At Ashvale, the first Brindle Logistics plant, 40 FX-1 arms are now running.', 'c-23'),
+          fact('Tarnmoor is due to receive 60 arms by 30 November 2026.', 'c-5'),
+          fact('Brindle Logistics plans to use the arms at Tarnmoor for inbound trailer unloading.', 'c-25'),
+        ],
+      ],
+    },
+    {
+      heading: 'What the customer reports',
+      paragraphs: [
+        [
+          fact('At Ashvale, Brindle Logistics measured an 18% cut in cycle time on its tote-picking cells.', 'c-20'),
+          fact('It compared the four weeks before and after the arms went live.', 'c-20'),
+          fact('The installation at Ashvale went live on 18 August 2026, according to Brindle Logistics.', 'c-24'),
+          fact(
+            '"We went from pilot to production in nine weeks," said Dana Whitcombe, chief operating officer of Brindle Logistics.',
+            'c-22',
+          ),
+        ],
+        [
+          fact('Across the same weeks, Ashvale averaged 940 picks an hour per arm.', 'c-21'),
+          analysis(
+            'The measured rate sits below the datasheet maximum, which is normal for a figure quoted as an upper limit.',
+            'c-21',
+            'c-12',
+          ),
+          fact(
+            'At a demo day on 24 September 2026, Fixture Robotics showed an FX-1 arm unloading mixed cartons from a trailer.',
+            'c-27',
+            'c-28',
+          ),
+        ],
+        [fact('Brindle Logistics plans to add a third site in 2027.', 'c-26')],
+      ],
+    },
+    {
+      heading: 'What the filing shows',
+      paragraphs: [
+        [
+          fact(
+            'The round, led by Corvane Partners, totals $450 million, according to a regulatory filing.',
+            'c-17',
+            'c-18',
+          ),
+          fact('The filing records the first sale on 29 September 2026.', 'c-16'),
+          fact('It lists 7 investors in the round.', 'c-19'),
+        ],
+        [
+          fact('Fixture Robotics said it will use the funds to expand FX-1 production.', 'c-7'),
+          fact('It expects to build 500 FX-1 arms in 2027.', 'c-6'),
+        ],
+      ],
+    },
+  ],
+  limitations: [
+    limitation('c-8', 'basis'),
+    limitation('c-9', 'basis'),
+    limitation('c-10', 'basis'),
+    limitation('c-11', 'basis'),
+    limitation('c-12', 'basis'),
+    limitation('c-13', 'basis'),
+    limitation('c-14', 'basis'),
+    limitation('c-4', 'basis'),
+    limitation('c-27', 'basis'),
+    limitation('c-27', 'status'),
+    limitation('c-23', 'status'),
+    limitation('c-5', 'status'),
+    limitation('c-25', 'status'),
+    limitation('c-26', 'status'),
+    limitation('c-20', 'basis'),
+  ],
+};
+
+export const GOLDEN_DRAFT: Draft = deepFreeze(DRAFT);
+
+/** A deep copy of the golden draft and claims, in the shape the gate takes. Tests change copies, never the originals. */
+export function cloneGolden(): { draft: Draft; claims: Claim[] } {
+  return structuredClone({ draft: GOLDEN_DRAFT, claims: GOLDEN_CLAIMS });
+}
