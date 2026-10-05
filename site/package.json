@@ -30,6 +30,7 @@
     "diff": "9.0.0",
     "fast-xml-parser": "5.11.2",
     "fast-xml-validator": "1.4.2",
+    "parse5": "8.0.1",
     "satteri": "0.10.5",
     "typescript": "6.0.3"
   }
