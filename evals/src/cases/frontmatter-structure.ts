@@ -157,6 +157,26 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'heading-too-long',
+    check: 'G2',
+    code: 'G2_HEADING_TOO_LONG',
+    description: 'A section heading runs to more than 80 characters.',
+    apply: (base) => {
+      base.draft.sections[0]!.heading = 'What shipped, in the order that the company announced it, with every detail that its release gives';
+      return base;
+    },
+  },
+  {
+    id: 'empty-heading',
+    check: 'G2',
+    code: 'G2_HEADING_EMPTY',
+    description: 'A section heading is blank.',
+    apply: (base) => {
+      base.draft.sections[0]!.heading = '  ';
+      return base;
+    },
+  },
+  {
     id: 'no-limitations',
     check: 'G2',
     code: 'G2_LIMITATIONS_MISSING',

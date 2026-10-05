@@ -4,8 +4,8 @@ import type { ParsedNumber } from '../normalise';
 import type { Claim, ClaimValue } from '../schemas';
 import { claimWords, openingWordAccepted } from '../grounding';
 import { allSentences, describeLocation } from '../sentences';
-import { normaliseQuotes } from '../text';
-import { extractTokens, nameTokensOf } from '../tokens';
+import { hasQuoted, normaliseQuotes } from '../text';
+import { extractTokens, nameTokensOf, toNameToken } from '../tokens';
 
 /** Every failure code G4 can report. */
 export const G4_CODES = [
@@ -14,6 +14,9 @@ export const G4_CODES = [
   'G4_NAME_UNSUPPORTED',
   'G4_VALUE_NOT_IN_SPAN',
   'G4_INITIAL_WORD_UNSUPPORTED',
+  'G4_HEADING_NUMBER',
+  'G4_HEADING_QUOTE',
+  'G4_HEADING_NAME',
 ] as const;
 
 /**
@@ -50,6 +53,13 @@ const claimDate = (value: ClaimValue): string => parseDateToken(value.raw)?.iso 
  * SENTENCE_STARTERS, or a word of the text, label, quoted passage, name values or
  * outlet of a claim the sentence cites, or on the allow-list. Without it, a
  * made-up company at the start of a sentence would only have its second word checked.
+ *
+ * Section headings are free text that no claim vouches for, so they are held
+ * to a stricter rule than sentences: a heading may contain no number and no
+ * date (G4_HEADING_NUMBER), no quoted passage (G4_HEADING_QUOTE), and no
+ * capitalised word, the first one included, that is not a word of a claim cited in
+ * its own section or on the allow-list (G4_HEADING_NAME; the first word may also be
+ * a function word from SENTENCE_STARTERS).
  *
  * Analysis and limitation sentences are not read here. Quoted text is G5's.
  */
@@ -114,6 +124,39 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
           `the capitalised word "${name}" at ${where} is not a name in any claim this sentence cites: list it as a name value, or write it in lowercase if it is an ordinary word`,
         );
       }
+    }
+  }
+
+  for (const section of draft.sections) {
+    const heading = section.heading;
+    const fail = (code: string, message: string) => failures.push({ check: 'G4', code, message, where: `section "${heading}"` });
+
+    if (hasQuoted(heading)) {
+      fail('G4_HEADING_QUOTE', `the heading "${heading}" contains a quoted passage: put quotations in the body, where they are checked word for word`);
+    }
+
+    const tokens = extractTokens(heading);
+    const figures = [...tokens.numbers, ...tokens.dates].map((token) => `"${token.raw}"`);
+    if (figures.length > 0) {
+      fail(
+        'G4_HEADING_NUMBER',
+        `the heading "${heading}" contains a number or a date (${figures.join(', ')}): a heading says what a section is about and states no figure`,
+      );
+    }
+
+    const ids = new Set(section.paragraphs.flat().flatMap((item) => item.claimIds));
+    const words = claimWords([...ids].flatMap((id) => byId.get(id) ?? []));
+    const unsupported = [
+      ...(tokens.initialWord !== undefined && !openingWordAccepted(tokens.initialWord, words, ctx.nameAllowList)
+        ? [toNameToken(tokens.initialWord)]
+        : []),
+      ...tokens.names.filter((name) => !words.has(name) && !ctx.nameAllowList.has(name)),
+    ];
+    for (const name of new Set(unsupported)) {
+      fail(
+        'G4_HEADING_NAME',
+        `the capitalised word "${name}" in the heading "${heading}" is not a word of any claim cited in this section: write it in lowercase if it is an ordinary word, or leave the name out of the heading`,
+      );
     }
   }
 

@@ -49,6 +49,10 @@ describe('the cases', () => {
     }
   });
 
+  it('describe the defect without the name of the fictional company: the production /method page shows the descriptions, and no production page may carry fixture content', () => {
+    for (const item of SEEDED_CASES) expect(item.description, item.id).not.toMatch(/fixture (data|robotics)|fixture-robotics/i);
+  });
+
   it('are listed in the order of the checks, G1 to G9, so the scoreboard reads in order', () => {
     const positions = SEEDED_CASES.map((item) => CHECK_IDS.indexOf(item.check));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));

@@ -16,6 +16,8 @@ export interface GateConfig {
   bodyWords: Range;
   /** G1: characters in the description. */
   descriptionMax: number;
+  /** G2: characters in a section heading. */
+  headingMax: number;
   /** Characters in a claim's quoted span. The schema allows 300; the extractor stage enforces this. */
   spanMax: number;
   /** G9: a new title whose word overlap with a recent title reaches this is a near-duplicate. */
@@ -73,6 +75,7 @@ export function defaultConfig(): GateConfig {
     takeaways: { min: 3, max: 5 },
     bodyWords: { min: 600, max: 850 },
     descriptionMax: 155,
+    headingMax: 80,
     spanMax: 300,
     titleSimilarityThreshold: 0.6,
     bannedPhrases: DEFAULT_BANNED_PHRASES,

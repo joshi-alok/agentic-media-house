@@ -60,6 +60,36 @@ export const CLAIMS_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'heading-with-number',
+    check: 'G4',
+    code: 'G4_HEADING_NUMBER',
+    description: 'A section heading states a figure, as in "the company ships 500 arms".',
+    apply: (base) => {
+      base.draft.sections[0]!.heading = 'Fixture Robotics ships 500 arms';
+      return base;
+    },
+  },
+  {
+    id: 'heading-with-quote',
+    check: 'G4',
+    code: 'G4_HEADING_QUOTE',
+    description: 'A section heading contains a quoted passage.',
+    apply: (base) => {
+      base.draft.sections[1]!.heading = 'What the customer calls "production"';
+      return base;
+    },
+  },
+  {
+    id: 'heading-with-invented-name',
+    check: 'G4',
+    code: 'G4_HEADING_NAME',
+    description: 'A section heading names a company, Harlow Logistics, that no claim of its section mentions.',
+    apply: (base) => {
+      base.draft.sections[1]!.heading = 'What Harlow Logistics reports';
+      return base;
+    },
+  },
+  {
     id: 'value-outside-span',
     check: 'G4',
     code: 'G4_VALUE_NOT_IN_SPAN',

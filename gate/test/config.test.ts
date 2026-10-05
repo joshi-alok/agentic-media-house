@@ -9,6 +9,7 @@ describe('defaultConfig', () => {
       takeaways: { min: 3, max: 5 },
       bodyWords: { min: 600, max: 850 },
       descriptionMax: 155,
+      headingMax: 80,
       spanMax: 300,
       titleSimilarityThreshold: 0.6,
       bannedPhrases: DEFAULT_BANNED_PHRASES,

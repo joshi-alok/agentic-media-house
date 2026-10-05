@@ -1,6 +1,6 @@
 {
-  "total": 42,
-  "caught": 42,
+  "total": 47,
+  "caught": 47,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -110,6 +110,20 @@
       "caught": true
     },
     {
+      "id": "heading-too-long",
+      "check": "G2",
+      "code": "G2_HEADING_TOO_LONG",
+      "description": "A section heading runs to more than 80 characters.",
+      "caught": true
+    },
+    {
+      "id": "empty-heading",
+      "check": "G2",
+      "code": "G2_HEADING_EMPTY",
+      "description": "A section heading is blank.",
+      "caught": true
+    },
+    {
       "id": "no-limitations",
       "check": "G2",
       "code": "G2_LIMITATIONS_MISSING",
@@ -163,6 +177,27 @@
       "check": "G4",
       "code": "G4_INITIAL_WORD_UNSUPPORTED",
       "description": "A sentence opens with a company, Harlow Logistics, that the claim it cites never mentions.",
+      "caught": true
+    },
+    {
+      "id": "heading-with-number",
+      "check": "G4",
+      "code": "G4_HEADING_NUMBER",
+      "description": "A section heading states a figure, as in \"the company ships 500 arms\".",
+      "caught": true
+    },
+    {
+      "id": "heading-with-quote",
+      "check": "G4",
+      "code": "G4_HEADING_QUOTE",
+      "description": "A section heading contains a quoted passage.",
+      "caught": true
+    },
+    {
+      "id": "heading-with-invented-name",
+      "check": "G4",
+      "code": "G4_HEADING_NAME",
+      "description": "A section heading names a company, Harlow Logistics, that no claim of its section mentions.",
       "caught": true
     },
     {

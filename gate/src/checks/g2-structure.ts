@@ -10,6 +10,8 @@ export const G2_CODES = [
   'G2_BODY_LENGTH',
   'G2_SECTIONS_MIN',
   'G2_HEADING_QUESTION',
+  'G2_HEADING_TOO_LONG',
+  'G2_HEADING_EMPTY',
   'G2_LIMITATIONS_MISSING',
 ] as const;
 
@@ -19,15 +21,16 @@ const isSafeBasis = (basis: string) => (SAFE_BASES as readonly string[]).include
 
 /**
  * G2, structure: the opening paragraph, the key takeaways and the whole body
- * are the right length; there are at least two sections; no heading asks a
- * question; and a piece that rests on a company's own claims has a "What we
- * couldn't verify" section.
+ * are the right length; there are at least two sections; every heading is
+ * there, is short enough (`headingMax`) and is not a question; and a piece that
+ * rests on a company's own claims has a "What we couldn't verify" section.
+ * What a heading may say is G4's question (G4_HEADING_*).
  *
  * The body is the opening, the takeaways, every section paragraph and the
  * limitations. The title, the description and the headings are not counted.
  */
 export const checkG2: Check = ({ draft, claims }, ctx) => {
-  const { openingWords, takeaways, bodyWords } = ctx.config;
+  const { openingWords, takeaways, bodyWords, headingMax } = ctx.config;
   const failures: Failure[] = [];
   const fail = (code: string, message: string, where: string) => failures.push({ check: 'G2', code, message, where });
 
@@ -58,8 +61,15 @@ export const checkG2: Check = ({ draft, claims }, ctx) => {
   }
 
   for (const section of draft.sections) {
-    if (section.heading.trim().endsWith('?')) {
-      fail('G2_HEADING_QUESTION', `the heading "${section.heading}" is a question; headings must be statements`, `section "${section.heading}"`);
+    const where = `section "${section.heading}"`;
+    const heading = section.heading.trim();
+    if (heading === '') {
+      fail('G2_HEADING_EMPTY', 'a section has no heading: every section needs a heading that says what it is about', where);
+    } else if (heading.length > headingMax) {
+      fail('G2_HEADING_TOO_LONG', `the heading "${section.heading}" is ${heading.length} characters; the limit is ${headingMax}`, where);
+    }
+    if (heading.endsWith('?')) {
+      fail('G2_HEADING_QUESTION', `the heading "${section.heading}" is a question; headings must be statements`, where);
     }
   }
 

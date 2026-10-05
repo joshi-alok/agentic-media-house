@@ -6,7 +6,7 @@ import type { ContextOverrides } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import type { Failure, GateInput } from '../src/gate';
 import type { Claim, ClaimValue } from '../src/schemas';
-import { findSentence, mutate } from './helpers';
+import { claimById, findSentence, mutate } from './helpers';
 
 // --- A tiny input: a title that cites the given claims, and nothing else. ----
 
@@ -59,6 +59,7 @@ const run = (input: GateInput, overrides?: ContextOverrides) => checkG4(input, d
 const codes = (input: GateInput, overrides?: ContextOverrides) => run(input, overrides).failures.map((failure) => failure.code);
 const goldenCodes = (change: (copy: GateInput) => void) => codes(mutate(cloneGolden(), change));
 const summary = (failures: Failure[]) => failures.map((failure) => [failure.code, failure.where]);
+const claimOfId = (input: GateInput, id: string): Claim => claimById(input.claims, id);
 
 // ---------------------------------------------------------------------------
 
@@ -427,6 +428,179 @@ describe('G4 names: the outlet of a tier-2 claim', () => {
         'The Mercer Wire reports that 7 investors took part in the round.';
     });
     expect(failures).toEqual([]);
+  });
+});
+
+describe('G4 headings', () => {
+  // The headings of the golden piece are "What shipped" (section 0), "What the
+  // customer reports" (1) and "What the filing shows" (2). Each section's claims
+  // are the claims its own sentences cite.
+  const headingFailures = (heading: string, at = 0, overrides?: ContextOverrides) =>
+    checkG4(
+      mutate(cloneGolden(), (g) => {
+        g.draft.sections[at]!.heading = heading;
+      }),
+      defaultContext(overrides),
+    ).failures;
+  const headingCodes = (heading: string, at = 0, overrides?: ContextOverrides) => headingFailures(heading, at, overrides).map((failure) => failure.code);
+  const open = String.fromCharCode(0x201c);
+  const close = String.fromCharCode(0x201d);
+
+  it('passes the headings of the golden piece', () => {
+    expect(checkG4(cloneGolden(), defaultContext()).failures).toEqual([]);
+  });
+
+  it('rejects a heading with a number in it, and says which and where', () => {
+    expect(headingFailures('Fixture Robotics ships 500 arms')).toEqual([
+      {
+        check: 'G4',
+        code: 'G4_HEADING_NUMBER',
+        message:
+          'the heading "Fixture Robotics ships 500 arms" contains a number or a date ("500"): a heading says what a section is about and states no figure',
+        where: 'section "Fixture Robotics ships 500 arms"',
+      },
+    ]);
+  });
+
+  it.each([
+    ['a plain number', 'What the 12 means'],
+    ['a number with a unit', 'What 12 kg means'],
+    ['a currency amount', 'What the $450 million buys'],
+    ['a percentage', 'What rose 18%'],
+    ['a full date', 'What happened on 1 October 2026'],
+    ['an ISO date', 'What happened on 2026-10-01'],
+    ['a month and a year', 'What happened in October 2026'],
+    ['a year', 'What happens in 2027'],
+  ])('rejects %s in a heading', (_name, heading) => {
+    expect(headingCodes(heading)).toEqual(['G4_HEADING_NUMBER']);
+  });
+
+  it('names every number and date of the heading in one failure', () => {
+    const failures = headingFailures('What 12 kg and 2027 mean');
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.message).toContain('("12 kg", "2027")');
+  });
+
+  it('does not take a model name that contains a digit for a number', () => {
+    expect(headingCodes('What the FX-1 does')).toEqual([]);
+    expect(headingCodes('What the H1 results show', 2)).toEqual(['G4_HEADING_NAME']);
+  });
+
+  it('rejects a heading with a quoted passage in it', () => {
+    expect(headingFailures('What the customer calls "production"', 1)).toEqual([
+      {
+        check: 'G4',
+        code: 'G4_HEADING_QUOTE',
+        message:
+          'the heading "What the customer calls "production"" contains a quoted passage: put quotations in the body, where they are checked word for word',
+        where: 'section "What the customer calls "production""',
+      },
+    ]);
+  });
+
+  it('rejects curly quotation marks and an empty pair of marks too', () => {
+    expect(headingCodes(`What the customer calls ${open}production${close}`, 1)).toEqual(['G4_HEADING_QUOTE']);
+    expect(headingCodes('What the customer calls ""', 1)).toEqual(['G4_HEADING_QUOTE']);
+  });
+
+  it('does not read a number or a name inside the quoted passage, which is rejected anyway', () => {
+    expect(headingCodes('What the customer says: "Harlow shipped 500"', 1)).toEqual(['G4_HEADING_QUOTE']);
+  });
+
+  it('accepts a single quotation mark, which does not make a passage', () => {
+    expect(headingCodes('What the customer calls "production', 1)).toEqual([]);
+  });
+
+  it('rejects a name that no claim of the section supports, and says which and where', () => {
+    expect(headingFailures('What Harlow Logistics reports', 1)).toEqual([
+      {
+        check: 'G4',
+        code: 'G4_HEADING_NAME',
+        message:
+          'the capitalised word "harlow" in the heading "What Harlow Logistics reports" is not a word of any claim cited in this section: write it in lowercase if it is an ordinary word, or leave the name out of the heading',
+        where: 'section "What Harlow Logistics reports"',
+      },
+    ]);
+  });
+
+  it('accepts a name in a word of the text, label, quoted passage or name values of a claim the section cites', () => {
+    expect(headingCodes('What Tarnmoor received')).toEqual([]);
+    expect(headingCodes('What the Tarnmoor shipment is')).toEqual([]);
+    expect(headingCodes('What the Mounting needs')).toEqual([]);
+    expect(headingCodes('What the Ashvale plant does', 1)).toEqual([]);
+    expect(headingCodes('What Corvane Partners led', 2)).toEqual([]);
+  });
+
+  it('accepts the outlet of a claim the section cites', () => {
+    const outlet = (g: GateInput) => {
+      claimOfId(g, 'c-19').source.tier = 2;
+      claimOfId(g, 'c-19').source.outlet = 'Mercer Wire';
+      g.draft.sections[2]!.heading = 'What Mercer Wire says';
+    };
+    expect(goldenCodes(outlet)).toEqual([]);
+  });
+
+  it('takes the claims of the section the heading belongs to, not those of the other sections', () => {
+    // Corvane Partners are named in the filing claims, which only section 2 cites.
+    expect(headingCodes('What Corvane Partners led', 0)).toEqual(['G4_HEADING_NAME', 'G4_HEADING_NAME']);
+    expect(headingCodes('What Corvane Partners led', 1)).toEqual(['G4_HEADING_NAME', 'G4_HEADING_NAME']);
+    expect(headingCodes('What Corvane Partners led', 2)).toEqual([]);
+  });
+
+  it('counts a claim cited by any sentence of the section, in any paragraph', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      g.draft.sections[0]!.paragraphs[2]!.push({ kind: 'fact', text: 'It is due.', claimIds: ['c-18'] });
+      g.draft.sections[0]!.heading = 'What Corvane Partners led';
+    });
+    expect(checkG4(input, defaultContext()).failures.filter((failure) => failure.code.startsWith('G4_HEADING'))).toEqual([]);
+  });
+
+  it('holds the first word to the opening-word rule', () => {
+    expect(headingCodes('However the arm shipped')).toEqual([]);
+    expect(headingCodes('Harlow ships arms')).toEqual(['G4_HEADING_NAME']);
+    expect(headingCodes('Tarnmoor receives arms')).toEqual([]);
+    expect(headingCodes('Tarnmoor receives arms', 2)).toEqual(['G4_HEADING_NAME']);
+  });
+
+  it('lets a function word stand in for a claim word in first place only', () => {
+    expect(headingCodes('However the arm shipped')).toEqual([]);
+    expect(headingCodes('Arms. However it shipped')).toEqual(['G4_HEADING_NAME']);
+  });
+
+  it('accepts a word on the allow-list, and an allow-list passed in the context', () => {
+    expect(headingCodes('What Monday brought')).toEqual([]);
+    expect(headingCodes('What Harlow brought')).toEqual(['G4_HEADING_NAME']);
+    expect(headingCodes('What Harlow brought', 0, { nameAllowList: ['harlow'] })).toEqual([]);
+    expect(headingCodes('August plans')).toEqual([]);
+  });
+
+  it('reports each unsupported name once, in the order of the heading', () => {
+    const failures = headingFailures('What Harlow and Quillon and Harlow reported', 1);
+    expect(failures.map((failure) => failure.message.match(/word "([^"]+)"/)?.[1])).toEqual(['harlow', 'quillon']);
+  });
+
+  it('does not read a lowercase heading for names', () => {
+    expect(headingCodes('what harlow reports', 1)).toEqual([]);
+  });
+
+  it('reports the number, the quote and the name of one heading separately, and before the claim checks', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      g.draft.sections[1]!.heading = 'Harlow said "yes" to 3 arms';
+      claimOfId(g, 'c-13').span.quote = 'Arm mass: 39 kg.';
+    });
+    expect(checkG4(input, defaultContext()).failures.map((failure) => failure.code)).toEqual([
+      'G4_HEADING_QUOTE',
+      'G4_HEADING_NUMBER',
+      'G4_HEADING_NAME',
+      'G4_VALUE_NOT_IN_SPAN',
+    ]);
+  });
+
+  it('checks the headings of a piece with no sentences in a section', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      g.draft.sections = [{ heading: 'What Harlow reports', paragraphs: [] }];
+    });
+    expect(checkG4(input, defaultContext()).failures.map((failure) => failure.code)).toEqual(['G4_HEADING_NAME']);
   });
 });
 

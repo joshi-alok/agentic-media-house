@@ -54,6 +54,11 @@ function findQuoted(text: string): QuotedSpan[] {
   return spans;
 }
 
+/** Does `text` contain a double-quoted segment, even an empty one? Marks are paired as `stripQuoted` pairs them. */
+export function hasQuoted(text: string): boolean {
+  return findQuoted(text).length > 0;
+}
+
 /**
  * `text` without its double-quoted segments (the quote marks go too), with the
  * whitespace left behind collapsed. Quoted text is checked by G5, not by the

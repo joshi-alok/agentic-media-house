@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countWords, jaccard, normaliseQuotes, quotedSegments, sentenceWords, stripQuoted } from '../src/text';
+import { countWords, hasQuoted, jaccard, normaliseQuotes, quotedSegments, sentenceWords, stripQuoted } from '../src/text';
 
 describe('countWords', () => {
   it.each([
@@ -57,6 +57,28 @@ describe('stripQuoted', () => {
     ['a "b" c "d', 'a c "d'],
   ])('turns %j into %j', (input, expected) => {
     expect(stripQuoted(input)).toBe(expected);
+  });
+});
+
+describe('hasQuoted', () => {
+  // Curly quote marks, written as codes so that this file stays ASCII.
+  const open = String.fromCharCode(0x201c);
+  const close = String.fromCharCode(0x201d);
+
+  it.each([
+    ['He said "stop" now.', true],
+    [`He said ${open}stop${close} now.`, true],
+    [`Mixed ${open}stop" marks.`, true],
+    ['Only quotes ""', true],
+    ['An empty "   " pair', true],
+    ['One "a" and two "b" quotes.', true],
+    ['a "b" c "d', true],
+    ['He said "stop now.', false],
+    [`A single ${open} mark`, false],
+    ['No quotes here.', false],
+    ['', false],
+  ])('says %j is %s', (input, expected) => {
+    expect(hasQuoted(input)).toBe(expected);
   });
 });
 

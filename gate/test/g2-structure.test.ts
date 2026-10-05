@@ -165,7 +165,8 @@ describe('G2_BODY_LENGTH', () => {
       g.draft.description.text = sentenceOf(300);
       for (const section of g.draft.sections) section.heading = sentenceOf(300).replace('.', '');
     };
-    expect(codesAfter(change)).toEqual([]);
+    // The headings are far too long, which is reported, but the body length is not affected.
+    expect(codesAfter(change)).toEqual(['G2_HEADING_TOO_LONG', 'G2_HEADING_TOO_LONG', 'G2_HEADING_TOO_LONG']);
   });
 });
 
@@ -204,6 +205,71 @@ describe('G2_HEADING_QUESTION', () => {
 
   it('passes for a question mark that is not at the end', () => {
     expect(codesAfter((g) => (g.draft.sections[0]!.heading = 'What shipped? The arm'))).toEqual([]);
+  });
+});
+
+describe('G2_HEADING_TOO_LONG', () => {
+  const headingOf = (length: number) => 'a'.repeat(length);
+
+  it('passes a heading of exactly 80 characters and fails one of 81', () => {
+    expect(codesAfter((g) => (g.draft.sections[0]!.heading = headingOf(80)))).toEqual([]);
+    expect(codesAfter((g) => (g.draft.sections[0]!.heading = headingOf(81)))).toEqual(['G2_HEADING_TOO_LONG']);
+  });
+
+  it('counts the characters without the spaces around the heading', () => {
+    expect(codesAfter((g) => (g.draft.sections[0]!.heading = `  ${headingOf(80)}  `))).toEqual([]);
+  });
+
+  it('says how long the heading is and where it is', () => {
+    const out = resultAfter((g) => (g.draft.sections[1]!.heading = headingOf(95)));
+    expect(out.failures).toEqual([
+      {
+        check: 'G2',
+        code: 'G2_HEADING_TOO_LONG',
+        message: `the heading "${headingOf(95)}" is 95 characters; the limit is 80`,
+        where: `section "${headingOf(95)}"`,
+      },
+    ]);
+  });
+
+  it('reads the limit from the context', () => {
+    expect(codesAfter(() => {}, defaultContext({ config: { headingMax: 20 } }))).toEqual([
+      'G2_HEADING_TOO_LONG',
+      'G2_HEADING_TOO_LONG',
+    ]);
+    // The longest golden heading, "What the customer reports", has 25 characters.
+    expect(codesAfter(() => {}, defaultContext({ config: { headingMax: 24 } }))).toEqual(['G2_HEADING_TOO_LONG']);
+    expect(codesAfter(() => {}, defaultContext({ config: { headingMax: 25 } }))).toEqual([]);
+  });
+
+  it('fails once for each long heading', () => {
+    const change = (g: GateInput) => {
+      g.draft.sections[0]!.heading = headingOf(81);
+      g.draft.sections[2]!.heading = headingOf(120);
+    };
+    expect(codesAfter(change)).toEqual(['G2_HEADING_TOO_LONG', 'G2_HEADING_TOO_LONG']);
+  });
+});
+
+describe('G2_HEADING_EMPTY', () => {
+  it.each([[''], ['   '], ['\t\n']])('fails for the heading %j', (heading) => {
+    const out = resultAfter((g) => (g.draft.sections[1]!.heading = heading));
+    expect(out.failures).toEqual([
+      {
+        check: 'G2',
+        code: 'G2_HEADING_EMPTY',
+        message: 'a section has no heading: every section needs a heading that says what it is about',
+        where: `section "${heading}"`,
+      },
+    ]);
+  });
+
+  it('fails once for each empty heading', () => {
+    const change = (g: GateInput) => {
+      g.draft.sections[0]!.heading = '';
+      g.draft.sections[2]!.heading = ' ';
+    };
+    expect(codesAfter(change)).toEqual(['G2_HEADING_EMPTY', 'G2_HEADING_EMPTY']);
   });
 });
 
