@@ -211,7 +211,7 @@ The house register: quieter, thinner, greyer; color only where it means somethin
 
 Milestones 1 and 2 are independent and can be built in parallel; milestone 3 needs both. The earliest finish is the build time plus 19 calendar days (5 shadow + 14 live).
 
-Implementation is planned in three plans: Plan 1 covers milestones 0–2 (foundations, gate, site) plus a hardening pass added after review (its tasks 71–88, which the plan calls "Milestone 3"; that is not this table's milestone 3); Plan 2 covers milestones 3–4 (pipeline and automation); Plan 3 covers milestones 5–6 (shadow week and burn-in, which are operational rather than code).
+Implementation is planned in three plans: Plan 1 covers milestones 0–2 (foundations, gate, site) plus a hardening pass added after review (its tasks 71–88, which the plan calls "Milestone 3"; that is not this table's milestone 3); Plan 2 covers milestone 3 (the pipeline, built and verified offline; see [the pipeline design](./2026-10-05-the-desk-pipeline-design.md)) and Plan 2b covers milestone 4 (automation and deployment, written once the GitHub and Cloudflare accounts exist); Plan 3 covers milestones 5–6 (shadow week and burn-in, which are operational rather than code).
 
 ## 15. Prerequisites and open items
 
