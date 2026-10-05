@@ -51,6 +51,16 @@ describe('newsArticleJsonLd: dateModified', () => {
     expect(newsArticleJsonLd(piece, [...corrections].reverse(), SITE).dateModified).toBe('2026-10-04T10:00:00Z');
   });
 
+  it('is updatedAt when the piece has one, even when a correction was recorded at another moment', () => {
+    const updated = { ...piece, updatedAt: '2026-10-05' };
+    expect(newsArticleJsonLd(updated, [], SITE).dateModified).toBe('2026-10-05');
+    expect(newsArticleJsonLd(updated, [correction('2026-10-04T10:00:00Z')], SITE).dateModified).toBe('2026-10-05');
+  });
+
+  it('still names the publication date as datePublished when the piece was updated', () => {
+    expect(newsArticleJsonLd({ ...piece, updatedAt: '2026-10-05' }, [], SITE).datePublished).toBe('2026-10-03');
+  });
+
   it('ignores corrections of other pieces', () => {
     expect(newsArticleJsonLd(piece, [correction('2026-10-05T00:00:00Z', 'another-piece')], SITE).dateModified).toBe('2026-10-03');
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DeskState } from '@robywire/gate';
-import { correctionRows, holdRows, statusView } from '../src/lib/desk-pages';
+import { CORRECTIONS_TEXT, correctionRows, holdRows, statusView } from '../src/lib/desk-pages';
 
 const EMPTY: DeskState = { lastRun: null, holds: [], corrections: [] };
 const FX1 = 'fixture-robotics-ships-fx-1-to-second-plant';
@@ -144,5 +144,21 @@ describe('correctionRows', () => {
   it('leaves the title undefined for a piece the site does not have, so the page shows the slug without a link', () => {
     const rows = correctionRows(STATE, new Map([[FX2, 'A title']]));
     expect(rows.map((row) => row.title)).toEqual([undefined, 'A title']);
+  });
+});
+
+describe('CORRECTIONS_TEXT', () => {
+  it('says what the site does when a correction is recorded: a notice at the top, an updated date in the byline, a build that refuses a mismatch', () => {
+    expect(CORRECTIONS_TEXT).toContain('a notice at the top that says what changed and when');
+    expect(CORRECTIONS_TEXT).toContain('its byline shows the date it was updated');
+    expect(CORRECTIONS_TEXT).toContain('refuses to build if the piece and the record disagree');
+  });
+
+  it('keeps the retraction promise: the page stays up with its notice and the receipts stay public', () => {
+    expect(CORRECTIONS_TEXT).toContain('A retraction withdraws a piece: the page stays up with its notice, and its receipts stay public.');
+  });
+
+  it('speaks of what the site shows, not of an updated date that "is set"', () => {
+    expect(CORRECTIONS_TEXT).not.toMatch(/\bis set\b/);
   });
 });

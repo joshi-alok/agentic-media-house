@@ -32,7 +32,10 @@ const jsonLd = jsonLdScript(newsArticleJsonLd({ slug: piece.slug, ...piece.data 
       <BeatChips categories={piece.data.categories} />
       <h1>{piece.data.title}</h1>
       <p class="dek">{piece.data.description}</p>
-      <p class="byline"><a href="/method/">{DESK_AUTHOR_NAME} &middot; {DESK_BYLINE_LABEL}</a> &middot; <time datetime={piece.data.publishedAt}>{formatDate(piece.data.publishedAt)}</time></p>
+      <p class="byline">
+        <a href="/method/">{DESK_AUTHOR_NAME} &middot; {DESK_BYLINE_LABEL}</a> &middot; <time datetime={piece.data.publishedAt}>{formatDate(piece.data.publishedAt)}</time>
+        {piece.data.updatedAt !== undefined && <> &middot; Updated <time datetime={piece.data.updatedAt}>{formatDate(piece.data.updatedAt)}</time></>}
+      </p>
     </header>
     <CorrectionNotice corrections={corrections} />
     <div class="prose">

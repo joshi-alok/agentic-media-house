@@ -1,4 +1,5 @@
-import type { LedgerEntry, NewsFrontmatter } from '@robywire/gate';
+import type { DeskState, LedgerEntry, NewsFrontmatter } from '@robywire/gate';
+import { latestCorrectionDay } from './desk-state';
 
 // A piece is two files with the same name: the MDX the reader sees and the
 // ledger JSON behind its receipts. This module joins them and refuses content
@@ -26,12 +27,16 @@ const byId = <T extends { id: string }>(a: T, b: T): number => (a.id < b.id ? -1
  * Join pieces with their ledger entries and sort them newest first. Pieces of
  * the same day stay in slug order, because the lists are sorted by id first and
  * the sort is stable. Throws one error that lists every problem found: a piece
- * with no ledger entry, a ledger entry with no piece, and a ledger entry whose
- * slug, title, date or categories disagree with its piece.
+ * with no ledger entry, a ledger entry with no piece, a ledger entry whose
+ * slug, title, date or categories disagree with its piece, and a piece whose
+ * `updatedAt` does not agree with the corrections recorded for it: a piece with
+ * a correction or retraction needs `updatedAt` equal to the day of the latest
+ * one, and a piece that says it was updated needs a record that explains it.
  */
 export function matchPieces<N extends Keyed<NewsFrontmatter>, L extends Keyed<LedgerEntry>>(
   news: readonly N[],
   ledgers: readonly L[],
+  corrections: DeskState['corrections'],
 ): Matched<N, L>[] {
   const ledgerById = new Map(ledgers.map((entry) => [entry.id, entry]));
   const newsIds = new Set(news.map((entry) => entry.id));
@@ -49,6 +54,16 @@ export function matchPieces<N extends Keyed<NewsFrontmatter>, L extends Keyed<Le
     if (ledger.data.publishedAt !== piece.data.publishedAt) problems.push(`the date in the ledger entry "${piece.id}" differs from the piece`);
     if (!sameList(ledger.data.categories, piece.data.categories)) problems.push(`the categories in the ledger entry "${piece.id}" differ from the piece`);
     matched.push({ slug: piece.id, news: piece, ledger });
+
+    const recorded = latestCorrectionDay(corrections, piece.id);
+    const { updatedAt } = piece.data;
+    if (recorded !== undefined && updatedAt === undefined) {
+      problems.push(`the piece "${piece.id}" has a correction or retraction recorded on ${recorded} but no updatedAt; add updatedAt: "${recorded}" to its frontmatter`);
+    } else if (recorded !== undefined && updatedAt !== recorded) {
+      problems.push(`the piece "${piece.id}" says updatedAt is ${updatedAt}, but its latest correction or retraction was recorded on ${recorded}`);
+    } else if (recorded === undefined && updatedAt !== undefined) {
+      problems.push(`the piece "${piece.id}" has updatedAt ${updatedAt}, but no correction or retraction is recorded for it`);
+    }
   }
   for (const ledger of [...ledgers].sort(byId)) {
     if (!newsIds.has(ledger.id)) problems.push(`the ledger entry "${ledger.id}" has no piece`);

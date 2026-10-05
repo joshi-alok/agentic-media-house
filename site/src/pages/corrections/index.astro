@@ -1,7 +1,7 @@
 ---
 import TableWrap from '../../components/TableWrap.astro';
 import Base from '../../layouts/Base.astro';
-import { correctionRows } from '../../lib/desk-pages';
+import { CORRECTIONS_TEXT, correctionRows } from '../../lib/desk-pages';
 import { getDeskState } from '../../lib/desk-state';
 import { articlePath } from '../../lib/paths';
 import { getPieces } from '../../lib/pieces';
@@ -18,10 +18,7 @@ const rows = correctionRows(await getDeskState(), titles);
       <p class="dek">Every correction and retraction, newest first.</p>
     </header>
     <div class="page-text">
-      <p>
-        Nothing on this site is changed or removed without a record. A correction fixes a factual error: the article gets a notice at the top and its updated date changes. A retraction withdraws a
-        piece: the page stays up with a notice, and its receipts stay public. Both are listed here.
-      </p>
+      <p>{CORRECTIONS_TEXT} Both are listed here.</p>
     </div>
     {
       rows.length === 0 ? (

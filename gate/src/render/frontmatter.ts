@@ -14,11 +14,16 @@ const isBeat = (category: string): boolean => (BEATS as readonly string[]).inclu
  * and the spaces around them are trimmed before their length is measured; the
  * categories are one to three different slugs from the vocabulary, and the
  * funding tag comes with a beat; the author is the Desk.
+ *
+ * `updatedAt` is the day a correction or a retraction was recorded for the
+ * piece. It is optional and never before `publishedAt`. The site also checks
+ * that it agrees with the corrections in the desk state.
  */
-export const NewsFrontmatter = z.strictObject({
+const Block = z.strictObject({
   title: z.string().trim().min(1),
   description: z.string().trim().min(1).max(155),
   publishedAt: z.iso.date(),
+  updatedAt: z.iso.date().optional(),
   categories: z
     .array(z.enum(CATEGORY_VOCAB))
     .min(1)
@@ -30,5 +35,10 @@ export const NewsFrontmatter = z.strictObject({
   format: z.literal('news'),
   featured: z.boolean(),
   author: z.strictObject({ name: z.literal(DESK_AUTHOR_NAME) }),
+});
+
+export const NewsFrontmatter = Block.refine((block) => block.updatedAt === undefined || block.updatedAt >= block.publishedAt, {
+  message: 'updatedAt is before publishedAt',
+  path: ['updatedAt'],
 });
 export type NewsFrontmatter = z.infer<typeof NewsFrontmatter>;

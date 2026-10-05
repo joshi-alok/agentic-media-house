@@ -2,6 +2,7 @@
 import board from '@robywire/evals/scoreboard';
 import TableWrap from '../../components/TableWrap.astro';
 import Base from '../../layouts/Base.astro';
+import { CORRECTIONS_TEXT } from '../../lib/desk-pages';
 import { PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../../lib/method';
 import '../../styles/pages.css';
 
@@ -106,10 +107,7 @@ const rules = gateRules();
       </p>
 
       <h2 id="corrections">Corrections and retractions</h2>
-      <p>
-        Nothing is edited or removed in silence. A correction fixes a factual error: the article gets a notice at the top that says what changed and when, the page's updated date is set, and the
-        correction is listed on the <a href="/corrections/">corrections page</a>. A retraction withdraws a piece: the page stays up with a visible notice, and its receipts stay public.
-      </p>
+      <p>{CORRECTIONS_TEXT} Every entry is listed on the <a href="/corrections/">corrections page</a>.</p>
 
       <h2 id="disclosure">Disclosure</h2>
       <p>

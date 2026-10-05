@@ -96,6 +96,15 @@ describe('fixtureFiles: the pieces', () => {
     expect(mdx).toContain(`](/news/${slug}/receipts/#c-1)`);
   });
 
+  it('gives the corrected piece an updatedAt on the day of its correction, and no other piece one', () => {
+    const frontmatter = (slug: string) => NewsFrontmatter.parse(parseYaml(/^---\n([\s\S]*?)\n---\n/.exec(text(`news/${slug}.mdx`))![1]!));
+    const state = DeskState.parse(JSON.parse(text('desk-state.json')));
+    expect(state.corrections[0]!.at.slice(0, 10)).toBe('2026-10-03');
+    expect(frontmatter(SLUGS[1]!).updatedAt).toBe('2026-10-03');
+    expect(text(`news/${SLUGS[1]}.mdx`)).toContain('publishedAt: "2026-10-03"\nupdatedAt: "2026-10-03"\ncategories:');
+    for (const slug of [SLUGS[0]!, SLUGS[2]!, SLUGS[3]!]) expect(frontmatter(slug).updatedAt, slug).toBeUndefined();
+  });
+
   it('names a different product in each piece', () => {
     const titles = SLUGS.map((slug) => LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`))).title);
     expect(titles.map((title) => /FX-(\d)/.exec(title)![1])).toEqual(['1', '2', '3', '4']);

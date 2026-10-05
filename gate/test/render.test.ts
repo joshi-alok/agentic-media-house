@@ -49,6 +49,31 @@ describe('renderDraft: the golden piece', () => {
     ]);
   });
 
+  it('writes updatedAt between publishedAt and categories when the meta has one, and nowhere else', () => {
+    const updated = render(golden, { updatedAt: '2026-10-05' });
+    expect(splitMdx(updated.mdx).frontmatter.split('\n')).toEqual([
+      'title: "Fixture Robotics ships its FX-1 warehouse arm to a second plant"',
+      'description: "Fixture Robotics has begun shipping the FX-1 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor."',
+      'publishedAt: "2026-10-04"',
+      'updatedAt: "2026-10-05"',
+      'categories: [industrial-warehouse, funding]',
+      'format: news',
+      'featured: false',
+      'author:',
+      '  name: "Robywire Desk"',
+    ]);
+    expect(splitMdx(updated.mdx).body).toBe(splitMdx(mdx).body);
+    expect(updated.ledger).toEqual(ledger);
+    expect(mdx).not.toContain('updatedAt');
+  });
+
+  it('accepts an update on the day of publication, and refuses one that is not a real date or comes before it', () => {
+    expect(splitMdx(render(golden, { updatedAt: '2026-10-04' }).mdx).frontmatter).toContain('updatedAt: "2026-10-04"');
+    expect(() => render(golden, { updatedAt: '2026-02-30' })).toThrow('renderDraft: updatedAt "2026-02-30" is not a real date in the form YYYY-MM-DD');
+    expect(() => render(golden, { updatedAt: '5 Oct 2026' })).toThrow('renderDraft: updatedAt "5 Oct 2026" is not a real date');
+    expect(() => render(golden, { updatedAt: '2026-10-03' })).toThrow('renderDraft: updatedAt "2026-10-03" is before publishedAt "2026-10-04"');
+  });
+
   it('parses as YAML and satisfies NewsFrontmatter', () => {
     const data = parseYaml(splitMdx(mdx).frontmatter) as unknown;
     expect(NewsFrontmatter.parse(data)).toEqual({
@@ -393,6 +418,21 @@ describe('NewsFrontmatter', () => {
     ['an author that is not the Desk', { ...valid, author: { name: 'Jane Doe' } }],
   ])('rejects %s', (_label, data) => {
     expect(NewsFrontmatter.safeParse(data).success).toBe(false);
+  });
+
+  it('accepts an updatedAt on the day of publication or after it, and a block without one', () => {
+    expect(NewsFrontmatter.safeParse({ ...valid, updatedAt: '2026-10-04' }).success).toBe(true);
+    expect(NewsFrontmatter.safeParse({ ...valid, updatedAt: '2026-11-01' }).success).toBe(true);
+    expect(NewsFrontmatter.parse(valid)).not.toHaveProperty('updatedAt');
+  });
+
+  it.each([
+    ['an updatedAt before the publication date', '2026-10-03'],
+    ['an updatedAt that is not a calendar date', '2026-02-30'],
+    ['an updatedAt written as words', '5 October 2026'],
+    ['an updatedAt with a time', '2026-10-05T10:00:00Z'],
+  ])('rejects %s', (_label, updatedAt) => {
+    expect(NewsFrontmatter.safeParse({ ...valid, updatedAt }).success).toBe(false);
   });
 
   it('accepts a title and a description of one character', () => {

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DeskState } from '@robywire/gate';
-import { correctionsFor, getDeskState, newestFirst, parseDeskState } from '../src/lib/desk-state';
+import { correctionDay, correctionsFor, getDeskState, latestCorrectionDay, newestFirst, parseDeskState } from '../src/lib/desk-state';
 
 const EMPTY: DeskState = { lastRun: null, holds: [], corrections: [] };
 const FX2 = 'fixture-robotics-ships-fx-2-to-second-plant';
@@ -104,5 +104,42 @@ describe('newestFirst', () => {
     const sorted = newestFirst(items);
     expect(sorted).not.toBe(items);
     expect(items.map((item) => item.at)).toEqual(['2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z']);
+  });
+});
+
+describe('correctionDay', () => {
+  it('is the UTC day of the moment', () => {
+    expect(correctionDay('2026-10-03T09:12:00Z')).toBe('2026-10-03');
+    expect(correctionDay('2026-10-03T23:59:59Z')).toBe('2026-10-03');
+    expect(correctionDay('2026-10-04T00:00:00Z')).toBe('2026-10-04');
+  });
+
+  it('converts a time with an offset to UTC first: 01:30 at +05:30 is the day before', () => {
+    expect(correctionDay('2026-10-04T01:30:00+05:30')).toBe('2026-10-03');
+    expect(correctionDay('2026-10-03T22:30:00-05:00')).toBe('2026-10-04');
+  });
+});
+
+describe('latestCorrectionDay', () => {
+  const corrections = [
+    correction('2026-10-02T08:00:00Z', FX2),
+    correction('2026-10-04T10:00:00Z', FX2, 'retraction'),
+    correction('2026-10-06T00:00:00Z', 'other-piece'),
+    correction('2026-10-03T09:12:00Z', FX2),
+  ];
+
+  it('is the day of the latest correction or retraction of the piece, whatever their order', () => {
+    expect(latestCorrectionDay(corrections, FX2)).toBe('2026-10-04');
+    expect(latestCorrectionDay([...corrections].reverse(), FX2)).toBe('2026-10-04');
+  });
+
+  it('is undefined for a piece with no entry', () => {
+    expect(latestCorrectionDay(corrections, 'no-such-piece')).toBeUndefined();
+    expect(latestCorrectionDay([], FX2)).toBeUndefined();
+  });
+
+  it('compares moments, not text: the later moment wins even when its text sorts first', () => {
+    const mixed = [correction('2026-10-04T01:30:00+05:30', FX2), correction('2026-10-03T21:00:00Z', FX2)];
+    expect(latestCorrectionDay(mixed, FX2)).toBe('2026-10-03');
   });
 });

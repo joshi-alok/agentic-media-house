@@ -24,12 +24,15 @@ export interface JsonLdPiece {
   description: string;
   /** YYYY-MM-DD */
   publishedAt: string;
+  /** YYYY-MM-DD, present when a correction or a retraction has been recorded for the piece. */
+  updatedAt?: string;
 }
 
 /**
- * The NewsArticle data for a piece. `dateModified` is the time of the latest
- * correction or retraction recorded for the piece, or the publication date if
- * there is none. `siteUrl` is the site's address, such as "https://robywire.example".
+ * The NewsArticle data for a piece. `dateModified` is the piece's `updatedAt`
+ * when it has one; otherwise the time of the latest correction or retraction
+ * recorded for it; otherwise the publication date. `siteUrl` is the site's
+ * address, such as "https://robywire.example".
  */
 export function newsArticleJsonLd(piece: JsonLdPiece, corrections: DeskState['corrections'], siteUrl: string): NewsArticleJsonLd {
   const absolute = (path: string): string => new URL(path, siteUrl).href;
@@ -44,7 +47,7 @@ export function newsArticleJsonLd(piece: JsonLdPiece, corrections: DeskState['co
     headline: piece.title,
     description: piece.description,
     datePublished: piece.publishedAt,
-    dateModified: latest ?? piece.publishedAt,
+    dateModified: piece.updatedAt ?? latest ?? piece.publishedAt,
     author: { '@type': 'Organization', name: DESK_AUTHOR_NAME },
     publisher: { '@type': 'Organization', name: 'Robywire', url: siteUrl },
     mainEntityOfPage: { '@type': 'WebPage', '@id': absolute(articlePath(piece.slug)) },

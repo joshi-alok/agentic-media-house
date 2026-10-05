@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DeskState, defaultContext, renderDraft, runGate } from '@robywire/gate';
 import type { GateInput } from '@robywire/gate';
 import { GOLDEN_DRAFT, cloneGolden, makeVariant } from '@robywire/gate/fixtures';
+import { latestCorrectionDay } from '../src/lib/desk-state';
 
 // Writes the fixture content the site shows when it is built with
 // ROBYWIRE_FIXTURES=1: four news pieces with their ledgers, and a desk state.
@@ -80,20 +81,25 @@ function deskState(all: readonly FixturePiece[]): DeskState {
  * Every fixture file as a map from its path under the fixtures folder to its
  * content, in sorted order. A piece that does not pass the whole gate stops
  * the generator: a fixture must be something the real site could publish.
+ * A piece that has a correction in the desk state gets `updatedAt`, the day
+ * of its latest one, as the site requires.
  */
 export function fixtureFiles(all: readonly FixturePiece[] = fixturePieces()): Map<string, string> {
   const files = new Map<string, string>();
+  const state = deskState(all);
   for (const piece of all) {
     const result = runGate(piece.input, defaultContext());
     if (result.route !== 'publish') {
       const codes = result.failures.map((failure) => failure.code).join(', ');
       throw new Error(`generate-fixtures: the fixture ${piece.slug} does not publish (route ${result.route}: ${codes})`);
     }
-    const { mdx, ledger } = renderDraft(piece.input.draft, piece.input.claims, { runId: piece.runId, gate: result });
+    const updatedAt = latestCorrectionDay(state.corrections, piece.slug);
+    const meta = { runId: piece.runId, gate: result, ...(updatedAt === undefined ? {} : { updatedAt }) };
+    const { mdx, ledger } = renderDraft(piece.input.draft, piece.input.claims, meta);
     files.set(`news/${piece.slug}.mdx`, mdx);
     files.set(`ledger/${piece.slug}.json`, json(ledger));
   }
-  files.set('desk-state.json', json(deskState(all)));
+  files.set('desk-state.json', json(state));
   return new Map([...files.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
 }
 

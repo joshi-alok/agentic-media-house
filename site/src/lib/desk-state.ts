@@ -29,3 +29,17 @@ export function newestFirst<T extends { at: string }>(items: readonly T[]): T[] 
 export function correctionsFor(state: DeskState, slug: string): DeskState['corrections'] {
   return newestFirst(state.corrections.filter((entry) => entry.slug === slug));
 }
+
+/** The UTC day (YYYY-MM-DD) of the moment `at`, which may be written with any UTC offset. */
+export function correctionDay(at: string): string {
+  return new Date(Date.parse(at)).toISOString().slice(0, 10);
+}
+
+/**
+ * The day of the latest correction or retraction recorded for the piece `slug`, or undefined if there is none.
+ * A piece that has one must say so in its frontmatter: `updatedAt` is this day (see match-pieces.ts).
+ */
+export function latestCorrectionDay(corrections: DeskState['corrections'], slug: string): string | undefined {
+  const latest = newestFirst(corrections.filter((entry) => entry.slug === slug))[0];
+  return latest === undefined ? undefined : correctionDay(latest.at);
+}

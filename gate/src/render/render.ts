@@ -1,4 +1,5 @@
 import type { GateResult } from '../gate';
+import { dayNumber } from '../normalise';
 import type { Claim, Draft, LedgerEntry, LedgerSentence, Sentence } from '../schemas';
 import { allSentences } from '../sentences';
 import type { LocatedSentence } from '../sentences';
@@ -9,6 +10,11 @@ export interface RenderMeta {
   runId: string;
   gate: GateResult;
   verifier?: LedgerEntry['verifier'];
+  /**
+   * The day (YYYY-MM-DD) a correction or a retraction was recorded for the piece. It is written to
+   * the frontmatter as `updatedAt`; a piece that was never corrected has none.
+   */
+  updatedAt?: string;
 }
 
 /** The MDX file and the ledger entry that go with it. */
@@ -63,11 +69,18 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
   for (const category of draft.categories) {
     if (!PLAIN_SLUG.test(category)) throw new Error(`renderDraft: the category "${category}" is not a plain slug`);
   }
+  const { updatedAt } = meta;
+  if (updatedAt !== undefined) {
+    const day = dayNumber(updatedAt);
+    if (day === undefined) throw new Error(`renderDraft: updatedAt "${updatedAt}" is not a real date in the form YYYY-MM-DD`);
+    if (day < (dayNumber(draft.publishedAt) ?? NaN)) throw new Error(`renderDraft: updatedAt "${updatedAt}" is before publishedAt "${draft.publishedAt}"`);
+  }
   const frontmatter = [
     '---',
     `title: ${JSON.stringify(draft.title.text)}`,
     `description: ${JSON.stringify(draft.description.text)}`,
     `publishedAt: ${JSON.stringify(draft.publishedAt)}`,
+    ...(updatedAt === undefined ? [] : [`updatedAt: ${JSON.stringify(updatedAt)}`]),
     `categories: [${draft.categories.join(', ')}]`,
     'format: news',
     'featured: false',
