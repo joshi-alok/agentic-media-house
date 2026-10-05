@@ -6,6 +6,7 @@ export * from './gate';
 export * from './limitations';
 export * from './normalise';
 export * from './schemas';
+export * from './sentences';
 export * from './sources';
 export * from './text';
 export * from './tokens';
