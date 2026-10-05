@@ -6,16 +6,17 @@ import { G4_CODES, checkG4 } from './g4-values';
 import { G5_CODES, checkG5 } from './g5-quotes';
 import { G6_CODES, checkG6 } from './g6-sourcing';
 import { G7_CODES, checkG7 } from './g7-analysis';
+import { G8_CODES, checkG8 } from './g8-limitations';
 
-export { checkG1, checkG2, checkG3, checkG4, checkG5, checkG6, checkG7 };
-export { G1_CODES, G2_CODES, G3_CODES, G4_CODES, G5_CODES, G6_CODES, G7_CODES };
+export { checkG1, checkG2, checkG3, checkG4, checkG5, checkG6, checkG7, checkG8 };
+export { G1_CODES, G2_CODES, G3_CODES, G4_CODES, G5_CODES, G6_CODES, G7_CODES, G8_CODES };
 
 /**
  * Every check that `runGate` runs, in order. Each check task adds its check
  * here. A check that is not in the list yet is simply not run, and `runGate`
  * reports it as 'pass'.
  */
-export const ALL_CHECKS: Check[] = [checkG1, checkG2, checkG3, checkG4, checkG5, checkG6, checkG7];
+export const ALL_CHECKS: Check[] = [checkG1, checkG2, checkG3, checkG4, checkG5, checkG6, checkG7, checkG8];
 
 /**
  * Every failure code any check can report. The seeded-defect evals prove that
@@ -30,4 +31,5 @@ export const ALL_FAILURE_CODES: readonly string[] = [
   ...G5_CODES,
   ...G6_CODES,
   ...G7_CODES,
+  ...G8_CODES,
 ];
