@@ -1,5 +1,6 @@
 import mdx from '@astrojs/mdx';
 import { satteri } from '@astrojs/markdown-satteri';
+import sitemap from '@astrojs/sitemap';
 import { defineConfig } from 'astro/config';
 import { markdownFeatures } from './markdown-features.mjs';
 
@@ -11,7 +12,7 @@ export default defineConfig({
   trailingSlash: 'always',
   build: { format: 'directory' },
   markdown: { processor: satteri({ features: markdownFeatures }) },
-  integrations: [mdx()],
+  integrations: [mdx(), sitemap()],
   vite: {
     build: {
       rolldownOptions: {
