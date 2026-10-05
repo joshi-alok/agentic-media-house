@@ -3,6 +3,7 @@ import { BASES, CLAIM_TYPES, STATUSES } from '../src/constants';
 import { defaultConfig } from '../src/config';
 import { GOLDEN_CLAIMS } from '../src/fixtures';
 import { parseDateToken, parseNumberToken } from '../src/normalise';
+import { readNumberWords } from '../src/number-words';
 import { Claim } from '../src/schemas';
 import { expectValid } from './schema-helpers';
 
@@ -67,7 +68,9 @@ describe('GOLDEN_CLAIMS: values agree with the normalisers', () => {
   it('lists a normalised value and unit that parseNumberToken also derives from the raw text', () => {
     for (const claim of GOLDEN_CLAIMS) {
       for (const value of claim.values.filter((item) => item.kind === 'number')) {
-        const parsed = parseNumberToken(value.raw);
+        // A number written in words ("four") is read by readNumberWords instead.
+        const reading = readNumberWords(value.raw);
+        const parsed = parseNumberToken(value.raw) ?? (reading.kind === 'number' ? reading : null);
         expect(parsed?.value, `${claim.id}: ${value.raw}`).toBe(value.normalised);
         expect(parsed?.unit, `${claim.id}: ${value.raw}`).toBe(value.unit);
       }

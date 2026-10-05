@@ -301,7 +301,7 @@ const CLAIMS: Claim[] = [
       'At Ashvale, Brindle Logistics measured an 18 per cent cut in cycle time on tote-picking cells, comparing the four weeks before and after the FX-1 arms went live.',
     basis: 'measured',
     status: 'deployed',
-    values: [number('18 per cent', '18', '%'), name('Ashvale'), name('Brindle Logistics'), name('FX-1')],
+    values: [number('18 per cent', '18', '%'), number('four', '4'), name('Ashvale'), name('Brindle Logistics'), name('FX-1')],
   }),
   claim({
     id: 'c-21',

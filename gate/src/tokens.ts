@@ -1,5 +1,6 @@
 import { DATE_SOURCE, NUMBER_SOURCE, parseDateToken, parseNumberToken } from './normalise';
 import type { ParsedDate, ParsedNumber } from './normalise';
+import { NUMBER_WORD_SOURCE, UNCHECKABLE_SOURCE, readNumberWords } from './number-words';
 import { normaliseQuotes, sentenceWords, stripQuoted } from './text';
 
 /** A number found in a sentence: the text as written plus its canonical value and unit. */
@@ -13,8 +14,15 @@ export interface DateToken extends ParsedDate {
 }
 
 export interface SentenceTokens {
+  /** Numbers written with digits, then numbers written out in words ("twelve kilograms" is 12 kg), each in order of appearance. */
   numbers: NumberToken[];
   dates: DateToken[];
+  /**
+   * Words that state an amount that has no value to check ("half", "twice",
+   * "doubled", "tenfold") and runs of number words that are not a number
+   * ("five five"), lowercased, each listed once, in order of appearance.
+   */
+  uncheckable: string[];
   /** Lowercased name tokens, each listed once, in order of first appearance. The first word of the sentence is not among them. */
   names: string[];
   /**
@@ -75,7 +83,11 @@ export function nameTokensOf(name: string): string[] {
  *    "24 August 2026" is one date and no numbers.
  * 3. Numbers are digit-led tokens with an optional currency, magnitude and
  *    unit. Alphanumeric mixes such as FX-1, H1 and B2B are names, not numbers.
- * 4. Names are what is left: every word except the sentence's first that
+ * 4. Numbers written in words are read next, as numbers ("twelve kilograms" is
+ *    12 kg). Words that state an amount but have no value to check (half,
+ *    twice, doubled, tenfold) are listed as `uncheckable`. See number-words.ts for
+ *    what is read and for the known limits.
+ * 5. Names are what is left: every word except the sentence's first that
  *    starts with an uppercase letter or mixes letters and digits. The first
  *    word is every sentence's capital letter, so it is not a name token; when
  *    it looks like one it is reported as `initialWord`, and the checks ground it
@@ -83,8 +95,8 @@ export function nameTokensOf(name: string): string[] {
  *
  * Name detection is deliberately strict: it reports any capitalised word, so
  * an ordinary capitalised word costs a revision round. It cannot see a name
- * that starts in lowercase (iRobot, xAI) or a number spelled out in words;
- * the model verifier covers those. An impossible date (31 February) is not
+ * that starts in lowercase (iRobot, xAI), an ordinal (first, second) or a vague
+ * quantity (several, a couple); the model verifier covers those. An impossible date (31 February) is not
  * consumed, so its digits come out as numbers that no real date can support.
  */
 export function extractTokens(sentenceText: string): SentenceTokens {
@@ -103,9 +115,23 @@ export function extractTokens(sentenceText: string): SentenceTokens {
     return parsed !== null;
   });
 
-  const [first, ...rest] = sentenceWords(withoutNumbers);
+  // Amounts that cannot be checked come out before the numbers in words, so that "tenfold" is not read as "ten".
+  const uncheckable: string[] = [];
+  const withoutAmounts = consume(withoutNumbers, UNCHECKABLE_SOURCE, (matched) => {
+    uncheckable.push(matched.toLowerCase());
+    return true;
+  });
+  const withoutWords = consume(withoutAmounts, NUMBER_WORD_SOURCE, (matched) => {
+    const reading = readNumberWords(matched);
+    if (reading.kind === 'plain') return false;
+    if (reading.kind === 'uncheckable') uncheckable.push(matched.toLowerCase());
+    else numbers.push({ raw: matched, value: reading.value, ...(reading.unit === undefined ? {} : { unit: reading.unit }) });
+    return true;
+  });
+
+  const [first, ...rest] = sentenceWords(withoutWords);
   const names = rest.filter(isNameWord).map(toNameToken);
-  const tokens: SentenceTokens = { numbers, dates, names: [...new Set(names)] };
+  const tokens: SentenceTokens = { numbers, dates, uncheckable: [...new Set(uncheckable)], names: [...new Set(names)] };
   if (first !== undefined && isNameWord(first)) tokens.initialWord = first;
   return tokens;
 }

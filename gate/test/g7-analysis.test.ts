@@ -208,6 +208,54 @@ describe('G7_ANALYSIS_NEW_VALUE: numbers', () => {
   });
 });
 
+describe('G7_ANALYSIS_NEW_VALUE: numbers in words', () => {
+  it('fails a number in words that no fact sentence contains, and says which', () => {
+    expect(run(saying('The thirteen kilograms payload is modest.')).failures).toEqual([
+      {
+        check: 'G7',
+        code: 'G7_ANALYSIS_NEW_VALUE',
+        message: `the analysis sentence at ${ANALYSIS_AT} introduces the number "thirteen kilograms", which no fact sentence contains`,
+        where: ANALYSIS_AT,
+      },
+    ]);
+  });
+
+  it.each([
+    ['a number the facts state in digits', 'The twelve kilograms payload is modest.'],
+    ['a number whose unit the facts also use', 'The thirty-eight kg arm is modest.'],
+    ['a number without a unit', 'The forty arms at Ashvale are modest.'],
+    ['a count that the facts state', 'The seven investors are modest.'],
+  ])('allows %s', (_name, text) => {
+    expect(run(saying(text))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('fails the right figure with the wrong unit', () => {
+    expect(codes(run(saying('The twelve pounds payload is modest.')))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+  });
+
+  it('fails a word that states an amount with no value to check, and says which', () => {
+    expect(run(saying('The measured rate is half the maximum.')).failures).toEqual([
+      {
+        check: 'G7',
+        code: 'G7_ANALYSIS_NEW_VALUE',
+        message: `the analysis sentence at ${ANALYSIS_AT} introduces the number word "half", which no fact sentence contains`,
+        where: ANALYSIS_AT,
+      },
+    ]);
+  });
+
+  it('reports each such word once', () => {
+    expect(codes(run(saying('The rate doubled, doubled again and then halved.')))).toEqual([
+      'G7_ANALYSIS_NEW_VALUE',
+      'G7_ANALYSIS_NEW_VALUE',
+    ]);
+  });
+
+  it('does not take "one" for a number when it is the pronoun', () => {
+    expect(run(saying('The gap is one that is normal for a figure quoted as an upper limit.'))).toEqual({ failures: [], holdReasons: [] });
+  });
+});
+
 describe('G7_ANALYSIS_NEW_VALUE: dates', () => {
   it('fails a date no fact sentence contains, and says which', () => {
     const output = run(saying('The gap has narrowed since 5 August 2026.'));

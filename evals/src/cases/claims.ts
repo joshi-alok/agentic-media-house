@@ -29,6 +29,26 @@ export const CLAIMS_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'swapped-number-in-words',
+    check: 'G4',
+    code: 'G4_NUMBER_UNSUPPORTED',
+    description: 'A sentence gives the payload as thirteen kilograms, written in words; the claim it cites says 12 kg.',
+    apply: (base) => {
+      sentenceWith(base, 'The datasheet lists a 12 kg').text = 'The datasheet lists a rated payload of thirteen kilograms and a 1.4 m maximum reach.';
+      return base;
+    },
+  },
+  {
+    id: 'uncheckable-number-word',
+    check: 'G4',
+    code: 'G4_NUMBER_WORD_UNCHECKABLE',
+    description: 'A sentence says the round has twice as many investors as before, an amount that no claim can support.',
+    apply: (base) => {
+      sentenceWith(base, 'It lists 7 investors').text = 'It lists 7 investors in the round, twice as many as before.';
+      return base;
+    },
+  },
+  {
     id: 'swapped-date',
     check: 'G4',
     code: 'G4_DATE_UNSUPPORTED',

@@ -1,6 +1,6 @@
 {
-  "total": 47,
-  "caught": 47,
+  "total": 49,
+  "caught": 49,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -156,6 +156,20 @@
       "check": "G4",
       "code": "G4_NUMBER_UNSUPPORTED",
       "description": "A sentence gives the payload as 12 lb; the claim it cites says 12 kg.",
+      "caught": true
+    },
+    {
+      "id": "swapped-number-in-words",
+      "check": "G4",
+      "code": "G4_NUMBER_UNSUPPORTED",
+      "description": "A sentence gives the payload as thirteen kilograms, written in words; the claim it cites says 12 kg.",
+      "caught": true
+    },
+    {
+      "id": "uncheckable-number-word",
+      "check": "G4",
+      "code": "G4_NUMBER_WORD_UNCHECKABLE",
+      "description": "A sentence says the round has twice as many investors as before, an amount that no claim can support.",
       "caught": true
     },
     {

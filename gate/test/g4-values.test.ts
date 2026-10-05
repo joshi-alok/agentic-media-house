@@ -175,6 +175,157 @@ describe('G4 numbers: the claim value comes from its raw text', () => {
   });
 });
 
+describe('G4 numbers written in words are checked like digits', () => {
+  it.each([
+    ['It lifts twelve kilograms.', num('12 kg', '12', 'kg')],
+    ['It lifts twelve kg.', num('12 kilograms', '12', 'kg')],
+    ['It lifts Twelve kilograms at full reach.', num('12 kg', '12', 'kg')],
+    ['It lifts twelve kilograms.', num('twelve', '12', 'kg')],
+    ['It lifts twelve kilograms.', num('twelve', '12', 'kilograms')],
+    ['It lifts twelve.', num('twelve', '12', 'kg')],
+    ['It lifts 12 kg.', num('twelve', '12', 'kg')],
+    ['It has twenty-five arms.', num('25', '25')],
+    ['It has twenty five arms.', num('25', '25')],
+    ['It has twenty-five arms.', num('twenty-five', '25')],
+    ['It shipped two hundred arms.', num('200', '200')],
+    ['It shipped two hundred and fifty arms.', num('250', '250')],
+    ['It shipped three million parts.', num('3 million', '3000000')],
+    ['It shipped two thousand five hundred parts.', num('2,500', '2500')],
+    ['It shipped a dozen arms.', num('12', '12')],
+    ['It shipped a hundred arms.', num('100', '100')],
+    ['It rose one percent.', num('1%', '1', '%')],
+    ['It rose eighteen per cent.', num('18 per cent', '18', '%')],
+    ['It moves at two metres per second.', num('2 m/s', '2', 'm/s')],
+  ])('accepts %j for the claim value %j', (text, value) => {
+    expect(codes(mini(text, [claimOf([value])]))).toEqual([]);
+  });
+
+  it.each([
+    ['It lifts thirteen kilograms.', num('12 kg', '12', 'kg')],
+    ['It lifts twelve pounds.', num('12 kg', '12', 'kg')],
+    ['It lifts twelve kilograms.', num('12 lb', '12', 'lb')],
+    ['It lifts twelve kilograms.', num('twelve', '13', 'kg')],
+    ['It has twenty-six arms.', num('25', '25')],
+    ['It shipped two hundred arms.', num('20', '20')],
+    ['It shipped two hundred arms.', num('2', '2')],
+    ['It shipped three million parts.', num('3 thousand', '3000')],
+    ['It shipped a dozen arms.', num('10', '10')],
+    ['It rose one percent.', num('10%', '10', '%')],
+    ['It rose one percent.', num('1', '1', 'kg')],
+  ])('rejects %j for the claim value %j', (text, value) => {
+    expect(codes(mini(text, [claimOf([value])]))).toEqual(['G4_NUMBER_UNSUPPORTED']);
+  });
+
+  it('names the number as it is written, and where it is', () => {
+    const out = run(mini('It lifts thirteen kilograms.', [claimOf([num('12 kg', '12', 'kg')])]));
+    expect(out.failures).toEqual([
+      {
+        check: 'G4',
+        code: 'G4_NUMBER_UNSUPPORTED',
+        message: 'the number "thirteen kilograms" at title is not in any claim this sentence cites',
+        where: 'title',
+      },
+    ]);
+  });
+
+  it('checks a figure in words and the same figure in digits as two numbers', () => {
+    const claim = claimOf([num('12 kg', '12', 'kg')]);
+    expect(codes(mini('It lifts twelve kilograms, or 12 kg.', [claim]))).toEqual([]);
+    expect(codes(mini('It lifts twelve kilograms, or 13 kg.', [claim]))).toEqual(['G4_NUMBER_UNSUPPORTED']);
+    expect(codes(mini('It lifts thirteen kilograms, or 12 kg.', [claim]))).toEqual(['G4_NUMBER_UNSUPPORTED']);
+  });
+
+  it('does not take "one" for a number when it is the pronoun', () => {
+    expect(codes(mini('It was one of the plants, and no one knew which one.', [claimOf([])]))).toEqual([]);
+  });
+
+  it('does not read a number word that is part of another word', () => {
+    expect(codes(mini('It saw someone at the tenth plant and a stone phone.', [claimOf([])]))).toEqual([]);
+  });
+
+  it('does not read the quoted words, which G5 checks', () => {
+    expect(codes(mini('It was said, "twelve arms and half a plant," by her.', [claimOf([])]))).toEqual([]);
+  });
+});
+
+describe('G4_NUMBER_WORD_UNCHECKABLE', () => {
+  it.each([
+    'half',
+    'halved',
+    'halve',
+    'twice',
+    'thrice',
+    'double',
+    'doubled',
+    'triple',
+    'tripled',
+    'quadruple',
+    'quadrupled',
+    'tenfold',
+    'ten-fold',
+    'hundredfold',
+  ])('rejects "%s", which states an amount that no claim value can be compared with', (word) => {
+    const out = run(mini(`It shipped ${word} the arms.`, [claimOf([num('12 kg', '12', 'kg')])]));
+    expect(out.failures).toEqual([
+      {
+        check: 'G4',
+        code: 'G4_NUMBER_WORD_UNCHECKABLE',
+        message: `the words "${word}" at title state an amount that cannot be checked against a claim: write the figure as digits and cite the claim that gives it`,
+        where: 'title',
+      },
+    ]);
+  });
+
+  it('rejects number words that do not make a number', () => {
+    expect(codes(mini('It shipped five five arms.', [claimOf([num('5', '5')])]))).toEqual(['G4_NUMBER_WORD_UNCHECKABLE']);
+  });
+
+  it('cannot be satisfied by a claim, even one that lists the figure', () => {
+    const claim = claimOf([num('twice', '2'), num('2', '2')]);
+    expect(codes(mini('It shipped twice the arms.', [claim]))).toEqual(['G4_NUMBER_WORD_UNCHECKABLE']);
+  });
+
+  it('is reported once for each word, in lowercase, in the order of the sentence', () => {
+    const out = run(mini('It doubled, then Doubled again, and then it halved.', [claimOf([])]));
+    expect(out.failures.map((failure) => failure.message.match(/words "([^"]+)"/)?.[1])).toEqual(['doubled', 'halved']);
+  });
+
+  it('is reported after the numbers and before the dates of the sentence', () => {
+    const out = run(mini('It doubled 13 kg on 30 September 2026.', [claimOf([num('12 kg', '12', 'kg'), when('2026-09-29', '2026-09-29')])]));
+    expect(out.failures.map((failure) => failure.code)).toEqual(['G4_NUMBER_UNSUPPORTED', 'G4_NUMBER_WORD_UNCHECKABLE', 'G4_DATE_UNSUPPORTED']);
+  });
+
+  it('applies to fact sentences only', () => {
+    const failures = goldenCodes((g) => {
+      findSentence(g.draft, (sentence) => sentence.kind === 'analysis').text = 'The measured rate is half of it, and it doubled.';
+      g.draft.limitations[0]!.text = 'It tripled.';
+    });
+    expect(failures).toEqual([]);
+  });
+
+  it('catches a swapped number in words in the golden piece', () => {
+    const failures = goldenCodes((g) => {
+      findSentence(g.draft, (sentence) => sentence.text.startsWith('The datasheet lists a rated payload')).text =
+        'The datasheet lists a rated payload of thirteen kilograms at full reach and a maximum reach of 1.4 m from the base.';
+    });
+    expect(failures).toEqual(['G4_NUMBER_UNSUPPORTED']);
+  });
+
+  it('catches an uncheckable word in the golden piece', () => {
+    const failures = goldenCodes((g) => {
+      findSentence(g.draft, (sentence) => sentence.text === 'It lists 7 investors in the round.').text =
+        'It lists 7 investors in the round, twice as many as before.';
+    });
+    expect(failures).toEqual(['G4_NUMBER_WORD_UNCHECKABLE']);
+  });
+
+  it('lets the golden piece say "four weeks", because its claim lists the figure in words', () => {
+    const sentence = cloneGolden().draft.sections[1]!.paragraphs[0]![1]!;
+    expect(sentence.text).toBe('It compared the four weeks before and after the arms went live.');
+    expect(checkG4(cloneGolden(), defaultContext()).failures).toEqual([]);
+  });
+});
+
 describe('G4 dates', () => {
   it.each([
     ['It shipped on 29 September 2026.', when('2026-09-29', '2026-09-29')],
@@ -484,6 +635,24 @@ describe('G4 headings', () => {
   it('does not take a model name that contains a digit for a number', () => {
     expect(headingCodes('What the FX-1 does')).toEqual([]);
     expect(headingCodes('What the H1 results show', 2)).toEqual(['G4_HEADING_NAME']);
+  });
+
+  it.each([
+    ['a number in words', 'What twelve means', ['"twelve"']],
+    ['a number in words with a unit', 'What twelve kilograms means', ['"twelve kilograms"']],
+    ['an amount in words', 'What doubled', ['"doubled"']],
+    ['half', 'Half of the arms', ['"half"']],
+    ['a number in words and a number in digits', 'What twelve and 13 mean', ['"13"', '"twelve"']],
+  ])('rejects %s in a heading', (_name, heading, listed) => {
+    const failures = headingFailures(heading);
+    expect(failures.map((failure) => failure.code)).toEqual(['G4_HEADING_NUMBER']);
+    expect(failures[0]?.message).toBe(
+      `the heading "${heading}" contains a number or a date (${listed.join(', ')}): a heading says what a section is about and states no figure`,
+    );
+  });
+
+  it('does not take "one" in a heading for a number', () => {
+    expect(headingCodes('What one of them means')).toEqual([]);
   });
 
   it('rejects a heading with a quoted passage in it', () => {

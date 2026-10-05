@@ -244,6 +244,11 @@
           "unit": "%"
         },
         {
+          "kind": "number",
+          "raw": "four",
+          "normalised": "4"
+        },
+        {
           "kind": "name",
           "raw": "Ashvale",
           "normalised": "ashvale"

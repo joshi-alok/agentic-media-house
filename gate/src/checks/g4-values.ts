@@ -17,6 +17,7 @@ export const G4_CODES = [
   'G4_HEADING_NUMBER',
   'G4_HEADING_QUOTE',
   'G4_HEADING_NAME',
+  'G4_NUMBER_WORD_UNCHECKABLE',
 ] as const;
 
 /**
@@ -41,11 +42,17 @@ const claimDate = (value: ClaimValue): string => parseDateToken(value.raw)?.iso 
  * be in the claim's quoted span.
  *
  * A number matches a claim number with the same canonical value, and the same
- * canonical unit if the sentence gives one. A date matches a claim date at the
- * precision the sentence uses. A name matches when each of its words is a word
- * of a cited claim's name value or outlet, or is on the allow-list. Name detection is
- * deliberately strict (see `extractTokens`): a false positive only costs a
- * revision round, a false negative would let an invented name through.
+ * canonical unit if the sentence gives one. A number written out in words
+ * ("twelve kilograms") is read as a number and checked the same way; a claim may
+ * list it as `raw: "twelve"` with `normalised: "12"`. Words that state an amount
+ * with no value to compare ("half", "twice", "doubled", "tenfold") are rejected
+ * with G4_NUMBER_WORD_UNCHECKABLE: write the figure as digits and cite a claim
+ * for it (number-words.ts says what is read and lists the known limits).
+ * A date matches a claim date at the precision the sentence uses. A name
+ * matches when each of its words is a word of a cited claim's name value or
+ * outlet, or is on the allow-list. Name detection is deliberately strict (see
+ * `extractTokens`): a false positive only costs a revision round, a false
+ * negative would let an invented name through.
  *
  * The first word of a sentence is not a name token, because every sentence
  * starts with a capital letter. When it looks like a name it has a rule of its
@@ -108,6 +115,13 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
       }
     }
 
+    for (const word of tokens.uncheckable) {
+      fail(
+        'G4_NUMBER_WORD_UNCHECKABLE',
+        `the words "${word}" at ${where} state an amount that cannot be checked against a claim: write the figure as digits and cite the claim that gives it`,
+      );
+    }
+
     const seenDates = new Set<string>();
     for (const token of tokens.dates) {
       if (seenDates.has(token.raw)) continue;
@@ -136,7 +150,9 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
     }
 
     const tokens = extractTokens(heading);
-    const figures = [...tokens.numbers, ...tokens.dates].map((token) => `"${token.raw}"`);
+    const figures = [...tokens.numbers.map((token) => token.raw), ...tokens.dates.map((token) => token.raw), ...tokens.uncheckable].map(
+      (raw) => `"${raw}"`,
+    );
     if (figures.length > 0) {
       fail(
         'G4_HEADING_NUMBER',

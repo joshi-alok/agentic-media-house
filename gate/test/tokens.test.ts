@@ -12,6 +12,7 @@ describe('extractTokens: the shape of the result', () => {
     expect(extractTokens(text)).toEqual({
       numbers: [{ raw: '$450 million', value: '450000000', unit: 'USD' }],
       dates: [{ raw: '29 September 2026', iso: '2026-09-29', precision: 'day' }],
+      uncheckable: [],
       names: ['robotics', 'corvane', 'partners'],
       initialWord: 'Fixture',
     });
@@ -24,6 +25,7 @@ describe('extractTokens: the shape of the result', () => {
         { raw: '0.05 mm', value: '0.05', unit: 'mm' },
       ],
       dates: [],
+      uncheckable: [],
       names: [],
       initialWord: 'Peak',
     });
@@ -33,16 +35,16 @@ describe('extractTokens: the shape of the result', () => {
     expect(extractTokens('It does 1,200 picks an hour.').numbers).toEqual([{ raw: '1,200', value: '1200' }]);
   });
 
-  it('returns three empty lists for a sentence with no tokens', () => {
-    expect(extractTokens('the arm moves quickly and quietly.')).toEqual({ numbers: [], dates: [], names: [] });
-    expect(extractTokens('')).toEqual({ numbers: [], dates: [], names: [] });
+  it('returns four empty lists for a sentence with no tokens', () => {
+    expect(extractTokens('the arm moves quickly and quietly.')).toEqual({ numbers: [], dates: [], uncheckable: [], names: [] });
+    expect(extractTokens('')).toEqual({ numbers: [], dates: [], uncheckable: [], names: [] });
   });
 });
 
 describe('extractTokens: quoted text is left to G5', () => {
   it('removes quoted segments before looking for tokens', () => {
     const text = 'The CEO said "Acme Robotics Ltd will ship 500 units on 3 May 2027" on Monday.';
-    expect(extractTokens(text)).toEqual({ numbers: [], dates: [], names: ['ceo', 'monday'], initialWord: 'The' });
+    expect(extractTokens(text)).toEqual({ numbers: [], dates: [], uncheckable: [], names: ['ceo', 'monday'], initialWord: 'The' });
   });
 
   it('removes curly-quoted segments too', () => {
@@ -162,6 +164,113 @@ describe('extractTokens: numbers', () => {
     for (const [alias, unit] of Object.entries(UNIT_ALIASES)) {
       expect(numbers(`It is 7 ${alias}.`), alias).toEqual([['7', unit]]);
     }
+  });
+});
+
+describe('extractTokens: numbers written in words', () => {
+  it.each([
+    ['The arm lifts twelve kilograms at full reach.', [['12', 'kg']]],
+    ['It lifts twelve kg.', [['12', 'kg']]],
+    ['It has twenty-five arms.', [['25', undefined]]],
+    ['It has twenty five arms.', [['25', undefined]]],
+    ['It shipped two hundred arms.', [['200', undefined]]],
+    ['It shipped two hundred and fifty arms.', [['250', undefined]]],
+    ['It shipped three million parts.', [['3000000', undefined]]],
+    ['It shipped five thousand parts.', [['5000', undefined]]],
+    ['It shipped a dozen arms.', [['12', undefined]]],
+    ['It shipped two dozen arms.', [['24', undefined]]],
+    ['It shipped a hundred arms.', [['100', undefined]]],
+    ['Output rose by one percent.', [['1', '%']]],
+    ['Output rose by eighteen per cent.', [['18', '%']]],
+    ['It moves at two metres per second.', [['2', 'm/s']]],
+    ['It has a six-axis arm.', [['6', undefined]]],
+    ['It shipped 5 arms and ten more.', [['5', undefined], ['10', undefined]]],
+    ['It shipped five arms or six arms.', [['5', undefined], ['6', undefined]]],
+  ])('finds the numbers in %j', (text, expected) => {
+    expect(numbers(text)).toEqual(expected);
+  });
+
+  it('keeps the words as written in the raw text, and reads a unit only in the spelling the table knows', () => {
+    expect(extractTokens('It lifts Twelve Kilograms.').numbers).toEqual([{ raw: 'Twelve', value: '12' }]);
+    expect(extractTokens('It lifts Twelve kilograms.').numbers).toEqual([{ raw: 'Twelve kilograms', value: '12', unit: 'kg' }]);
+    expect(extractTokens('It shipped two hundred and fifty arms.').numbers).toEqual([{ raw: 'two hundred and fifty', value: '250' }]);
+  });
+
+  it('reads "one" as a number only inside a longer number or in front of a unit', () => {
+    expect(numbers('One of the plants shipped it, and no one knew which one.')).toEqual([]);
+    expect(numbers('It shipped one hundred arms and twenty-one more.')).toEqual([['100', undefined], ['21', undefined]]);
+    expect(numbers('Output rose one percent.')).toEqual([['1', '%']]);
+  });
+
+  it('does not report a number word as a name, and does not report a first word that is a number word', () => {
+    const tokens = extractTokens('Twelve kilograms is the payload.');
+    expect(tokens.numbers).toEqual([{ raw: 'Twelve kilograms', value: '12', unit: 'kg' }]);
+    expect(tokens.names).toEqual([]);
+    expect(tokens).not.toHaveProperty('initialWord');
+    expect(names('Shipments of Twelve arms rose.')).toEqual([]);
+  });
+
+  it('keeps "One" at the start of a sentence as the first word, which is an ordinary opening word', () => {
+    expect(extractTokens('One of the plants shipped it.').initialWord).toBe('One');
+  });
+
+  it('does not read a number word inside another word, or at the end of a hyphenated word', () => {
+    expect(numbers('Someone with a high-five, a top-ten list and the tenth plant.')).toEqual([]);
+  });
+
+  it('leaves the unit key out of a number in words that has no unit', () => {
+    expect(Object.keys(extractTokens('It shipped twelve arms.').numbers[0]!)).toEqual(['raw', 'value']);
+    expect(Object.keys(extractTokens('It shipped twelve kilograms.').numbers[0]!)).toEqual(['raw', 'value', 'unit']);
+  });
+
+  it('reads digits first and words after them, and leaves quoted words to G5', () => {
+    expect(numbers('Jane said "twelve arms" and 5 arms and ten more.')).toEqual([['5', undefined], ['10', undefined]]);
+  });
+
+  it('reads a number in words before it can be mistaken for a date', () => {
+    const tokens = extractTokens('Between 2025 and twenty arms.');
+    expect(tokens.dates.map((date) => date.iso)).toEqual(['2025']);
+    expect(tokens.numbers.map((number) => number.value)).toEqual(['20']);
+  });
+});
+
+describe('extractTokens: amounts that cannot be checked', () => {
+  const uncheckable = (text: string) => extractTokens(text).uncheckable;
+
+  it.each([
+    ['Output doubled last year.', ['doubled']],
+    ['Output has half the range.', ['half']],
+    ['Output rose twice as fast.', ['twice']],
+    ['Output rose tenfold.', ['tenfold']],
+    ['Output rose ten-fold.', ['ten-fold']],
+    ['Output tripled and then quadrupled.', ['tripled', 'quadrupled']],
+    ['Output is halved.', ['halved']],
+    ['It shipped five five arms.', ['five five']],
+  ])('lists the words of %j', (text, expected) => {
+    expect(uncheckable(text)).toEqual(expected);
+  });
+
+  it('does not read them as numbers or as names', () => {
+    const tokens = extractTokens('Output rose tenfold, then Doubled.');
+    expect(tokens.numbers).toEqual([]);
+    expect(tokens.names).toEqual([]);
+    expect(tokens.uncheckable).toEqual(['tenfold', 'doubled']);
+  });
+
+  it('lists each word once, in lowercase', () => {
+    expect(uncheckable('Doubled and doubled, then DOUBLED, then half.')).toEqual(['doubled', 'half']);
+  });
+
+  it('lowercases a run of number words that is not a number, too', () => {
+    expect(uncheckable('It shipped Five Five arms.')).toEqual(['five five']);
+  });
+
+  it('lists nothing for a sentence with no such word', () => {
+    expect(uncheckable('It shipped twelve arms to a halfway house.')).toEqual([]);
+  });
+
+  it('leaves quoted words to G5', () => {
+    expect(uncheckable('Jane said "it doubled" today.')).toEqual([]);
   });
 });
 

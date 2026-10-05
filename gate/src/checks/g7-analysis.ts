@@ -30,6 +30,8 @@ const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitat
  *   except the first word of a sentence and the words on the allow-list.
  *   A name that a fact sentence has only as its first word does not count as
  *   stated: say it mid-sentence in a fact.
+ *   Numbers written out in words count as numbers, and a word that states an
+ *   amount with no value to compare ("half", "doubled") is always new.
  *   The first word of an analysis sentence has its own rule: when it looks like a name
  *   it must be a function word from SENTENCE_STARTERS, a word on the allow-list, or
  *   a whole word (any case, anywhere) of some fact sentence of the piece.
@@ -93,6 +95,9 @@ export const checkG7: Check = ({ draft }, ctx) => {
       if (!numbers.some((fact) => fact.value === token.value && (token.unit === undefined || fact.unit === token.unit))) {
         fail(`number "${token.raw}"`);
       }
+    }
+    for (const word of tokens.uncheckable) {
+      fail(`number word "${word}"`);
     }
     for (const token of new Map(tokens.dates.map((date) => [date.raw, date])).values()) {
       if (!dates.some((fact) => dateMatches(token, fact.iso))) {

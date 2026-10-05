@@ -7,6 +7,7 @@ export * from './gate';
 export * from './grounding';
 export * from './limitations';
 export * from './normalise';
+export * from './number-words';
 export * from './render';
 export * from './schemas';
 export * from './sentences';
