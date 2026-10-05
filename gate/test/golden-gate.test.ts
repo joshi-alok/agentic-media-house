@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as api from '@robywire/gate';
-import type { CheckId, GateInput } from '@robywire/gate';
+import type { CheckId, ContextOverrides, GateInput } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden } from '@robywire/gate/fixtures';
 import { claimById, findSentence, mutate } from './helpers';
 
@@ -19,6 +19,15 @@ describe('the public API of @robywire/gate', () => {
     'checkG3',
     'checkG4',
     'checkG5',
+    'checkG6',
+    'checkG7',
+    'checkG8',
+    'checkG9',
+    'ALL_FAILURE_CODES',
+    // slugs and titles
+    'disambiguateSlug',
+    'titleTokens',
+    'TITLE_STOP_WORDS',
     // text, normalisers, tokens, limitations, sentences
     'countWords',
     'normaliseQuotes',
@@ -65,20 +74,36 @@ describe('the public API of @robywire/gate', () => {
     }
   });
 
-  it('lists the checks in order, starting with G1 to G5', () => {
-    expect(api.ALL_CHECKS.slice(0, 5)).toEqual([api.checkG1, api.checkG2, api.checkG3, api.checkG4, api.checkG5]);
+  it('lists the nine checks in order, G1 to G9', () => {
+    expect(api.ALL_CHECKS).toEqual([
+      api.checkG1,
+      api.checkG2,
+      api.checkG3,
+      api.checkG4,
+      api.checkG5,
+      api.checkG6,
+      api.checkG7,
+      api.checkG8,
+      api.checkG9,
+    ]);
+    expect(api.ALL_CHECKS).toHaveLength(api.CHECK_IDS.length);
+  });
+
+  it('lists the failure codes of all nine checks, each starting with the id of its check', () => {
+    for (const id of api.CHECK_IDS) {
+      expect(api.ALL_FAILURE_CODES.some((code) => code.startsWith(`${id}_`)), id).toBe(true);
+    }
+    expect(api.ALL_FAILURE_CODES.every((code) => /^G[1-9]_/.test(code))).toBe(true);
   });
 });
 
 describe('runGate on the golden piece', () => {
-  it('publishes it: no failures, no hold reasons, and G1 to G5 all pass', () => {
+  it('publishes it: no failures, no hold reasons, and all nine checks pass', () => {
     const result = api.runGate(cloneGolden(), api.defaultContext());
     expect(result.failures).toEqual([]);
     expect(result.holdReasons).toEqual([]);
     expect(result.route).toBe('publish');
-    for (const id of ['G1', 'G2', 'G3', 'G4', 'G5'] as const) {
-      expect(result.checks[id], id).toBe('pass');
-    }
+    expect(result.checks).toEqual({ G1: 'pass', G2: 'pass', G3: 'pass', G4: 'pass', G5: 'pass', G6: 'pass', G7: 'pass', G8: 'pass', G9: 'pass' });
   });
 
   it('gives the same answer every time', () => {
@@ -99,8 +124,22 @@ describe('runGate on the golden piece', () => {
   });
 });
 
+/** Make c-19 (the investor count) a claim reported by an outlet, and leave the sentence that cites it as it was. */
+function makeTier2(g: GateInput): void {
+  const { source } = claimById(g.claims, 'c-19');
+  source.tier = 2;
+  source.outlet = 'Mercer Wire';
+}
+
+/** Then write that sentence the way a tier-2 claim must be written. */
+function attribute(g: GateInput): void {
+  const sentence = findSentence(g.draft, (item) => item.text === 'It lists 7 investors in the round.');
+  sentence.text = 'Mercer Wire reports that 7 investors took part in the round.';
+  if (sentence.kind === 'fact') sentence.attributed = true;
+}
+
 describe('runGate on the golden piece with one thing wrong', () => {
-  const defects: [CheckId, string, (copy: GateInput) => void][] = [
+  const defects: [CheckId, string, (copy: GateInput) => void, ContextOverrides?][] = [
     ['G1', 'G1_TITLE_EMPTY', (g) => (g.draft.title.text = '')],
     ['G2', 'G2_HEADING_QUESTION', (g) => (g.draft.sections[0]!.heading = 'What shipped?')],
     ['G3', 'G3_NO_CLAIM', (g) => (g.draft.takeaways[0]!.claimIds = [])],
@@ -119,10 +158,20 @@ describe('runGate on the golden piece with one thing wrong', () => {
           '"We went from pilot to production in ten weeks," said Dana Whitcombe, chief operating officer of Brindle Logistics.';
       },
     ],
+    ['G6', 'G6_TIER2_UNATTRIBUTED', (g) => makeTier2(g)],
+    [
+      'G7',
+      'G7_ANALYSIS_NEW_VALUE',
+      (g) => {
+        findSentence(g.draft, (sentence) => sentence.kind === 'analysis').text = 'The measured rate is 22% below the datasheet maximum.';
+      },
+    ],
+    ['G8', 'G8_LIMITATION_MISMATCH', (g) => (g.draft.limitations[0]!.text = 'The payload figure is exact.')],
+    ['G9', 'G9_SLUG_COLLISION', () => undefined, { publishedSlugs: ['fixture-robotics-ships-fx-1-to-second-plant'] }],
   ];
 
-  it.each(defects)('sends the draft back for revision when %s finds %s', (id, code, change) => {
-    const result = api.runGate(mutate(cloneGolden(), change), api.defaultContext());
+  it.each(defects)('sends the draft back for revision when %s finds %s', (id, code, change, overrides) => {
+    const result = api.runGate(mutate(cloneGolden(), change), api.defaultContext(overrides));
     expect(result.route).toBe('revise');
     expect(result.checks[id]).toBe('fail');
     expect(result.failures.some((failure) => failure.check === id && failure.code === code)).toBe(true);
@@ -136,5 +185,42 @@ describe('runGate on the golden piece with one thing wrong', () => {
       api.defaultContext(),
     );
     expect(result.checks).toEqual({ G1: 'pass', G2: 'pass', G3: 'pass', G4: 'fail', G5: 'pass', G6: 'pass', G7: 'pass', G8: 'pass', G9: 'pass' });
+  });
+});
+
+describe('runGate when the piece rests on a tier-2 claim', () => {
+  it('holds a properly attributed piece: nothing failed, but it may not publish by itself', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        makeTier2(g);
+        attribute(g);
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures).toEqual([]);
+    expect(result.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+    expect(result.route).toBe('hold');
+    expect(Object.values(result.checks).every((value) => value === 'pass')).toBe(true);
+  });
+
+  it('sends an unattributed piece back for revision instead: a failure beats a hold', () => {
+    const result = api.runGate(mutate(cloneGolden(), makeTier2), api.defaultContext());
+    expect(result.route).toBe('revise');
+    expect(result.checks.G6).toBe('fail');
+    expect(result.holdReasons).toEqual([]);
+  });
+
+  it('revises, and still lists the hold reason, when a properly attributed piece also has a failure elsewhere', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        makeTier2(g);
+        attribute(g);
+        g.draft.sections[0]!.heading = 'What shipped?';
+      }),
+      api.defaultContext(),
+    );
+    expect(result.route).toBe('revise');
+    expect(result.checks.G2).toBe('fail');
+    expect(result.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
   });
 });

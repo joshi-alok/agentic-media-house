@@ -11,11 +11,12 @@ import { G9_CODES, checkG9 } from './g9-hygiene';
 
 export { checkG1, checkG2, checkG3, checkG4, checkG5, checkG6, checkG7, checkG8, checkG9 };
 export { G1_CODES, G2_CODES, G3_CODES, G4_CODES, G5_CODES, G6_CODES, G7_CODES, G8_CODES, G9_CODES };
+export { TITLE_STOP_WORDS, titleTokens } from './g9-hygiene';
 
 /**
- * Every check that `runGate` runs, in order. Each check task adds its check
- * here. A check that is not in the list yet is simply not run, and `runGate`
- * reports it as 'pass'.
+ * Every check that `runGate` runs, in order: G1 to G9. A check that is not in
+ * this list is not run, and `runGate` reports it as 'pass', so a new check
+ * must be added here.
  */
 export const ALL_CHECKS: Check[] = [checkG1, checkG2, checkG3, checkG4, checkG5, checkG6, checkG7, checkG8, checkG9];
 
