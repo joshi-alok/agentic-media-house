@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { cssViolations } from '../scripts/audit/css-rules.mjs';
 
 // The design register is quiet, thin and grey, and it has rules that a
 // reviewer would otherwise have to check by eye: text must be readable in both
@@ -99,27 +100,14 @@ describe('tokens.css', () => {
 
 // --- The stylesheet and template rules ---------------------------------------
 
-/** What is wrong with a stylesheet or template, in words. An empty list means it keeps the rules. */
+/**
+ * What is wrong with a stylesheet or template, in words. An empty list means it keeps the rules.
+ * The CSS rules are the audit's own (scripts/audit/css-rules.mjs); the markup rules are checked here.
+ */
 function lawViolations(source: string): string[] {
-  const found: string[] = [];
-  if (/font-style\s*:\s*italic/i.test(source)) found.push('uses font-style: italic');
+  const found = cssViolations(source).map((violation) => violation.message);
   if (/<(i|em)[\s>]/i.test(source)) found.push('uses an <i> or <em> element');
-  if (/@font-face/i.test(source)) found.push('declares a web font with @font-face');
   if (/<img[\s>]/i.test(source)) found.push('uses an <img> element');
-
-  for (const match of source.matchAll(/border(?:-[a-z]+)*-radius\s*:\s*([^;}]*)/gi)) {
-    const values = match[1]!.replace(/!important/i, '').trim().split(/[\s/]+/);
-    if (!values.every((value) => /^0(px|rem|em|%)?$/.test(value))) found.push(`has a rounded corner: ${match[0]!.trim()}`);
-  }
-
-  for (const match of source.matchAll(/(?<![a-z-])border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?(?:-width)?\s*:\s*([^;}]*)/gi)) {
-    const value = match[1]!;
-    if (/\b(medium|thick)\b/i.test(value)) found.push(`has a border wider than 1px: ${match[0]!.trim()}`);
-    for (const size of value.matchAll(/(\d*\.?\d+)\s*(px|rem|em)\b/gi)) {
-      const pixels = Number(size[1]) * (size[2]!.toLowerCase() === 'px' ? 1 : 16);
-      if (pixels > 1) found.push(`has a border wider than 1px: ${match[0]!.trim()}`);
-    }
-  }
   return found;
 }
 
