@@ -1,6 +1,7 @@
-import { defaultContext } from '@robywire/gate';
-import type { CheckId, GateContext, GateInput } from '@robywire/gate';
-import { SPEC_CASES } from './cases/spec';
+import type { CheckId, GateInput } from '@robywire/gate';
+
+export { SEEDED_PUBLISHED_SLUG, SEEDED_RECENT_TITLE, seededContext } from './context';
+export { SEEDED_CASES } from './cases';
 
 /**
  * One known defect. `apply` receives a deep copy of the golden piece and
@@ -16,16 +17,3 @@ export type SeededCase = {
   description: string;
   apply: (base: GateInput) => GateInput;
 };
-
-// The hygiene check compares a piece with what is already published, so the
-// cases run in a context that has something published. The golden piece has
-// neither of these, so it still publishes; the hygiene cases copy them.
-export const SEEDED_PUBLISHED_SLUG = 'brindle-logistics-adds-40-fx-1-arms-at-ashvale';
-export const SEEDED_RECENT_TITLE = 'Brindle Logistics adds 40 FX-1 arms at Ashvale';
-
-/** The context every case, and the baseline, runs in. A fresh one each call. */
-export function seededContext(): GateContext {
-  return defaultContext({ publishedSlugs: [SEEDED_PUBLISHED_SLUG], recentTitles: [SEEDED_RECENT_TITLE] });
-}
-
-export const SEEDED_CASES: SeededCase[] = [...SPEC_CASES];
