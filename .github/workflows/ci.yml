@@ -8,6 +8,8 @@ on:
 permissions:
   contents: read
 
+# These steps are the steps of `npm run verify`, one by one so that a failure
+# names the step. site/test/verify.test.ts keeps the two lists identical.
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -28,7 +30,28 @@ jobs:
         run: npm run typecheck
 
       - name: Test
-        run: npm test
+        run: npm run test
 
       - name: Seeded-defect evals
         run: npm run evals:seeded
+
+      - name: Fixture drift
+        run: npm run fixtures:check
+
+      - name: Production build
+        run: npm run build
+
+      - name: Audit the production build
+        run: npm run audit:prod
+
+      - name: Fixture build
+        run: npm run build:fixtures
+
+      - name: Audit the fixture build
+        run: npm run audit
+
+      # The ubuntu-latest image has Google Chrome installed, and chrome-launcher
+      # finds it (google-chrome on the path). GitHub sets CI=true, so the
+      # command starts Chrome without its sandbox, which a runner cannot give it.
+      - name: Lighthouse
+        run: npm run lighthouse
