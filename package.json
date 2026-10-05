@@ -20,7 +20,8 @@
     "build": "npm run build --workspace @robywire/site",
     "build:fixtures": "npm run build:fixtures --workspace @robywire/site",
     "audit": "node site/scripts/audit.mjs",
-    "audit:prod": "node site/scripts/audit.mjs --prod"
+    "audit:prod": "node site/scripts/audit.mjs --prod",
+    "lighthouse": "node site/scripts/lighthouse.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

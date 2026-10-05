@@ -27,9 +27,11 @@
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
+    "chrome-launcher": "1.2.2",
     "diff": "9.0.0",
     "fast-xml-parser": "5.11.2",
     "fast-xml-validator": "1.4.2",
+    "lighthouse": "13.5.0",
     "parse5": "8.0.1",
     "satteri": "0.10.5",
     "typescript": "6.0.3"
