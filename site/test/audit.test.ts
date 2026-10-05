@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from '../scripts/audit/checks-markup.mjs';
+import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from '../scripts/audit/checks-style.mjs';
 import { siteFromFiles } from '../scripts/audit/site.mjs';
 
 // Every check of the audit is tested twice: with a snippet it must accept and
@@ -155,5 +156,161 @@ describe('A10 checkSkipLink', () => {
   it('rejects a page with no link at all', () => {
     const html = '<!doctype html><html lang="en"><head><title>T</title></head><body><p>x</p></body></html>';
     expect(checkSkipLink(site({ 'index.html': html })).problems).toEqual(['index.html: has no links, so no skip link']);
+  });
+});
+
+describe('A5 checkNoItalics', () => {
+  it('accepts pages and CSS without italics', () => {
+    expect(checkNoItalics(site({ 'index.html': page('<p>x <strong>y</strong></p>'), '_astro/a.css': '.a{font-style:normal}' }))).toEqual(ok('A5'));
+  });
+
+  it.each([
+    ['an <em> element', '<p>a <em>b</em></p>', 'index.html: has an <em> element'],
+    ['an <i> element', '<p>a <i>b</i></p>', 'index.html: has an <i> element'],
+    ['a <cite> element, which browsers set in italics', '<p><cite>b</cite></p>', 'index.html: has a <cite> element, which browsers set in italics'],
+    ['a <dfn> element', '<p><dfn>b</dfn></p>', 'index.html: has a <dfn> element, which browsers set in italics'],
+    ['a style attribute', '<p style="font-style: italic">b</p>', 'index.html (style attribute): uses font-style: italic'],
+  ])('rejects %s', (_name, body, problem) => {
+    expect(checkNoItalics(site({ 'index.html': page(body) })).problems).toEqual([problem]);
+  });
+
+  it('rejects italics in a CSS file, in minified form too', () => {
+    expect(checkNoItalics(site({ 'index.html': page('<h1>x</h1>'), '_astro/a.css': '.a{font-style:italic}' })).problems).toEqual(['_astro/a.css: uses font-style: italic']);
+  });
+
+  it('rejects italics in a style element', () => {
+    const html = page('<h1>x</h1>', { head: '<style>.a{font-style:italic}</style>' });
+    expect(checkNoItalics(site({ 'index.html': html })).problems).toEqual(['index.html (style element): uses font-style: italic']);
+  });
+});
+
+describe('A6 checkNoWebFonts', () => {
+  it('accepts pages that use system fonts only', () => {
+    expect(checkNoWebFonts(site({ 'index.html': page('<h1>x</h1>'), '_astro/a.css': 'body{font-family:-apple-system,Arial,sans-serif}' }))).toEqual(ok('A6'));
+  });
+
+  it('rejects @font-face', () => {
+    const css = '@font-face{font-family:X;src:local(X)}';
+    expect(checkNoWebFonts(site({ 'index.html': page('<h1>x</h1>'), '_astro/a.css': css })).problems).toEqual(['_astro/a.css: declares a web font with @font-face']);
+  });
+
+  it('rejects a stylesheet from Google Fonts', () => {
+    const head = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter">';
+    expect(checkNoWebFonts(site({ 'index.html': page('<h1>x</h1>', { head }) })).problems).toEqual(['index.html: loads from fonts.googleapis.com']);
+  });
+
+  it('rejects a font host named in CSS', () => {
+    const css = '@import "https://fonts.gstatic.com/x.css";';
+    expect(checkNoWebFonts(site({ 'index.html': page('<h1>x</h1>'), '_astro/a.css': css })).problems).toEqual(['_astro/a.css: loads from fonts.gstatic.com']);
+  });
+
+  it('rejects a link that preloads a font', () => {
+    const head = '<link rel="preload" href="/f.woff2" as="font" type="font/woff2" crossorigin>';
+    expect(checkNoWebFonts(site({ 'index.html': page('<h1>x</h1>', { head }) })).problems).toContain('index.html: preloads a font');
+  });
+
+  it('rejects a font file in the build', () => {
+    expect(checkNoWebFonts(site({ 'index.html': page('<h1>x</h1>') }, ['fonts/inter.woff2'])).problems).toEqual(['fonts/inter.woff2: is a font file']);
+  });
+
+  it('lists font files in order of their path', () => {
+    expect(checkNoWebFonts(site({ 'index.html': page('<h1>x</h1>') }, ['fonts/b.woff2', 'fonts/a.ttf'])).problems).toEqual(['fonts/a.ttf: is a font file', 'fonts/b.woff2: is a font file']);
+  });
+});
+
+describe('A7 checkHairlines', () => {
+  it('accepts one-pixel borders and square corners', () => {
+    const css = '*{border-radius:0}.a{border:1px solid var(--line);outline:2px solid red}';
+    expect(checkHairlines(site({ 'index.html': page('<h1>x</h1>'), '_astro/a.css': css }))).toEqual(ok('A7'));
+  });
+
+  it('rejects a border wider than a pixel', () => {
+    const css = '.a{border-top:2px solid var(--line)}';
+    expect(checkHairlines(site({ 'index.html': page('<h1>x</h1>'), '_astro/a.css': css })).problems).toEqual([
+      '_astro/a.css: has a border wider than 1px: border-top:2px solid var(--line)',
+    ]);
+  });
+
+  it('rejects a rounded corner in a style element', () => {
+    const html = page('<h1>x</h1>', { head: '<style>.a{border-radius:4px}</style>' });
+    expect(checkHairlines(site({ 'index.html': html })).problems).toEqual(['index.html (style element): has a rounded corner: border-radius:4px']);
+  });
+
+  it('does not report italics, which are A5\'s', () => {
+    expect(checkHairlines(site({ 'index.html': page('<h1>x</h1>'), '_astro/a.css': '.a{font-style:italic}' }))).toEqual(ok('A7'));
+  });
+});
+
+describe('A12 checkColourLaw', () => {
+  const tokens = ':root{--bg:#FFFFFF;--t1:#14181D;--link:#1B66DF}@media (prefers-color-scheme:dark){:root{--bg:#0F1216}}/* once #123456 */';
+  const withCss = (css: string, others: Record<string, string> = {}) => site({ 'index.html': page('<h1>x</h1>'), '_astro/a.css': css, ...others });
+
+  it('accepts the colours of the tokens, in any case and in short form', () => {
+    expect(checkColourLaw(withCss('a{color:#14181d;background:#fff;border-color:#0F1216}.b{fill:#1B66DF}'), tokens)).toEqual(ok('A12'));
+  });
+
+  it('accepts a page with no colour at all', () => {
+    expect(checkColourLaw(withCss('a{color:var(--link);margin:0}'), tokens)).toEqual(ok('A12'));
+  });
+
+  it('rejects a colour that is not a token', () => {
+    expect(checkColourLaw(withCss('a{color:#ff0000}'), tokens).problems).toEqual(['_astro/a.css: #ff0000 is not a colour of the design tokens']);
+  });
+
+  it('expands short colours before it compares: #f00 is #ff0000', () => {
+    expect(checkColourLaw(withCss('a{color:#f00}'), tokens).problems).toEqual(['_astro/a.css: #ff0000 is not a colour of the design tokens']);
+  });
+
+  it('does not count a colour that is only mentioned in a comment of the tokens file', () => {
+    expect(checkColourLaw(withCss('a{color:#123456}'), tokens).problems).toEqual(['_astro/a.css: #123456 is not a colour of the design tokens']);
+  });
+
+  it('rejects a colour with an alpha channel, which is a different colour', () => {
+    expect(checkColourLaw(withCss('a{color:#14181dcc}'), tokens).problems).toEqual(['_astro/a.css: #14181dcc is not a colour of the design tokens']);
+  });
+
+  it('reads colours of four and eight digits, which have an alpha channel and are never a token', () => {
+    expect(checkColourLaw(withCss('a{color:#f00f}.b{color:#00000000}'), tokens).problems).toEqual([
+      '_astro/a.css: #ff0000ff is not a colour of the design tokens',
+      '_astro/a.css: #00000000 is not a colour of the design tokens',
+    ]);
+  });
+
+  it('reads a function colour written in capitals', () => {
+    expect(checkColourLaw(withCss('a{color:RGB(0 0 0)}'), tokens).problems).toEqual(['_astro/a.css: rgb() is not a colour of the design tokens']);
+  });
+
+  it('rejects colours written as functions', () => {
+    expect(checkColourLaw(withCss('a{color:rgb(20 24 29)}.b{color:hsla(0,0%,0%,.5)}'), tokens).problems).toEqual([
+      '_astro/a.css: rgb() is not a colour of the design tokens',
+      '_astro/a.css: hsla() is not a colour of the design tokens',
+    ]);
+  });
+
+  it('reads style elements and style attributes too', () => {
+    const html = page('<p style="color:#00ff00">x</p>', { head: '<style>.a{color:#ff00ff}</style>' });
+    expect(checkColourLaw(site({ 'index.html': html }), tokens).problems).toEqual([
+      'index.html (style element): #ff00ff is not a colour of the design tokens',
+      'index.html (style attribute): #00ff00 is not a colour of the design tokens',
+    ]);
+  });
+
+  it('reads SVG files, such as the fact cards', () => {
+    expect(checkColourLaw(withCss('a{margin:0}', { 'news/a/card.svg': '<svg><rect fill="#FFFFFF" stroke="#1B66DF"/></svg>' }), tokens)).toEqual(ok('A12'));
+    expect(checkColourLaw(withCss('a{margin:0}', { 'news/a/card.svg': '<svg><rect fill="#ABCDEF"/></svg>' }), tokens).problems).toEqual([
+      'news/a/card.svg: #abcdef is not a colour of the design tokens',
+    ]);
+  });
+
+  it('does not take an id selector for a colour', () => {
+    expect(checkColourLaw(withCss('#add{margin:0}#bad .x{margin:0}'), tokens)).toEqual(ok('A12'));
+  });
+
+  it('reports a colour once for each place, however often it appears there', () => {
+    expect(checkColourLaw(withCss('a{color:#ff0000}b{color:#FF0000}'), tokens).problems).toHaveLength(1);
+  });
+
+  it('refuses a tokens file that defines no colour, because every colour would then be wrong', () => {
+    expect(() => checkColourLaw(withCss('a{margin:0}'), '/* nothing */')).toThrow('defines no colour');
   });
 });
