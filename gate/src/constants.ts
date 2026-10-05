@@ -1,0 +1,78 @@
+/** The seven beats from the content contract (section 4). A closed vocabulary. */
+export const BEATS = [
+  'humanoids',
+  'home-consumer',
+  'industrial-warehouse',
+  'field-mobility',
+  'software-autonomy',
+  'components-supply-chain',
+  'policy-standards',
+] as const;
+export type Beat = (typeof BEATS)[number];
+
+/** Cross-cutting tags. `funding` is the only one; it rides along with a beat. */
+export const CROSS_TAGS = ['funding'] as const;
+export type CrossTag = (typeof CROSS_TAGS)[number];
+
+/** Every slug that `categories` may contain: the beats plus the cross tags. */
+export const CATEGORY_VOCAB = [...BEATS, ...CROSS_TAGS] as const;
+export type Category = (typeof CATEGORY_VOCAB)[number];
+
+/** Where a claim's figure came from. */
+export const BASES = [
+  'datasheet',
+  'press-release',
+  'briefing',
+  'paper',
+  'filing',
+  'standard',
+  'measured',
+  'demo',
+] as const;
+export type Basis = (typeof BASES)[number];
+
+/**
+ * Bases that need no "What we couldn't verify" section: the source is a filing,
+ * a standard, a paper or a measurement, not a company's own claim.
+ */
+export const SAFE_BASES = ['filing', 'standard', 'paper', 'measured'] as const satisfies readonly Basis[];
+export type SafeBasis = (typeof SAFE_BASES)[number];
+
+/** How far a capability has got, as the source states it. */
+export const STATUSES = ['demonstrated', 'deployed', 'planned', 'unspecified'] as const;
+export type Status = (typeof STATUSES)[number];
+
+export const CLAIM_TYPES = ['number', 'date', 'name', 'spec', 'quote', 'event'] as const;
+export type ClaimType = (typeof CLAIM_TYPES)[number];
+
+/** The kinds of token a claim can license in a sentence. */
+export const VALUE_KINDS = ['number', 'date', 'name'] as const;
+export type ValueKind = (typeof VALUE_KINDS)[number];
+
+export const SENTENCE_KINDS = ['fact', 'analysis', 'limitation'] as const;
+export type SentenceKind = (typeof SENTENCE_KINDS)[number];
+
+/** The parts of a piece a ledger sentence can belong to. */
+export const LEDGER_SECTIONS = ['title', 'description', 'opening', 'takeaways', 'body', 'limitations'] as const;
+export type LedgerSection = (typeof LEDGER_SECTIONS)[number];
+
+/** The deterministic checks. G10, the model verifier, is applied by the desk, not the gate. */
+export const CHECK_IDS = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9'] as const;
+export type CheckId = (typeof CHECK_IDS)[number];
+
+export const CHECK_RESULTS = ['pass', 'fail'] as const;
+export type CheckResult = (typeof CHECK_RESULTS)[number];
+
+/** What the gate decides: publish, send back for revision, or hold for the owner. */
+export const ROUTES = ['publish', 'revise', 'hold'] as const;
+export type Route = (typeof ROUTES)[number];
+
+export const RUN_OUTCOMES = ['published', 'no-story', 'held', 'failed'] as const;
+export type RunOutcome = (typeof RUN_OUTCOMES)[number];
+
+export const CORRECTION_KINDS = ['correction', 'retraction'] as const;
+export type CorrectionKind = (typeof CORRECTION_KINDS)[number];
+
+/** Status values in sources.yml. The desk sets `verified` once it has fetched a source. */
+export const SOURCE_STATUSES = ['verified', 'unverified', 'blocked', 'n/a'] as const;
+export type SourceStatus = (typeof SOURCE_STATUSES)[number];
