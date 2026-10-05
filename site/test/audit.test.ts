@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from '../scripts/audit/checks-markup.mjs';
+import { checkCrawlFiles, checkNoFixtureLeakage, checkXmlWellFormed } from '../scripts/audit/checks-files.mjs';
 import { checkArticlePages, checkClaimMarkers, checkInternalLinks } from '../scripts/audit/checks-links.mjs';
 import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from '../scripts/audit/checks-style.mjs';
 import { siteFromFiles } from '../scripts/audit/site.mjs';
@@ -488,5 +489,143 @@ describe('A11 checkClaimMarkers', () => {
   it('does not take the plain link to the receipts page for a marker', () => {
     const body = `One${marker(1)}.</p><p><a href="/news/${SLUG}/receipts/">see the receipts</a>`;
     expect(checkClaimMarkers(site(files(body, 'c-1')))).toEqual(ok('A11'));
+  });
+});
+
+describe('A13 checkNoFixtureLeakage', () => {
+  it('accepts a build with no trace of the fixtures', () => {
+    expect(checkNoFixtureLeakage(site({ 'index.html': page('<h1>Robotics news</h1>'), 'rss.xml': '<rss/>', '_astro/a.css': 'a{margin:0}' }, ['x/card.png']))).toEqual(ok('A13'));
+  });
+
+  it('rejects the fixture ribbon', () => {
+    const html = page('<div class="ribbon">FIXTURE DATA &mdash; not real reporting</div><h1>x</h1>');
+    expect(checkNoFixtureLeakage(site({ 'index.html': html })).problems).toEqual(['index.html: contains the fixture ribbon text']);
+  });
+
+  it('rejects the fictional company, in any case', () => {
+    expect(checkNoFixtureLeakage(site({ 'a/index.html': page('<h1>fixture ROBOTICS ships</h1>') })).problems).toEqual(['a/index.html: contains "Fixture Robotics"']);
+  });
+
+  it('rejects the company in a feed, a stylesheet and a card as well as in a page', () => {
+    const files = { 'index.html': page('<h1>x</h1>'), 'rss.xml': '<title>Fixture Robotics ships</title>', '_astro/a.css': '/* Fixture Robotics */', 'n/card.svg': '<title>Fixture Robotics</title>' };
+    expect(checkNoFixtureLeakage(site(files)).problems).toEqual(['_astro/a.css: contains "Fixture Robotics"', 'n/card.svg: contains "Fixture Robotics"', 'rss.xml: contains "Fixture Robotics"']);
+  });
+
+  it('rejects a fixture slug in an address or in a file name', () => {
+    const files = { 'index.html': page('<a href="/news/fixture-robotics-ships-fx-1/">x</a><h1>x</h1>') };
+    expect(checkNoFixtureLeakage(site(files, ['news/fixture-robotics-ships-fx-1/card.png'])).problems).toEqual([
+      'index.html: contains "fixture-robotics"',
+      'news/fixture-robotics-ships-fx-1/card.png: is named after a fixture',
+    ]);
+  });
+});
+
+describe('A14 checkXmlWellFormed', () => {
+  it('accepts a feed, a sitemap and a card that are well-formed', () => {
+    const files = {
+      'index.html': page('<h1>x</h1>'),
+      'rss.xml': '<?xml version="1.0"?><rss version="2.0"><channel><title>A &amp; B</title></channel></rss>',
+      'sitemap-0.xml': '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://a.example/</loc></url></urlset>',
+      'n/card.svg': '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><text>x</text></svg>',
+    };
+    expect(checkXmlWellFormed(site(files))).toEqual(ok('A14'));
+  });
+
+  it('does not read HTML as XML', () => {
+    expect(checkXmlWellFormed(site({ 'index.html': '<!doctype html><br><p>x' }))).toEqual(ok('A14'));
+  });
+
+  it('rejects a feed with a tag closed by the wrong name, with the position', () => {
+    expect(checkXmlWellFormed(site({ 'rss.xml': '<rss><channel></rss>' }))).toEqual({
+      id: 'A14',
+      ok: false,
+      problems: ["rss.xml: Expected closing tag 'channel' (opened in line 1, col 6) instead of closing tag 'rss'. (line 1, column 15)"],
+    });
+  });
+
+  it('rejects a card with a bare ampersand', () => {
+    expect(checkXmlWellFormed(site({ 'n/card.svg': '<svg><text>A & B</text></svg>' })).problems).toEqual(["n/card.svg: char '&' is not expected. (line 1, column 14)"]);
+  });
+});
+
+describe('A15 checkCrawlFiles', () => {
+  const sitemapIndex = '<sitemapindex><sitemap><loc>https://news.example/sitemap-0.xml</loc></sitemap></sitemapindex>';
+  const urlset = (...paths: string[]) => `<urlset>${paths.map((path) => `<url><loc>https://news.example${path}</loc></url>`).join('')}</urlset>`;
+  /** A small site with every crawl file in order; a value of null removes a file. */
+  const crawl = (changes: Record<string, string | null> = {}, others: string[] = []) => {
+    const files: Record<string, string | null> = {
+      'index.html': page('<h1>x</h1>', { head: '<link rel="canonical" href="https://news.example/">' }),
+      'status/index.html': page('<h1>s</h1>'),
+      '404.html': page('<h1>n</h1>'),
+      'robots.txt': 'User-agent: *\nAllow: /\n\nSitemap: https://news.example/sitemap-index.xml\n',
+      'sitemap-index.xml': sitemapIndex,
+      'sitemap-0.xml': urlset('/', '/status/'),
+      'rss.xml': '<rss version="2.0"><channel><title>T</title></channel></rss>',
+      ...changes,
+    };
+    return site(Object.fromEntries(Object.entries(files).filter((entry): entry is [string, string] => entry[1] !== null)), others);
+  };
+
+  it('accepts a build with robots.txt, a sitemap that lists every page but the 404 page, a feed and a 404 page', () => {
+    expect(checkCrawlFiles(crawl())).toEqual(ok('A15'));
+  });
+
+  it.each(['robots.txt', 'sitemap-index.xml', 'rss.xml', '404.html'])('rejects a build with no %s', (file) => {
+    expect(checkCrawlFiles(crawl({ [file]: null })).problems[0]).toBe(`${file}: is missing`);
+  });
+
+  it('rejects a robots.txt that does not allow every crawler', () => {
+    const robots = 'User-agent: *\nDisallow: /\nSitemap: https://news.example/sitemap-index.xml\n';
+    expect(checkCrawlFiles(crawl({ 'robots.txt': robots })).problems).toEqual(['robots.txt: has no "Allow: /" line']);
+  });
+
+  it('rejects a robots.txt with no Sitemap line', () => {
+    expect(checkCrawlFiles(crawl({ 'robots.txt': 'User-agent: *\nAllow: /\n' })).problems).toEqual(['robots.txt: has no Sitemap line']);
+  });
+
+  it('rejects a Sitemap line that points at a file that is not in the build, or at another site', () => {
+    const missing = 'User-agent: *\nAllow: /\nSitemap: https://news.example/other.xml\n';
+    expect(checkCrawlFiles(crawl({ 'robots.txt': missing })).problems).toEqual(['robots.txt: the Sitemap line points at https://news.example/other.xml, which is not a file in the build']);
+    const elsewhere = 'User-agent: *\nAllow: /\nSitemap: https://elsewhere.example/sitemap-index.xml\n';
+    expect(checkCrawlFiles(crawl({ 'robots.txt': elsewhere })).problems).toEqual([
+      'robots.txt: the Sitemap line points at https://elsewhere.example/sitemap-index.xml, which is not on https://news.example',
+    ]);
+  });
+
+  it('rejects a sitemap index that lists a sitemap that is not in the build', () => {
+    const index = '<sitemapindex><sitemap><loc>https://news.example/sitemap-1.xml</loc></sitemap></sitemapindex>';
+    expect(checkCrawlFiles(crawl({ 'sitemap-index.xml': index })).problems).toContain('sitemap-index.xml: lists https://news.example/sitemap-1.xml, which is not a file in the build');
+  });
+
+  it('rejects a sitemap that lists a page that does not exist', () => {
+    expect(checkCrawlFiles(crawl({ 'sitemap-0.xml': urlset('/', '/status/', '/gone/') })).problems).toEqual(['sitemap-0.xml: lists https://news.example/gone/, which is not a page in the build']);
+  });
+
+  it('reads an address with spaces or a line break around it in <loc>', () => {
+    const spaced = '<urlset><url><loc>\n  https://news.example/\n</loc></url><url><loc> https://news.example/status/ </loc></url></urlset>';
+    expect(checkCrawlFiles(crawl({ 'sitemap-0.xml': spaced }))).toEqual(ok('A15'));
+    const gone = '<urlset><url><loc>https://news.example/</loc></url><url><loc>https://news.example/status/</loc></url><url><loc>\n https://news.example/gone/ \n</loc></url></urlset>';
+    expect(checkCrawlFiles(crawl({ 'sitemap-0.xml': gone })).problems).toEqual(['sitemap-0.xml: lists https://news.example/gone/, which is not a page in the build']);
+  });
+
+  it('rejects a sitemap index that lists a sitemap on another site or an address that is not one', () => {
+    const elsewhere = '<sitemapindex><sitemap><loc>https://elsewhere.example/sitemap-0.xml</loc></sitemap><sitemap><loc>not an address</loc></sitemap></sitemapindex>';
+    const problems = checkCrawlFiles(crawl({ 'sitemap-index.xml': elsewhere })).problems;
+    expect(problems).toContain('sitemap-index.xml: lists https://elsewhere.example/sitemap-0.xml, which is not a file in the build');
+    expect(problems).toContain('sitemap-index.xml: lists not an address, which is not a file in the build');
+  });
+
+  it('rejects a sitemap that lists the 404 page, or an address on another site', () => {
+    expect(checkCrawlFiles(crawl({ 'sitemap-0.xml': urlset('/', '/status/', '/404.html') })).problems).toEqual(['sitemap-0.xml: lists https://news.example/404.html, which is the 404 page']);
+    const other = '<urlset><url><loc>https://elsewhere.example/</loc></url><url><loc>https://news.example/</loc></url><url><loc>https://news.example/status/</loc></url></urlset>';
+    expect(checkCrawlFiles(crawl({ 'sitemap-0.xml': other })).problems).toEqual(['sitemap-0.xml: lists https://elsewhere.example/, which is not on https://news.example']);
+  });
+
+  it('rejects a page that is missing from the sitemap, and says which', () => {
+    expect(checkCrawlFiles(crawl({ 'sitemap-0.xml': urlset('/') })).problems).toEqual(['status/index.html: is not in the sitemap']);
+  });
+
+  it('does not ask for the 404 page in the sitemap', () => {
+    expect(checkCrawlFiles(crawl()).problems).toEqual([]);
   });
 });
