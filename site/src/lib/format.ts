@@ -54,6 +54,23 @@ export function beatLabel(slug: string): string {
   return LABELS[slug as Category];
 }
 
+const BLURBS: Record<Category, string> = {
+  humanoids: 'General-purpose bipeds and androids, commercial and research.',
+  'home-consumer': 'Robots for domestic and personal use, including home humanoids.',
+  'industrial-warehouse': 'Arms, cobots, mobile robots, fulfilment and manufacturing cells.',
+  'field-mobility': 'Agriculture, construction, inspection, drones and outdoor autonomy.',
+  'software-autonomy': 'Vision-language-action models, sim-to-real, control stacks, teleoperation and perception.',
+  'components-supply-chain': 'Actuators, drives, sensors, batteries, chips and supply.',
+  'policy-standards': 'Regulation, safety standards, certification and labour.',
+  funding: 'Rounds, acquisitions, public listings and shutdowns, filed under the beat they concern.',
+};
+
+/** One sentence on what a beat or tag covers. Throws for a slug outside the vocabulary. */
+export function beatBlurb(slug: string): string {
+  if (!Object.hasOwn(BLURBS, slug)) throw new Error(`beatBlurb: ${JSON.stringify(slug)} is not a beat or a tag`);
+  return BLURBS[slug as Category];
+}
+
 /** A count with the right word: "1 claim", "28 claims". */
 export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;

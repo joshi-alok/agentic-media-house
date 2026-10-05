@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CATEGORY_VOCAB } from '@robywire/gate';
-import { beatLabel, documentTitle, formatDate, formatDateTime, plural } from '../src/lib/format';
+import { beatBlurb, beatLabel, documentTitle, formatDate, formatDateTime, plural } from '../src/lib/format';
 
 describe('formatDate', () => {
   it.each([
@@ -80,6 +80,24 @@ describe('beatLabel', () => {
     expect(() => beatLabel('robots')).toThrow('beatLabel: "robots" is not a beat or a tag');
     expect(() => beatLabel('')).toThrow('beatLabel: "" is not a beat or a tag');
     expect(() => beatLabel('constructor')).toThrow('beatLabel: "constructor" is not a beat or a tag');
+  });
+});
+
+describe('beatBlurb', () => {
+  it('has one sentence for every beat and tag, each different and each ending in a full stop', () => {
+    const blurbs = CATEGORY_VOCAB.map((slug) => beatBlurb(slug));
+    expect(new Set(blurbs).size).toBe(CATEGORY_VOCAB.length);
+    for (const blurb of blurbs) expect(blurb.endsWith('.'), blurb).toBe(true);
+  });
+
+  it('says what the beat covers, as the content contract does', () => {
+    expect(beatBlurb('humanoids')).toBe('General-purpose bipeds and androids, commercial and research.');
+    expect(beatBlurb('funding')).toBe('Rounds, acquisitions, public listings and shutdowns, filed under the beat they concern.');
+  });
+
+  it('throws on a slug that is not in the vocabulary', () => {
+    expect(() => beatBlurb('robots')).toThrow('beatBlurb: "robots" is not a beat or a tag');
+    expect(() => beatBlurb('toString')).toThrow('beatBlurb: "toString" is not a beat or a tag');
   });
 });
 

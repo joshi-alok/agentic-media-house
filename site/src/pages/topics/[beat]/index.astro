@@ -1,0 +1,28 @@
+---
+import { CATEGORY_VOCAB } from '@robywire/gate';
+import PieceList from '../../../components/PieceList.astro';
+import Base from '../../../layouts/Base.astro';
+import { beatBlurb, beatLabel } from '../../../lib/format';
+import { piecesIn } from '../../../lib/group';
+import { topicPath } from '../../../lib/paths';
+import { getPieces } from '../../../lib/pieces';
+import '../../../styles/home.css';
+
+// One page for every beat and for the funding tag, whether or not a piece has been
+// filed under it yet. The paths come from the vocabulary, not from the pieces.
+export function getStaticPaths() {
+  return CATEGORY_VOCAB.map((beat) => ({ params: { beat } }));
+}
+
+const { beat } = Astro.params;
+const label = beatLabel(beat);
+const pieces = piecesIn(await getPieces(), beat);
+---
+
+<Base title={label} description={beatBlurb(beat)} canonicalPath={topicPath(beat)}>
+  <div class="container">
+    <h1>{label}</h1>
+    <p class="dek">{beatBlurb(beat)}</p>
+    {pieces.length === 0 ? <p class="empty">Nothing under {label} yet.</p> : <PieceList pieces={pieces} />}
+  </div>
+</Base>
