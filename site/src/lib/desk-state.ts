@@ -17,7 +17,15 @@ export async function getDeskState(fixtures: boolean = useFixtures): Promise<Des
   return parseDeskState(file.default);
 }
 
+/**
+ * `items` sorted newest first by their `at` time. Times are compared as moments, not as text, because
+ * the schema allows any UTC offset. Items at the same moment keep their order. The array is a new one.
+ */
+export function newestFirst<T extends { at: string }>(items: readonly T[]): T[] {
+  return [...items].sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+}
+
 /** The corrections and retractions recorded against one piece, newest first. */
 export function correctionsFor(state: DeskState, slug: string): DeskState['corrections'] {
-  return state.corrections.filter((entry) => entry.slug === slug).sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  return newestFirst(state.corrections.filter((entry) => entry.slug === slug));
 }

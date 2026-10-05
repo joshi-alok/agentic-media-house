@@ -29,7 +29,8 @@ export interface StripItem {
   note?: string;
 }
 
-const OUTCOME_TEXT: Record<RunOutcome, string> = {
+/** How each outcome of a run reads on the page. */
+export const OUTCOME_TEXT: Record<RunOutcome, string> = {
   published: 'published',
   'no-story': 'no story',
   held: 'held',

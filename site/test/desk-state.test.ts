@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DeskState } from '@robywire/gate';
-import { correctionsFor, getDeskState, parseDeskState } from '../src/lib/desk-state';
+import { correctionsFor, getDeskState, newestFirst, parseDeskState } from '../src/lib/desk-state';
 
 const EMPTY: DeskState = { lastRun: null, holds: [], corrections: [] };
 const FX2 = 'fixture-robotics-ships-fx-2-to-second-plant';
@@ -76,5 +76,33 @@ describe('correctionsFor', () => {
     const before = structuredClone(state);
     correctionsFor(state, FX2);
     expect(state).toEqual(before);
+  });
+});
+
+describe('newestFirst', () => {
+  it('sorts by the moment, newest first', () => {
+    const items = [{ at: '2026-10-01T00:00:00Z' }, { at: '2026-10-03T00:00:00Z' }, { at: '2026-10-02T00:00:00Z' }];
+    expect(newestFirst(items).map((item) => item.at)).toEqual(['2026-10-03T00:00:00Z', '2026-10-02T00:00:00Z', '2026-10-01T00:00:00Z']);
+  });
+
+  it('compares moments, not text: 04:30 at +05:30 is the evening before, in UTC', () => {
+    const items = [{ at: '2026-10-02T04:30:00+05:30' }, { at: '2026-10-02T00:00:00Z' }];
+    expect(newestFirst(items).map((item) => item.at)).toEqual(['2026-10-02T00:00:00Z', '2026-10-02T04:30:00+05:30']);
+  });
+
+  it('keeps the given order for entries at the same moment', () => {
+    const items = [
+      { at: '2026-10-02T00:00:00Z', n: 1 },
+      { at: '2026-10-02T00:00:00Z', n: 2 },
+      { at: '2026-10-02T00:00:00Z', n: 3 },
+    ];
+    expect(newestFirst(items).map((item) => item.n)).toEqual([1, 2, 3]);
+  });
+
+  it('returns a new array and leaves the given one alone', () => {
+    const items = [{ at: '2026-10-01T00:00:00Z' }, { at: '2026-10-02T00:00:00Z' }];
+    const sorted = newestFirst(items);
+    expect(sorted).not.toBe(items);
+    expect(items.map((item) => item.at)).toEqual(['2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z']);
   });
 });
