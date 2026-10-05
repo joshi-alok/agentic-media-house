@@ -1,4 +1,5 @@
 import type { RSSFeedItem, RSSOptions } from '@astrojs/rss';
+import { siteDescription } from './copy';
 import { SITE_NAME, beatLabel } from './format';
 import { articlePath } from './paths';
 
@@ -27,7 +28,7 @@ export function rssItems(pieces: readonly FeedPiece[]): RSSFeedItem[] {
 export function feedOptions(pieces: readonly FeedPiece[], site: URL | string): RSSOptions {
   return {
     title: SITE_NAME,
-    description: 'Robotics news written by an automated pipeline. Every factual sentence links to the passage of a primary source that it rests on.',
+    description: siteDescription(),
     site,
     items: rssItems(pieces),
     customData: '<language>en</language>',

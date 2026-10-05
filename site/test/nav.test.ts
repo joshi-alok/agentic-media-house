@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BEATS } from '@robywire/gate';
-import { DISCLOSURE, FOOTER_LINKS, NAV_ITEMS, isCurrent } from '../src/lib/nav';
+import { FOOTER_LINKS, NAV_ITEMS, isCurrent } from '../src/lib/nav';
 import { beatLabel } from '../src/lib/format';
 
 describe('NAV_ITEMS', () => {
@@ -27,22 +27,6 @@ describe('FOOTER_LINKS', () => {
       { label: 'Corrections', href: '/corrections/' },
       { label: 'RSS', href: '/rss.xml' },
     ]);
-  });
-});
-
-describe('DISCLOSURE', () => {
-  it('says the pieces come from an automated pipeline and are published only when every factual sentence is traced to a primary source', () => {
-    expect(DISCLOSURE).toContain('automated pipeline');
-    expect(DISCLOSURE).toContain('every factual sentence');
-    expect(DISCLOSURE).toContain('primary source');
-  });
-
-  it('claims nothing the site does not do yet: no second model, no independent check, no human review', () => {
-    expect(DISCLOSURE).not.toMatch(/second model|verifier|independent|review|human|editor/i);
-  });
-
-  it('is a short passage, not a page', () => {
-    expect(DISCLOSURE.length).toBeLessThan(400);
   });
 });
 

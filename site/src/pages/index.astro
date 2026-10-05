@@ -3,6 +3,7 @@ import BeatChips from '../components/BeatChips.astro';
 import LedgerStrip from '../components/LedgerStrip.astro';
 import PieceList from '../components/PieceList.astro';
 import Base from '../layouts/Base.astro';
+import { siteDescription } from '../lib/copy';
 import { getDeskState } from '../lib/desk-state';
 import { beatLabel, formatDate } from '../lib/format';
 import { groupByBeat } from '../lib/group';
@@ -11,7 +12,7 @@ import { getPieces } from '../lib/pieces';
 import { ledgerStats, stripItems } from '../lib/stats';
 import '../styles/home.css';
 
-// How many pieces below the lead the home page lists: about two weeks of a daily site.
+// How many pieces below the lead the home page lists: about two weeks of pieces, if one is published a day.
 const RECENT = 14;
 
 const pieces = await getPieces();
@@ -25,11 +26,7 @@ const items = stripItems(
 );
 ---
 
-<Base
-  title="Robywire"
-  description="Robotics news written by an automated pipeline. Every factual sentence links to the passage of a primary source that it rests on."
-  canonicalPath="/"
->
+<Base title="Robywire" description={siteDescription()} canonicalPath="/">
   <div class="container">
     <h1 class="home-title">Robotics news with a receipt for every claim.</h1>
     {

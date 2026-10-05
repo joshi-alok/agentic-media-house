@@ -1,5 +1,6 @@
 ---
 import Base from '../../../../layouts/Base.astro';
+import { receiptsIntro } from '../../../../lib/copy';
 import { formatDateTime, plural } from '../../../../lib/format';
 import { articlePath, receiptsPath } from '../../../../lib/paths';
 import { getPieces } from '../../../../lib/pieces';
@@ -23,10 +24,7 @@ const holdText = view.gate.holdReasons.length === 0 ? 'none' : view.gate.holdRea
   <div class="container">
     <p class="back"><a href={articlePath(view.slug)}>&larr; Back to the article</a></p>
     <h1>Receipts &mdash; {view.title}</h1>
-    <p class="receipts-intro">
-      Each number in the article links to a claim below: the passage of the source it rests on, word for word, and where and when that source was fetched. The full source snapshot is kept in a private
-      evidence store; this public record keeps its hash, the retrieval time and the quoted passage.
-    </p>
+    <p class="receipts-intro">{receiptsIntro()}</p>
 
     <section aria-labelledby="gate-heading">
       <h2 id="gate-heading">Gate result</h2>

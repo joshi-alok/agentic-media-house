@@ -1,8 +1,8 @@
 import { BEATS } from '@robywire/gate';
 import { beatLabel } from './format';
 
-// What the header and footer link to, and what the footer says. The wordmark
-// is the link home, so the header lists the seven beats and Method.
+// What the header and footer link to. The wordmark is the link home, so the
+// header lists the seven beats and Method. What the footer says is in copy.ts.
 
 export interface NavItem {
   label: string;
@@ -21,14 +21,6 @@ export const FOOTER_LINKS: readonly NavItem[] = [
   { label: 'Corrections', href: '/corrections/' },
   { label: 'RSS', href: '/rss.xml' },
 ];
-
-/**
- * The disclosure shown on every page. It says only what is true of the
- * design: it does not mention a second model or a human, because the page for
- * the method describes those, as plans, where they belong.
- */
-export const DISCLOSURE =
-  'Robywire is written by an automated pipeline, the Desk. A piece is published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece has a receipts page that shows the trace.';
 
 /** True when `pathname` is the page `href` or a page below it. The home page matches only itself. */
 export function isCurrent(href: string, pathname: string): boolean {

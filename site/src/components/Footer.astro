@@ -1,10 +1,11 @@
 ---
-import { DISCLOSURE, FOOTER_LINKS } from '../lib/nav';
+import { disclosure } from '../lib/copy';
+import { FOOTER_LINKS } from '../lib/nav';
 ---
 
 <footer class="site-footer">
   <div class="container">
-    <p class="disclosure">{DISCLOSURE}</p>
+    <p class="disclosure">{disclosure()}</p>
     <nav aria-label="About this site">
       <ul class="footer-links">
         {

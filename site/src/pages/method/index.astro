@@ -2,16 +2,32 @@
 import board from '@robywire/evals/scoreboard';
 import TableWrap from '../../components/TableWrap.astro';
 import Base from '../../layouts/Base.astro';
+import {
+  deskIntro,
+  gateIntro,
+  holdsText,
+  meaningLimit,
+  methodDisclosure,
+  modelCheckText,
+  notRunningNote,
+  notRunningYet,
+  ownerReleaseText,
+  scoreboardCaveat,
+  trialText,
+} from '../../lib/copy';
 import { CORRECTIONS_TEXT } from '../../lib/desk-pages';
-import { OWNER_RELEASE_TEXT, PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../../lib/method';
+import { KNOWN_LIMITS, PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../../lib/method';
 import '../../styles/pages.css';
 
 const rules = gateRules();
+const notRunning = notRunningYet();
+const note = notRunningNote();
+const trial = trialText();
 ---
 
 <Base
   title="Method"
-  description="How Robywire is made: the two kinds of source, the claim ledger, the nine rules of the gate, what the Desk never does, and the scoreboard of defects the gate was tested against."
+  description="How Robywire is made: the two kinds of source, the claim ledger, the nine rules of the gate and their known limits, what the Desk never does, and the scoreboard of defects the gate was tested against."
   canonicalPath="/method/"
 >
   <div class="container">
@@ -22,22 +38,27 @@ const rules = gateRules();
 
     <div class="prose">
       <h2 id="what">What the Desk is</h2>
-      <p>
-        Robywire is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code
-        decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot
-        trace is not published.
-      </p>
+      <p>{deskIntro()}</p>
 
       <h2 id="today">What exists today, and what does not</h2>
       <p>
-        Built and tested: the gate with its nine checks, the format of the claim ledger, the renderer that turns a checked draft into a page, the receipts pages, the status, holds and corrections
-        pages, and the scoreboard at the end of this page.
+        Built and tested: the gate with its nine checks, the format of the claim ledger, the renderer that turns a checked draft into a page, the receipts pages, the fact card, the status, holds and
+        corrections pages, the checks that stop the site from building a piece whose article, ledger or record of corrections disagree, and the scoreboard at the end of this page.
       </p>
-      <p>
-        Not running yet: the pipeline that finds, fetches and writes stories, the independent model check, and the daily schedule. Before the Desk publishes on its own it will run for five days in
-        shadow, writing and checking but publishing nothing, and then for fourteen days in public, and a short written report will cover that trial. The parts that are not running are described in
-        the future tense below.
-      </p>
+      {
+        notRunning.length > 0 && (
+          <>
+            <p>Not running yet:</p>
+            <ul>
+              {notRunning.map((item) => (
+                <li>{item}</li>
+              ))}
+            </ul>
+          </>
+        )
+      }
+      {trial !== undefined && <p>{trial}</p>}
+      {note !== undefined && <p>{note}</p>}
 
       <h2 id="sources">Two kinds of source</h2>
       <p>
@@ -71,10 +92,7 @@ const rules = gateRules();
       </p>
 
       <h2 id="gate">The gate: nine rules</h2>
-      <p>
-        The gate is code. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same
-        answer. If one fails, the draft is not published; it goes back for revision with the exact failures. In plain English the rules are these.
-      </p>
+      <p>{gateIntro()}</p>
     </div>
     <dl class="facts rules">
       {
@@ -90,31 +108,35 @@ const rules = gateRules();
     </dl>
 
     <div class="prose">
-      <h2 id="model-check">The independent model check</h2>
+      <h2 id="limits">What the checks cannot see</h2>
       <p>
-        On every piece, once the Desk is live, a second model call will read each factual sentence beside the passages it cites and judge whether they say the same thing, and whether the basis and
-        status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. This check will be a
-        second layer on top of the nine rules, never the only one. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some
-        subtly distorted. It is not running yet.
+        The rules above do what they say, and no more. These are the known limits: the places where a sentence can say something that no rule compares with a claim, and one place where the gate
+        refuses more than it should.
       </p>
+      <ul>
+        {
+          KNOWN_LIMITS.map((limit) => (
+            <li>{limit.text}</li>
+          ))
+        }
+        <li>{meaningLimit()}</li>
+      </ul>
+
+      <h2 id="model-check">The independent model check</h2>
+      <p>{modelCheckText()}</p>
 
       <h2 id="holds">Holds</h2>
       <p>
-        A piece is held when the gate cannot clear it: a check still fails after two rounds of revision, or a rule asks for a human decision, as G6 does for any piece that uses another outlet's
-        reporting. A held draft is not published. It is designed to go to the owner as a draft pull request that carries the gate report. What was stopped and why is public on the
-        <a href="/holds/">holds page</a>: the date, the beats and the reasons. The held text is not. A hold is the normal result when the Desk is unsure. A day with no piece is better than a day with a
-        wrong one.
+        {holdsText()} What was stopped and why is public on the <a href="/holds/">holds page</a>: the date, the beats and the reasons. The held text is not. A hold is the normal result when the Desk is
+        unsure. A day with no piece is better than a day with a wrong one.
       </p>
-      <p>{OWNER_RELEASE_TEXT}</p>
+      <p>{ownerReleaseText()}</p>
 
       <h2 id="corrections">Corrections and retractions</h2>
       <p>{CORRECTIONS_TEXT} Every entry is listed on the <a href="/corrections/">corrections page</a>.</p>
 
       <h2 id="disclosure">Disclosure</h2>
-      <p>
-        Every page says in its footer that the site is written by an automated pipeline, and the byline of every article says the same. No piece carries a human author's name, and none pretends to
-        have been reported by a person.
-      </p>
+      <p>{methodDisclosure()}</p>
 
       <h2 id="never">What the Desk never does</h2>
       <ul>
@@ -132,6 +154,7 @@ const rules = gateRules();
       </p>
       <p class="figure">{scoreboardHeadline(board)}</p>
       <p>The unbroken golden piece {board.baselinePasses ? 'publishes' : 'does not publish'}.</p>
+      <p>{scoreboardCaveat()}</p>
     </div>
     <TableWrap label="Seeded defects and the gate's result for each">
       <table>

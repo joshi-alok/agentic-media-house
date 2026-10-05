@@ -2,6 +2,7 @@ import { getRssString } from '@astrojs/rss';
 import { XMLParser } from 'fast-xml-parser';
 import { describe, expect, it } from 'vitest';
 import { xmlProblem } from '../scripts/audit/xml.mjs';
+import { siteDescription } from '../src/lib/copy';
 import { feedOptions, rssItems } from '../src/lib/feed';
 
 const SITE = 'https://robywire.example';
@@ -58,6 +59,12 @@ describe('the feed', () => {
     expect(rss.channel.title).toBe('Robywire');
     expect(rss.channel.link).toBe('https://robywire.example/');
     expect(rss.channel.language).toBe('en');
+  });
+
+  it('describes the site in the words the home page uses, which claim only what is running', async () => {
+    const { rss } = parse(await feed([FX1]));
+    expect(rss.channel.description).toBe(siteDescription());
+    expect(rss.channel.description).toBe('A robotics news site built so that every factual sentence links to the passage of a primary source it rests on. An automated pipeline will write it.');
   });
 
   it('lists every piece, newest first, with an absolute link, a date and its categories', async () => {
