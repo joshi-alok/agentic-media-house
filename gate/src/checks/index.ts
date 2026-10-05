@@ -5,6 +5,8 @@ import { checkG3 } from './g3-coverage';
 import { checkG4 } from './g4-values';
 import { checkG5 } from './g5-quotes';
 
+export { checkG1, checkG2, checkG3, checkG4, checkG5 };
+
 /**
  * Every check that `runGate` runs, in order. Each check task adds its check
  * here. A check that is not in the list yet is simply not run, and `runGate`
