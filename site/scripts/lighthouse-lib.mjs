@@ -1,3 +1,4 @@
+import { hasUnconfirmedLabel } from './audit/checks-links.mjs';
 import { attr, elements, parseHtml } from './audit/dom.mjs';
 
 // The parts of the Lighthouse run that do not need a browser, so that they can
@@ -23,17 +24,31 @@ export function isFixtureBuild(homeHtml) {
 }
 
 /**
- * The pages to measure: the home page, the first article the home page links to (its lead piece) and the receipts page of that article.
+ * The pages to measure: the home page, the first article the home page links to (its lead piece) and the receipts page of that
+ * article; and, when the build has one, the first other article that carries the "Unconfirmed." label (a piece that rests on
+ * another outlet) and its receipts page, because those pages have markup the others do not.
+ *
  * @param {string} homeHtml
+ * @param {(route: string) => string | undefined} [readArticle]  The HTML of the article page at a route, or undefined if it cannot be read.
  * @returns {string[]}
  */
-export function pagesToTest(homeHtml) {
+export function pagesToTest(homeHtml, readArticle = () => undefined) {
   const { document } = parseHtml(homeHtml);
-  const lead = elements(document, 'a')
-    .map((link) => attr(link, 'href') ?? '')
-    .find((href) => /^\/news\/[^/]+\/$/.test(href));
+  const routes = [
+    ...new Set(
+      elements(document, 'a')
+        .map((link) => attr(link, 'href') ?? '')
+        .filter((href) => /^\/news\/[^/]+\/$/.test(href)),
+    ),
+  ];
+  const [lead, ...others] = routes;
   if (lead === undefined) throw new Error('The home page links to no article, so there is no article page to measure.');
-  return ['/', lead, `${lead}receipts/`];
+  const pages = ['/', lead, `${lead}receipts/`];
+  const unconfirmed = others.find((route) => {
+    const html = readArticle(route);
+    return html !== undefined && hasUnconfirmedLabel(parseHtml(html).document);
+  });
+  return unconfirmed === undefined ? pages : [...pages, unconfirmed, `${unconfirmed}receipts/`];
 }
 
 /**

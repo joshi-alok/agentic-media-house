@@ -48,7 +48,7 @@ Run everything from the repository root.
 | `npm run build:fixtures` | The fixture build, into `site/dist` (see Fixtures below). |
 | `npm run audit` | Run the checks A1 to A12 and A14 to A16 on `site/dist`: HTML, links, receipts, CSS rules, colours, feeds. Exits 1 on any problem. |
 | `npm run audit:prod` | The same, plus A13: the build has no trace of the fixtures. Run it after `npm run build`. |
-| `npm run lighthouse` | Measure the fixture build in `site/dist` with Lighthouse (home page, lead article, receipts page) and fail if any score is under 95. |
+| `npm run lighthouse` | Measure the fixture build in `site/dist` with Lighthouse (home page, lead article and its receipts page, and the first article that carries the Unconfirmed. label with its receipts page) and fail if any score is under 95. |
 | `npm run verify` | All of the above in CI order: typecheck, tests, seeded evals, fixture drift, production build, production audit, fixture build, fixture audit, Lighthouse. |
 
 `npm run build` and `npm run build:fixtures` both write `site/dist`, so the second replaces the first. `npm run verify` runs them in the order that each audit needs.
@@ -57,9 +57,10 @@ For local work on the pages, run `ROBYWIRE_FIXTURES=1 npm run dev --workspace @r
 
 ## Fixtures
 
-Until the Desk has published something there is nothing real to show, so the site is built and tested on made-up pieces. All of it is fictional: the company is Fixture Robotics, the product is the FX-1, and every address is on `*.example`.
+Until the Desk has published something there is nothing real to show, so the site is built and tested on made-up pieces. All of it is fictional: the company is Fixture Robotics, the product is the FX-1, and every address is on `*.example`. The outlet that one piece cites, Mercer Wire, is made up too.
 
 - `npm run fixtures:generate --workspace @robywire/site` writes the fixture pieces, their ledgers and a desk state into `site/src/content-fixtures/`. It starts from the golden piece in `gate/src/fixtures/`, makes variants of it, and runs each through the real gate and the real renderer, so the fixtures are what the Desk will produce.
+- Five pieces are made. Four are ordinary: the gate clears them and their ledgers say `release: auto`. The fifth (FX-5) rests on one sentence that Mercer Wire reported, so the gate holds it (`TIER2_ATTRIBUTION`). It stands for a draft that the owner then released: its ledger says `release: owner`, its article carries the Unconfirmed. label, and its receipts page says who released it.
 - The generated files are committed. `npm run fixtures:check` fails if they are out of date.
 - The site reads `site/src/content-fixtures/` only when `ROBYWIRE_FIXTURES=1`, which `npm run build:fixtures` sets. Otherwise it reads `site/src/content/`, which holds no pieces. A fixture build shows a ribbon at the top of every page that reads FIXTURE DATA and says it is not real reporting. A production build has neither the ribbon nor the words Fixture Robotics anywhere, and `npm run audit:prod` fails if it does.
 

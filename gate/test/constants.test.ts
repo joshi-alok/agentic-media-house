@@ -8,6 +8,7 @@ import {
   CROSS_TAGS,
   DESK_AUTHOR_NAME,
   DESK_BYLINE_LABEL,
+  RELEASES,
   SAFE_BASES,
   STATUSES,
 } from '../src/constants';
@@ -47,6 +48,10 @@ describe('closed vocabularies', () => {
     ]);
     expect(STATUSES).toEqual(['demonstrated', 'deployed', 'planned', 'unspecified']);
     expect(CLAIM_TYPES).toEqual(['number', 'date', 'name', 'spec', 'quote', 'event']);
+  });
+
+  it('names the two ways a piece comes to be published', () => {
+    expect(RELEASES).toEqual(['auto', 'owner']);
   });
 
   it('keeps the safe bases a subset of the bases', () => {

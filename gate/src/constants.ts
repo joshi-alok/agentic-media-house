@@ -78,6 +78,13 @@ export type CheckResult = (typeof CHECK_RESULTS)[number];
 export const ROUTES = ['publish', 'revise', 'hold'] as const;
 export type Route = (typeof ROUTES)[number];
 
+/**
+ * How a published piece got out: `auto` when the gate cleared it and nobody was asked,
+ * `owner` when the gate did not clear it (a hold) and the owner released it. The pipeline sets it.
+ */
+export const RELEASES = ['auto', 'owner'] as const;
+export type Release = (typeof RELEASES)[number];
+
 export const RUN_OUTCOMES = ['published', 'no-story', 'held', 'failed'] as const;
 export type RunOutcome = (typeof RUN_OUTCOMES)[number];
 

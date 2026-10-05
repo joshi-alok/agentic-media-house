@@ -30,7 +30,8 @@ const holdText = view.gate.holdReasons.length === 0 ? 'none' : view.gate.holdRea
 
     <section aria-labelledby="gate-heading">
       <h2 id="gate-heading">Gate result</h2>
-      <p>{passed} of {view.gate.checks.length} checks passed. Route: <span class="chip">{view.gate.route}</span></p>
+      <p>{passed} of {view.gate.checks.length} checks passed. {view.gate.routeText}</p>
+      {view.releaseNote !== undefined && <p>{view.releaseNote}</p>}
       <ul class="checks">
         {
           view.gate.checks.map((check) => (

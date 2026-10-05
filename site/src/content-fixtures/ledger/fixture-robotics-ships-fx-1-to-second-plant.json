@@ -1415,6 +1415,7 @@
     },
     "holdReasons": []
   },
+  "release": "auto",
   "sources": [
     {
       "url": "https://brindle-logistics.example/news/ashvale-results",

@@ -15,11 +15,19 @@ describe('ledgerStats', () => {
 
   it('counts the pieces, adds up the claims they cite, counts the holds and passes the last run through', () => {
     const stats = ledgerStats(ledgers, fixtureState);
-    expect(stats.pieces).toBe(4);
-    expect(stats.claims).toBe(ledgers.reduce((total, entry) => total + entry.claims.length, 0));
-    expect(stats.claims).toBe(4 * 28);
+    expect(stats.pieces).toBe(5);
+    expect(stats.claims).toBe(ledgers.reduce((total, entry) => total + entry.claims.filter((claim) => claim.source.tier === 1).length, 0));
+    expect(stats.claims).toBe(5 * 28 - 1);
     expect(stats.held).toBe(2);
     expect(stats.lastRun).toEqual(fixtureState.lastRun);
+  });
+
+  it('does not count a claim that comes from another outlet as verified: it is reported, not traced to a primary source', () => {
+    const first = structuredClone(ledgers[0]!);
+    const before = ledgerStats([first], EMPTY).claims;
+    first.claims[0]!.source = { ...first.claims[0]!.source, tier: 2, outlet: 'Mercer Wire' };
+    expect(ledgerStats([first], EMPTY).claims).toBe(before - 1);
+    expect(ledgerStats([first], EMPTY).pieces).toBe(1);
   });
 
   it('counts holds from the desk state, not from the pieces', () => {
@@ -40,8 +48,8 @@ describe('stripItems', () => {
 
   it('shows the figures, and the date, time and outcome of the last run', () => {
     expect(stripItems(ledgerStats(ledgers, fixtureState))).toEqual([
-      { label: 'Pieces published', value: '4' },
-      { label: 'Claims verified', value: '112' },
+      { label: 'Pieces published', value: '5' },
+      { label: 'Claims verified', value: '139' },
       { label: 'Drafts held', value: '2' },
       { label: 'Last run', value: '4 Oct 2026', note: '04:41 UTC, published' },
     ]);

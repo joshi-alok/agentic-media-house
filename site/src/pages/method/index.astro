@@ -3,7 +3,7 @@ import board from '@robywire/evals/scoreboard';
 import TableWrap from '../../components/TableWrap.astro';
 import Base from '../../layouts/Base.astro';
 import { CORRECTIONS_TEXT } from '../../lib/desk-pages';
-import { PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../../lib/method';
+import { OWNER_RELEASE_TEXT, PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../../lib/method';
 import '../../styles/pages.css';
 
 const rules = gateRules();
@@ -105,6 +105,7 @@ const rules = gateRules();
         <a href="/holds/">holds page</a>: the date, the beats and the reasons. The held text is not. A hold is the normal result when the Desk is unsure. A day with no piece is better than a day with a
         wrong one.
       </p>
+      <p>{OWNER_RELEASE_TEXT}</p>
 
       <h2 id="corrections">Corrections and retractions</h2>
       <p>{CORRECTIONS_TEXT} Every entry is listed on the <a href="/corrections/">corrections page</a>.</p>

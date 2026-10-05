@@ -17,7 +17,10 @@ const SLUGS = [
   'fixture-robotics-ships-fx-2-to-second-plant',
   'fixture-robotics-ships-fx-3-to-second-plant',
   'fixture-robotics-ships-fx-4-to-second-plant',
+  'fixture-robotics-ships-fx-5-to-second-plant',
 ];
+// The fifth piece rests on another outlet's reporting. The gate holds it, and the owner released it.
+const HELD_SLUG = SLUGS[4]!;
 
 const scratch: string[] = [];
 const tempDir = () => {
@@ -37,7 +40,7 @@ const text = (name: string): string => {
 };
 
 describe('fixtureFiles: what is generated', () => {
-  it('has a piece and a ledger for each of the four slugs, and the desk state', () => {
+  it('has a piece and a ledger for each of the five slugs, and the desk state', () => {
     expect([...files.keys()].sort()).toEqual(
       [...SLUGS.flatMap((slug) => [`news/${slug}.mdx`, `ledger/${slug}.json`]), 'desk-state.json'].sort(),
     );
@@ -68,24 +71,39 @@ describe('fixtureFiles: a fixture must be publishable', () => {
       'generate-fixtures: the fixture fixture-robotics-ships-fx-2-to-second-plant does not publish (route revise: G2_OPENING_LENGTH',
     );
   });
+
+  it('stops when the piece that should be held is cleared by the gate, or fails it', () => {
+    const cleared = fixturePieces();
+    cleared[4] = { ...cleared[0]!, slug: HELD_SLUG, runId: 'fixture-run-5', route: 'hold' };
+    expect(() => fixtureFiles(cleared)).toThrow(`generate-fixtures: the fixture ${HELD_SLUG} does not hold (route publish: none)`);
+    const failing = fixturePieces();
+    failing[4]!.input.draft.opening = [];
+    expect(() => fixtureFiles(failing)).toThrow(`generate-fixtures: the fixture ${HELD_SLUG} does not hold (route revise: G2_OPENING_LENGTH`);
+  });
 });
 
 describe('fixtureFiles: the pieces', () => {
-  it('dates the golden piece 4 Oct 2026 and the variants one day earlier each', () => {
+  it('dates the golden piece 4 Oct 2026 and the variants one day earlier each, the last one two', () => {
     const dates = SLUGS.map((slug) => LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`))).publishedAt);
-    expect(dates).toEqual(['2026-10-04', '2026-10-03', '2026-10-02', '2026-10-01']);
+    expect(dates).toEqual(['2026-10-04', '2026-10-03', '2026-10-02', '2026-10-01', '2026-09-29']);
   });
 
   it('files the golden piece under industrial-warehouse and funding, and gives the others other beats', () => {
     const categories = SLUGS.map((slug) => LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`))).categories);
-    expect(categories).toEqual([['industrial-warehouse', 'funding'], ['humanoids'], ['policy-standards'], ['home-consumer', 'field-mobility']]);
+    expect(categories).toEqual([
+      ['industrial-warehouse', 'funding'],
+      ['humanoids'],
+      ['policy-standards'],
+      ['home-consumer', 'field-mobility'],
+      ['policy-standards', 'funding'],
+    ]);
   });
 
-  it.each(SLUGS.map((slug, at) => [slug, at + 1] as const))('%s: ledger and MDX agree and the gate said publish', (slug, run) => {
+  it.each(SLUGS.map((slug, at) => [slug, at + 1, at === 4 ? 'hold' : 'publish'] as const))('%s: ledger and MDX agree and the gate said %s', (slug, run, route) => {
     const ledger = LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`)));
     expect(ledger.slug).toBe(slug);
     expect(ledger.runId).toBe(`fixture-run-${run}`);
-    expect(ledger.gate.route).toBe('publish');
+    expect(ledger.gate.route).toBe(route);
     expect(Object.values(ledger.gate.checks).every((result) => result === 'pass')).toBe(true);
 
     const mdx = text(`news/${slug}.mdx`);
@@ -107,7 +125,7 @@ describe('fixtureFiles: the pieces', () => {
 
   it('names a different product in each piece', () => {
     const titles = SLUGS.map((slug) => LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`))).title);
-    expect(titles.map((title) => /FX-(\d)/.exec(title)![1])).toEqual(['1', '2', '3', '4']);
+    expect(titles.map((title) => /FX-(\d)/.exec(title)![1])).toEqual(['1', '2', '3', '4', '5']);
   });
 
   it('only cites sources on .example domains, so nothing in a fixture can be mistaken for a real source', () => {
@@ -123,6 +141,47 @@ describe('fixtureFiles: the pieces', () => {
   });
 });
 
+describe('fixtureFiles: how each piece was released', () => {
+  const ledgerOf = (slug: string) => LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`)));
+
+  it('says the gate published the four ordinary pieces without a human', () => {
+    expect(SLUGS.slice(0, 4).map((slug) => ledgerOf(slug).release)).toEqual(['auto', 'auto', 'auto', 'auto']);
+  });
+
+  it('says the owner released the fifth, which the gate held for resting on another outlet', () => {
+    const ledger = ledgerOf(HELD_SLUG);
+    expect(ledger.release).toBe('owner');
+    expect(ledger.gate.route).toBe('hold');
+    expect(ledger.gate.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+  });
+});
+
+describe('fixtureFiles: the piece that rests on another outlet', () => {
+  const ledger = LedgerEntry.parse(JSON.parse(text(`ledger/${HELD_SLUG}.json`)));
+  const mdx = text(`news/${HELD_SLUG}.mdx`);
+
+  it('cites one tier-2 claim, from a fictional outlet on a .example address, and no other claim of tier 2', () => {
+    const tier2 = ledger.claims.filter((claim) => claim.source.tier === 2);
+    expect(tier2.map((claim) => [claim.id, claim.source.outlet])).toEqual([['c-19', 'Mercer Wire']]);
+    expect(new URL(tier2[0]!.source.url).hostname).toBe('mercer-wire.example');
+    expect(ledger.sources.filter((source) => source.tier === 2)).toHaveLength(1);
+  });
+
+  it('writes the sentence that rests on it as an attribution with the label Unconfirmed., and marks it in the ledger', () => {
+    const marker = ledger.order.indexOf('c-19') + 1;
+    expect(mdx).toContain(`**Unconfirmed.** Mercer Wire reports that 7 investors took part in the round.[${marker}](/news/${HELD_SLUG}/receipts/#c-19)`);
+    expect(ledger.sentences.filter((sentence) => sentence.attributed === true).map((sentence) => sentence.claimIds)).toEqual([['c-19']]);
+  });
+
+  it('is the only piece with the label: the four others rest on first-hand sources only', () => {
+    for (const slug of SLUGS.slice(0, 4)) expect(text(`news/${slug}.mdx`), slug).not.toContain('Unconfirmed');
+  });
+
+  it('dates its retrieval on the day of the piece', () => {
+    expect(ledger.sources.every((source) => source.retrievedAt === '2026-09-29T04:30:00Z')).toBe(true);
+  });
+});
+
 describe('fixtureFiles: the desk state', () => {
   const state = DeskState.parse(JSON.parse(text('desk-state.json')));
 
@@ -130,7 +189,7 @@ describe('fixtureFiles: the desk state', () => {
     expect(state.lastRun).toEqual({ at: '2026-10-04T04:41:12Z', outcome: 'published', runId: 'fixture-run-1', slug: GOLDEN_SLUG });
   });
 
-  it('records two holds, with a gate code and the tier-2 reason, on days with no piece', () => {
+  it('records two holds, with a gate code and the tier-2 reason: the first on a day with no piece, the second released by the owner the same day', () => {
     expect(state.holds.map((hold) => hold.reasons)).toEqual([['G4_NUMBER_UNSUPPORTED'], ['TIER2_ATTRIBUTION']]);
     expect(state.holds.map((hold) => hold.at.slice(0, 10))).toEqual(['2026-09-30', '2026-09-29']);
     expect(state.holds[0]!.prUrl).toBe('https://github.example/robywire/robywire/pull/12');

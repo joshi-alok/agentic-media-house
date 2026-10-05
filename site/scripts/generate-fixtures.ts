@@ -3,11 +3,11 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { DeskState, defaultContext, renderDraft, runGate } from '@robywire/gate';
 import type { GateInput } from '@robywire/gate';
-import { GOLDEN_DRAFT, cloneGolden, makeVariant } from '@robywire/gate/fixtures';
+import { GOLDEN_DRAFT, cloneGolden, makeTier2Variant, makeVariant } from '@robywire/gate/fixtures';
 import { latestCorrectionDay } from '../src/lib/desk-state';
 
 // Writes the fixture content the site shows when it is built with
-// ROBYWIRE_FIXTURES=1: four news pieces with their ledgers, and a desk state.
+// ROBYWIRE_FIXTURES=1: five news pieces with their ledgers, and a desk state.
 // Everything is fictional (Fixture Robotics, the FX-1 family, *.example
 // domains) and generated from the golden piece by the same renderer the real
 // pipeline will use. Run it with `npm run fixtures:generate --workspace
@@ -20,21 +20,29 @@ export interface FixturePiece {
   slug: string;
   runId: string;
   input: GateInput;
+  /**
+   * What the gate must decide for the fixture. `publish` is an ordinary piece. `hold` is a piece that
+   * rests on another outlet: the gate holds it, and the fixture stands for one that the owner released.
+   */
+  route: 'publish' | 'hold';
 }
 
-// Each variant is the golden story about the next product, one day earlier.
+// Each variant is the golden story about the next product, one day earlier. The last one is written the way
+// a piece that rests on another outlet must be (see makeTier2Variant), so the gate holds it, and it is
+// dated the day of the 'TIER2_ATTRIBUTION' hold in the desk state: the owner released that draft.
 const VARIANTS = [
-  { n: 2, publishedAt: '2026-10-03', categories: ['humanoids'] },
-  { n: 3, publishedAt: '2026-10-02', categories: ['policy-standards'] },
-  { n: 4, publishedAt: '2026-10-01', categories: ['home-consumer', 'field-mobility'] },
+  { n: 2, publishedAt: '2026-10-03', categories: ['humanoids'], tier2: false },
+  { n: 3, publishedAt: '2026-10-02', categories: ['policy-standards'], tier2: false },
+  { n: 4, publishedAt: '2026-10-01', categories: ['home-consumer', 'field-mobility'], tier2: false },
+  { n: 5, publishedAt: '2026-09-29', categories: ['policy-standards', 'funding'], tier2: true },
 ];
 
 const GOLDEN_RETRIEVED_AT = '2026-10-04T04:30:00Z';
 
-/** The four fixture pieces as gate input: the golden piece and three variants of it. */
+/** The five fixture pieces as gate input: the golden piece and four variants of it. */
 export function fixturePieces(): FixturePiece[] {
-  const golden: FixturePiece = { slug: GOLDEN_DRAFT.slug, runId: 'fixture-run-1', input: cloneGolden() };
-  const variants = VARIANTS.map(({ n, publishedAt, categories }, at): FixturePiece => {
+  const golden: FixturePiece = { slug: GOLDEN_DRAFT.slug, runId: 'fixture-run-1', input: cloneGolden(), route: 'publish' };
+  const variants = VARIANTS.map(({ n, publishedAt, categories, tier2 }, at): FixturePiece => {
     const slug = GOLDEN_DRAFT.slug.replace('fx-1', `fx-${n}`);
     const input = makeVariant(cloneGolden(), {
       slug,
@@ -46,7 +54,7 @@ export function fixturePieces(): FixturePiece[] {
         [GOLDEN_RETRIEVED_AT, `${publishedAt}T04:30:00Z`],
       ],
     });
-    return { slug, runId: `fixture-run-${at + 2}`, input };
+    return { slug, runId: `fixture-run-${at + 2}`, input: tier2 ? makeTier2Variant(input) : input, route: tier2 ? 'hold' : 'publish' };
   });
   return [golden, ...variants];
 }
@@ -79,22 +87,24 @@ function deskState(all: readonly FixturePiece[]): DeskState {
 
 /**
  * Every fixture file as a map from its path under the fixtures folder to its
- * content, in sorted order. A piece that does not pass the whole gate stops
- * the generator: a fixture must be something the real site could publish.
- * A piece that has a correction in the desk state gets `updatedAt`, the day
- * of its latest one, as the site requires.
+ * content, in sorted order. A piece for which the gate decides anything but
+ * what the fixture stands for stops the generator: a fixture must be something
+ * the real pipeline could publish, by itself or, for a hold, with the owner's
+ * release (the ledger says which). A piece that has a correction in the desk
+ * state gets `updatedAt`, the day of its latest one, as the site requires.
  */
 export function fixtureFiles(all: readonly FixturePiece[] = fixturePieces()): Map<string, string> {
   const files = new Map<string, string>();
   const state = deskState(all);
   for (const piece of all) {
     const result = runGate(piece.input, defaultContext());
-    if (result.route !== 'publish') {
-      const codes = result.failures.map((failure) => failure.code).join(', ');
-      throw new Error(`generate-fixtures: the fixture ${piece.slug} does not publish (route ${result.route}: ${codes})`);
+    if (result.route !== piece.route) {
+      const codes = [...result.failures.map((failure) => failure.code), ...result.holdReasons].join(', ');
+      throw new Error(`generate-fixtures: the fixture ${piece.slug} does not ${piece.route} (route ${result.route}: ${codes === '' ? 'none' : codes})`);
     }
     const updatedAt = latestCorrectionDay(state.corrections, piece.slug);
-    const meta = { runId: piece.runId, gate: result, ...(updatedAt === undefined ? {} : { updatedAt }) };
+    const release = piece.route === 'publish' ? 'auto' : 'owner';
+    const meta = { runId: piece.runId, gate: result, release, ...(updatedAt === undefined ? {} : { updatedAt }) } as const;
     const { mdx, ledger } = renderDraft(piece.input.draft, piece.input.claims, meta);
     files.set(`news/${piece.slug}.mdx`, mdx);
     files.set(`ledger/${piece.slug}.json`, json(ledger));

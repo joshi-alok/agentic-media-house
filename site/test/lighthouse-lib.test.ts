@@ -33,6 +33,37 @@ describe('pagesToTest', () => {
   });
 });
 
+describe('pagesToTest: an article that rests on another outlet', () => {
+  const HELD = 'fixture-robotics-ships-fx-5-to-second-plant';
+  const links = `${LEAD}<h2><a href="/news/fixture-robotics-ships-fx-2-to-second-plant/">Second</a></h2><h2><a href="/news/${HELD}/">Held</a></h2>`;
+  const label = '<p><strong>Unconfirmed.</strong> Mercer Wire reports that 7 investors took part.</p>';
+  const articles = (pages: Record<string, string>) => (route: string) => pages[route];
+
+  it('adds the first article with the Unconfirmed. label, and its receipts page, after the lead article and its receipts', () => {
+    const read = articles({ [`/news/${SLUG}/`]: '<p>plain</p>', '/news/fixture-robotics-ships-fx-2-to-second-plant/': '<p>plain</p>', [`/news/${HELD}/`]: label });
+    expect(pagesToTest(home(RIBBON + links), read)).toEqual(['/', `/news/${SLUG}/`, `/news/${SLUG}/receipts/`, `/news/${HELD}/`, `/news/${HELD}/receipts/`]);
+  });
+
+  it('measures the lead once when the lead is the article that carries the label', () => {
+    expect(pagesToTest(home(RIBBON + links), articles({ [`/news/${SLUG}/`]: label, [`/news/${HELD}/`]: label }))).toEqual(['/', `/news/${SLUG}/`, `/news/${SLUG}/receipts/`, `/news/${HELD}/`, `/news/${HELD}/receipts/`]);
+    expect(pagesToTest(home(RIBBON + LEAD), articles({ [`/news/${SLUG}/`]: label }))).toEqual(['/', `/news/${SLUG}/`, `/news/${SLUG}/receipts/`]);
+  });
+
+  it('takes the first of several articles with the label', () => {
+    const read = articles({ '/news/fixture-robotics-ships-fx-2-to-second-plant/': label, [`/news/${HELD}/`]: label });
+    expect(pagesToTest(home(RIBBON + links), read)[3]).toBe('/news/fixture-robotics-ships-fx-2-to-second-plant/');
+  });
+
+  it('adds nothing when no article has the label, or when an article cannot be read', () => {
+    expect(pagesToTest(home(RIBBON + links), articles({}))).toEqual(['/', `/news/${SLUG}/`, `/news/${SLUG}/receipts/`]);
+  });
+
+  it('does not take the word in running text, or another bold label, for the label', () => {
+    const read = articles({ [`/news/${HELD}/`]: '<p>It is Unconfirmed. <strong>Analysis.</strong> Not that.</p>' });
+    expect(pagesToTest(home(RIBBON + links), read)).toHaveLength(3);
+  });
+});
+
 describe('chromeFlags', () => {
   it('runs Chrome headless', () => {
     expect(chromeFlags({})).toEqual(['--headless']);

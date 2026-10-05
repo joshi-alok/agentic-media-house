@@ -235,6 +235,20 @@ describe('renderDraft: the ledger', () => {
     expect('verifier' in ledger).toBe(false);
   });
 
+  it('has no release unless the meta gives one, and records the one it gives', () => {
+    expect('release' in ledger).toBe(false);
+    expect(render(golden, { release: 'auto' }).ledger.release).toBe('auto');
+    const tier2 = makeTier2Variant(cloneGolden());
+    expect(render(tier2, { release: 'owner' }).ledger.release).toBe('owner');
+    expect(LedgerEntry.parse(render(tier2, { release: 'owner' }).ledger).release).toBe('owner');
+  });
+
+  it('refuses a release the route of the gate contradicts: the page would say something false', () => {
+    const tier2 = makeTier2Variant(cloneGolden());
+    expect(() => render(tier2, { release: 'auto' })).toThrow('renderDraft: release "auto" needs a gate route of publish, but the route is hold');
+    expect(() => render(golden, { release: 'owner' })).toThrow('renderDraft: release "owner" is for a piece the gate did not clear, but the route is publish');
+  });
+
   it('passes a verifier through', () => {
     const verifier = { model: 'claude-sonnet-5-5', passed: true, notes: ['all sentences entailed'] };
     expect(render(golden, { verifier }).ledger.verifier).toEqual(verifier);

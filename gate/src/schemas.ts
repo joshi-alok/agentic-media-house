@@ -7,6 +7,7 @@ import {
   CLAIM_TYPES,
   CORRECTION_KINDS,
   LEDGER_SECTIONS,
+  RELEASES,
   ROUTES,
   RUN_OUTCOMES,
   SENTENCE_KINDS,
@@ -167,6 +168,8 @@ export const LedgerEntry = z.object({
     checks: z.record(z.enum(CHECK_IDS), z.enum(CHECK_RESULTS)),
     holdReasons: z.array(z.string()),
   }),
+  // How the piece came to be published; set by the pipeline. The receipts page says it in words.
+  release: z.enum(RELEASES).optional(),
   // Filled in by the desk when the model verifier (G10) has run.
   verifier: z
     .object({
@@ -176,6 +179,14 @@ export const LedgerEntry = z.object({
     })
     .optional(),
   sources: z.array(ClaimSource),
+}).superRefine((entry, context) => {
+  // The receipts page prints the release in words, so it must not contradict what the gate decided.
+  if (entry.release === 'auto' && entry.gate.route !== 'publish') {
+    context.addIssue({ code: 'custom', path: ['release'], message: 'a piece published by the gate without a human needs a gate route of publish' });
+  }
+  if (entry.release === 'owner' && entry.gate.route === 'publish') {
+    context.addIssue({ code: 'custom', path: ['release'], message: 'a piece released by the owner is one the gate did not clear, so its route is not publish' });
+  }
 });
 export type LedgerEntry = z.infer<typeof LedgerEntry>;
 

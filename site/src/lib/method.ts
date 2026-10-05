@@ -1,5 +1,6 @@
 import { defaultConfig } from '@robywire/gate';
 import type { CheckId, GateConfig } from '@robywire/gate';
+import { releaseNote } from './receipts';
 
 // The words of the method page that a test needs to reach: the nine rules of
 // the gate, whose numbers come from the gate's own configuration, and the
@@ -65,6 +66,9 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     },
   ];
 }
+
+/** What the site shows for a held draft that the owner decides to publish. The words quoted are the ones the receipts page uses. */
+export const OWNER_RELEASE_TEXT = `A held draft is published only if the owner decides to release it, and the piece then says so: its receipts page reads "${releaseNote('owner')}", and each sentence that rests on another outlet is labelled "Unconfirmed." in the article.`;
 
 export interface PipelineStage {
   name: string;

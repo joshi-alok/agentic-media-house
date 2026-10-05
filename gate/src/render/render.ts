@@ -1,5 +1,6 @@
 import type { GateResult } from '../gate';
 import { dayNumber } from '../normalise';
+import type { Release } from '../constants';
 import type { Claim, Draft, LedgerEntry, LedgerSentence } from '../schemas';
 import { allSentences } from '../sentences';
 import type { LocatedSentence } from '../sentences';
@@ -10,6 +11,8 @@ export interface RenderMeta {
   runId: string;
   gate: GateResult;
   verifier?: LedgerEntry['verifier'];
+  /** How the piece came to be published, for the ledger: `auto` for a piece the gate cleared, `owner` for a hold the owner released. */
+  release?: Release;
   /**
    * The day (YYYY-MM-DD) a correction or a retraction was recorded for the piece. It is written to
    * the frontmatter as `updatedAt`; a piece that was never corrected has none.
@@ -67,6 +70,13 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
     if (day === undefined) throw new Error(`renderDraft: updatedAt "${updatedAt}" is not a real date in the form YYYY-MM-DD`);
     if (day < (dayNumber(draft.publishedAt) ?? NaN)) throw new Error(`renderDraft: updatedAt "${updatedAt}" is before publishedAt "${draft.publishedAt}"`);
   }
+  const { release } = meta;
+  if (release === 'auto' && meta.gate.route !== 'publish') {
+    throw new Error(`renderDraft: release "auto" needs a gate route of publish, but the route is ${meta.gate.route}`);
+  }
+  if (release === 'owner' && meta.gate.route === 'publish') {
+    throw new Error(`renderDraft: release "owner" is for a piece the gate did not clear, but the route is publish`);
+  }
   const frontmatter = [
     '---',
     `title: ${JSON.stringify(draft.title.text)}`,
@@ -115,6 +125,7 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
     order,
     sentences,
     gate: { route: meta.gate.route, checks: { ...meta.gate.checks }, holdReasons: [...meta.gate.holdReasons] },
+    ...(release === undefined ? {} : { release }),
     ...(meta.verifier === undefined ? {} : { verifier: structuredClone(meta.verifier) }),
     sources: [...sources.values()].sort((a, b) => byText(a.url, b.url)),
   };

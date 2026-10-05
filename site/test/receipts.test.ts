@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { CHECK_IDS, LedgerEntry } from '@robywire/gate';
-import { receiptsView } from '../src/lib/receipts';
+import { receiptsView, releaseNote, routeText } from '../src/lib/receipts';
 
 const GOLDEN_FILE = new URL('../src/content-fixtures/ledger/fixture-robotics-ships-fx-1-to-second-plant.json', import.meta.url);
 const golden = LedgerEntry.parse(JSON.parse(readFileSync(GOLDEN_FILE, 'utf8')));
@@ -105,6 +105,59 @@ describe('receiptsView: the gate summary', () => {
     const checked = structuredClone(golden);
     checked.verifier = { model: 'claude-sonnet-5-5', passed: true, notes: ['every sentence entailed'] };
     expect(receiptsView(checked).verifier).toEqual({ model: 'claude-sonnet-5-5', passed: true, notes: ['every sentence entailed'] });
+  });
+});
+
+describe('routeText', () => {
+  it('says in words what the gate did, so that a route is never shown on its own', () => {
+    expect(routeText('publish')).toBe('The gate cleared this piece.');
+    expect(routeText('hold')).toBe('The gate held this draft for the owner.');
+    expect(routeText('revise')).toBe('The gate sent this draft back for revision.');
+  });
+
+  it('is part of the gate summary', () => {
+    expect(view.gate.routeText).toBe(routeText(view.gate.route));
+    const held = structuredClone(golden);
+    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'] };
+    delete held.release;
+    expect(receiptsView(held).gate.routeText).toBe('The gate held this draft for the owner.');
+  });
+});
+
+describe('releaseNote', () => {
+  it('says that the gate published the piece without a human, for auto', () => {
+    expect(releaseNote('auto')).toBe('Published by the gate without a human.');
+  });
+
+  it('says that the gate held the piece and the owner released it, for owner', () => {
+    expect(releaseNote('owner')).toBe('Held by the gate, then released by the owner.');
+  });
+
+  it('says nothing when the ledger does not say', () => {
+    expect(releaseNote(undefined)).toBeUndefined();
+  });
+});
+
+describe('receiptsView: how the piece was released', () => {
+  const without = (() => {
+    const copy = structuredClone(golden);
+    delete copy.release;
+    return copy;
+  })();
+
+  it('has no note when the ledger has no release, and no key either', () => {
+    expect(receiptsView(without).releaseNote).toBeUndefined();
+    expect('releaseNote' in receiptsView(without)).toBe(false);
+  });
+
+  it('has the note for auto', () => {
+    expect(receiptsView({ ...without, release: 'auto' }).releaseNote).toBe('Published by the gate without a human.');
+  });
+
+  it('has the note for owner', () => {
+    const held = structuredClone(without);
+    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'] };
+    expect(receiptsView({ ...held, release: 'owner' }).releaseNote).toBe('Held by the gate, then released by the owner.');
   });
 });
 

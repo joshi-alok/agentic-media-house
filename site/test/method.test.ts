@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHECK_IDS, defaultConfig } from '@robywire/gate';
-import { PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../src/lib/method';
+import { releaseNote } from '../src/lib/receipts';
+import { OWNER_RELEASE_TEXT, PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../src/lib/method';
 
 // The method page is where a distrustful reader checks what the Desk claims
 // about itself. These tests keep its numbers in step with the gate, and keep
@@ -61,6 +62,26 @@ describe('PIPELINE_STAGES', () => {
       expect(stage.text, stage.name).toMatch(/^[A-Z]/);
       expect(stage.text.endsWith('.'), stage.name).toBe(true);
     }
+  });
+});
+
+describe('OWNER_RELEASE_TEXT', () => {
+  it('is one sentence', () => {
+    expect(OWNER_RELEASE_TEXT).toMatch(/^[A-Z]/);
+    expect(OWNER_RELEASE_TEXT.endsWith('.')).toBe(true);
+    expect(OWNER_RELEASE_TEXT.slice(0, -1).replaceAll(/"[^"]*"/g, '')).not.toMatch(/[.!?](\s|$)/);
+  });
+
+  it('says that a held draft is published only if the owner decides to release it', () => {
+    expect(OWNER_RELEASE_TEXT).toContain('A held draft is published only if the owner decides to release it');
+  });
+
+  it('quotes what the receipts page of an owner-released piece says, so the two cannot drift apart', () => {
+    expect(OWNER_RELEASE_TEXT).toContain(`"${releaseNote('owner')}"`);
+  });
+
+  it('says that a sentence resting on another outlet is labelled Unconfirmed. in the article', () => {
+    expect(OWNER_RELEASE_TEXT).toContain('each sentence that rests on another outlet is labelled "Unconfirmed." in the article');
   });
 });
 

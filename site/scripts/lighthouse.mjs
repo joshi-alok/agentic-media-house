@@ -5,7 +5,8 @@ import { CATEGORIES, THRESHOLD, chromeFlags, formatScores, isFixtureBuild, lowSc
 import { serve } from './serve-dist.mjs';
 
 // `npm run lighthouse` measures the built fixture site with Lighthouse: the
-// home page, the lead article and its receipts page, in all four categories.
+// home page, the lead article and its receipts page, and an article that rests
+// on another outlet with its receipts page, in all four categories.
 // It builds nothing. It exits 0 if every score is 95 or more, 1 if any is
 // lower, and 2 if it could not measure (no fixture build, no Chrome).
 
@@ -39,6 +40,21 @@ async function measureWithChrome(baseUrl, routes) {
 }
 
 /**
+ * The HTML of the page at `route` in the build, or undefined when there is no such file.
+ *
+ * @param {string} dist
+ * @param {string} route
+ * @returns {string | undefined}
+ */
+function readPage(dist, route) {
+  try {
+    return readFileSync(path.join(dist, route, 'index.html'), 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Run the measurement. Returns the exit code.
  *
  * @param {{ dist?: string, print?: (text: string) => void, measure?: typeof measureWithChrome }} [options]
@@ -59,7 +75,7 @@ export async function main({ dist = DEFAULT_DIST, print = console.log, measure =
 
   const server = await serve(dist);
   try {
-    const rows = await measure(server.url, pagesToTest(home));
+    const rows = await measure(server.url, pagesToTest(home, (route) => readPage(dist, route)));
     print(`Lighthouse, ${rows.length} pages (phone screen, simulated slow network)`);
     print(formatScores(rows));
     const low = lowScores(rows);

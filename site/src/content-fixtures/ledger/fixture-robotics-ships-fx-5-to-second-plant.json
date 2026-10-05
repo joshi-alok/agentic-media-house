@@ -1,0 +1,1462 @@
+{
+  "schemaVersion": 1,
+  "slug": "fixture-robotics-ships-fx-5-to-second-plant",
+  "runId": "fixture-run-5",
+  "publishedAt": "2026-09-29",
+  "title": "Fixture Robotics ships its FX-5 warehouse arm to a second plant",
+  "categories": [
+    "policy-standards",
+    "funding"
+  ],
+  "claims": [
+    {
+      "id": "c-1",
+      "text": "Fixture Robotics has begun shipping FX-5 warehouse arms to the second Brindle Logistics plant, at Tarnmoor.",
+      "label": "Tarnmoor shipment",
+      "type": "event",
+      "basis": "press-release",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Fixture Robotics",
+          "normalised": "fixture robotics"
+        },
+        {
+          "kind": "name",
+          "raw": "FX-5",
+          "normalised": "fx-5"
+        },
+        {
+          "kind": "name",
+          "raw": "Brindle Logistics",
+          "normalised": "brindle logistics"
+        },
+        {
+          "kind": "name",
+          "raw": "Tarnmoor",
+          "normalised": "tarnmoor"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/news/fx-5-second-plant",
+        "tier": 1,
+        "snapshotHash": "9341a7054f8ee2cd662eb31e96411a8dc9e2ed58766ecaadab8ee46d6b6dfa92",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 112,
+        "end": 270,
+        "quote": "Fixture Robotics has begun shipping FX-5 warehouse arms, built for tote picking and trailer unloading, to Brindle Logistics for its second plant, at Tarnmoor."
+      }
+    },
+    {
+      "id": "c-23",
+      "text": "Brindle Logistics runs 40 FX-5 arms at its Ashvale plant.",
+      "label": "Ashvale installation",
+      "type": "event",
+      "basis": "press-release",
+      "status": "deployed",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "40",
+          "normalised": "40"
+        },
+        {
+          "kind": "name",
+          "raw": "Brindle Logistics",
+          "normalised": "brindle logistics"
+        },
+        {
+          "kind": "name",
+          "raw": "FX-5",
+          "normalised": "fx-5"
+        },
+        {
+          "kind": "name",
+          "raw": "Ashvale",
+          "normalised": "ashvale"
+        }
+      ],
+      "source": {
+        "url": "https://brindle-logistics.example/news/ashvale-results",
+        "tier": 1,
+        "snapshotHash": "1b864b6558d7412fd8c4f092fb89f6ab4e975b50d3b8b94f0203c4efc7103c67",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 0,
+        "end": 61,
+        "quote": "Brindle Logistics now runs 40 FX-5 arms at its Ashvale plant."
+      }
+    },
+    {
+      "id": "c-26",
+      "text": "Brindle Logistics plans to add a third site in 2027.",
+      "label": "third-site rollout",
+      "type": "event",
+      "basis": "press-release",
+      "status": "planned",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Brindle Logistics",
+          "normalised": "brindle logistics"
+        },
+        {
+          "kind": "date",
+          "raw": "2027",
+          "normalised": "2027"
+        }
+      ],
+      "source": {
+        "url": "https://brindle-logistics.example/news/ashvale-results",
+        "tier": 1,
+        "snapshotHash": "5f07f7135d925a2b0298d5d92408eab2659f7898ab967e1584eed7b12b05be2d",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 604,
+        "end": 656,
+        "quote": "Brindle Logistics plans to add a third site in 2027."
+      }
+    },
+    {
+      "id": "c-17",
+      "text": "The offering raised USD 450 million.",
+      "label": "funding round",
+      "type": "number",
+      "basis": "filing",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "USD 450 million",
+          "normalised": "450000000",
+          "unit": "USD"
+        }
+      ],
+      "source": {
+        "url": "https://filings.example/fixture-robotics/offering-2026",
+        "tier": 1,
+        "snapshotHash": "1cbb5d62fd97e828e508264277525f66c6a36302b850abd2c6f4499545ebb3cf",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 268,
+        "end": 302,
+        "quote": "Total amount sold: USD 450 million"
+      }
+    },
+    {
+      "id": "c-18",
+      "text": "Corvane Partners led the offering.",
+      "label": "lead investor",
+      "type": "name",
+      "basis": "filing",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Corvane Partners",
+          "normalised": "corvane partners"
+        }
+      ],
+      "source": {
+        "url": "https://filings.example/fixture-robotics/offering-2026",
+        "tier": 1,
+        "snapshotHash": "1e05d5f14c05baf48b2f44a7350990263a70f93b55f3a7499e69dcadfd203e5e",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 330,
+        "end": 361,
+        "quote": "Lead investor: Corvane Partners"
+      }
+    },
+    {
+      "id": "c-8",
+      "text": "The FX-5 is rated for a payload of 12 kg at full reach.",
+      "label": "payload",
+      "type": "spec",
+      "basis": "datasheet",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "12 kilograms",
+          "normalised": "12",
+          "unit": "kg"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+        "tier": 1,
+        "snapshotHash": "697f8787a341e07870bb09a5223e08389a4168a13b1bd63c6de412c3ee06d08e",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 340,
+        "end": 382,
+        "quote": "Rated payload: 12 kilograms at full reach."
+      }
+    },
+    {
+      "id": "c-9",
+      "text": "The FX-5 has a maximum reach of 1.4 m.",
+      "label": "reach",
+      "type": "spec",
+      "basis": "datasheet",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "1.4 metres",
+          "normalised": "1.4",
+          "unit": "m"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+        "tier": 1,
+        "snapshotHash": "5c72a7235e972f90b42227448c26e50f9283fa0f4f1573ce3572bdf486edc6b4",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 392,
+        "end": 432,
+        "quote": "Maximum reach: 1.4 metres from the base."
+      }
+    },
+    {
+      "id": "c-20",
+      "text": "Brindle Logistics measured an 18 per cent cut in cycle time at Ashvale.",
+      "label": "cycle-time cut",
+      "type": "number",
+      "basis": "measured",
+      "status": "deployed",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "18 per cent",
+          "normalised": "18",
+          "unit": "%"
+        },
+        {
+          "kind": "number",
+          "raw": "four",
+          "normalised": "4"
+        },
+        {
+          "kind": "name",
+          "raw": "Ashvale",
+          "normalised": "ashvale"
+        },
+        {
+          "kind": "name",
+          "raw": "Brindle Logistics",
+          "normalised": "brindle logistics"
+        },
+        {
+          "kind": "name",
+          "raw": "FX-5",
+          "normalised": "fx-5"
+        }
+      ],
+      "source": {
+        "url": "https://brindle-logistics.example/news/ashvale-results",
+        "tier": 1,
+        "snapshotHash": "130d26295869ce606dc4d2f1f75a8f098d8eb64934a7054575a7ebb9234cfdea",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 84,
+        "end": 245,
+        "quote": "At Ashvale, Brindle Logistics measured an 18 per cent cut in cycle time on tote-picking cells, comparing the four weeks before and after the FX-5 arms went live."
+      }
+    },
+    {
+      "id": "c-16",
+      "text": "The offering recorded in the filing had its first sale on 29 September 2026.",
+      "label": "first-sale date",
+      "type": "date",
+      "basis": "filing",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "date",
+          "raw": "2026-09-29",
+          "normalised": "2026-09-29"
+        }
+      ],
+      "source": {
+        "url": "https://filings.example/fixture-robotics/offering-2026",
+        "tier": 1,
+        "snapshotHash": "cc9deb6f5e8eb3ecad27417f9d7a75d0b8d4c3cf4b65df673871ee936285aec3",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 210,
+        "end": 240,
+        "quote": "Date of first sale: 2026-09-29"
+      }
+    },
+    {
+      "id": "c-2",
+      "text": "Fixture Robotics announced the shipments on 1 October 2026.",
+      "label": "announcement date",
+      "type": "date",
+      "basis": "press-release",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "date",
+          "raw": "1 October 2026",
+          "normalised": "2026-10-01"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/news/fx-5-second-plant",
+        "tier": 1,
+        "snapshotHash": "e8a17a92cadc13938b0443d8cf7774f519f463b23efc0a0e2be931d8203786a9",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 0,
+        "end": 82,
+        "quote": "Tarnmoor, 1 October 2026: Fixture Robotics announced that deliveries have started."
+      }
+    },
+    {
+      "id": "c-3",
+      "text": "The FX-5 mounts on existing conveyor frames without a new safety cage.",
+      "label": "retrofit mounting",
+      "type": "spec",
+      "basis": "press-release",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "FX-5",
+          "normalised": "fx-5"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/news/fx-5-second-plant",
+        "tier": 1,
+        "snapshotHash": "3bf3ad4b8e200119af411bc32bb822f1e49b11c4b4e80b1556bf817305c0f089",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 278,
+        "end": 369,
+        "quote": "The FX-5 mounts on existing conveyor frames and needs no new safety cage, the company said."
+      }
+    },
+    {
+      "id": "c-4",
+      "text": "Fixture Robotics lists the FX-5 from $38,000, with delivery within 12 weeks of an order.",
+      "label": "list price",
+      "type": "number",
+      "basis": "press-release",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "$38,000",
+          "normalised": "38000",
+          "unit": "USD"
+        },
+        {
+          "kind": "number",
+          "raw": "12",
+          "normalised": "12"
+        },
+        {
+          "kind": "name",
+          "raw": "Fixture Robotics",
+          "normalised": "fixture robotics"
+        },
+        {
+          "kind": "name",
+          "raw": "FX-5",
+          "normalised": "fx-5"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/news/fx-5-second-plant",
+        "tier": 1,
+        "snapshotHash": "6094b2e5a7fce28d8b49937e90e9b63c171baad147b19ed854d182e0a6ffdbdf",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 391,
+        "end": 487,
+        "quote": "Fixture Robotics lists the FX-5 from $38,000 per arm, with delivery within 12 weeks of an order."
+      }
+    },
+    {
+      "id": "c-10",
+      "text": "The FX-5 has a peak tool speed of 2.3 m/s.",
+      "label": "top speed",
+      "type": "spec",
+      "basis": "datasheet",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "2.3 metres per second",
+          "normalised": "2.3",
+          "unit": "m/s"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+        "tier": 1,
+        "snapshotHash": "cfc27d895aaac7c35e9f517d6886f3ba1fcbe948cfcc72ca8cd2fb4a05f82a6b",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 441,
+        "end": 480,
+        "quote": "Peak tool speed: 2.3 metres per second."
+      }
+    },
+    {
+      "id": "c-11",
+      "text": "The FX-5 repeats a position to within 0.05 mm.",
+      "label": "repeatability",
+      "type": "spec",
+      "basis": "datasheet",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "0.05 mm",
+          "normalised": "0.05",
+          "unit": "mm"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+        "tier": 1,
+        "snapshotHash": "52bbb025c140038da97d7b1ad9b68c9e7fdede1a91697cf0024df5af4638e5c3",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 488,
+        "end": 511,
+        "quote": "Repeatability: 0.05 mm."
+      }
+    },
+    {
+      "id": "c-12",
+      "text": "The FX-5 can pick up to 1,200 items an hour.",
+      "label": "pick rate",
+      "type": "spec",
+      "basis": "datasheet",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "1.2k",
+          "normalised": "1200"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+        "tier": 1,
+        "snapshotHash": "91bd2316014e4cb7d3c933cab7695307dcd24396b82641a08b56405808938657",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 520,
+        "end": 557,
+        "quote": "Throughput: up to 1.2k picks an hour."
+      }
+    },
+    {
+      "id": "c-13",
+      "text": "The FX-5 weighs 38 kg.",
+      "label": "arm mass",
+      "type": "spec",
+      "basis": "datasheet",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "38 kg",
+          "normalised": "38",
+          "unit": "kg"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+        "tier": 1,
+        "snapshotHash": "4e9c6b427bc8f7f297d62ab1435290c1800687c6237548d8355aa95ce2c131e1",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 575,
+        "end": 591,
+        "quote": "Arm mass: 38 kg."
+      }
+    },
+    {
+      "id": "c-14",
+      "text": "The FX-5 draws 650 W in typical use.",
+      "label": "power draw",
+      "type": "spec",
+      "basis": "datasheet",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "650 W",
+          "normalised": "650",
+          "unit": "W"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+        "tier": 1,
+        "snapshotHash": "45d00204d00469aa48cbc903c70351a13fb6f9e0dd48bb5d2a96fd06eb700a16",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 600,
+        "end": 626,
+        "quote": "Typical power draw: 650 W."
+      }
+    },
+    {
+      "id": "c-15",
+      "text": "The FX-5 has an ingress protection rating of IP54.",
+      "label": "ingress protection",
+      "type": "spec",
+      "basis": "datasheet",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "IP54",
+          "normalised": "ip54"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+        "tier": 1,
+        "snapshotHash": "86ba059d87c922f9c5b6636e5bea657eb41ce3fff8f8c5a71b0218da4170860f",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 640,
+        "end": 702,
+        "quote": "Ingress protection: IP54, suitable for dusty warehouse floors."
+      }
+    },
+    {
+      "id": "c-5",
+      "text": "Tarnmoor is due to receive 60 arms by 30 November 2026.",
+      "label": "Tarnmoor delivery schedule",
+      "type": "event",
+      "basis": "press-release",
+      "status": "planned",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Tarnmoor",
+          "normalised": "tarnmoor"
+        },
+        {
+          "kind": "number",
+          "raw": "60",
+          "normalised": "60"
+        },
+        {
+          "kind": "date",
+          "raw": "30 November 2026",
+          "normalised": "2026-11-30"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/news/fx-5-second-plant",
+        "tier": 1,
+        "snapshotHash": "7a4e8c2e1b4eadc584bdddd94d1513d3d9f5d29e10bd1b9a6720b81fa6c2030c",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 498,
+        "end": 553,
+        "quote": "Tarnmoor is due to receive 60 arms by 30 November 2026."
+      }
+    },
+    {
+      "id": "c-25",
+      "text": "Brindle Logistics plans to use the arms at Tarnmoor for inbound trailer unloading.",
+      "label": "Tarnmoor use",
+      "type": "event",
+      "basis": "press-release",
+      "status": "planned",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Brindle Logistics",
+          "normalised": "brindle logistics"
+        },
+        {
+          "kind": "name",
+          "raw": "Tarnmoor",
+          "normalised": "tarnmoor"
+        }
+      ],
+      "source": {
+        "url": "https://brindle-logistics.example/news/ashvale-results",
+        "tier": 1,
+        "snapshotHash": "bb2fe314a98f3b453c4fbb36dc54e8cf96862d5395684c1b8726327fea9c32e4",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 520,
+        "end": 602,
+        "quote": "Brindle Logistics plans to use the arms at Tarnmoor for inbound trailer unloading."
+      }
+    },
+    {
+      "id": "c-24",
+      "text": "The Brindle Logistics installation at Ashvale went live on 18 August 2026.",
+      "label": "Ashvale go-live date",
+      "type": "date",
+      "basis": "press-release",
+      "status": "deployed",
+      "values": [
+        {
+          "kind": "date",
+          "raw": "18 August 2026",
+          "normalised": "2026-08-18"
+        },
+        {
+          "kind": "name",
+          "raw": "Brindle Logistics",
+          "normalised": "brindle logistics"
+        },
+        {
+          "kind": "name",
+          "raw": "Ashvale",
+          "normalised": "ashvale"
+        }
+      ],
+      "source": {
+        "url": "https://brindle-logistics.example/news/ashvale-results",
+        "tier": 1,
+        "snapshotHash": "0e6921897e39f71328f504ee13c17ee0cd7759fa1dbccb60ad33b6aa71e7340d",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 62,
+        "end": 136,
+        "quote": "The Brindle Logistics installation at Ashvale went live on 18 August 2026."
+      }
+    },
+    {
+      "id": "c-22",
+      "text": "Dana Whitcombe of Brindle Logistics said the plant went from pilot to production in nine weeks.",
+      "label": "pilot-to-production time",
+      "type": "quote",
+      "basis": "press-release",
+      "status": "deployed",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Dana Whitcombe",
+          "normalised": "dana whitcombe"
+        },
+        {
+          "kind": "name",
+          "raw": "Brindle Logistics",
+          "normalised": "brindle logistics"
+        }
+      ],
+      "source": {
+        "url": "https://brindle-logistics.example/news/ashvale-results",
+        "tier": 1,
+        "snapshotHash": "dffd914a19b76f39b22fbe08b122bf7b51b90adaf2a028b0717c8681156f37be",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 410,
+        "end": 526,
+        "quote": "\"We went from pilot to production in nine weeks,\" said Dana Whitcombe, chief operating officer of Brindle Logistics."
+      }
+    },
+    {
+      "id": "c-21",
+      "text": "Ashvale averaged 940 picks an hour per arm over the same weeks.",
+      "label": "measured pick rate",
+      "type": "number",
+      "basis": "measured",
+      "status": "deployed",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "940",
+          "normalised": "940"
+        },
+        {
+          "kind": "name",
+          "raw": "Ashvale",
+          "normalised": "ashvale"
+        }
+      ],
+      "source": {
+        "url": "https://brindle-logistics.example/news/ashvale-results",
+        "tier": 1,
+        "snapshotHash": "087f73d3e1cafbcb0a90f26c9a1fb5971f4fc78fd14fcb631469f9c005c6c7d7",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 251,
+        "end": 317,
+        "quote": "Across the same weeks, Ashvale averaged 940 picks an hour per arm."
+      }
+    },
+    {
+      "id": "c-27",
+      "text": "Fixture Robotics showed an FX-5 arm unloading mixed cartons from a trailer.",
+      "label": "trailer unloading",
+      "type": "event",
+      "basis": "demo",
+      "status": "demonstrated",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Fixture Robotics",
+          "normalised": "fixture robotics"
+        },
+        {
+          "kind": "name",
+          "raw": "FX-5",
+          "normalised": "fx-5"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/events/demo-day",
+        "tier": 1,
+        "snapshotHash": "3a0fd4cd33616c0bb8d523e2a89f8587ab327ea377f302c583812efc6dfc5258",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 150,
+        "end": 242,
+        "quote": "At its demo day, Fixture Robotics showed an FX-5 arm unloading mixed cartons from a trailer."
+      }
+    },
+    {
+      "id": "c-28",
+      "text": "The demo day was held on 24 September 2026.",
+      "label": "demo day",
+      "type": "date",
+      "basis": "demo",
+      "status": "demonstrated",
+      "values": [
+        {
+          "kind": "date",
+          "raw": "24 September 2026",
+          "normalised": "2026-09-24"
+        },
+        {
+          "kind": "number",
+          "raw": "three",
+          "normalised": "3"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/events/demo-day",
+        "tier": 1,
+        "snapshotHash": "e4d6b7a040ddc848990ec3a68015fbd493dc9783e106ecd9ca12ebb3db914711",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 20,
+        "end": 86,
+        "quote": "Demo day was held on 24 September 2026 in the three-bay test hall."
+      }
+    },
+    {
+      "id": "c-19",
+      "text": "Seven investors took part in the offering.",
+      "label": "investor count",
+      "type": "number",
+      "basis": "filing",
+      "status": "unspecified",
+      "values": [
+        {
+          "kind": "number",
+          "raw": "7",
+          "normalised": "7"
+        }
+      ],
+      "source": {
+        "url": "https://mercer-wire.example/robotics/fixture-robotics-offering",
+        "tier": 2,
+        "snapshotHash": "2d6c2c22ce9183c5673c74138dcc8413f1cd374c60d7996b5d1f2e43cf6ff75b",
+        "retrievedAt": "2026-09-29T04:30:00Z",
+        "outlet": "Mercer Wire"
+      },
+      "span": {
+        "start": 96,
+        "end": 172,
+        "quote": "The offering drew 7 investors, according to people familiar with the filing."
+      }
+    },
+    {
+      "id": "c-7",
+      "text": "Fixture Robotics will use the funds to expand FX-5 production.",
+      "label": "use of funds",
+      "type": "event",
+      "basis": "press-release",
+      "status": "planned",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Fixture Robotics",
+          "normalised": "fixture robotics"
+        },
+        {
+          "kind": "name",
+          "raw": "FX-5",
+          "normalised": "fx-5"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/news/fx-5-second-plant",
+        "tier": 1,
+        "snapshotHash": "8fe188c291ba9df4b58cf078eb34a7adab23de3e2fb6759e98df7a556881cbe7",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 620,
+        "end": 690,
+        "quote": "Fixture Robotics said it will use the funds to expand FX-5 production."
+      }
+    },
+    {
+      "id": "c-6",
+      "text": "Fixture Robotics expects to build 500 FX-5 arms in 2027.",
+      "label": "production plan",
+      "type": "event",
+      "basis": "press-release",
+      "status": "planned",
+      "values": [
+        {
+          "kind": "name",
+          "raw": "Fixture Robotics",
+          "normalised": "fixture robotics"
+        },
+        {
+          "kind": "name",
+          "raw": "FX-5",
+          "normalised": "fx-5"
+        },
+        {
+          "kind": "number",
+          "raw": "500",
+          "normalised": "500"
+        },
+        {
+          "kind": "date",
+          "raw": "2027",
+          "normalised": "2027"
+        }
+      ],
+      "source": {
+        "url": "https://fixture-robotics.example/news/fx-5-second-plant",
+        "tier": 1,
+        "snapshotHash": "8fc55767abd5eea60b29ef95706f76eedad61e557ee6fe88e85b0efd56b927b0",
+        "retrievedAt": "2026-09-29T04:30:00Z"
+      },
+      "span": {
+        "start": 559,
+        "end": 615,
+        "quote": "Fixture Robotics expects to build 500 FX-5 arms in 2027."
+      }
+    }
+  ],
+  "order": [
+    "c-1",
+    "c-23",
+    "c-26",
+    "c-17",
+    "c-18",
+    "c-8",
+    "c-9",
+    "c-20",
+    "c-16",
+    "c-2",
+    "c-3",
+    "c-4",
+    "c-10",
+    "c-11",
+    "c-12",
+    "c-13",
+    "c-14",
+    "c-15",
+    "c-5",
+    "c-25",
+    "c-24",
+    "c-22",
+    "c-21",
+    "c-27",
+    "c-28",
+    "c-19",
+    "c-7",
+    "c-6"
+  ],
+  "sentences": [
+    {
+      "index": 0,
+      "section": "title",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "Fixture Robotics ships its FX-5 warehouse arm to a second plant",
+      "claimIds": [
+        "c-1"
+      ]
+    },
+    {
+      "index": 1,
+      "section": "description",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "Fixture Robotics has begun shipping the FX-5 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor.",
+      "claimIds": [
+        "c-1",
+        "c-8"
+      ]
+    },
+    {
+      "index": 2,
+      "section": "opening",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "Fixture Robotics has begun shipping its FX-5 warehouse arm to a second plant run by Brindle Logistics, at Tarnmoor.",
+      "claimIds": [
+        "c-1"
+      ]
+    },
+    {
+      "index": 3,
+      "section": "opening",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "The first site, at Ashvale, now runs 40 of the arms, and a third site is planned.",
+      "claimIds": [
+        "c-23",
+        "c-26"
+      ]
+    },
+    {
+      "index": 4,
+      "section": "opening",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "The company also reported a $450 million funding round, led by Corvane Partners, in a regulatory filing.",
+      "claimIds": [
+        "c-17",
+        "c-18"
+      ]
+    },
+    {
+      "index": 5,
+      "section": "takeaways",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "Tarnmoor is the second Brindle Logistics plant to receive FX-5 arms.",
+      "claimIds": [
+        "c-1"
+      ]
+    },
+    {
+      "index": 6,
+      "section": "takeaways",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "The datasheet lists a 12 kg rated payload and a 1.4 m maximum reach.",
+      "claimIds": [
+        "c-8",
+        "c-9"
+      ]
+    },
+    {
+      "index": 7,
+      "section": "takeaways",
+      "paragraph": 2,
+      "kind": "fact",
+      "text": "Brindle Logistics measured an 18% cut in cycle time at Ashvale.",
+      "claimIds": [
+        "c-20"
+      ]
+    },
+    {
+      "index": 8,
+      "section": "takeaways",
+      "paragraph": 3,
+      "kind": "fact",
+      "text": "The filing dates the first sale of the $450 million round to 29 September 2026.",
+      "claimIds": [
+        "c-16",
+        "c-17"
+      ]
+    },
+    {
+      "index": 9,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "Fixture Robotics announced on 1 October 2026 that deliveries of the FX-5 warehouse arm to Brindle Logistics have started at Tarnmoor, the customer's second plant.",
+      "claimIds": [
+        "c-1",
+        "c-2"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 10,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "The company says the arm is built for tote picking and trailer unloading.",
+      "claimIds": [
+        "c-1"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 11,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "It also says the arm mounts on existing conveyor frames without a new safety cage.",
+      "claimIds": [
+        "c-3"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 12,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "Fixture Robotics lists the arm from $38,000, with delivery within 12 weeks of an order.",
+      "claimIds": [
+        "c-4"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 13,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "The datasheet lists a rated payload of 12 kg at full reach and a maximum reach of 1.4 m from the base.",
+      "claimIds": [
+        "c-8",
+        "c-9"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 14,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "Peak tool speed is 2.3 m/s, and repeatability is 0.05 mm.",
+      "claimIds": [
+        "c-10",
+        "c-11"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 15,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "The same document gives a throughput of up to 1,200 picks an hour.",
+      "claimIds": [
+        "c-12"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 16,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "The arm itself weighs 38 kg and draws 650 W in typical use.",
+      "claimIds": [
+        "c-13",
+        "c-14"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 17,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "It lists an ingress protection rating of IP54, which the company describes as suitable for dusty warehouse floors.",
+      "claimIds": [
+        "c-15"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 18,
+      "section": "body",
+      "paragraph": 2,
+      "kind": "fact",
+      "text": "At Ashvale, the first Brindle Logistics plant, 40 FX-5 arms are now running.",
+      "claimIds": [
+        "c-23"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 19,
+      "section": "body",
+      "paragraph": 2,
+      "kind": "fact",
+      "text": "Tarnmoor is due to receive 60 arms by 30 November 2026.",
+      "claimIds": [
+        "c-5"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 20,
+      "section": "body",
+      "paragraph": 2,
+      "kind": "fact",
+      "text": "Brindle Logistics plans to use the arms at Tarnmoor for inbound trailer unloading.",
+      "claimIds": [
+        "c-25"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 21,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "At Ashvale, Brindle Logistics measured an 18% cut in cycle time on its tote-picking cells.",
+      "claimIds": [
+        "c-20"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 22,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "It compared the four weeks before and after the arms went live.",
+      "claimIds": [
+        "c-20"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 23,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "The installation at Ashvale went live on 18 August 2026, according to Brindle Logistics.",
+      "claimIds": [
+        "c-24"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 24,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "\"We went from pilot to production in nine weeks,\" said Dana Whitcombe, chief operating officer of Brindle Logistics.",
+      "claimIds": [
+        "c-22"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 25,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "Across the same weeks, Ashvale averaged 940 picks an hour per arm.",
+      "claimIds": [
+        "c-21"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 26,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "analysis",
+      "text": "The measured rate sits below the datasheet maximum, which is normal for a figure quoted as an upper limit.",
+      "claimIds": [
+        "c-21",
+        "c-12"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 27,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "At a demo day on 24 September 2026, Fixture Robotics showed an FX-5 arm unloading mixed cartons from a trailer.",
+      "claimIds": [
+        "c-27",
+        "c-28"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 28,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "The demonstration took place in the company's three-bay test hall.",
+      "claimIds": [
+        "c-28"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 29,
+      "section": "body",
+      "paragraph": 2,
+      "kind": "fact",
+      "text": "Brindle Logistics plans to add a third site in 2027.",
+      "claimIds": [
+        "c-26"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 30,
+      "section": "body",
+      "paragraph": 2,
+      "kind": "analysis",
+      "text": "The customer's results and the company's schedule together describe a rollout that is still at an early stage.",
+      "claimIds": [
+        "c-21",
+        "c-26"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 31,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "The round, led by Corvane Partners, totals $450 million, according to a regulatory filing.",
+      "claimIds": [
+        "c-17",
+        "c-18"
+      ],
+      "heading": "What the filing shows"
+    },
+    {
+      "index": 32,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "The filing records the first sale on 29 September 2026.",
+      "claimIds": [
+        "c-16"
+      ],
+      "heading": "What the filing shows"
+    },
+    {
+      "index": 33,
+      "section": "body",
+      "paragraph": 0,
+      "kind": "fact",
+      "text": "Mercer Wire reports that 7 investors took part in the round.",
+      "claimIds": [
+        "c-19"
+      ],
+      "heading": "What the filing shows",
+      "attributed": true
+    },
+    {
+      "index": 34,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "Fixture Robotics said it will use the funds to expand FX-5 production.",
+      "claimIds": [
+        "c-7"
+      ],
+      "heading": "What the filing shows"
+    },
+    {
+      "index": 35,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "It expects to build 500 FX-5 arms in 2027.",
+      "claimIds": [
+        "c-6"
+      ],
+      "heading": "What the filing shows"
+    },
+    {
+      "index": 36,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "analysis",
+      "text": "The stated use of the funds matches the production plan that the company describes.",
+      "claimIds": [
+        "c-7",
+        "c-6"
+      ],
+      "heading": "What the filing shows"
+    },
+    {
+      "index": 37,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The 12 kilograms payload, 1.4 metres reach, 2.3 metres per second top speed, 0.05 mm repeatability, 1.2k pick rate, 38 kg arm mass, 650 W power draw and IP54 ingress protection figures come from the company's datasheet; no independent measurement was available.",
+      "claimIds": [
+        "c-8",
+        "c-9",
+        "c-10",
+        "c-11",
+        "c-12",
+        "c-13",
+        "c-14",
+        "c-15"
+      ]
+    },
+    {
+      "index": 38,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The Fixture Robotics Tarnmoor shipment, 1 October 2026 announcement date, FX-5 retrofit mounting, $38,000 list price, 60 Tarnmoor delivery schedule, 500 production plan, Fixture Robotics use of funds, Dana Whitcombe pilot-to-production time, 40 Ashvale installation, 18 August 2026 Ashvale go-live date, Brindle Logistics Tarnmoor use and Brindle Logistics third-site rollout figures come from a company press release; no independent measurement was available.",
+      "claimIds": [
+        "c-1",
+        "c-2",
+        "c-3",
+        "c-4",
+        "c-5",
+        "c-6",
+        "c-7",
+        "c-22",
+        "c-23",
+        "c-24",
+        "c-25",
+        "c-26"
+      ]
+    },
+    {
+      "index": 39,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The trailer unloading and demo day were shown in a demonstration; the source does not describe independent testing.",
+      "claimIds": [
+        "c-27",
+        "c-28"
+      ]
+    },
+    {
+      "index": 40,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The trailer unloading and demo day were demonstrated; the source does not report them in commercial deployment.",
+      "claimIds": [
+        "c-27",
+        "c-28"
+      ]
+    },
+    {
+      "index": 41,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The Tarnmoor delivery schedule, production plan, use of funds, Tarnmoor use and third-site rollout are planned, not delivered.",
+      "claimIds": [
+        "c-5",
+        "c-6",
+        "c-7",
+        "c-25",
+        "c-26"
+      ]
+    }
+  ],
+  "gate": {
+    "route": "hold",
+    "checks": {
+      "G1": "pass",
+      "G2": "pass",
+      "G3": "pass",
+      "G4": "pass",
+      "G5": "pass",
+      "G6": "pass",
+      "G7": "pass",
+      "G8": "pass",
+      "G9": "pass"
+    },
+    "holdReasons": [
+      "TIER2_ATTRIBUTION"
+    ]
+  },
+  "release": "owner",
+  "sources": [
+    {
+      "url": "https://brindle-logistics.example/news/ashvale-results",
+      "tier": 1,
+      "snapshotHash": "1b864b6558d7412fd8c4f092fb89f6ab4e975b50d3b8b94f0203c4efc7103c67",
+      "retrievedAt": "2026-09-29T04:30:00Z"
+    },
+    {
+      "url": "https://filings.example/fixture-robotics/offering-2026",
+      "tier": 1,
+      "snapshotHash": "1cbb5d62fd97e828e508264277525f66c6a36302b850abd2c6f4499545ebb3cf",
+      "retrievedAt": "2026-09-29T04:30:00Z"
+    },
+    {
+      "url": "https://fixture-robotics.example/events/demo-day",
+      "tier": 1,
+      "snapshotHash": "3a0fd4cd33616c0bb8d523e2a89f8587ab327ea377f302c583812efc6dfc5258",
+      "retrievedAt": "2026-09-29T04:30:00Z"
+    },
+    {
+      "url": "https://fixture-robotics.example/news/fx-5-second-plant",
+      "tier": 1,
+      "snapshotHash": "9341a7054f8ee2cd662eb31e96411a8dc9e2ed58766ecaadab8ee46d6b6dfa92",
+      "retrievedAt": "2026-09-29T04:30:00Z"
+    },
+    {
+      "url": "https://fixture-robotics.example/products/fx-5/datasheet",
+      "tier": 1,
+      "snapshotHash": "697f8787a341e07870bb09a5223e08389a4168a13b1bd63c6de412c3ee06d08e",
+      "retrievedAt": "2026-09-29T04:30:00Z"
+    },
+    {
+      "url": "https://mercer-wire.example/robotics/fixture-robotics-offering",
+      "tier": 2,
+      "snapshotHash": "2d6c2c22ce9183c5673c74138dcc8413f1cd374c60d7996b5d1f2e43cf6ff75b",
+      "retrievedAt": "2026-09-29T04:30:00Z",
+      "outlet": "Mercer Wire"
+    }
+  ]
+}

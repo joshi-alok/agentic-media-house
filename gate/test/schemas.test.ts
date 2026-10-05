@@ -456,6 +456,19 @@ describe('LedgerEntry', () => {
     expect(failedPaths(LedgerEntry, bad)).toEqual(['sources.0.outlet']);
   });
 
+  it('accepts release as auto or owner, or none, and nothing else', () => {
+    expectValid(LedgerEntry, patch(VALID_LEDGER, 'release', 'auto'));
+    expectValid(LedgerEntry, patch(patch(VALID_LEDGER, 'gate.route', 'hold'), 'release', 'owner'));
+    expect(failedPaths(LedgerEntry, patch(VALID_LEDGER, 'release', 'editor'))).toEqual(['release']);
+  });
+
+  it('refuses a release that the route of the gate contradicts: auto needs publish, owner needs a piece the gate did not clear', () => {
+    expect(failedPaths(LedgerEntry, patch(patch(VALID_LEDGER, 'gate.route', 'hold'), 'release', 'auto'))).toEqual(['release']);
+    expect(failedPaths(LedgerEntry, patch(patch(VALID_LEDGER, 'gate.route', 'revise'), 'release', 'auto'))).toEqual(['release']);
+    expect(failedPaths(LedgerEntry, patch(VALID_LEDGER, 'release', 'owner'))).toEqual(['release']);
+    expectValid(LedgerEntry, patch(patch(VALID_LEDGER, 'gate.route', 'revise'), 'release', 'owner'));
+  });
+
   it('requires the paragraph of a ledger sentence, a whole number from 0', () => {
     expect(failedPaths(LedgerEntry, patch(VALID_LEDGER, 'sentences.1.paragraph', undefined))).toEqual(['sentences.1.paragraph']);
     expect(failedPaths(LedgerEntry, patch(VALID_LEDGER, 'sentences.1.paragraph', -1))).toEqual(['sentences.1.paragraph']);

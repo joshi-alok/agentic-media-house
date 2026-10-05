@@ -13,14 +13,15 @@ afterEach(() => {
   for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
 });
 
-/** A small built site with the given home page. */
-function dist(homeBody: string): string {
+/** A small built site with the given home page, and any files in `more` (by path inside the build). */
+function dist(homeBody: string, more: Record<string, string> = {}): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'robywire-lh-'));
   folders.push(dir);
   const files: Record<string, string> = {
     'index.html': `<!doctype html><html lang="en"><head><title>Home</title></head><body>${homeBody}</body></html>`,
     [`news/${SLUG}/index.html`]: '<!doctype html><title>Article</title>',
     [`news/${SLUG}/receipts/index.html`]: '<!doctype html><title>Receipts</title>',
+    ...more,
   };
   for (const [file, text] of Object.entries(files)) {
     mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
@@ -53,6 +54,34 @@ describe('the Lighthouse command', () => {
     expect(code).toBe(0);
     expect(output).toContain('Performance  Accessibility  Best practices  SEO');
     expect(output).toContain('All scores are 95 or more.');
+  });
+
+  it('measures an article that carries the Unconfirmed. label and its receipts page as well, when the build has one', async () => {
+    const held = 'fixture-robotics-ships-fx-5-to-second-plant';
+    const site = dist(`${RIBBON}<a href="/news/${SLUG}/">Title</a><a href="/news/${held}/">Held</a>`, {
+      [`news/${held}/index.html`]: '<!doctype html><title>Held</title><p><strong>Unconfirmed.</strong> Mercer Wire reports it.</p>',
+      [`news/${held}/receipts/index.html`]: '<!doctype html><title>Held receipts</title>',
+    });
+    const seen: { routes: string[]; statuses: number[] } = { routes: [], statuses: [] };
+    const { code } = await run(site, async (baseUrl, routes) => {
+      seen.routes = routes;
+      seen.statuses = await Promise.all(routes.map(async (route) => (await fetch(baseUrl + route)).status));
+      return routes.map((url) => ({ url, scores: PERFECT }));
+    });
+    expect(seen.routes).toEqual(['/', `/news/${SLUG}/`, `/news/${SLUG}/receipts/`, `/news/${held}/`, `/news/${held}/receipts/`]);
+    expect(seen.statuses).toEqual([200, 200, 200, 200, 200]);
+    expect(code).toBe(0);
+  });
+
+  it('measures the usual three pages when the home page links to an article that has no file in the build', async () => {
+    const site = dist(`${RIBBON}<a href="/news/${SLUG}/">Title</a><a href="/news/not-built/">Missing</a>`);
+    let seen: string[] = [];
+    const { code } = await run(site, async (_baseUrl, routes) => {
+      seen = routes;
+      return routes.map((url) => ({ url, scores: PERFECT }));
+    });
+    expect(seen).toEqual(['/', `/news/${SLUG}/`, `/news/${SLUG}/receipts/`]);
+    expect(code).toBe(0);
   });
 
   it('exits 1 and names each score below 95', async () => {

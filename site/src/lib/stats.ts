@@ -6,7 +6,10 @@ import { formatDateTime } from './format';
 export interface LedgerStats {
   /** Pieces published. */
   pieces: number;
-  /** Claims cited by those pieces, added up. */
+  /**
+   * Claims cited by those pieces that come from a primary source (tier 1), added up. A claim from
+   * another outlet is reported, not traced to a primary source, so it is not counted as verified.
+   */
   claims: number;
   /** Drafts the gate held for the owner. */
   held: number;
@@ -16,7 +19,7 @@ export interface LedgerStats {
 export function ledgerStats(entries: readonly LedgerEntry[], state: DeskState): LedgerStats {
   return {
     pieces: entries.length,
-    claims: entries.reduce((total, entry) => total + entry.claims.length, 0),
+    claims: entries.reduce((total, entry) => total + entry.claims.filter((claim) => claim.source.tier === 1).length, 0),
     held: state.holds.length,
     lastRun: state.lastRun,
   };

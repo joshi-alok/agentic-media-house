@@ -1,5 +1,5 @@
 import { CHECK_IDS } from '@robywire/gate';
-import type { Basis, CheckId, CheckResult, LedgerEntry, Route, Status } from '@robywire/gate';
+import type { Basis, CheckId, CheckResult, LedgerEntry, Release, Route, Status } from '@robywire/gate';
 import { reasonLabel } from './reasons';
 
 // The receipts page, as data. The page only lays this out, so what it says can
@@ -32,14 +32,37 @@ export interface HoldReason {
 
 export interface GateSummary {
   route: Route;
+  /** What the route means, in a sentence. The page never shows a route on its own. */
+  routeText: string;
   checks: { id: CheckId; result: CheckResult }[];
   holdReasons: HoldReason[];
+}
+
+const ROUTE_TEXT: Record<Route, string> = {
+  publish: 'The gate cleared this piece.',
+  hold: 'The gate held this draft for the owner.',
+  revise: 'The gate sent this draft back for revision.',
+};
+
+/** What a route of the gate means, in a sentence. */
+export const routeText = (route: Route): string => ROUTE_TEXT[route];
+
+/**
+ * How the piece came to be published, in a sentence, or undefined when the ledger does not say:
+ * an older piece, or one the pipeline wrote before it recorded the release.
+ */
+export function releaseNote(release: Release | undefined): string | undefined {
+  if (release === 'auto') return 'Published by the gate without a human.';
+  if (release === 'owner') return 'Held by the gate, then released by the owner.';
+  return undefined;
 }
 
 export interface ReceiptsView {
   slug: string;
   title: string;
   claims: ReceiptClaim[];
+  /** How the piece came to be published; absent when the ledger does not say. */
+  releaseNote?: string;
   gate: GateSummary;
   verifier?: { model: string; passed: boolean; notes: string[] };
 }
@@ -78,10 +101,13 @@ export function receiptsView(ledger: LedgerEntry): ReceiptsView {
     claims,
     gate: {
       route: ledger.gate.route,
+      routeText: routeText(ledger.gate.route),
       checks: CHECK_IDS.map((id) => ({ id, result: ledger.gate.checks[id] })),
       holdReasons: ledger.gate.holdReasons.map((code) => ({ code, label: reasonLabel(code) })),
     },
   };
+  const note = releaseNote(ledger.release);
+  if (note !== undefined) view.releaseNote = note;
   if (ledger.verifier !== undefined) view.verifier = { ...ledger.verifier, notes: [...ledger.verifier.notes] };
   return view;
 }
