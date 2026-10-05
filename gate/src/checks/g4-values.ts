@@ -135,7 +135,7 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
       if (!supportedNames.has(name) && !ctx.nameAllowList.has(name)) {
         fail(
           'G4_NAME_UNSUPPORTED',
-          `the capitalised word "${name}" at ${where} is not a name in any claim this sentence cites: list it as a name value, or write it in lowercase if it is an ordinary word`,
+          `the capitalised word "${name}" at ${where} is not a name in any claim this sentence cites: list it as a name value, or write it in lowercase if it is an ordinary word in the middle of the sentence (the first word of a sentence keeps its capital letter)`,
         );
       }
     }

@@ -22,6 +22,7 @@ export const REASON_LABELS: Readonly<Record<string, string>> = {
   G2_HEADING_EMPTY: 'A section had no heading',
   G2_LIMITATIONS_MISSING: 'There was no section on what could not be verified',
   G2_LIMITATION_COVERAGE: 'A claim was left out of the section on what could not be verified',
+  G2_SENTENCE_START: 'A sentence did not start with a capital letter or a digit',
   G3_NO_CLAIM: 'A factual sentence cited no claim',
   G3_UNKNOWN_CLAIM: 'A sentence cited a claim that does not exist',
   G4_NUMBER_UNSUPPORTED: 'A number was not in the claims it cites',

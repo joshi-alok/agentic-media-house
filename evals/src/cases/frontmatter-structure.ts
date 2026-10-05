@@ -197,6 +197,17 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'lowercase-sentence-start',
+    check: 'G2',
+    code: 'G2_SENTENCE_START',
+    description: 'A sentence starts with a lowercase letter, so the first-word rule would not read its first word.',
+    apply: (base) => {
+      const sentence = sentenceWith(base, 'The arm itself weighs');
+      sentence.text = `${sentence.text.charAt(0).toLowerCase()}${sentence.text.slice(1)}`;
+      return base;
+    },
+  },
+  {
     id: 'limitation-uncovered-claim',
     check: 'G2',
     code: 'G2_LIMITATION_COVERAGE',

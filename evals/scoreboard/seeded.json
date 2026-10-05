@@ -1,6 +1,6 @@
 {
-  "total": 53,
-  "caught": 53,
+  "total": 54,
+  "caught": 54,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -135,6 +135,13 @@
       "check": "G2",
       "code": "G2_HEADING_EMPTY",
       "description": "A section heading is blank.",
+      "caught": true
+    },
+    {
+      "id": "lowercase-sentence-start",
+      "check": "G2",
+      "code": "G2_SENTENCE_START",
+      "description": "A sentence starts with a lowercase letter, so the first-word rule would not read its first word.",
       "caught": true
     },
     {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countWords, hasQuoted, jaccard, normaliseQuotes, quotedSegments, sentenceWords, stripQuoted } from '../src/text';
+import { afterOpeners, countWords, hasQuoted, jaccard, normaliseQuotes, quotedSegments, sentenceWords, startsWithCapitalOrDigit, stripQuoted } from '../src/text';
 
 describe('countWords', () => {
   it.each([
@@ -112,6 +112,82 @@ describe('sentenceWords', () => {
     ['', []],
   ])('splits %j into words', (input, expected) => {
     expect(sentenceWords(input)).toEqual(expected);
+  });
+});
+
+describe('afterOpeners', () => {
+  it.each([
+    ['Plain text', 'Plain text'],
+    ['  padded', 'padded'],
+    ['"Quoted," said Jane.', 'Quoted," said Jane.'],
+    ['\u201CCurly\u201D start', 'Curly\u201D start'],
+    ['\u2018single\u2019 start', 'single\u2019 start'],
+    ['\u201Elow\u201F start', 'low\u201F start'],
+    ["'single' start", "single' start"],
+    ['\u00ABguillemets\u00BB', 'guillemets\u00BB'],
+    ['\u2039single guillemet', 'single guillemet'],
+    ['(bracket) start', 'bracket) start'],
+    ['[square] start', 'square] start'],
+    ['{curly} start', 'curly} start'],
+    ['  ("[mixed ones', 'mixed ones'],
+    ['\u00A0\u00A0non-breaking spaces', 'non-breaking spaces'],
+    ['', ''],
+    ['"("  ', ''],
+    // Only what stands before the first letter goes: the rest, and every kind of character after it, stays.
+    ['A "b" (c)', 'A "b" (c)'],
+    ['$450 million', '$450 million'],
+    [') closing bracket first', ') closing bracket first'],
+  ])('skips what stands in front of the first letter of %j', (input, expected) => {
+    expect(afterOpeners(input)).toBe(expected);
+  });
+});
+
+describe('startsWithCapitalOrDigit', () => {
+  it.each([
+    'The arm shipped.',
+    'A',
+    '7 investors took part.',
+    '2026 was a busy year.',
+    '3D printing helped.',
+    '"The arm," said Jane.',
+    '\u201CThe arm,\u201D said Jane.',
+    '\u2018The arm\u2019 was new.',
+    '(The arm shipped.)',
+    '["The arm"] shipped.',
+    '  The arm shipped.',
+    '\u00C9clair Robotics grew.',
+    '\u00D6zdemir Logistics grew.',
+    '\u0416 started it.',
+    '\u0663 investors took part.',
+  ])('accepts %j', (text) => {
+    expect(startsWithCapitalOrDigit(text)).toBe(true);
+  });
+
+  it.each([
+    'harlow logistics plans a plant.',
+    'iRobot joined.',
+    'xAI joined.',
+    '"the arm," said Jane.',
+    '\u201Cthe arm,\u201D said Jane.',
+    '(the arm shipped.)',
+    '  the arm shipped.',
+    '\u00E9clair Robotics grew.',
+    '$450 million was raised.',
+    '- The arm shipped.',
+    '...The arm shipped.',
+    ') The arm shipped.',
+    '\u2014The arm shipped.',
+    '',
+    '   ',
+    '""',
+    '"("',
+  ])('refuses %j', (text) => {
+    expect(startsWithCapitalOrDigit(text)).toBe(false);
+  });
+
+  it('looks at the first character only, so a capital later in the sentence does not help', () => {
+    expect(startsWithCapitalOrDigit('the Arm shipped.')).toBe(false);
+    expect(startsWithCapitalOrDigit('The arm Shipped.')).toBe(true);
   });
 });
 

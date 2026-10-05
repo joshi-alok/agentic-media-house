@@ -29,7 +29,8 @@ export interface SentenceTokens {
    * The first word of the sentence as written, without the punctuation around
    * it, when it would have been a name token had it not been first: it starts
    * with a capital letter or mixes letters and digits. Absent otherwise,
-   * for example when the sentence opens with a lowercase word, a number or a date.
+   * for example when the sentence opens with a number or a date. A sentence that opens with a lowercase
+   * word has none either, which is why G2 requires every sentence to start with a capital letter or a digit.
    */
   initialWord?: string;
 }

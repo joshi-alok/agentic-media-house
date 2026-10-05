@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHECK_IDS, defaultConfig, extractTokens } from '@robywire/gate';
+import { CHECK_IDS, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
 import { LIVE } from '../src/lib/live';
 import { PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../src/lib/method';
 
@@ -80,6 +80,13 @@ describe('gateRules', () => {
 
   it('says in G6 that the article labels a sentence that rests on another outlet "Unconfirmed."', () => {
     expect(rules.find((rule) => rule.id === 'G6')?.text).toContain('the article labels such a sentence "Unconfirmed."');
+  });
+
+  it('says in G2 that every sentence starts with a capital letter or a digit, and the code agrees', () => {
+    expect(rules.find((rule) => rule.id === 'G2')?.text).toContain('every sentence starts with a capital letter or a digit (an opening quotation mark or bracket may come first)');
+    expect(startsWithCapitalOrDigit('7 investors took part.')).toBe(true);
+    expect(startsWithCapitalOrDigit('"The arm," said Jane.')).toBe(true);
+    expect(startsWithCapitalOrDigit('harlow logistics plans a plant.')).toBe(false);
   });
 
   it('says in G2 and G8 what a limitation sentence is and what covers a claim', () => {

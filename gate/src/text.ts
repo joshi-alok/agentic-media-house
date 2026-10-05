@@ -93,6 +93,27 @@ export function sentenceWords(text: string): string[] {
     .filter((word) => word !== '');
 }
 
+/**
+ * What may stand in front of the first letter of a sentence without being part of its first word: spaces,
+ * quotation marks (straight and curly, single and double, low and angle) and opening brackets.
+ */
+const SENTENCE_OPENERS = /^[\s"'\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u201F\u00AB\u2039([{]+/u;
+
+/** `text` without the spaces, opening quotation marks and opening brackets that stand before its first letter. */
+export function afterOpeners(text: string): string {
+  return text.replace(SENTENCE_OPENERS, '');
+}
+
+/**
+ * Does a sentence start with an uppercase letter (of any alphabet) or a digit, once the opening quotation marks
+ * and brackets in front are skipped? The first-word rule of G4 looks for a capitalised first word, so a sentence
+ * that opens in lowercase would not be read by it: G2 requires this of every sentence. A text with nothing
+ * after the openers has no first character, so it does not.
+ */
+export function startsWithCapitalOrDigit(text: string): boolean {
+  return /^[\p{Lu}\p{Nd}]/u.test(afterOpeners(text));
+}
+
 /** Jaccard similarity of two sets: shared items over all items. Two empty sets score 0. */
 export function jaccard<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): number {
   let shared = 0;

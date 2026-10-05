@@ -393,7 +393,7 @@ describe('G4 names', () => {
         check: 'G4',
         code: 'G4_NAME_UNSUPPORTED',
         message:
-          'the capitalised word "acme" at title is not a name in any claim this sentence cites: list it as a name value, or write it in lowercase if it is an ordinary word',
+          'the capitalised word "acme" at title is not a name in any claim this sentence cites: list it as a name value, or write it in lowercase if it is an ordinary word in the middle of the sentence (the first word of a sentence keeps its capital letter)',
         where: 'title',
       },
     ]);
