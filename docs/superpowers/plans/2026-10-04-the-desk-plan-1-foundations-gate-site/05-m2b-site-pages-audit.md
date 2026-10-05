@@ -7046,4 +7046,6 @@ Section 14 of the design spec gives each milestone of Plan 1 a "done when" line.
 | 1. Gate, built test-first against the seeded-defect fixtures | 100% of deterministic defects caught | `npm run evals:seeded` prints `40 of 40 cases caught (100.0%)` and `PASS: every seeded defect was caught.` Every failure code of G1 to G9 is covered, and a test fails if one is not. |
 | 2. Site shell and design system, rendered from hand-written fixture pieces | Build, schema, link and Lighthouse checks pass | Build: `npm run build` and `npm run build:fixtures` finish with `[build] Complete!`. Schema: the content collections validate every piece and ledger against the gate's own schemas, and a bad file stops the build. Link: check A8 of `npm run audit` resolves every internal link, file and `#fragment`, and A9 and A11 check the receipts pages and claim markers. Lighthouse: `npm run lighthouse` prints 95 or more in every category for the home page, an article and a receipts page. |
 
+Note: this table is superseded by Task 88, which restates it for the finished plan: the fixture pieces are generated from the golden piece and are not written by hand, and the seeded cases are 54, not 40.
+
 Plan 1 is finished. Plan 2 builds the Desk on top of it: the pipeline stages, the model check G10, the daily run, and the deploy.
