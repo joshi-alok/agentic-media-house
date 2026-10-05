@@ -1,0 +1,43 @@
+---
+import { render } from 'astro:content';
+import BeatChips from '../../../components/BeatChips.astro';
+import CorrectionNotice from '../../../components/CorrectionNotice.astro';
+import Base from '../../../layouts/Base.astro';
+import { correctionsFor, getDeskState } from '../../../lib/desk-state';
+import { formatDate, plural } from '../../../lib/format';
+import { jsonLdScript, newsArticleJsonLd } from '../../../lib/jsonld';
+import { articlePath, receiptsPath } from '../../../lib/paths';
+import { getPieces } from '../../../lib/pieces';
+import '../../../styles/article.css';
+
+export async function getStaticPaths() {
+  const pieces = await getPieces();
+  return pieces.map((piece) => ({ params: { slug: piece.slug }, props: { piece } }));
+}
+
+const { piece } = Astro.props;
+if (Astro.site === undefined) throw new Error('site/astro.config.mjs must set `site`');
+
+const { Content } = await render(piece.entry);
+const corrections = correctionsFor(await getDeskState(), piece.slug);
+const claims = plural(piece.ledger.claims.length, 'claim', 'claims');
+const sources = plural(piece.ledger.sources.length, 'source', 'sources');
+const jsonLd = jsonLdScript(newsArticleJsonLd({ slug: piece.slug, ...piece.data }, corrections, Astro.site.href));
+---
+
+<Base title={piece.data.title} description={piece.data.description} canonicalPath={articlePath(piece.slug)} ogType="article">
+  <article class="container">
+    <header class="article-header">
+      <BeatChips categories={piece.data.categories} />
+      <h1>{piece.data.title}</h1>
+      <p class="dek">{piece.data.description}</p>
+      <p class="byline"><a href="/method/">Robywire Desk &middot; automated, source-verified</a> &middot; <time datetime={piece.data.publishedAt}>{formatDate(piece.data.publishedAt)}</time></p>
+    </header>
+    <CorrectionNotice corrections={corrections} />
+    <div class="prose">
+      <Content />
+    </div>
+    <p class="receipts-link">{claims} from {sources} &mdash; <a href={receiptsPath(piece.slug)}>see the receipts</a></p>
+    <script type="application/ld+json" set:html={jsonLd} />
+  </article>
+</Base>

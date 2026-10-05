@@ -1,0 +1,24 @@
+---
+import type { DeskState } from '@robywire/gate';
+import { formatDateTime } from '../lib/format';
+
+interface Props {
+  /** The corrections and retractions recorded for this piece, newest first. */
+  corrections: DeskState['corrections'];
+}
+
+const { corrections } = Astro.props;
+const KIND = { correction: 'Correction', retraction: 'Retraction' } as const;
+---
+
+{
+  corrections.map((entry) => (
+    <aside class="notice" aria-label={KIND[entry.kind]}>
+      <p>
+        <span class="notice__kind">{KIND[entry.kind]}</span>
+        <span class="notice__when">{formatDateTime(entry.at)}</span>
+      </p>
+      <p>{entry.note}</p>
+    </aside>
+  ))
+}

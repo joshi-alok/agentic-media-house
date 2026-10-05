@@ -1,0 +1,23 @@
+---
+import { beatLabel } from '../lib/format';
+import { topicPath } from '../lib/paths';
+
+interface Props {
+  /** Category slugs from a piece: beats and tags. */
+  categories: readonly string[];
+}
+
+const { categories } = Astro.props;
+---
+
+<ul class="chips" aria-label="Beats">
+  {
+    categories.map((slug) => (
+      <li>
+        <a class="chip" href={topicPath(slug)}>
+          {beatLabel(slug)}
+        </a>
+      </li>
+    ))
+  }
+</ul>

@@ -1,0 +1,62 @@
+/* The page of an article. */
+
+.article-header {
+  max-width: 65ch;
+  margin-bottom: 2rem;
+}
+
+.article-header h1 {
+  margin: 0.25rem 0 1rem;
+  font-size: 2.25rem;
+  line-height: 1.15;
+}
+
+.dek {
+  margin: 0 0 1rem;
+  color: var(--t2);
+  font-size: 1.15rem;
+}
+
+.byline {
+  margin: 0;
+  color: var(--t2);
+  font-size: 0.85rem;
+}
+
+.byline a {
+  color: var(--t2);
+}
+
+.notice {
+  max-width: 65ch;
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line-2);
+  background: var(--paper);
+}
+
+.notice p {
+  margin: 0;
+}
+
+.notice p + p {
+  margin-top: 0.4rem;
+}
+
+.notice__kind {
+  margin-right: 0.75rem;
+  font-weight: 600;
+}
+
+.notice__when {
+  color: var(--t2);
+  font-size: 0.85rem;
+}
+
+.receipts-link {
+  max-width: 65ch;
+  margin-top: 3rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line-2);
+  color: var(--t2);
+}

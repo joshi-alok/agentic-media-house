@@ -177,6 +177,25 @@ code,
   color: var(--t2);
 }
 
+/* A row of beat chips; each links to its topic page. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+a.chip {
+  text-decoration: none;
+}
+
+a.chip:hover {
+  border-color: var(--link);
+  color: var(--link);
+}
+
 /* Tables: hairline rows, a firmer line under the header. */
 table {
   width: 100%;
