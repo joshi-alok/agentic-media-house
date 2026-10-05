@@ -44,6 +44,8 @@ const image = ogImage === undefined ? undefined : new URL(ogImage, Astro.site).h
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     {image !== undefined && <meta property="og:image" content={image} />}
+    <meta name="twitter:card" content={image === undefined ? 'summary' : 'summary_large_image'} />
+    {image !== undefined && <meta name="twitter:image" content={image} />}
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to the content</a>

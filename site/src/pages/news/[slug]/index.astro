@@ -6,7 +6,7 @@ import Base from '../../../layouts/Base.astro';
 import { correctionsFor, getDeskState } from '../../../lib/desk-state';
 import { formatDate, plural } from '../../../lib/format';
 import { jsonLdScript, newsArticleJsonLd } from '../../../lib/jsonld';
-import { articlePath, receiptsPath } from '../../../lib/paths';
+import { articlePath, cardPath, receiptsPath } from '../../../lib/paths';
 import { getPieces } from '../../../lib/pieces';
 import '../../../styles/article.css';
 
@@ -25,7 +25,7 @@ const sources = plural(piece.ledger.sources.length, 'source', 'sources');
 const jsonLd = jsonLdScript(newsArticleJsonLd({ slug: piece.slug, ...piece.data }, corrections, Astro.site.href));
 ---
 
-<Base title={piece.data.title} description={piece.data.description} canonicalPath={articlePath(piece.slug)} ogType="article">
+<Base title={piece.data.title} description={piece.data.description} canonicalPath={articlePath(piece.slug)} ogImage={cardPath(piece.slug)} ogType="article">
   <article class="container">
     <header class="article-header">
       <BeatChips categories={piece.data.categories} />
