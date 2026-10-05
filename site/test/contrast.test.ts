@@ -114,7 +114,7 @@ describe('the fact card inside an article', () => {
 
   it('is painted on the ground of the page, and every text on it is painted with a token', () => {
     expect(ground).toBe('bg');
-    expect(texts.map(([role]) => role)).toEqual(['wordmark', 'title', 'figure', 'figure-label', 'counts', 'host']);
+    expect(texts.map(([role]) => role)).toEqual(['wordmark', 'title', 'figure', 'figure-label', 'figure-basis', 'counts', 'host']);
     for (const [role, token] of texts) expect(TEXT_TOKENS, role).toContain(token);
   });
 

@@ -1,13 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { LedgerEntry } from '@robywire/gate';
+import { BASES, LedgerEntry } from '@robywire/gate';
 import { xmlProblem } from '../scripts/audit/xml.mjs';
-import { CARD_COLOURS, CARD_HEIGHT, CARD_WIDTH, INLINE_CARD_COLOURS, cardFigures, cardLabel, escapeXml, renderCardSvg, renderInlineCardSvg, wrapText } from '../src/lib/card';
+import { BASIS_WORDS, CARD_COLOURS, CARD_HEIGHT, CARD_WIDTH, INLINE_CARD_COLOURS, cardFigures, cardLabel, escapeXml, renderCardSvg, renderInlineCardSvg, wrapText } from '../src/lib/card';
 
 const ELLIPSIS = String.fromCharCode(0x2026);
 const FIXTURES = new URL('../src/content-fixtures/', import.meta.url);
 const read = (name: string): string => readFileSync(new URL(name, FIXTURES), 'utf8');
 const GOLDEN = LedgerEntry.parse(JSON.parse(read('ledger/fixture-robotics-ships-fx-1-to-second-plant.json')));
+// The fifth piece rests on a claim from another outlet (c-19, a tier-2 source).
+const TIER2_PIECE = LedgerEntry.parse(JSON.parse(read('ledger/fixture-robotics-ships-fx-5-to-second-plant.json')));
 
 const unescape = (text: string): string => text.replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&#39;', "'").replaceAll('&amp;', '&');
 
@@ -83,13 +85,63 @@ describe('escapeXml', () => {
   });
 });
 
+describe('BASIS_WORDS', () => {
+  it('has a plain word or two for each basis a claim can have, and no other key', () => {
+    expect(Object.keys(BASIS_WORDS).sort()).toEqual([...BASES].sort());
+  });
+
+  it('says them as the card shows them: datasheet, press release, briefing, demonstration, filing, paper, standard, measured', () => {
+    expect(BASIS_WORDS).toEqual({
+      datasheet: 'datasheet',
+      'press-release': 'press release',
+      briefing: 'briefing',
+      demo: 'demonstration',
+      filing: 'filing',
+      paper: 'paper',
+      standard: 'standard',
+      measured: 'measured',
+    });
+  });
+
+  it('gives each basis its own words, in lowercase, without a hyphen', () => {
+    const words = Object.values(BASIS_WORDS);
+    expect(new Set(words).size).toBe(words.length);
+    for (const word of words) expect(word).toMatch(/^[a-z]+(?: [a-z]+)?$/);
+  });
+});
+
 describe('cardFigures', () => {
-  it('takes the value and label of the first three number claims, in the order the article cites them', () => {
+  it('takes the value, the label and the basis of the first three number claims, in the order the article cites them', () => {
     expect(cardFigures(GOLDEN)).toEqual([
-      { value: 'USD 450 million', label: 'funding round' },
-      { value: '18 per cent', label: 'cycle-time cut' },
-      { value: '$38,000', label: 'list price' },
+      { value: 'USD 450 million', label: 'funding round', basis: 'filing' },
+      { value: '18 per cent', label: 'cycle-time cut', basis: 'measured' },
+      { value: '$38,000', label: 'list price', basis: 'press release' },
     ]);
+  });
+
+  it('says where each figure comes from in plain words: the basis of its claim, put through the one list of words', () => {
+    const basisOf = new Map(GOLDEN.claims.map((claim) => [claim.label, claim.basis]));
+    for (const figure of cardFigures(GOLDEN)) expect(figure.basis).toBe(BASIS_WORDS[basisOf.get(figure.label)!]);
+  });
+
+  it('never takes a figure from a claim of another outlet (tier 2), even when the article cites it first', () => {
+    const entry = entryWith((copy) => {
+      copy.claims.find((claim) => claim.id === 'c-17')!.source.tier = 2;
+    });
+    expect(entry.order[0]).toBe('c-1');
+    expect(cardFigures(entry).map((figure) => figure.label)).toEqual(['cycle-time cut', 'list price', 'measured pick rate']);
+    const first = structuredClone(TIER2_PIECE);
+    first.order = ['c-19', ...first.order.filter((id) => id !== 'c-19')];
+    expect(first.claims.find((claim) => claim.id === 'c-19')!.source.tier).toBe(2);
+    expect(cardFigures(first).map((figure) => figure.label)).not.toContain('investor count');
+  });
+
+  it('draws fewer than three when fewer claims are tier 1, and none when none is', () => {
+    const one = entryWith((copy) => {
+      for (const claim of copy.claims) if (claim.id !== 'c-17') claim.source.tier = 2;
+    });
+    expect(cardFigures(one)).toEqual([{ value: 'USD 450 million', label: 'funding round', basis: 'filing' }]);
+    expect(cardFigures(entryWith((copy) => copy.claims.forEach((claim) => (claim.source.tier = 2))))).toEqual([]);
   });
 
   it('ignores claims of other types, even when they have numbers', () => {
@@ -97,11 +149,18 @@ describe('cardFigures', () => {
     expect(figures.map((figure) => figure.label)).not.toContain('payload');
   });
 
+  it('skips an id of the order that no claim has, instead of failing', () => {
+    const entry = entryWith((copy) => {
+      copy.order = ['c-404', ...copy.order];
+    });
+    expect(cardFigures(entry)).toEqual(cardFigures(GOLDEN));
+  });
+
   it('shows fewer figures when there are fewer number claims', () => {
     const entry = entryWith((copy) => {
       for (const claim of copy.claims) if (claim.id !== 'c-17') claim.type = 'spec';
     });
-    expect(cardFigures(entry)).toEqual([{ value: 'USD 450 million', label: 'funding round' }]);
+    expect(cardFigures(entry)).toEqual([{ value: 'USD 450 million', label: 'funding round', basis: 'filing' }]);
   });
 
   it('shows none when no claim is a number claim', () => {
@@ -150,11 +209,34 @@ describe('renderCardSvg', () => {
     expect(textsWithRole(svg, 'figure-label')).toEqual(['funding round', 'cycle-time cut', 'list price']);
   });
 
+  it('writes the basis of each figure under its label, in small type and the quiet colour', () => {
+    expect(textsWithRole(svg, 'figure-basis')).toEqual(['filing', 'measured', 'press release']);
+    const tagsOf = (role: string) => [...svg.matchAll(new RegExp(`<text[^>]*data-role="${role}"[^>]*>`, 'g'))].map((match) => match[0]);
+    const attribute = (tag: string, name: string) => /x="(\d+)" y="(\d+)" font-family="[^"]*" font-size="(\d+)"/.exec(tag)![name === 'x' ? 1 : name === 'y' ? 2 : 3]!;
+    const [labels, bases] = [tagsOf('figure-label'), tagsOf('figure-basis')];
+    expect(bases).toHaveLength(3);
+    bases.forEach((tag, at) => {
+      expect(attribute(tag, 'x')).toBe(attribute(labels[at]!, 'x'));
+      expect(Number(attribute(tag, 'y'))).toBeGreaterThan(Number(attribute(labels[at]!, 'y')));
+      expect(Number(attribute(tag, 'size'))).toBeLessThan(Number(attribute(labels[at]!, 'size')));
+      expect(tag).toContain(`fill="${CARD_COLOURS.quiet}"`);
+    });
+  });
+
+  it('draws the basis above the rule that closes the figures, so it never runs into the counts', () => {
+    const rule = Number(/<line x1="\d+" y1="(\d+)"/.exec(svg)![1]);
+    for (const tag of svg.match(/<text[^>]*data-role="figure-basis"[^>]*>/g)!) {
+      const [, y, size] = /y="(\d+)" font-family="[^"]*" font-size="(\d+)"/.exec(tag)!;
+      expect(Number(y) + Number(size) * 0.3).toBeLessThan(rule);
+    }
+  });
+
   it('sets the figures large, in weight 400 and in the link colour', () => {
     const figures = [...svg.matchAll(/<text[^>]*data-role="figure"[^>]*>/g)].map((match) => match[0]);
     expect(figures).toHaveLength(3);
     for (const tag of figures) {
       expect(tag).toContain('font-weight="400"');
+      expect(tag).toContain('letter-spacing="-1"');
       expect(tag).toContain(`fill="${CARD_COLOURS.link}"`);
       expect(Number(/font-size="(\d+)"/.exec(tag)?.[1])).toBeGreaterThanOrEqual(44);
     }
@@ -278,6 +360,15 @@ describe('renderCardSvg', () => {
     expect(xmlProblem(long)).toBeUndefined();
   });
 
+  it('draws no figure from another outlet, and keeps the card well formed with none at all', () => {
+    const none = renderCardSvg(entryWith((copy) => copy.claims.forEach((claim) => (claim.source.tier = 2))));
+    expect(xmlProblem(none)).toBeUndefined();
+    expect(none).not.toMatch(/data-role="figure/);
+    expect(textsWithRole(none, 'title').join(' ')).toBe(GOLDEN.title);
+    expect(textsWithRole(none, 'counts')).toEqual(['28 claims from 5 sources']);
+    expect(textsWithRole(none, 'host')).toEqual(['fixture-robotics.example']);
+  });
+
   it('draws a card with no figures, no claims and no sources without failing', () => {
     const bare = renderCardSvg(entryWith((copy) => Object.assign(copy, { claims: [], order: [], sources: [] })));
     expect(xmlProblem(bare)).toBeUndefined();
@@ -297,11 +388,73 @@ describe('renderCardSvg', () => {
   });
 });
 
+/**
+ * Where each text of a card ends up, as an estimate that errs on the wide side: a character is 0.6 of the type
+ * size wide, plus the letter spacing. A text is outside the card when it starts or ends beyond the hairline
+ * frame, which is 24 pixels in, or has its top above the frame or its baseline below it.
+ */
+function textsOutside(svg: string): string[] {
+  const found: string[] = [];
+  for (const match of svg.matchAll(/<text data-role="([^"]*)" x="(\d+)" y="(\d+)" font-family="[^"]*" font-size="(\d+)"[^>]*>([^<]*)<\/text>/g)) {
+    const [whole, role, x, y, size, content] = [match[0], match[1]!, Number(match[2]), Number(match[3]), Number(match[4]), unescape(match[5]!)];
+    const spacing = Number(/letter-spacing="(-?\d+)"/.exec(whole)?.[1] ?? 0);
+    const width = content.length * (size * 0.6 + spacing);
+    const [from, to] = whole.includes('text-anchor="end"') ? [x - width, x] : [x, x + width];
+    if (from < 24 || to > CARD_WIDTH - 24 || y - size < 24 || y > CARD_HEIGHT - 24) found.push(`${role} "${content}" runs from ${Math.round(from)} to ${Math.round(to)}, baseline ${y}`);
+  }
+  return found;
+}
+
+describe('the layout of the card', () => {
+  const widest = entryWith((copy) => {
+    copy.title = 'word '.repeat(60).trim();
+    for (const claim of copy.claims) {
+      if (claim.type !== 'number') continue;
+      claim.values = [{ kind: 'number', raw: 'about 4,500,000,000 US dollars', normalised: '4500000000' }];
+      claim.label = 'a label that goes on and on and on and on';
+    }
+  });
+  const noFigures = entryWith((copy) => copy.claims.forEach((claim) => (claim.source.tier = 2)));
+  const cases = [
+    ['the golden piece', GOLDEN],
+    ['the piece that rests on another outlet', TIER2_PIECE],
+    ['a piece with the longest titles, labels and figures', widest],
+    ['a piece with no figure to draw', noFigures],
+  ] as const;
+
+  it.each(cases)('keeps every text of %s inside the box, in the file and in the page', (_name, entry) => {
+    expect(textsOutside(renderCardSvg(entry))).toEqual([]);
+    expect(textsOutside(renderInlineCardSvg(entry))).toEqual([]);
+  });
+
+  it('would notice a text that runs off the card', () => {
+    const wide = renderCardSvg(GOLDEN).replace('>funding round<', `>${'funding round '.repeat(20)}<`);
+    expect(textsOutside(wide).length).toBeGreaterThan(0);
+  });
+
+  it('draws the card without figures with the same frame, wordmark, title and counts as the card with them', () => {
+    const roles = (svg: string) => [...svg.matchAll(/data-role="([^"]*)"/g)].map((match) => match[1]!);
+    expect(roles(renderCardSvg(noFigures))).toEqual(['wordmark', 'title', 'title', 'counts', 'host']);
+    expect(roles(renderCardSvg(GOLDEN))).toEqual(['wordmark', 'title', 'title', ...Array(3).fill(['figure', 'figure-label', 'figure-basis']).flat(), 'counts', 'host']);
+  });
+});
+
 describe('cardLabel', () => {
-  it('names the card, the title and the key figures, so that a reader who cannot see the picture gets them', () => {
+  it('names the card, the title and the key figures with where each comes from, so that a reader who cannot see the picture gets them', () => {
     expect(cardLabel(GOLDEN)).toBe(
-      `Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million, cycle-time cut 18 per cent, list price $38,000)`,
+      `Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million (filing), cycle-time cut 18 per cent (measured), list price $38,000 (press release))`,
     );
+  });
+
+  it('says the basis in the words the card draws', () => {
+    const label = cardLabel(GOLDEN);
+    for (const basis of textsWithRole(renderCardSvg(GOLDEN), 'figure-basis')) expect(label).toContain(`(${basis})`);
+  });
+
+  it('does not name a figure from another outlet', () => {
+    const entry = structuredClone(TIER2_PIECE);
+    entry.order = ['c-19', ...entry.order.filter((id) => id !== 'c-19')];
+    expect(cardLabel(entry)).not.toContain('investor count');
   });
 
   it('says the same figures as the card shows, in the same order', () => {
@@ -323,7 +476,7 @@ describe('cardLabel', () => {
     const entry = entryWith((copy) => {
       for (const claim of copy.claims) if (claim.id !== 'c-17') claim.type = 'spec';
     });
-    expect(cardLabel(entry)).toBe(`Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million)`);
+    expect(cardLabel(entry)).toBe(`Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million (filing))`);
   });
 });
 
@@ -377,6 +530,15 @@ describe('renderInlineCardSvg', () => {
       quiet: 'var(--t2)',
       link: 'var(--link)',
     });
+  });
+
+  it('shows the same figures, labels and bases as the file that the share image is drawn from', () => {
+    for (const entry of [GOLDEN, TIER2_PIECE, entryWith((copy) => copy.claims.forEach((claim) => (claim.source.tier = 2)))]) {
+      for (const role of ['figure', 'figure-label', 'figure-basis']) {
+        expect(textsWithRole(renderInlineCardSvg(entry), role)).toEqual(textsWithRole(renderCardSvg(entry), role));
+      }
+    }
+    expect(textsWithRole(inline, 'figure-basis')).toEqual(['filing', 'measured', 'press release']);
   });
 
   it('is the same every time', () => {

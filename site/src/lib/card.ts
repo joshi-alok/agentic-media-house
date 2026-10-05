@@ -1,4 +1,4 @@
-import type { LedgerEntry } from '@robywire/gate';
+import type { Basis, LedgerEntry } from '@robywire/gate';
 import { plural } from './format';
 
 // The fact card: a 1200 by 630 picture drawn from a piece's own ledger. It is
@@ -88,25 +88,44 @@ export function wrapText(text: string, maxChars: number, maxLines: number): stri
   return kept;
 }
 
+/**
+ * Where a claim's figure comes from, in plain words, for each basis a claim can have. The card draws
+ * the words under the label of each figure, and the label of the card for assistive technology says them.
+ */
+export const BASIS_WORDS: Readonly<Record<Basis, string>> = {
+  datasheet: 'datasheet',
+  'press-release': 'press release',
+  briefing: 'briefing',
+  demo: 'demonstration',
+  filing: 'filing',
+  paper: 'paper',
+  standard: 'standard',
+  measured: 'measured',
+};
+
 export interface CardFigure {
   value: string;
   label: string;
+  /** Where the figure comes from, in plain words (`BASIS_WORDS`). */
+  basis: string;
 }
 
 /**
- * Up to three figures for the card: the first three claims of type `number`, in the order the
- * article cites them. A figure is the claim's first number value, or its first value of any kind,
- * and a claim with no value is skipped.
+ * Up to three figures for the card: the first three claims of type `number` from a tier-1 source, in
+ * the order the article cites them. A claim from another outlet (tier 2) is never drawn: the card is
+ * the headline of the piece and has no room to say that a figure is only reported. A figure is the
+ * claim's first number value, or its first value of any kind, and a claim with no value is skipped.
+ * Each figure carries the basis of its claim in plain words. A piece with no such claim has no figures.
  */
 export function cardFigures(entry: LedgerEntry): CardFigure[] {
   const byId = new Map(entry.claims.map((claim) => [claim.id, claim]));
   const figures: CardFigure[] = [];
   for (const id of entry.order) {
     const claim = byId.get(id);
-    if (claim === undefined || claim.type !== 'number') continue;
+    if (claim === undefined || claim.type !== 'number' || claim.source.tier !== 1) continue;
     const value = claim.values.find((item) => item.kind === 'number') ?? claim.values[0];
     if (value === undefined) continue;
-    figures.push({ value: value.raw, label: claim.label });
+    figures.push({ value: value.raw, label: claim.label, basis: BASIS_WORDS[claim.basis] });
     if (figures.length === 3) break;
   }
   return figures;
@@ -151,11 +170,13 @@ function drawCard(entry: LedgerEntry, colours: Readonly<Record<keyof typeof CARD
   const figures = cardFigures(entry).map((figure) => ({
     value: wrapText(figure.value, FIGURE_CHARS, 1)[0] ?? '',
     label: wrapText(figure.label, 26, 1)[0] ?? '',
+    basis: figure.basis,
   }));
   const size = figureSize(Math.max(0, ...figures.map((figure) => figure.value.length)));
   figures.forEach((figure, index) => {
-    parts.push(text('figure', FIGURE_COLUMNS[index]!, 448, size, 400, link, figure.value, ' letter-spacing="-1"'));
-    parts.push(text('figure-label', FIGURE_COLUMNS[index]!, 488, 22, 400, quiet, figure.label));
+    parts.push(text('figure', FIGURE_COLUMNS[index]!, 432, size, 400, link, figure.value, ' letter-spacing="-1"'));
+    parts.push(text('figure-label', FIGURE_COLUMNS[index]!, 470, 22, 400, quiet, figure.label));
+    parts.push(text('figure-basis', FIGURE_COLUMNS[index]!, 498, 20, 400, quiet, figure.basis));
   });
 
   parts.push(`<line x1="${LEFT}" y1="530" x2="${RIGHT}" y2="530" stroke="${rule}" stroke-width="1"/>`);
@@ -185,8 +206,11 @@ export function renderInlineCardSvg(entry: LedgerEntry): string {
   return drawCard(entry, INLINE_CARD_COLOURS, [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" aria-hidden="true" focusable="false">`]);
 }
 
-/** What a reader who cannot see the card is told: that it is the fact card, the title, and the figures it shows. */
+/**
+ * What a reader who cannot see the card is told: that it is the fact card, the title, and the figures it
+ * shows, each with the label it has and where it comes from.
+ */
 export function cardLabel(entry: LedgerEntry): string {
-  const figures = cardFigures(entry).map((figure) => `${figure.label} ${figure.value}`);
+  const figures = cardFigures(entry).map((figure) => `${figure.label} ${figure.value} (${figure.basis})`);
   return figures.length === 0 ? `Fact card: ${entry.title}` : `Fact card: ${entry.title} (key figures: ${figures.join(', ')})`;
 }

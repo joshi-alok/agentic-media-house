@@ -30,6 +30,25 @@ describe('cardPng', () => {
     expect(pixel(25, 300)).toEqual([255, 255, 255]);
   });
 
+  it('shows the basis of the figures under their labels, and nothing there for a piece whose numbers all come from another outlet', async () => {
+    // The band between the labels and the rule above the counts: 480 to 508 pixels from the top, 72 to 1128 from the left.
+    const inkInBasisBand = async (entry: LedgerEntry): Promise<number> => {
+      const { data, info } = await sharp(await cardPng(renderCardSvg(entry))).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      let ink = 0;
+      for (let y = 480; y < 508; y++) {
+        for (let x = 72; x < 1128; x++) {
+          const at = (y * info.width + x) * info.channels;
+          if (data[at] !== 255 || data[at + 1] !== 255 || data[at + 2] !== 255) ink++;
+        }
+      }
+      return ink;
+    };
+    expect(await inkInBasisBand(GOLDEN)).toBeGreaterThan(500);
+    const other = structuredClone(GOLDEN);
+    for (const claim of other.claims) claim.source.tier = 2;
+    expect(await inkInBasisBand(other)).toBe(0);
+  });
+
   it('gives the same picture for the same card', async () => {
     const [first, second] = await Promise.all([cardPng(SVG), cardPng(SVG)]);
     expect(first.equals(second)).toBe(true);
