@@ -1,11 +1,12 @@
 import type { Check } from '../gate';
-import { checkG1 } from './g1-frontmatter';
-import { checkG2 } from './g2-structure';
-import { checkG3 } from './g3-coverage';
-import { checkG4 } from './g4-values';
-import { checkG5 } from './g5-quotes';
+import { G1_CODES, checkG1 } from './g1-frontmatter';
+import { G2_CODES, checkG2 } from './g2-structure';
+import { G3_CODES, checkG3 } from './g3-coverage';
+import { G4_CODES, checkG4 } from './g4-values';
+import { G5_CODES, checkG5 } from './g5-quotes';
 
 export { checkG1, checkG2, checkG3, checkG4, checkG5 };
+export { G1_CODES, G2_CODES, G3_CODES, G4_CODES, G5_CODES };
 
 /**
  * Every check that `runGate` runs, in order. Each check task adds its check
@@ -13,3 +14,10 @@ export { checkG1, checkG2, checkG3, checkG4, checkG5 };
  * reports it as 'pass'.
  */
 export const ALL_CHECKS: Check[] = [checkG1, checkG2, checkG3, checkG4, checkG5];
+
+/**
+ * Every failure code any check can report. The seeded-defect evals prove that
+ * the gate catches each one, so a check that gains a code adds it to its own
+ * list and to this one.
+ */
+export const ALL_FAILURE_CODES: readonly string[] = [...G1_CODES, ...G2_CODES, ...G3_CODES, ...G4_CODES, ...G5_CODES];

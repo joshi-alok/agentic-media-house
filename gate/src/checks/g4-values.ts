@@ -6,6 +6,14 @@ import { allSentences, describeLocation } from '../sentences';
 import { normaliseQuotes } from '../text';
 import { extractTokens, nameTokensOf } from '../tokens';
 
+/** Every failure code G4 can report. */
+export const G4_CODES = [
+  'G4_NUMBER_UNSUPPORTED',
+  'G4_DATE_UNSUPPORTED',
+  'G4_NAME_UNSUPPORTED',
+  'G4_VALUE_NOT_IN_SPAN',
+] as const;
+
 /**
  * A number value of a claim in canonical form. The raw text is the authority:
  * it is parsed with the same function as the sentence, so "1.2k" and "1,200"

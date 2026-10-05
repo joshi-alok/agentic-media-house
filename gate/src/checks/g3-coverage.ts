@@ -1,6 +1,9 @@
 import type { Check, Failure } from '../gate';
 import { allSentences, describeLocation } from '../sentences';
 
+/** Every failure code G3 can report. */
+export const G3_CODES = ['G3_NO_CLAIM', 'G3_UNKNOWN_CLAIM'] as const;
+
 /**
  * G3, coverage: every fact sentence cites at least one claim, and every claim
  * any sentence cites exists. It looks at every sentence of the piece: title,

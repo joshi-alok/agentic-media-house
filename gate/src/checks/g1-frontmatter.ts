@@ -3,6 +3,18 @@ import type { Check, Failure } from '../gate';
 import { parseDateToken } from '../normalise';
 import { SLUG_PATTERN } from '../schemas';
 
+/** Every failure code G1 can report. */
+export const G1_CODES = [
+  'G1_TITLE_EMPTY',
+  'G1_DESCRIPTION_TOO_LONG',
+  'G1_BAD_DATE',
+  'G1_SLUG_FORMAT',
+  'G1_CATEGORY_COUNT',
+  'G1_CATEGORY_UNKNOWN',
+  'G1_CATEGORY_NO_BEAT',
+  'G1_AUTHOR_MISSING',
+] as const;
+
 const MIN_CATEGORIES = 1;
 const MAX_CATEGORIES = 3;
 

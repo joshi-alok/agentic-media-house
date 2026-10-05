@@ -3,6 +3,16 @@ import type { Check, Failure } from '../gate';
 import { allSentences } from '../sentences';
 import { countWords } from '../text';
 
+/** Every failure code G2 can report. */
+export const G2_CODES = [
+  'G2_OPENING_LENGTH',
+  'G2_TAKEAWAYS_COUNT',
+  'G2_BODY_LENGTH',
+  'G2_SECTIONS_MIN',
+  'G2_HEADING_QUESTION',
+  'G2_LIMITATIONS_MISSING',
+] as const;
+
 const MIN_SECTIONS = 2;
 
 const isSafeBasis = (basis: string) => (SAFE_BASES as readonly string[]).includes(basis);

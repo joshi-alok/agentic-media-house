@@ -2,6 +2,9 @@ import type { Check, Failure } from '../gate';
 import { allSentences, describeLocation } from '../sentences';
 import { normaliseQuotes, quotedSegments } from '../text';
 
+/** Every failure code G5 can report. */
+export const G5_CODES = ['G5_QUOTE_NOT_VERBATIM'] as const;
+
 /**
  * G5, quotes: every passage in double quotation marks in the title, the
  * description or a fact or analysis sentence is word for word inside the
