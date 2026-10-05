@@ -7,7 +7,7 @@ import { runGate } from '../src/gate';
 import type { GateInput, GateResult } from '../src/gate';
 import { LedgerEntry } from '../src/schemas';
 import type { Draft } from '../src/schemas';
-import { NewsFrontmatter, escapeMdx, renderBody, renderDraft } from '../src/render';
+import { NewsFrontmatter, escapeMdx, renderBody, renderDraft, renderHead } from '../src/render';
 import type { RenderMeta } from '../src/render';
 import { allSentences } from '../src/sentences';
 import { claimById, findSentence, mutate } from './helpers';
@@ -66,6 +66,12 @@ describe('renderDraft: the golden piece', () => {
     expect(splitMdx(updated.mdx).body).toBe(splitMdx(mdx).body);
     expect(updated.ledger).toEqual(ledger);
     expect(mdx).not.toContain('updatedAt');
+  });
+
+  it('writes the title and the description that renderHead gives from the ledger, and the same title in the ledger', () => {
+    const head = renderHead(ledger);
+    expect(splitMdx(mdx).frontmatter.split('\n').slice(0, 2)).toEqual([`title: ${JSON.stringify(head.title)}`, `description: ${JSON.stringify(head.description)}`]);
+    expect(ledger.title).toBe(head.title);
   });
 
   it('accepts an update on the day of publication, and refuses one that is not a real date or comes before it', () => {
@@ -523,6 +529,17 @@ describe('renderDraft: text that is not plain', () => {
     });
     const data = parseYaml(splitMdx(render(input).mdx).frontmatter) as { title: string };
     expect(data.title).toBe(title);
+  });
+
+  it('writes a title and a description without the spaces around them, in the frontmatter and in the title of the ledger, and keeps the sentences of the ledger as written', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      g.draft.title.text = '  A title ';
+      g.draft.description.text = ' A description. ';
+    });
+    const { mdx, ledger } = render(input);
+    expect(splitMdx(mdx).frontmatter.split('\n').slice(0, 2)).toEqual(['title: "A title"', 'description: "A description."']);
+    expect(ledger.title).toBe('A title');
+    expect(ledger.sentences.slice(0, 2).map((item) => item.text)).toEqual(['  A title ', ' A description. ']);
   });
 
   it('refuses a category that is not a plain slug', () => {

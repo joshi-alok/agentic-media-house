@@ -72,7 +72,8 @@ Until the Desk has published something there is nothing real to show, so the sit
 
 A piece is two files: the MDX that readers see and the ledger JSON behind its receipts. `site/src/lib/match-pieces.ts` joins them and stops the build, with a message that names the piece, when they do not belong together:
 
-- the ledger has no piece, or the piece has no ledger, or their slug, title, date or categories differ;
+- the ledger has no piece, or the piece has no ledger, or their slug, date or categories differ;
+- the `title` or the `description` of the MDX is not what `renderHead` (in `gate/src/render/head.ts`) gives from the title sentence and the description sentence of the ledger, or the `title` of the ledger is not its own title sentence;
 - the body of the MDX is not exactly what `renderBody` (in `gate/src/render/body.ts`) writes from the ledger, so a hand edit of the article, or of the ledger, is caught on the first build;
 - a correction or retraction is recorded in the desk state for the piece and its `updatedAt` is not the day of the latest one, or it has an `updatedAt` and nothing is recorded.
 

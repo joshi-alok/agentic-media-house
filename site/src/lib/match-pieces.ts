@@ -1,4 +1,4 @@
-import { renderBody } from '@robywire/gate';
+import { renderBody, renderHead } from '@robywire/gate';
 import type { DeskState, LedgerEntry, NewsFrontmatter } from '@robywire/gate';
 import { latestCorrectionDay } from './desk-state';
 
@@ -77,11 +77,40 @@ function bodyProblem(id: string, body: string | undefined, ledger: LedgerEntry):
 }
 
 /**
+ * What is wrong with the title or the description of a piece or of its ledger, one problem for each field, or an
+ * empty list when the title and the description of the piece and the title of the ledger are the title sentence and the
+ * description sentence of the ledger (`renderHead`). A ledger that has no such sentence, or has two, is a problem
+ * of its own, named by the piece.
+ */
+function headProblems(id: string, piece: NewsFrontmatter, ledger: LedgerEntry): string[] {
+  let head: ReturnType<typeof renderHead>;
+  try {
+    head = renderHead(ledger);
+  } catch (error) {
+    return [`the ledger entry "${id}" cannot give a title and a description: ${error instanceof Error ? error.message : String(error)}`];
+  }
+  const shown = (text: string): string => JSON.stringify(text);
+  const problems: string[] = [];
+  if (piece.title !== head.title) {
+    problems.push(`the title of the piece "${id}" is ${shown(piece.title)}, but the title sentence of its ledger is ${shown(head.title)}`);
+  }
+  if (piece.description !== head.description) {
+    problems.push(`the description of the piece "${id}" is ${shown(piece.description)}, but the description sentence of its ledger is ${shown(head.description)}`);
+  }
+  if (ledger.title !== head.title) {
+    problems.push(`the ledger entry "${id}" has the title ${shown(ledger.title)}, but its title sentence is ${shown(head.title)}`);
+  }
+  return problems;
+}
+
+/**
  * Join pieces with their ledger entries and sort them newest first. Pieces of
  * the same day stay in slug order, because the lists are sorted by id first and
  * the sort is stable. Throws one error that lists every problem found: a piece
  * with no ledger entry, a ledger entry with no piece, a ledger entry whose
- * slug, title, date or categories disagree with its piece, and a piece whose
+ * slug, date or categories disagree with its piece, a piece whose title or
+ * description is not the title sentence or the description sentence of its
+ * ledger, a ledger whose title is not its own title sentence, a piece whose
  * `updatedAt` does not agree with the corrections recorded for it (a piece with
  * a correction or retraction needs `updatedAt` equal to the day of the latest
  * one, and a piece that says it was updated needs a record that explains it),
@@ -105,10 +134,11 @@ export function matchPieces<N extends KeyedPiece, L extends Keyed<LedgerEntry>>(
       continue;
     }
     if (ledger.data.slug !== piece.id) problems.push(`the ledger entry "${piece.id}" says its slug is "${ledger.data.slug}"`);
-    if (ledger.data.title !== piece.data.title) problems.push(`the title in the ledger entry "${piece.id}" differs from the piece`);
     if (ledger.data.publishedAt !== piece.data.publishedAt) problems.push(`the date in the ledger entry "${piece.id}" differs from the piece`);
     if (!sameList(ledger.data.categories, piece.data.categories)) problems.push(`the categories in the ledger entry "${piece.id}" differ from the piece`);
     matched.push({ slug: piece.id, news: piece, ledger });
+
+    problems.push(...headProblems(piece.id, piece.data, ledger.data));
 
     const bodyIssue = bodyProblem(piece.id, piece.body, ledger.data);
     if (bodyIssue !== undefined) problems.push(bodyIssue);

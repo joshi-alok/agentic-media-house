@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { LedgerEntry, renderBody } from '@robywire/gate';
+import { parse as parseYaml } from 'yaml';
+import { DeskState as DeskStateSchema, LedgerEntry, NewsFrontmatter as NewsFrontmatterSchema, renderBody } from '@robywire/gate';
 import type { DeskState, NewsFrontmatter } from '@robywire/gate';
 import { firstDifference, matchPieces } from '../src/lib/match-pieces';
 
@@ -9,7 +10,11 @@ const base = LedgerEntry.parse(JSON.parse(readFileSync(GOLDEN_FILE, 'utf8')));
 
 /** A news entry and a ledger entry for one slug, shaped like Astro's collection entries. */
 function pair(slug: string, publishedAt: string, change: Partial<LedgerEntry> = {}) {
-  const ledger: LedgerEntry = { ...base, slug, publishedAt, title: `Title of ${slug}`, categories: ['humanoids'], ...change };
+  // The title sentence and the description sentence of the ledger say what the piece's frontmatter says.
+  const sentences = base.sentences.map((item) =>
+    item.section === 'title' ? { ...item, text: `Title of ${slug}` } : item.section === 'description' ? { ...item, text: 'A description.' } : item,
+  );
+  const ledger: LedgerEntry = { ...base, slug, publishedAt, title: `Title of ${slug}`, categories: ['humanoids'], sentences, ...change };
   const data: NewsFrontmatter = {
     title: `Title of ${slug}`,
     description: 'A description.',
@@ -82,8 +87,7 @@ describe('matchPieces: content that does not fit together', () => {
     expect(() => matched(pair('a-piece', '2026-10-03', { slug: 'other' }))).toThrow('the ledger entry "a-piece" says its slug is "other"');
   });
 
-  it('names a ledger whose title, date or categories differ from the piece', () => {
-    expect(() => matched(pair('a-piece', '2026-10-03', { title: 'Another title' }))).toThrow('the title in the ledger entry "a-piece" differs from the piece');
+  it('names a ledger whose date or categories differ from the piece', () => {
     expect(() => matched(pair('a-piece', '2026-10-03', { publishedAt: '2026-10-02' }))).toThrow('the date in the ledger entry "a-piece" differs from the piece');
     expect(() => matched(pair('a-piece', '2026-10-03', { categories: ['humanoids', 'funding'] }))).toThrow('the categories in the ledger entry "a-piece" differ from the piece');
     const longer = pair('a-piece', '2026-10-03');
@@ -155,6 +159,125 @@ describe('matchPieces: corrections and the updated date', () => {
     expect(() => matchPieces([a.news, b.news], [a.ledger], [correction('2026-10-03T09:12:00Z', 'a-piece')])).toThrow(
       'The site content does not fit together:\n- the piece "a-piece" has a correction or retraction recorded on 2026-10-03 but no updatedAt; add updatedAt: "2026-10-03" to its frontmatter\n- the piece "b-piece" has no ledger file',
     );
+  });
+});
+
+describe('matchPieces: the title and the description of the piece and its ledger', () => {
+  const edited = (change: (news: ReturnType<typeof pair>['news'], ledger: ReturnType<typeof pair>['ledger']) => void, ledgerChange: Partial<LedgerEntry> = {}) => {
+    const a = pair('a-piece', '2026-10-01', ledgerChange);
+    change(a.news, a.ledger);
+    return () => matchPieces([a.news], [a.ledger], []);
+  };
+  /** Sets the text of the sentence of this section in the ledger of the piece. */
+  const setSentence = (ledger: ReturnType<typeof pair>['ledger'], section: 'title' | 'description', text: string) => {
+    ledger.data = { ...ledger.data, sentences: ledger.data.sentences.map((item) => (item.section === section ? { ...item, text } : item)) };
+  };
+
+  it('accepts a piece whose title and description are the title sentence and the description sentence of its ledger, and a ledger whose title is the same', () => {
+    expect(edited(() => {})()).toHaveLength(1);
+  });
+
+  it('accepts sentences with spaces around them, because the frontmatter is written, and read back, without them', () => {
+    const run = edited((_news, ledger) => {
+      setSentence(ledger, 'title', '  Title of a-piece ');
+      setSentence(ledger, 'description', ' A description.\n');
+    });
+    expect(run()).toHaveLength(1);
+  });
+
+  it('stops the build when the description of the piece was edited by hand, naming the piece and the field', () => {
+    const run = edited((news) => {
+      news.data.description = 'A better description.';
+    });
+    expect(run).toThrow(
+      'the description of the piece "a-piece" is "A better description.", but the description sentence of its ledger is "A description."',
+    );
+  });
+
+  it('stops the build when the description sentence of the ledger was edited and the description of the piece was not', () => {
+    const run = edited((_news, ledger) => setSentence(ledger, 'description', 'Another description.'));
+    expect(run).toThrow(
+      'the description of the piece "a-piece" is "A description.", but the description sentence of its ledger is "Another description."',
+    );
+  });
+
+  it('stops the build when the title of the piece was edited by hand, naming the piece and the field', () => {
+    const run = edited((news) => {
+      news.data.title = 'A better title';
+    });
+    expect(run).toThrow('the title of the piece "a-piece" is "A better title", but the title sentence of its ledger is "Title of a-piece"');
+  });
+
+  it('stops the build when the title field of the ledger is not its own title sentence, although the piece agrees with the sentence', () => {
+    const run = edited(() => {}, { title: 'Another title' });
+    expect(run).toThrow('the ledger entry "a-piece" has the title "Another title", but its title sentence is "Title of a-piece"');
+    expect(run).not.toThrow('the title of the piece');
+  });
+
+  it('stops the build when the title sentence and the title field of the ledger were both edited and the piece was not', () => {
+    const run = edited(
+      (_news, ledger) => setSentence(ledger, 'title', 'Another title'),
+      { title: 'Another title' },
+    );
+    expect(run).toThrow('the title of the piece "a-piece" is "Title of a-piece", but the title sentence of its ledger is "Another title"');
+  });
+
+  it('writes a text with quotation marks as JSON, so the message shows exactly what is there', () => {
+    const run = edited((news) => {
+      news.data.title = 'He said "go"';
+    });
+    expect(run).toThrow('the title of the piece "a-piece" is "He said \\"go\\""');
+  });
+
+  it('names the piece when its ledger has no title sentence or no description sentence, or two, instead of failing with no name', () => {
+    const without = (section: string) =>
+      edited((_news, ledger) => {
+        ledger.data = { ...ledger.data, sentences: ledger.data.sentences.filter((item) => item.section !== section) };
+      });
+    expect(without('title')).toThrow('the ledger entry "a-piece" cannot give a title and a description: renderHead: the ledger has no title sentence');
+    expect(without('description')).toThrow('the ledger entry "a-piece" cannot give a title and a description: renderHead: the ledger has no description sentence');
+    const twice = edited((_news, ledger) => {
+      ledger.data = { ...ledger.data, sentences: [...ledger.data.sentences, ledger.data.sentences[0]!] };
+    });
+    expect(twice).toThrow('the ledger entry "a-piece" cannot give a title and a description: renderHead: the ledger has 2 title sentences, not 1');
+  });
+
+  it('reports every problem of the title and the description at once, with the others, under the one heading', () => {
+    const a = pair('a-piece', '2026-10-01');
+    a.news.data.title = 'A better title';
+    a.news.data.description = 'A better description.';
+    const b = pair('b-piece', '2026-10-02');
+    expect(() => matchPieces([a.news], [a.ledger, b.ledger], [])).toThrow(
+      'The site content does not fit together:\n' +
+        '- the title of the piece "a-piece" is "A better title", but the title sentence of its ledger is "Title of a-piece"\n' +
+        '- the description of the piece "a-piece" is "A better description.", but the description sentence of its ledger is "A description."\n' +
+        '- the ledger entry "b-piece" has no piece',
+    );
+  });
+
+  describe('the five fixture pieces, as committed', () => {
+    const dir = (name: string) => new URL(`../src/content-fixtures/${name}/`, import.meta.url);
+    const slugs = readdirSync(dir('news'))
+      .filter((file) => file.endsWith('.mdx'))
+      .map((file) => file.slice(0, -'.mdx'.length))
+      .sort();
+    const news = slugs.map((slug) => {
+      const text = readFileSync(new URL(`${slug}.mdx`, dir('news')), 'utf8');
+      const [, frontmatter = '', body = ''] = /^---\n([\s\S]*?)\n---\n\n([\s\S]*)$/.exec(text) ?? [];
+      return { id: slug, data: NewsFrontmatterSchema.parse(parseYaml(frontmatter)), body: body.trim() };
+    });
+    const ledgers = slugs.map((slug) => ({ id: slug, data: LedgerEntry.parse(JSON.parse(readFileSync(new URL(`${slug}.json`, dir('ledger')), 'utf8'))) }));
+    const corrections = DeskStateSchema.parse(JSON.parse(readFileSync(new URL('../src/content-fixtures/desk-state.json', import.meta.url), 'utf8'))).corrections;
+
+    it('are five, each with a title and a description that are the sentences of its ledger', () => {
+      expect(slugs).toHaveLength(5);
+      expect(matchPieces(news, ledgers, corrections)).toHaveLength(5);
+    });
+
+    it.each(slugs.map((slug, at) => [slug, at] as const))('stop the build when the description of %s is edited by hand', (slug, at) => {
+      const hand = news.map((piece, index) => (index === at ? { ...piece, data: { ...piece.data, description: `${piece.data.description} Edited.` } } : piece));
+      expect(() => matchPieces(hand, ledgers, corrections)).toThrow(`the description of the piece "${slug}" is "`);
+    });
   });
 });
 

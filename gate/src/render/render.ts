@@ -5,6 +5,7 @@ import type { Claim, Draft, LedgerEntry, LedgerSentence } from '../schemas';
 import { allSentences } from '../sentences';
 import type { LocatedSentence } from '../sentences';
 import { renderBody } from './body';
+import { renderHead } from './head';
 
 /** What the renderer needs besides the draft and the claims. */
 export interface RenderMeta {
@@ -50,7 +51,10 @@ function claimOrder(located: readonly LocatedSentence[]): string[] {
  * The body of the MDX is `renderBody(ledger)`: the ledger is built first and
  * the body is written from it, not from the draft. A section with no sentence
  * has nothing in the ledger, so the page has no heading for it, and neighbouring
- * sections with the same heading come out as one.
+ * sections with the same heading come out as one. The title and the description
+ * of the frontmatter, and the title of the ledger, are `renderHead` of the
+ * ledger's sentences: the title and description sentences with the spaces around
+ * them taken off.
  */
 export function renderDraft(draft: Draft, claims: readonly Claim[], meta: RenderMeta): RenderedPiece {
   const located = allSentences(draft);
@@ -77,10 +81,27 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
   if (release === 'owner' && meta.gate.route === 'publish') {
     throw new Error(`renderDraft: release "owner" is for a piece the gate did not clear, but the route is publish`);
   }
+  const sentences: LedgerSentence[] = located.map((item) => {
+    const { sentence: written } = item;
+    const entry: LedgerSentence = {
+      index: item.index,
+      section: item.section,
+      paragraph: item.paragraph,
+      kind: written.kind,
+      text: written.text,
+      claimIds: [...written.claimIds],
+    };
+    if (item.heading !== undefined) entry.heading = item.heading;
+    if (written.kind === 'fact' && written.attributed === true) entry.attributed = true;
+    return entry;
+  });
+
+  // The title and the description of the frontmatter, and the title of the ledger, come from the sentences of the ledger.
+  const head = renderHead({ sentences });
   const frontmatter = [
     '---',
-    `title: ${JSON.stringify(draft.title.text)}`,
-    `description: ${JSON.stringify(draft.description.text)}`,
+    `title: ${JSON.stringify(head.title)}`,
+    `description: ${JSON.stringify(head.description)}`,
     `publishedAt: ${JSON.stringify(draft.publishedAt)}`,
     ...(updatedAt === undefined ? [] : [`updatedAt: ${JSON.stringify(updatedAt)}`]),
     `categories: [${draft.categories.join(', ')}]`,
@@ -99,27 +120,12 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
     sources.set(url, outlet === undefined ? { url, tier, snapshotHash, retrievedAt } : { url, tier, snapshotHash, retrievedAt, outlet });
   }
 
-  const sentences: LedgerSentence[] = located.map((item) => {
-    const { sentence: written } = item;
-    const entry: LedgerSentence = {
-      index: item.index,
-      section: item.section,
-      paragraph: item.paragraph,
-      kind: written.kind,
-      text: written.text,
-      claimIds: [...written.claimIds],
-    };
-    if (item.heading !== undefined) entry.heading = item.heading;
-    if (written.kind === 'fact' && written.attributed === true) entry.attributed = true;
-    return entry;
-  });
-
   const ledger: LedgerEntry = {
     schemaVersion: 1,
     slug: draft.slug,
     runId: meta.runId,
     publishedAt: draft.publishedAt,
-    title: draft.title.text,
+    title: head.title,
     categories: [...draft.categories],
     claims: structuredClone(cited),
     order,
