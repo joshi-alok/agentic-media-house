@@ -218,3 +218,99 @@ export function parseNumberToken(raw: string): ParsedNumber | null {
   const value = shiftDecimal(groups.amount ?? '', exponent);
   return groups.unit === undefined ? { value } : { value, unit: canonicalUnit(groups.unit.replace(/\s+/g, ' ')) };
 }
+
+// --- Dates ------------------------------------------------------------------
+
+/** A date in canonical form: `iso` is `YYYY-MM-DD`, `YYYY-MM` or `YYYY`, matching `precision`. */
+export interface ParsedDate {
+  iso: string;
+  precision: 'day' | 'month' | 'year';
+}
+
+/** Month names and abbreviations as written in English text, mapped to 1-12. */
+export const MONTH_NAMES: Readonly<Record<string, number>> = {
+  January: 1,
+  Jan: 1,
+  February: 2,
+  Feb: 2,
+  March: 3,
+  Mar: 3,
+  April: 4,
+  Apr: 4,
+  May: 5,
+  June: 6,
+  Jun: 6,
+  July: 7,
+  Jul: 7,
+  August: 8,
+  Aug: 8,
+  September: 9,
+  Sept: 9,
+  Sep: 9,
+  October: 10,
+  Oct: 10,
+  November: 11,
+  Nov: 11,
+  December: 12,
+  Dec: 12,
+};
+
+const MONTH = `(?:${Object.keys(MONTH_NAMES).join('|')})`;
+
+const ISO_DATE = String.raw`(?<iy>\d{4})-(?<im>\d{2})-(?<id>\d{2})`;
+const DAY_MONTH_YEAR = String.raw`(?<dd>\d{1,2})\s(?<dm>${MONTH})\.?,?\s(?<dy>\d{4})`;
+const MONTH_DAY_YEAR = String.raw`(?<mm>${MONTH})\.?\s(?<md>\d{1,2}),?\s(?<my>\d{4})`;
+const MONTH_YEAR = String.raw`(?<ym>${MONTH})\.?,?\s(?<yy>\d{4})`;
+// A bare year is 1900-2100. It is not a year when a currency sign, a decimal
+// point or a thousands comma touches it ("$2000", "2026.5"), or when a unit
+// follows ("2000 kg"): those are numbers, and the number scanner reads them.
+const BARE_YEAR = String.raw`(?<![$\u20AC\u00A3\u20B9.,])(?<!\p{L}-)(?<by>19\d{2}|20\d{2}|2100)(?![.,]\d)(?!\s?(?:${UNIT_SOURCE})(?![\p{L}\p{N}]))`;
+
+/**
+ * Regex source for one date token, longest form first: ISO, `24 August 2026`,
+ * `August 24, 2026`, `August 2026`, then a bare year. It matches the shape of a
+ * date only; `parseDateToken` is what rejects 31 February. The token scanner in
+ * tokens.ts compiles this with the `gu` flags.
+ */
+export const DATE_SOURCE = String.raw`(?<![\p{L}\p{N}])(?:${ISO_DATE}|${DAY_MONTH_YEAR}|${MONTH_DAY_YEAR}|${MONTH_YEAR}|${BARE_YEAR})(?![\p{L}\p{N}])`;
+
+const WHOLE_DATE = new RegExp(`^${DATE_SOURCE}$`, 'u');
+
+const pad = (value: number) => String(value).padStart(2, '0');
+
+/** Days in `month` (1-12) of `year`, leap years included. */
+const daysInMonth = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+/**
+ * Parse one date token. The whole of `raw` must be the date. Returns null for
+ * an impossible date (31 February, month 13), an unknown format, or a bare year
+ * outside 1900-2100.
+ */
+export function parseDateToken(raw: string): ParsedDate | null {
+  const match = WHOLE_DATE.exec(raw.trim().replace(/\s+/g, ' '));
+  const groups = match?.groups as Record<string, string | undefined> | undefined;
+  if (!groups) return null;
+  if (groups.by !== undefined) return { iso: groups.by, precision: 'year' };
+
+  const year = Number(groups.iy ?? groups.dy ?? groups.my ?? groups.yy);
+  const monthName = groups.dm ?? groups.mm ?? groups.ym;
+  const month = groups.im !== undefined ? Number(groups.im) : MONTH_NAMES[monthName ?? ''];
+  if (year < 1000 || month === undefined || month < 1 || month > 12) return null;
+
+  const dayText = groups.id ?? groups.dd ?? groups.md;
+  if (dayText === undefined) return { iso: `${year}-${pad(month)}`, precision: 'month' };
+  const dayNumber = Number(dayText);
+  if (dayNumber < 1 || dayNumber > daysInMonth(year, month)) return null;
+  return { iso: `${year}-${pad(month)}-${pad(dayNumber)}`, precision: 'day' };
+}
+
+/**
+ * Does a date written in a sentence agree with a date a claim licenses? They
+ * match when the claim date is equal at the sentence date's precision: a day
+ * needs the same day, a month the same month, a year the same year. A claim
+ * that is less precise than the sentence (month only, sentence says the 24th)
+ * does not match.
+ */
+export function dateMatches(sentenceDate: ParsedDate, claimIso: string): boolean {
+  return claimIso.startsWith(sentenceDate.iso) && !/^\d/.test(claimIso.slice(sentenceDate.iso.length));
+}
