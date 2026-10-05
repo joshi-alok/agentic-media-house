@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ALL_FAILURE_CODES, G1_CODES, G2_CODES, G3_CODES, G4_CODES, G5_CODES } from '../src/checks';
+import { ALL_FAILURE_CODES, G1_CODES, G2_CODES, G3_CODES, G4_CODES, G5_CODES, G6_CODES } from '../src/checks';
 
 // Every failure a check can report has a code, and the codes of one check are
 // listed once, in that check's own file. ALL_FAILURE_CODES is the sum of the
@@ -12,6 +12,7 @@ const LISTS: Record<string, readonly string[]> = {
   G3: G3_CODES,
   G4: G4_CODES,
   G5: G5_CODES,
+  G6: G6_CODES,
 };
 
 const CHECKS_DIR = new URL('../src/checks/', import.meta.url);
