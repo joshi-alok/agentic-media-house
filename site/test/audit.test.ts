@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from '../scripts/audit/checks-markup.mjs';
+import { checkArticlePages, checkClaimMarkers, checkInternalLinks } from '../scripts/audit/checks-links.mjs';
 import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from '../scripts/audit/checks-style.mjs';
 import { siteFromFiles } from '../scripts/audit/site.mjs';
 
@@ -312,5 +313,180 @@ describe('A12 checkColourLaw', () => {
 
   it('refuses a tokens file that defines no colour, because every colour would then be wrong', () => {
     expect(() => checkColourLaw(withCss('a{margin:0}'), '/* nothing */')).toThrow('defines no colour');
+  });
+});
+
+describe('A8 checkInternalLinks', () => {
+  const home = (body: string, head = '') => page(body, { head: `<link rel="canonical" href="https://news.example/">${head}` });
+
+  it('accepts links to pages, to files and to ids that exist', () => {
+    const files = {
+      'index.html': home('<a href="/status/">s</a><a href="/status/#facts">f</a><a href="#main">m</a><a href="/rss.xml">r</a>', '<link rel="stylesheet" href="/_astro/a.css">'),
+      'status/index.html': page('<h1 id="facts">x</h1>'),
+      '_astro/a.css': 'a{margin:0}',
+      'rss.xml': '<rss/>',
+    };
+    expect(checkInternalLinks(site(files))).toEqual(ok('A8'));
+  });
+
+  it('ignores addresses that point away from the site', () => {
+    const body = '<a href="https://other.example/x">a</a><a href="mailto:me@example.org">m</a><a href="//cdn.example/x.js">c</a><a href="data:,">d</a><a href="javascript:void(0)">j</a>';
+    expect(checkInternalLinks(site({ 'index.html': home(body) }))).toEqual(ok('A8'));
+  });
+
+  it('rejects a link to a page that does not exist', () => {
+    expect(checkInternalLinks(site({ 'index.html': home('<a href="/missing/">m</a>') }))).toEqual({
+      id: 'A8',
+      ok: false,
+      problems: ['index.html: <a href="/missing/"> does not match any file in the build'],
+    });
+  });
+
+  it('rejects a link to a folder written without its trailing slash, and says so', () => {
+    const files = { 'index.html': home('<a href="/status">s</a>'), 'status/index.html': page('<h1>x</h1>') };
+    expect(checkInternalLinks(site(files)).problems).toEqual(['index.html: <a href="/status"> does not match any file in the build; the folder needs a trailing slash']);
+  });
+
+  it('rejects a link to an id that is not on the page it points at', () => {
+    const files = { 'index.html': home('<a href="/status/#nope">s</a>'), 'status/index.html': page('<h1 id="facts">x</h1>') };
+    expect(checkInternalLinks(site(files)).problems).toEqual(['index.html: <a href="/status/#nope"> points at #nope, which is not an id on that page']);
+  });
+
+  it('rejects a link to an id on its own page that does not exist', () => {
+    expect(checkInternalLinks(site({ 'index.html': home('<a href="#nope">s</a>') })).problems).toEqual(['index.html: <a href="#nope"> points at #nope, which is not an id on that page']);
+  });
+
+  it('rejects a link with a fragment into a file that is not a page', () => {
+    const files = { 'index.html': home('<a href="/rss.xml#x">r</a>'), 'rss.xml': '<rss/>' };
+    expect(checkInternalLinks(site(files)).problems).toEqual(['index.html: <a href="/rss.xml#x"> points at #x in a file that is not a page']);
+  });
+
+  it('rejects a stylesheet, script or image address that does not exist', () => {
+    const head = '<link rel="stylesheet" href="/_astro/gone.css"><script src="/gone.js"></script>';
+    expect(checkInternalLinks(site({ 'index.html': home('<h1>x</h1>', head) })).problems).toEqual([
+      'index.html: <link href="/_astro/gone.css"> does not match any file in the build',
+      'index.html: <script src="/gone.js"> does not match any file in the build',
+    ]);
+  });
+
+  it('follows an absolute address on the same origin, such as a canonical link or a share image', () => {
+    const head = '<meta property="og:image" content="https://news.example/news/a/card.png"><meta property="og:url" content="https://news.example/gone/">';
+    const result = checkInternalLinks(site({ 'index.html': home('<h1>x</h1>', head) }, ['news/a/card.png']));
+    expect(result.problems).toEqual(['index.html: <meta og:url content="https://news.example/gone/"> does not match any file in the build']);
+  });
+
+  it('works for a site whose origin is http as well as https', () => {
+    const html = page('<a href="/gone/">g</a><a href="/">h</a><a href="https://news.example/">https</a>', { head: '<link rel="canonical" href="http://news.example/">' });
+    expect(checkInternalLinks(site({ 'index.html': html })).problems).toEqual(['index.html: <a href="/gone/"> does not match any file in the build']);
+  });
+
+  it('ignores a query string and resolves a relative address against the page', () => {
+    const files = { 'index.html': home('<a href="/status/?q=1">s</a>'), 'status/index.html': page('<a href="../">up</a><a href="missing/">m</a>') };
+    expect(checkInternalLinks(site(files)).problems).toEqual(['status/index.html: <a href="missing/"> does not match any file in the build']);
+  });
+
+  it('reports the same problem once for a page, however often it occurs', () => {
+    expect(checkInternalLinks(site({ 'index.html': home('<a href="/m/">1</a><a href="/m/">2</a>') })).problems).toHaveLength(1);
+  });
+});
+
+describe('A9 checkArticlePages', () => {
+  const SLUG = 'a-story';
+  const ARTICLE = `news/${SLUG}/index.html`;
+  const RECEIPTS = `news/${SLUG}/receipts/index.html`;
+  const ldJson = (data: unknown) => `<script type="application/ld+json">${JSON.stringify(data)}</script>`;
+  const canonical = (route: string) => `<link rel="canonical" href="https://news.example${route}">`;
+  const goodArticle = (head = `${canonical(`/news/${SLUG}/`)}${ldJson({ '@type': 'NewsArticle', headline: 'H' })}`, body = `<h1>x</h1><a href="/news/${SLUG}/receipts/">receipts</a>`) =>
+    page(body, { head });
+  const good = () => ({ [ARTICLE]: goodArticle(), [RECEIPTS]: page('<h1>r</h1>', { head: canonical(`/news/${SLUG}/receipts/`) }) });
+
+  it('accepts an article that links to its receipts, has a canonical link and has NewsArticle data', () => {
+    expect(checkArticlePages(site(good()))).toEqual(ok('A9'));
+  });
+
+  it('accepts a site with no article, such as a production build with no pieces', () => {
+    expect(checkArticlePages(site({ 'index.html': page('<h1>x</h1>') }))).toEqual(ok('A9'));
+  });
+
+  it('rejects an article that does not link to its receipts page', () => {
+    const files = { ...good(), [ARTICLE]: goodArticle(undefined, '<h1>x</h1>') };
+    expect(checkArticlePages(site(files)).problems).toEqual([`${ARTICLE}: does not link to its receipts page`]);
+  });
+
+  it('rejects an article whose receipts page is missing', () => {
+    const files = good();
+    delete (files as Record<string, string>)[RECEIPTS];
+    expect(checkArticlePages(site(files)).problems).toEqual([`${ARTICLE}: its receipts page ${RECEIPTS} does not exist`]);
+  });
+
+  it('rejects an article with no canonical link', () => {
+    const files = { ...good(), [ARTICLE]: goodArticle(ldJson({ '@type': 'NewsArticle' })) };
+    expect(checkArticlePages(site(files)).problems).toEqual([`${ARTICLE}: has no canonical link`]);
+  });
+
+  it('rejects a canonical link that points at another page', () => {
+    const files = { ...good(), [ARTICLE]: goodArticle(`${canonical('/news/other/')}${ldJson({ '@type': 'NewsArticle' })}`) };
+    expect(checkArticlePages(site(files)).problems).toEqual([`${ARTICLE}: the canonical link points at /news/other/, not at /news/${SLUG}/`]);
+  });
+
+  it('rejects an article with no structured data, or data of another type', () => {
+    const none = { ...good(), [ARTICLE]: goodArticle(canonical(`/news/${SLUG}/`)) };
+    expect(checkArticlePages(site(none)).problems).toEqual([`${ARTICLE}: has no NewsArticle structured data`]);
+    const other = { ...good(), [ARTICLE]: goodArticle(`${canonical(`/news/${SLUG}/`)}${ldJson({ '@type': 'WebPage' })}`) };
+    expect(checkArticlePages(site(other)).problems).toEqual([`${ARTICLE}: has no NewsArticle structured data`]);
+  });
+
+  it('rejects structured data that is not valid JSON', () => {
+    const head = `${canonical(`/news/${SLUG}/`)}<script type="application/ld+json">{not json</script>`;
+    const files = { ...good(), [ARTICLE]: goodArticle(head) };
+    expect(checkArticlePages(site(files)).problems).toEqual([`${ARTICLE}: its structured data is not valid JSON`, `${ARTICLE}: has no NewsArticle structured data`]);
+  });
+
+  it('rejects a receipts page with no canonical link', () => {
+    const files = { ...good(), [RECEIPTS]: page('<h1>r</h1>') };
+    expect(checkArticlePages(site(files)).problems).toEqual([`${RECEIPTS}: has no canonical link`]);
+  });
+});
+
+describe('A11 checkClaimMarkers', () => {
+  const SLUG = 'a-story';
+  const ARTICLE = `news/${SLUG}/index.html`;
+  const RECEIPTS = `news/${SLUG}/receipts/index.html`;
+  const marker = (n: number, slug = SLUG, claim = `c-${n}`) => `<a href="/news/${slug}/receipts/#${claim}">${n}</a>`;
+  const receipts = (...ids: string[]) => page(`<h1>r</h1>${ids.map((id) => `<article class="receipt" id="${id}">x</article>`).join('')}`);
+  const files = (body: string, ...ids: string[]) => ({ [ARTICLE]: page(`<h1>x</h1><div class="prose"><p>${body}</p></div>`), [RECEIPTS]: receipts(...ids) });
+
+  it('accepts markers that point at claims on the receipts page of the same article', () => {
+    expect(checkClaimMarkers(site(files(`One${marker(1)}${marker(2)}. Two${marker(1)}.`, 'c-1', 'c-2')))).toEqual(ok('A11'));
+  });
+
+  it('accepts a site with no article', () => {
+    expect(checkClaimMarkers(site({ 'index.html': page('<h1>x</h1>') }))).toEqual(ok('A11'));
+  });
+
+  it('rejects a marker whose claim is not on the receipts page', () => {
+    expect(checkClaimMarkers(site(files(`One${marker(1)}${marker(9)}.`, 'c-1'))).problems).toEqual([
+      `${ARTICLE}: the marker "/news/${SLUG}/receipts/#c-9" has no claim with that id on the receipts page`,
+    ]);
+  });
+
+  it('rejects a marker that points at the receipts of another piece', () => {
+    const both = { ...files(`One${marker(1)}${marker(2, 'other')}.`, 'c-1', 'c-2'), 'news/other/receipts/index.html': receipts('c-2') };
+    expect(checkClaimMarkers(site(both)).problems).toEqual([`${ARTICLE}: the marker "/news/other/receipts/#c-2" points at another piece's receipts`]);
+  });
+
+  it('rejects a marker that does not point at a claim anchor', () => {
+    expect(checkClaimMarkers(site(files(`One${marker(1)}<a href="/news/${SLUG}/receipts/#gate-heading">g</a>.`, 'c-1', 'gate-heading'))).problems).toEqual([
+      `${ARTICLE}: the marker "/news/${SLUG}/receipts/#gate-heading" is not a claim anchor like #c-1`,
+    ]);
+  });
+
+  it('rejects an article with no marker at all', () => {
+    expect(checkClaimMarkers(site(files('No markers here.', 'c-1'))).problems).toEqual([`${ARTICLE}: has no claim markers`]);
+  });
+
+  it('does not take the plain link to the receipts page for a marker', () => {
+    const body = `One${marker(1)}.</p><p><a href="/news/${SLUG}/receipts/">see the receipts</a>`;
+    expect(checkClaimMarkers(site(files(body, 'c-1')))).toEqual(ok('A11'));
   });
 });
