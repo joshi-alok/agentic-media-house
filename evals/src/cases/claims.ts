@@ -50,6 +50,16 @@ export const CLAIMS_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'invented-name-at-sentence-start',
+    check: 'G4',
+    code: 'G4_INITIAL_WORD_UNSUPPORTED',
+    description: 'A sentence opens with a company, Harlow Logistics, that the claim it cites never mentions.',
+    apply: (base) => {
+      sentenceWith(base, 'Brindle Logistics plans to use').text = 'Harlow Logistics plans to use the arms at Tarnmoor for inbound trailer unloading.';
+      return base;
+    },
+  },
+  {
     id: 'value-outside-span',
     check: 'G4',
     code: 'G4_VALUE_NOT_IN_SPAN',

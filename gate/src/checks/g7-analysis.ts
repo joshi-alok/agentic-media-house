@@ -3,6 +3,7 @@ import type { Check, Failure } from '../gate';
 import { dateMatches } from '../normalise';
 import type { DateToken, NumberToken } from '../tokens';
 import { extractTokens } from '../tokens';
+import { openingWordAccepted, wordSet } from '../grounding';
 import { allSentences, describeLocation } from '../sentences';
 
 /** Every failure code G7 can report. */
@@ -29,6 +30,9 @@ const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitat
  *   except the first word of a sentence and the words on the allow-list.
  *   A name that a fact sentence has only as its first word does not count as
  *   stated: say it mid-sentence in a fact.
+ *   The first word of an analysis sentence has its own rule: when it looks like a name
+ *   it must be a function word from SENTENCE_STARTERS, a word on the allow-list, or
+ *   a whole word (any case, anywhere) of some fact sentence of the piece.
  */
 export const checkG7: Check = ({ draft }, ctx) => {
   const sentences = allSentences(draft);
@@ -62,7 +66,9 @@ export const checkG7: Check = ({ draft }, ctx) => {
   const numbers: NumberToken[] = [];
   const dates: DateToken[] = [];
   const names = new Set<string>();
-  for (const item of sentences.filter((located) => located.sentence.kind === 'fact')) {
+  const facts = sentences.filter((located) => located.sentence.kind === 'fact');
+  const factWords = wordSet(facts.map((item) => item.sentence.text));
+  for (const item of facts) {
     const tokens = extractTokens(item.sentence.text);
     numbers.push(...tokens.numbers);
     dates.push(...tokens.dates);
@@ -80,6 +86,9 @@ export const checkG7: Check = ({ draft }, ctx) => {
         where,
       });
 
+    if (tokens.initialWord !== undefined && !openingWordAccepted(tokens.initialWord, factWords, ctx.nameAllowList)) {
+      fail(`opening word "${tokens.initialWord}"`);
+    }
     for (const token of new Map(tokens.numbers.map((number) => [number.raw, number])).values()) {
       if (!numbers.some((fact) => fact.value === token.value && (token.unit === undefined || fact.unit === token.unit))) {
         fail(`number "${token.raw}"`);

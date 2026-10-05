@@ -226,7 +226,7 @@ describe('G7_ANALYSIS_NEW_VALUE: dates', () => {
   });
 
   it('reports a new date once, however often the sentence repeats it', () => {
-    expect(codes(run(saying('Narrower since 5 August 2026, and again since 5 August 2026.')))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(codes(run(saying('The gap is narrower since 5 August 2026, and again since 5 August 2026.')))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
   });
 
   it('fails a year the facts do not mention', () => {
@@ -263,8 +263,10 @@ describe('G7_ANALYSIS_NEW_VALUE: names', () => {
     });
   });
 
-  it('exempts the first word of the sentence, as the name check for facts does', () => {
-    expect(run(saying('Harlow reported something similar.'))).toEqual({ failures: [], holdReasons: [] });
+  it('does not read the first word as a name: it has its own rule, below', () => {
+    expect(run(saying('Ashvale reported something similar, as Harlow did.')).failures.map((failure) => failure.message)).toEqual([
+      `the analysis sentence at ${ANALYSIS_AT} introduces the name "harlow", which no fact sentence contains`,
+    ]);
   });
 
   it('ignores names on the allow-list, and takes the allow-list from the context', () => {
@@ -292,5 +294,58 @@ describe('G7_ANALYSIS_NEW_VALUE: names', () => {
         'The arm itself weighs 83 kg and draws 650 W in typical use, said Harlow.';
     });
     expect(output).toEqual({ failures: [], holdReasons: [] });
+  });
+});
+
+describe('G7_ANALYSIS_NEW_VALUE: the opening word', () => {
+  it('fails an analysis sentence that opens with a name no fact sentence contains, and says which', () => {
+    expect(run(saying('Harlow reported something similar.')).failures).toEqual([
+      {
+        check: 'G7',
+        code: 'G7_ANALYSIS_NEW_VALUE',
+        message: `the analysis sentence at ${ANALYSIS_AT} introduces the opening word "Harlow", which no fact sentence contains`,
+        where: ANALYSIS_AT,
+      },
+    ]);
+  });
+
+  it.each([
+    ['a function word', 'However, that is normal for a figure quoted as an upper limit.'],
+    ['a name that a fact sentence states', 'Ashvale reported something similar.'],
+    ['a name in another case', 'ASHVALE reported something similar.'],
+    ['a name with a possessive ending', "Ashvale's rate is below the maximum."],
+    ['an ordinary word that a fact sentence uses', 'Picks fell below the maximum.'],
+    ['a word that a fact sentence has only as its own first word', 'Peak speeds are normal for a figure quoted as an upper limit.'],
+    ['a word on the allow-list', 'Monday brought a similar rate.'],
+    ['a lowercase word', 'harlow reported something similar.'],
+    ['a number', '940 picks is below the maximum.'],
+  ])('allows an opening with %s', (_name, text) => {
+    expect(run(saying(text))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('takes the allow-list from the context', () => {
+    expect(codes(run(saying('Harlow reported something similar.')))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(run(saying('Harlow reported something similar.'), { nameAllowList: ['harlow'] })).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('takes the words of the fact sentences only: not another analysis sentence, not a limitation', () => {
+    const second = run((g) => {
+      saying('Harlow reported something similar.')(g);
+      addAnalysis(g, 1);
+      findSentence(g.draft, (sentence) => sentence.text === 'That is a plain reading of the figures.').text = 'Harlow also did.';
+    });
+    expect(codes(second)).toEqual(['G7_ANALYSIS_NEW_VALUE', 'G7_ANALYSIS_NEW_VALUE']);
+
+    const limitation = run(saying('Measurement was not independent.'));
+    expect(codes(limitation)).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+  });
+
+  it('takes a word from a fact sentence anywhere in the piece, the title and the description included', () => {
+    expect(run(saying('Robotics is a field where such gaps are normal.'))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('reports the opening word before the other new values of the sentence', () => {
+    const output = run(saying('Harlow saw 22% less.'));
+    expect(output.failures.map((failure) => failure.message.match(/introduces the (.*?),/)?.[1])).toEqual(['opening word "Harlow"', 'number "22%"']);
   });
 });

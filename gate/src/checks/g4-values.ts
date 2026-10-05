@@ -2,6 +2,7 @@ import type { Check, Failure } from '../gate';
 import { canonicalUnit, dateMatches, parseDateToken, parseNumberToken } from '../normalise';
 import type { ParsedNumber } from '../normalise';
 import type { Claim, ClaimValue } from '../schemas';
+import { claimWords, openingWordAccepted } from '../grounding';
 import { allSentences, describeLocation } from '../sentences';
 import { normaliseQuotes } from '../text';
 import { extractTokens, nameTokensOf } from '../tokens';
@@ -12,6 +13,7 @@ export const G4_CODES = [
   'G4_DATE_UNSUPPORTED',
   'G4_NAME_UNSUPPORTED',
   'G4_VALUE_NOT_IN_SPAN',
+  'G4_INITIAL_WORD_UNSUPPORTED',
 ] as const;
 
 /**
@@ -42,6 +44,13 @@ const claimDate = (value: ClaimValue): string => parseDateToken(value.raw)?.iso 
  * deliberately strict (see `extractTokens`): a false positive only costs a
  * revision round, a false negative would let an invented name through.
  *
+ * The first word of a sentence is not a name token, because every sentence
+ * starts with a capital letter. When it looks like a name it has a rule of its
+ * own (G4_INITIAL_WORD_UNSUPPORTED): it must be a function word from
+ * SENTENCE_STARTERS, or a word of the text, label, quoted passage, name values or
+ * outlet of a claim the sentence cites, or on the allow-list. Without it, a
+ * made-up company at the start of a sentence would only have its second word checked.
+ *
  * Analysis and limitation sentences are not read here. Quoted text is G5's.
  */
 export const checkG4: Check = ({ draft, claims }, ctx) => {
@@ -69,6 +78,13 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
 
     const tokens = extractTokens(sentence.text);
     const fail = (code: string, message: string) => failures.push({ check: 'G4', code, message, where });
+
+    if (tokens.initialWord !== undefined && !openingWordAccepted(tokens.initialWord, claimWords(cited), ctx.nameAllowList)) {
+      fail(
+        'G4_INITIAL_WORD_UNSUPPORTED',
+        `the sentence at ${where} opens with "${tokens.initialWord}", which is neither an ordinary opening word nor a word of any claim this sentence cites: start with an ordinary word, or cite the claim that mentions it`,
+      );
+    }
 
     const seenNumbers = new Set<string>();
     for (const token of tokens.numbers) {

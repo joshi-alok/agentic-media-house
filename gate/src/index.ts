@@ -4,6 +4,7 @@ export * from './checks';
 export * from './config';
 export * from './constants';
 export * from './gate';
+export * from './grounding';
 export * from './limitations';
 export * from './normalise';
 export * from './render';

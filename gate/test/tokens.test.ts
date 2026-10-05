@@ -13,6 +13,7 @@ describe('extractTokens: the shape of the result', () => {
       numbers: [{ raw: '$450 million', value: '450000000', unit: 'USD' }],
       dates: [{ raw: '29 September 2026', iso: '2026-09-29', precision: 'day' }],
       names: ['robotics', 'corvane', 'partners'],
+      initialWord: 'Fixture',
     });
   });
 
@@ -24,6 +25,7 @@ describe('extractTokens: the shape of the result', () => {
       ],
       dates: [],
       names: [],
+      initialWord: 'Peak',
     });
   });
 
@@ -40,7 +42,7 @@ describe('extractTokens: the shape of the result', () => {
 describe('extractTokens: quoted text is left to G5', () => {
   it('removes quoted segments before looking for tokens', () => {
     const text = 'The CEO said "Acme Robotics Ltd will ship 500 units on 3 May 2027" on Monday.';
-    expect(extractTokens(text)).toEqual({ numbers: [], dates: [], names: ['ceo', 'monday'] });
+    expect(extractTokens(text)).toEqual({ numbers: [], dates: [], names: ['ceo', 'monday'], initialWord: 'The' });
   });
 
   it('removes curly-quoted segments too', () => {
@@ -238,6 +240,49 @@ describe('extractTokens: names', () => {
   it('cannot see a name that starts with a lowercase letter (iRobot, xAI)', () => {
     // A known gap that the model verifier (G10) covers.
     expect(names('Shipments by iRobot and xAI rose.')).toEqual([]);
+  });
+});
+
+describe('extractTokens: the first word', () => {
+  const initial = (text: string) => extractTokens(text).initialWord;
+
+  it.each([
+    ['Harlow Logistics plans a plant.', 'Harlow'],
+    ['Shipments began in the spring.', 'Shipments'],
+    ['The arm shipped.', 'The'],
+    ['However, the arm shipped.', 'However'],
+    ['CEO Jane Doe resigned.', 'CEO'],
+    ['FX-1 arms shipped.', 'FX-1'],
+    ['H1 results rose.', 'H1'],
+    ['(Fixture) arms shipped.', 'Fixture'],
+    ["Brindle's plant opened.", "Brindle's"],
+    ['A plant opened.', 'A'],
+  ])('reports the first word of %j, as written: %j', (text, expected) => {
+    expect(initial(text)).toBe(expected);
+  });
+
+  it.each([
+    ['shipments began in the spring.'],
+    ['iRobot opened a plant.'],
+    ['24 August 2026, Fixture shipped it.'],
+    ['12 kg Acme arms.'],
+    ['$450 million was raised.'],
+    ['2026 will be the year.'],
+    ['"Quoted words," said Jane.'],
+    [''],
+    ['...'],
+  ])('reports no first word for %j', (text) => {
+    expect(extractTokens(text)).not.toHaveProperty('initialWord');
+  });
+
+  it('keeps the first word out of the list of names, which starts at the second word', () => {
+    const tokens = extractTokens('Harlow Logistics plans a plant.');
+    expect(tokens.initialWord).toBe('Harlow');
+    expect(tokens.names).toEqual(['logistics']);
+  });
+
+  it('reads the first word after the quoted passage is taken out', () => {
+    expect(initial('"We shipped," Harlow said.')).toBe('Harlow');
   });
 });
 

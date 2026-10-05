@@ -15,8 +15,15 @@ export interface DateToken extends ParsedDate {
 export interface SentenceTokens {
   numbers: NumberToken[];
   dates: DateToken[];
-  /** Lowercased name tokens, each listed once, in order of first appearance. */
+  /** Lowercased name tokens, each listed once, in order of first appearance. The first word of the sentence is not among them. */
   names: string[];
+  /**
+   * The first word of the sentence as written, without the punctuation around
+   * it, when it would have been a name token had it not been first: it starts
+   * with a capital letter or mixes letters and digits. Absent otherwise,
+   * for example when the sentence opens with a lowercase word, a number or a date.
+   */
+  initialWord?: string;
 }
 
 // A date or number that has been read is replaced by this lowercase word. It
@@ -69,7 +76,10 @@ export function nameTokensOf(name: string): string[] {
  * 3. Numbers are digit-led tokens with an optional currency, magnitude and
  *    unit. Alphanumeric mixes such as FX-1, H1 and B2B are names, not numbers.
  * 4. Names are what is left: every word except the sentence's first that
- *    starts with an uppercase letter or mixes letters and digits.
+ *    starts with an uppercase letter or mixes letters and digits. The first
+ *    word is every sentence's capital letter, so it is not a name token; when
+ *    it looks like one it is reported as `initialWord`, and the checks ground it
+ *    with `openingWordAccepted` instead.
  *
  * Name detection is deliberately strict: it reports any capitalised word, so
  * an ordinary capitalised word costs a revision round. It cannot see a name
@@ -93,6 +103,9 @@ export function extractTokens(sentenceText: string): SentenceTokens {
     return parsed !== null;
   });
 
-  const names = sentenceWords(withoutNumbers).slice(1).filter(isNameWord).map(toNameToken);
-  return { numbers, dates, names: [...new Set(names)] };
+  const [first, ...rest] = sentenceWords(withoutNumbers);
+  const names = rest.filter(isNameWord).map(toNameToken);
+  const tokens: SentenceTokens = { numbers, dates, names: [...new Set(names)] };
+  if (first !== undefined && isNameWord(first)) tokens.initialWord = first;
+  return tokens;
 }

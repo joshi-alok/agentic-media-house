@@ -45,7 +45,7 @@ function mini(text: string, claims: Claim[], cited: string[] = claims.map((claim
       categories: ['humanoids'],
       author: { name: 'Robywire Desk' },
       title: { kind: 'fact', text, claimIds: cited },
-      description: { kind: 'fact', text: 'Ok.', claimIds: cited },
+      description: { kind: 'fact', text: 'It is fine.', claimIds: cited },
       opening: [],
       takeaways: [],
       sections: [],
@@ -88,8 +88,8 @@ describe('G4 numbers: the same figure written differently is supported', () => {
     ['It lifts 12.', num('12 kg', '12', 'kg')],
     ['It moves at 2.3 m/s.', num('2.3 metres per second', '2.3', 'm/s')],
     ['It moves at 2.3 metres per second.', num('2.3 m/s', '2.3', 'm/s')],
-    ['Cycle time fell 18%.', num('18 per cent', '18', '%')],
-    ['Cycle time fell 18 percent.', num('18%', '18', '%')],
+    ['The cycle time fell 18%.', num('18 per cent', '18', '%')],
+    ['The cycle time fell 18 percent.', num('18%', '18', '%')],
     ['It raised $450 million.', num('USD 450 million', '450000000', 'USD')],
     ['It raised $450M.', num('$450 million', '450000000', 'USD')],
     ['It raised USD 450 million.', num('$450m', '450000000', 'USD')],
@@ -110,7 +110,7 @@ describe('G4 numbers: a different figure, or a different unit, is not supported'
     ['It lifts 1.2 kg.', num('12 kg', '12', 'kg')],
     ['It reaches 1 km.', num('1000 m', '1000', 'm')],
     ['It does 1,200 picks an hour.', num('1.3k', '1300')],
-    ['Cycle time fell 19%.', num('18 per cent', '18', '%')],
+    ['The cycle time fell 19%.', num('18 per cent', '18', '%')],
     ['It raised $45 million.', num('USD 450 million', '450000000', 'USD')],
     ['It raised $450 million.', num('EUR 450 million', '450000000', 'EUR')],
     ['It raised $450 million.', num('450 million', '450000000')],
@@ -231,11 +231,11 @@ describe('G4 dates', () => {
 
 describe('G4 names', () => {
   it('accepts a name that a cited claim lists as a name value', () => {
-    expect(codes(mini('Shipments by Acme rose.', [claimOf([who('Acme')])]))).toEqual([]);
+    expect(codes(mini('The shipments by Acme rose.', [claimOf([who('Acme')])]))).toEqual([]);
   });
 
   it('rejects a name that no cited claim lists', () => {
-    const out = run(mini('Shipments by Acme rose.', [claimOf([who('Fixture Robotics')])]));
+    const out = run(mini('The shipments by Acme rose.', [claimOf([who('Fixture Robotics')])]));
     expect(out.failures).toEqual([
       {
         check: 'G4',
@@ -249,51 +249,144 @@ describe('G4 names', () => {
 
   it('compares each word of a multi-word name, in any case', () => {
     const claim = claimOf([who('Brindle Logistics')]);
-    expect(codes(mini('Plans at Brindle Logistics grew.', [claim]))).toEqual([]);
-    expect(codes(mini('Plans at the Logistics site grew.', [claim]))).toEqual([]);
-    expect(codes(mini('Plans at Brindle Freight grew.', [claim]))).toEqual(['G4_NAME_UNSUPPORTED']);
+    expect(codes(mini('The plans at Brindle Logistics grew.', [claim]))).toEqual([]);
+    expect(codes(mini('The plans at the Logistics site grew.', [claim]))).toEqual([]);
+    expect(codes(mini('The plans at Brindle Freight grew.', [claim]))).toEqual(['G4_NAME_UNSUPPORTED']);
   });
 
   it('reads a possessive as the name', () => {
-    expect(codes(mini("Plans at Acme's plant grew.", [claimOf([who('Acme')])]))).toEqual([]);
-    expect(codes(mini('Plans at Acme\u2019s plant grew.', [claimOf([who('Acme')])]))).toEqual([]);
+    expect(codes(mini("The plans at Acme's plant grew.", [claimOf([who('Acme')])]))).toEqual([]);
+    expect(codes(mini('The plans at Acme\u2019s plant grew.', [claimOf([who('Acme')])]))).toEqual([]);
   });
 
   it('accepts a model name and an acronym that a claim lists', () => {
-    expect(codes(mini('Sales of the FX-1 and the ISO rules rose.', [claimOf([who('FX-1'), who('ISO')])]))).toEqual([]);
-    expect(codes(mini('Sales of the FX-1 rose.', [claimOf([who('FX-2')])]))).toEqual(['G4_NAME_UNSUPPORTED']);
+    expect(codes(mini('The sales of the FX-1 and the ISO rules rose.', [claimOf([who('FX-1'), who('ISO')])]))).toEqual([]);
+    expect(codes(mini('The sales of the FX-1 rose.', [claimOf([who('FX-2')])]))).toEqual(['G4_NAME_UNSUPPORTED']);
   });
 
   it('accepts a name listed by any one of the cited claims, but not by a claim that is not cited', () => {
     const a = claimOf([who('Acme')], { id: 'c-1' });
     const b = claimOf([who('Zenith')], { id: 'c-2' });
-    expect(codes(mini('Plans at Acme and Zenith grew.', [a, b]))).toEqual([]);
-    expect(codes(mini('Plans at Acme and Zenith grew.', [a, b], ['c-1']))).toEqual(['G4_NAME_UNSUPPORTED']);
+    expect(codes(mini('The plans at Acme and Zenith grew.', [a, b]))).toEqual([]);
+    expect(codes(mini('The plans at Acme and Zenith grew.', [a, b], ['c-1']))).toEqual(['G4_NAME_UNSUPPORTED']);
   });
 
   it('does not take a name from the claim text, only from its name values', () => {
     const claim = claimOf([num('12 kg', '12', 'kg')], { text: 'Acme lifts 12 kg.' });
-    expect(codes(mini('Plans at Acme grew by 12 kg.', [claim]))).toEqual(['G4_NAME_UNSUPPORTED']);
+    expect(codes(mini('The plans at Acme grew by 12 kg.', [claim]))).toEqual(['G4_NAME_UNSUPPORTED']);
   });
 
   it('accepts a word on the allow-list without a claim, and an allow-list passed in the context', () => {
     expect(codes(mini('It shipped in August, on a Monday, said the CEO of the US firm.', [claimOf([])]))).toEqual([]);
-    expect(codes(mini('Plans at Acme grew.', [claimOf([])]))).toEqual(['G4_NAME_UNSUPPORTED']);
-    expect(codes(mini('Plans at Acme grew.', [claimOf([])]), { nameAllowList: ['acme'] })).toEqual([]);
+    expect(codes(mini('The plans at Acme grew.', [claimOf([])]))).toEqual(['G4_NAME_UNSUPPORTED']);
+    expect(codes(mini('The plans at Acme grew.', [claimOf([])]), { nameAllowList: ['acme'] })).toEqual([]);
   });
 
-  it('exempts the first word of the sentence, so a sentence-initial name is not caught here', () => {
-    expect(codes(mini('Acme ships arms.', [claimOf([])]))).toEqual([]);
+  it('leaves the first word of the sentence to its own rule, which is about opening words', () => {
+    const out = run(mini('Acme ships arms.', [claimOf([])]));
+    expect(out.failures.map((failure) => failure.code)).toEqual(['G4_INITIAL_WORD_UNSUPPORTED']);
+    expect(codes(mini('Acme ships arms.', [claimOf([who('Acme')])]))).toEqual([]);
   });
 
   it('is deliberately strict: a capitalised ordinary word is reported, and a revision fixes it', () => {
-    expect(codes(mini('Sales rose, Analysts said.', [claimOf([])]))).toEqual(['G4_NAME_UNSUPPORTED']);
-    expect(codes(mini('Sales rose, analysts said.', [claimOf([])]))).toEqual([]);
+    expect(codes(mini('The sales rose, Analysts said.', [claimOf([])]))).toEqual(['G4_NAME_UNSUPPORTED']);
+    expect(codes(mini('The sales rose, analysts said.', [claimOf([])]))).toEqual([]);
   });
 
   it('reports each unsupported name once', () => {
-    const out = run(mini('Plans at Acme and Acme and Zenith grew.', [claimOf([])]));
+    const out = run(mini('The plans at Acme and Acme and Zenith grew.', [claimOf([])]));
     expect(out.failures.map((failure) => failure.message.match(/"([^"]+)"/)?.[1])).toEqual(['acme', 'zenith']);
+  });
+});
+
+describe('G4 opening words', () => {
+  const failure = (text: string, claims: Claim[], cited?: string[], overrides?: ContextOverrides) =>
+    run(mini(text, claims, cited), overrides).failures.filter((item) => item.code === 'G4_INITIAL_WORD_UNSUPPORTED');
+
+  it('rejects a made-up company at the start of a sentence, and says which word and where', () => {
+    const out = run(mini('Harlow Logistics plans a plant at Tarnmoor.', [claimOf([who('Brindle Logistics'), who('Tarnmoor')])]));
+    expect(out.failures).toEqual([
+      {
+        check: 'G4',
+        code: 'G4_INITIAL_WORD_UNSUPPORTED',
+        message:
+          'the sentence at title opens with "Harlow", which is neither an ordinary opening word nor a word of any claim this sentence cites: start with an ordinary word, or cite the claim that mentions it',
+        where: 'title',
+      },
+    ]);
+  });
+
+  it('reports the made-up company in the golden piece, at the sentence where it opens', () => {
+    const failures = goldenCodes((g) => {
+      findSentence(g.draft, (sentence) => sentence.text.startsWith('Brindle Logistics plans to use')).text =
+        'Harlow Logistics plans to use the arms at Tarnmoor for inbound trailer unloading.';
+    });
+    expect(failures).toEqual(['G4_INITIAL_WORD_UNSUPPORTED']);
+  });
+
+  it.each([
+    ['a function word', 'However, the arm shipped.'],
+    ['a function word in capitals', 'THE arm shipped.'],
+    ['a function word with a possessive ending', "It's an arm."],
+    ['a lowercase word', 'shipments began in the spring.'],
+    ['a number', '12 kg is the rated payload.'],
+    ['a date', '29 September 2026 was the day.'],
+  ])('does not apply to %s', (_name, text) => {
+    expect(failure(text, [claimOf([])])).toEqual([]);
+  });
+
+  it('accepts an opening word that appears in the span of a cited claim', () => {
+    const claim = claimOf([], { span: { start: 0, end: 30, quote: 'Shipments began in the spring' } });
+    expect(failure('Shipments began at the plant.', [claim])).toEqual([]);
+    expect(failure('SHIPMENTS began at the plant.', [claim])).toEqual([]);
+  });
+
+  it('accepts an opening word that appears in the text, the label, or a name value of a cited claim', () => {
+    expect(failure('Rollout began.', [claimOf([], { text: 'The rollout began.' })])).toEqual([]);
+    expect(failure('Rollout began.', [claimOf([], { label: 'rollout' })])).toEqual([]);
+    expect(failure('Rollout began.', [claimOf([who('Rollout')])])).toEqual([]);
+  });
+
+  it('accepts the outlet of a cited claim, which an attributed sentence has to name', () => {
+    const claim = claimOf([num('7', '7')], { source: { ...claimOf([]).source, tier: 2, outlet: 'Mercer Wire' } });
+    expect(failure('Mercer Wire says 7 plants opened.', [claim])).toEqual([]);
+  });
+
+  it('accepts an opening word that is on the allow-list, and an allow-list passed in the context', () => {
+    expect(failure('August shipments rose.', [claimOf([])])).toEqual([]);
+    expect(failure('Harlow shipments rose.', [claimOf([])])).toHaveLength(1);
+    expect(failure('Harlow shipments rose.', [claimOf([])], undefined, { nameAllowList: ['harlow'] })).toEqual([]);
+  });
+
+  it('matches a whole word only', () => {
+    const claim = claimOf([], { span: { start: 0, end: 30, quote: 'Shipments began in the spring' } });
+    expect(failure('Ship plans rose.', [claim])).toHaveLength(1);
+    expect(failure('Shipment plans rose.', [claim])).toHaveLength(1);
+  });
+
+  it('does not take the word from a claim the sentence does not cite', () => {
+    const cited = claimOf([], { id: 'c-1' });
+    const other = claimOf([], { id: 'c-2', span: { start: 0, end: 30, quote: 'Shipments began in the spring' } });
+    expect(failure('Shipments began.', [cited, other], ['c-1'])).toHaveLength(1);
+    expect(failure('Shipments began.', [cited, other], ['c-2'])).toEqual([]);
+  });
+
+  it('judges the sentence on its own claims when there are none', () => {
+    expect(failure('Shipments began.', [claimOf([])], [])).toHaveLength(1);
+  });
+
+  it('reads fact sentences only, each at its own place', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      g.draft.opening[1]!.text = 'Harlow now runs 40 of the arms.';
+      findSentence(g.draft, (sentence) => sentence.kind === 'analysis').text = 'Harlow sits below the maximum.';
+      g.draft.limitations[0]!.text = 'Harlow wrote this.';
+    });
+    expect(summary(checkG4(input, defaultContext()).failures)).toEqual([['G4_INITIAL_WORD_UNSUPPORTED', 'opening, sentence 2']]);
+  });
+
+  it('reports the opening word before the other failures of the sentence', () => {
+    const out = run(mini('Harlow lifts 13 kg.', [claimOf([num('12 kg', '12', 'kg')])]));
+    expect(out.failures.map((item) => item.code)).toEqual(['G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED']);
   });
 });
 
@@ -303,24 +396,24 @@ describe('G4 names: the outlet of a tier-2 claim', () => {
 
   it('is a name the sentence may use, because an attribution has to say who reported it', () => {
     const claim = fromOutlet('c-1', 'The Robot Report');
-    expect(codes(mini('Sales rose to 7, The Robot Report says.', [claim]))).toEqual([]);
+    expect(codes(mini('The sales rose to 7, The Robot Report says.', [claim]))).toEqual([]);
   });
 
   it('is accepted word by word, in any case', () => {
-    expect(codes(mini('Sales rose to 7, says MERCER wire.', [fromOutlet('c-1', 'Mercer Wire')]))).toEqual([]);
+    expect(codes(mini('The sales rose to 7, says MERCER wire.', [fromOutlet('c-1', 'Mercer Wire')]))).toEqual([]);
   });
 
   it('is not accepted from a claim the sentence does not cite', () => {
     const claim = fromOutlet('c-2', 'Mercer Wire');
-    expect(codes(mini('Sales rose to 7, says Mercer Wire.', [claim], ['c-2']))).toEqual([]);
-    expect(codes(mini('Sales rose to 7, says Mercer Wire.', [claim, claimOf([num('7', '7')], { id: 'c-1' })], ['c-1']))).toEqual([
+    expect(codes(mini('The sales rose to 7, says Mercer Wire.', [claim], ['c-2']))).toEqual([]);
+    expect(codes(mini('The sales rose to 7, says Mercer Wire.', [claim, claimOf([num('7', '7')], { id: 'c-1' })], ['c-1']))).toEqual([
       'G4_NAME_UNSUPPORTED',
       'G4_NAME_UNSUPPORTED',
     ]);
   });
 
   it('does not make any other capitalised word acceptable', () => {
-    expect(codes(mini('Sales rose to 7, says Mercer Wire in Harlow.', [fromOutlet('c-1', 'Mercer Wire')]))).toEqual([
+    expect(codes(mini('The sales rose to 7, says Mercer Wire in Harlow.', [fromOutlet('c-1', 'Mercer Wire')]))).toEqual([
       'G4_NAME_UNSUPPORTED',
     ]);
   });
@@ -339,7 +432,7 @@ describe('G4 names: the outlet of a tier-2 claim', () => {
 
 describe('G4: which sentences it reads', () => {
   it('does not read quoted text, which G5 checks', () => {
-    expect(codes(mini('Jane said "Acme ships 500 units on 3 May 2027" today.', [claimOf([])]))).toEqual([]);
+    expect(codes(mini('She said "Acme ships 500 units on 3 May 2027" today.', [claimOf([])]))).toEqual([]);
   });
 
   it('skips analysis sentences', () => {
@@ -416,7 +509,7 @@ describe('G4_VALUE_NOT_IN_SPAN', () => {
 
   it('is case-sensitive, as the quote is a verbatim extract', () => {
     const claim = claimOf([who('Acme')], { span: { start: 0, end: 12, quote: 'made by acme' } });
-    expect(codes(mini('Plans at Acme grew.', [claim]))).toEqual(['G4_VALUE_NOT_IN_SPAN']);
+    expect(codes(mini('The plans at Acme grew.', [claim]))).toEqual(['G4_VALUE_NOT_IN_SPAN']);
   });
 
   it('only looks at claims that a fact sentence cites', () => {
@@ -466,6 +559,6 @@ describe('G4 on the golden piece: one change at a time', () => {
     const codesFound = goldenCodes((g) => {
       findSentence(g.draft, (sentence) => sentence.text.startsWith('Peak tool speed')).claimIds = ['c-12', 'c-13'];
     });
-    expect(codesFound).toEqual(['G4_NUMBER_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED']);
+    expect(codesFound).toEqual(['G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED']);
   });
 });

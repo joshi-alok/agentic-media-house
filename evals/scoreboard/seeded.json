@@ -1,6 +1,6 @@
 {
-  "total": 40,
-  "caught": 40,
+  "total": 42,
+  "caught": 42,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -159,6 +159,13 @@
       "caught": true
     },
     {
+      "id": "invented-name-at-sentence-start",
+      "check": "G4",
+      "code": "G4_INITIAL_WORD_UNSUPPORTED",
+      "description": "A sentence opens with a company, Harlow Logistics, that the claim it cites never mentions.",
+      "caught": true
+    },
+    {
       "id": "value-outside-span",
       "check": "G4",
       "code": "G4_VALUE_NOT_IN_SPAN",
@@ -219,6 +226,13 @@
       "check": "G7",
       "code": "G7_ANALYSIS_NEW_VALUE",
       "description": "An analysis sentence works out a percentage, 22%, that no fact sentence states.",
+      "caught": true
+    },
+    {
+      "id": "analysis-invented-initial-word",
+      "check": "G7",
+      "code": "G7_ANALYSIS_NEW_VALUE",
+      "description": "An analysis sentence opens with a company, Harlow, that no fact sentence mentions.",
       "caught": true
     },
     {

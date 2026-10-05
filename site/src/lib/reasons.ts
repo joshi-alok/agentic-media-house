@@ -23,6 +23,7 @@ export const REASON_LABELS: Readonly<Record<string, string>> = {
   G4_DATE_UNSUPPORTED: 'A date was not in the claims it cites',
   G4_NAME_UNSUPPORTED: 'A name was not in the claims it cites',
   G4_VALUE_NOT_IN_SPAN: 'A claim listed a value its source passage does not contain',
+  G4_INITIAL_WORD_UNSUPPORTED: 'A sentence opened with a name that no claim supports',
   G5_QUOTE_NOT_VERBATIM: 'A quotation was not word for word',
   G6_TIER2_UNATTRIBUTED: 'Another outlet was used without naming it',
   G6_TIER2_IN_ANALYSIS: 'Analysis rested on another outlet',
