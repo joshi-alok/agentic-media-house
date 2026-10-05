@@ -1,0 +1,270 @@
+import { describe, expect, it } from 'vitest';
+import { UNIT_ALIASES } from '../src/normalise';
+import { extractTokens, nameTokensOf, toNameToken } from '../src/tokens';
+
+const names = (text: string) => extractTokens(text).names;
+const numbers = (text: string) => extractTokens(text).numbers.map((token) => [token.value, token.unit]);
+const dates = (text: string) => extractTokens(text).dates.map((token) => token.iso);
+
+describe('extractTokens: the shape of the result', () => {
+  it('finds numbers, dates and names in a golden-style sentence', () => {
+    const text = 'Fixture Robotics reported a $450 million round, led by Corvane Partners, on 29 September 2026.';
+    expect(extractTokens(text)).toEqual({
+      numbers: [{ raw: '$450 million', value: '450000000', unit: 'USD' }],
+      dates: [{ raw: '29 September 2026', iso: '2026-09-29', precision: 'day' }],
+      names: ['robotics', 'corvane', 'partners'],
+    });
+  });
+
+  it('keeps the raw text, the canonical value and the unit of each number', () => {
+    expect(extractTokens('Peak tool speed is 2.3 m/s, and repeatability is 0.05 mm.')).toEqual({
+      numbers: [
+        { raw: '2.3 m/s', value: '2.3', unit: 'm/s' },
+        { raw: '0.05 mm', value: '0.05', unit: 'mm' },
+      ],
+      dates: [],
+      names: [],
+    });
+  });
+
+  it('omits the unit key when a number has no unit', () => {
+    expect(extractTokens('It does 1,200 picks an hour.').numbers).toEqual([{ raw: '1,200', value: '1200' }]);
+  });
+
+  it('returns three empty lists for a sentence with no tokens', () => {
+    expect(extractTokens('the arm moves quickly and quietly.')).toEqual({ numbers: [], dates: [], names: [] });
+    expect(extractTokens('')).toEqual({ numbers: [], dates: [], names: [] });
+  });
+});
+
+describe('extractTokens: quoted text is left to G5', () => {
+  it('removes quoted segments before looking for tokens', () => {
+    const text = 'The CEO said "Acme Robotics Ltd will ship 500 units on 3 May 2027" on Monday.';
+    expect(extractTokens(text)).toEqual({ numbers: [], dates: [], names: ['ceo', 'monday'] });
+  });
+
+  it('removes curly-quoted segments too', () => {
+    expect(extractTokens('Jane said \u201CAcme ships 500 units\u201D today.').numbers).toEqual([]);
+  });
+
+  it('does not treat an unterminated quote as quoted text', () => {
+    expect(numbers('He said "stop now 5 kg')).toEqual([['5', 'kg']]);
+  });
+});
+
+describe('extractTokens: dates are taken before numbers and consumed', () => {
+  it('reads a long date as one date and no numbers', () => {
+    const tokens = extractTokens('On 24 August 2026 the company shipped.');
+    expect(tokens.dates).toEqual([{ raw: '24 August 2026', iso: '2026-08-24', precision: 'day' }]);
+    expect(tokens.numbers).toEqual([]);
+    expect(tokens.names).toEqual([]);
+  });
+
+  it('reads an ISO date as one date, not as a year and two numbers', () => {
+    const tokens = extractTokens('The sale closed on 2026-09-29.');
+    expect(tokens.dates).toEqual([{ raw: '2026-09-29', iso: '2026-09-29', precision: 'day' }]);
+    expect(tokens.numbers).toEqual([]);
+  });
+
+  it.each([
+    ['Aug 24, 2026 was the day.', ['2026-08-24']],
+    ['It shipped in August 2026.', ['2026-08']],
+    ['It shipped in 2026.', ['2026']],
+    ['2026 will be the year.', ['2026']],
+    ['Between 2025 and 2027 sales doubled.', ['2025', '2027']],
+    ['Sales from 2025\u20132027 doubled.', ['2025', '2027']],
+    ['Sales from 2025-2027 doubled.', ['2025', '2027']],
+    ['It ran from 1 October 2026 to 30 November 2026.', ['2026-10-01', '2026-11-30']],
+  ])('finds the dates in %j', (text, expected) => {
+    expect(dates(text)).toEqual(expected);
+  });
+
+  it('does not consume month names that belong to a date, but reports a loose month name as a name', () => {
+    expect(names('On 24 August 2026 the company shipped.')).toEqual([]);
+    expect(names('In August the company shipped on Monday.')).toEqual(['august', 'monday']);
+  });
+
+  it('leaves an impossible date as numbers, so it cannot be supported by a real date', () => {
+    const tokens = extractTokens('It shipped on 31 February 2026.');
+    expect(tokens.dates).toEqual([]);
+    expect(numbers('It shipped on 31 February 2026.')).toEqual([
+      ['31', undefined],
+      ['2026', undefined],
+    ]);
+    expect(tokens.names).toEqual(['february']);
+  });
+
+  it('does not find a date inside a code or a word', () => {
+    expect(dates('The FX2026 model and the 2026x model.')).toEqual([]);
+    expect(extractTokens('The FX2026 model and the 2026x model.').names).toEqual(['fx2026', '2026x']);
+  });
+
+  it('reads a four-digit number as a date only when it is a bare year', () => {
+    expect(dates('It lifts 2000 kg.')).toEqual([]);
+    expect(numbers('It lifts 2000 kg.')).toEqual([['2000', 'kg']]);
+    expect(dates('It costs $2000.')).toEqual([]);
+    expect(numbers('It costs $2000.')).toEqual([['2000', 'USD']]);
+    expect(dates('It sold 1,200 units.')).toEqual([]);
+    expect(dates('It sold 2.5 million units.')).toEqual([]);
+    expect(dates('It grew 2026.5 percent.')).toEqual([]);
+    expect(dates('It sold 1899 units.')).toEqual([]);
+    expect(numbers('It sold 1899 units.')).toEqual([['1899', undefined]]);
+  });
+});
+
+describe('extractTokens: numbers', () => {
+  it.each([
+    ['It does 1,200 picks an hour.', [['1200', undefined]]],
+    ['It does 1.2k picks an hour.', [['1200', undefined]]],
+    ['It lifts 12 kg.', [['12', 'kg']]],
+    ['It lifts 12 kilograms at full reach.', [['12', 'kg']]],
+    ['It moves at 2.3 m/s.', [['2.3', 'm/s']]],
+    ['It moves at 2.3 metres per second.', [['2.3', 'm/s']]],
+    ['Cycle time fell 18% in a month.', [['18', '%']]],
+    ['Cycle time fell 18 per cent in a month.', [['18', '%']]],
+    ['It raised $450 million.', [['450000000', 'USD']]],
+    ['It raised $450M.', [['450000000', 'USD']]],
+    ['It raised USD 450 million.', [['450000000', 'USD']]],
+    ['It draws 650 W and 48 V.', [['650', 'W'], ['48', 'V']]],
+    ['A 6 DoF arm that runs at 100Hz.', [['6', 'DoF'], ['100', 'Hz']]],
+    ['It reaches 1.4 m and weighs 38 kg.', [['1.4', 'm'], ['38', 'kg']]],
+    ['It lifts 5\u201310 kg.', [['5', undefined], ['10', 'kg']]],
+    ['A 12-kg arm.', [['12', undefined]]],
+    ['It sold 40 of them.', [['40', undefined]]],
+    ['(40 units)', [['40', undefined]]],
+    ['It ships 5 million units.', [['5000000', undefined]]],
+  ])('finds the numbers in %j', (text, expected) => {
+    expect(numbers(text)).toEqual(expected);
+  });
+
+  it('prefers the longest unit when scanning, so m/s is not read as m and km/h is not read as km', () => {
+    expect(numbers('At 2.3 m/s.')).toEqual([['2.3', 'm/s']]);
+    expect(numbers('At 12 km/h.')).toEqual([['12', 'km/h']]);
+    expect(numbers('For 5 mins.')).toEqual([['5', 'min']]);
+  });
+
+  it('does not read digits inside a name or an alphanumeric code as numbers', () => {
+    expect(numbers('The FX-1 shipped.')).toEqual([]);
+    expect(numbers('The H1 results and the B2B market.')).toEqual([]);
+    expect(numbers('A COVID-19 delay and the Q3 plan.')).toEqual([]);
+    expect(numbers('The model-2 arm.')).toEqual([]);
+    expect(numbers('The 5G rollout and 3D vision.')).toEqual([]);
+    expect(numbers('Its 2nd plant.')).toEqual([]);
+  });
+
+  it('treats a number that is joined to an unknown unit as a name', () => {
+    expect(extractTokens('Its 5G rollout and 3D vision.').names).toEqual(['5g', '3d']);
+  });
+
+  it('reads every unit the table knows, with or without a space', () => {
+    for (const [alias, unit] of Object.entries(UNIT_ALIASES)) {
+      expect(numbers(`It is 7 ${alias}.`), alias).toEqual([['7', unit]]);
+    }
+  });
+});
+
+describe('extractTokens: names', () => {
+  it('exempts the first word of the sentence, whatever it is', () => {
+    expect(names('Acme ships arms.')).toEqual([]);
+    expect(names('Ships Acme arms.')).toEqual(['acme']);
+    expect(names('Shipments of Acme arms rose.')).toEqual(['acme']);
+  });
+
+  it('exempts nothing when the sentence starts with a number or a date', () => {
+    expect(names('24 August 2026, Fixture shipped it.')).toEqual(['fixture']);
+    expect(names('12 kg Acme arms.')).toEqual(['acme']);
+  });
+
+  it('keeps each word of a multi-word name as its own token', () => {
+    expect(names('Shipments by Brindle Logistics and Corvane Partners rose.')).toEqual([
+      'brindle',
+      'logistics',
+      'corvane',
+      'partners',
+    ]);
+  });
+
+  it('lowercases names and strips a trailing possessive and surrounding punctuation', () => {
+    expect(names('Shipments of Fixture\u2019s arms, (Acme) and Brindle\u2019s plant rose.')).toEqual([
+      'fixture',
+      'acme',
+      'brindle',
+    ]);
+    expect(names("Sales of the arms by Fixture' rose.")).toEqual(['fixture']);
+  });
+
+  it('lists a name once, however often it appears', () => {
+    expect(names('Shipments by Acme and Acme\u2019s rival Acme rose.')).toEqual(['acme']);
+  });
+
+  it('treats acronyms, products and alphanumeric mixes as names', () => {
+    expect(names('Orders for the FX-1 and the H1 and ISO rules rose.')).toEqual(['fx-1', 'h1', 'iso']);
+    expect(names('The CEO and CTO met.')).toEqual(['ceo', 'cto']);
+    expect(names('The B2B market grew.')).toEqual(['b2b']);
+  });
+
+  it('treats a dotted abbreviation as the same name as its plain form', () => {
+    expect(names('Sales in the U.S. and the U.K. rose.')).toEqual(['us', 'uk']);
+  });
+
+  it('does not treat lowercase words as names', () => {
+    expect(names('the arm moves with the load and the speed.')).toEqual([]);
+  });
+
+  it('reads accented capitals', () => {
+    expect(names('Plants in \u00C9vry and Z\u00FCrich opened.')).toEqual(['\u00E9vry', 'z\u00FCrich']);
+  });
+
+  it('treats an en or em dash as a separator, so a name glued on with a dash is still seen', () => {
+    expect(names('The arms\u2014Fixture ships them.')).toEqual(['fixture']);
+    expect(names('The arms\u2013Fixture ships them.')).toEqual(['fixture']);
+  });
+
+  it('still sees a name that is joined to a number or a date by a slash', () => {
+    expect(names('The 12 kg/Fixture ratio rose.')).toEqual(['fixture']);
+    expect(names('The 2026/Fixture plan rose.')).toEqual(['fixture']);
+  });
+
+  it('does not report the unit of a number as a name', () => {
+    expect(names('It draws 650 W at 48 V and 2 Ah with 6 DoF and 100 Hz and 1.2 kW.')).toEqual([]);
+  });
+
+  it('is deliberately strict: a capitalised ordinary word is reported as a name', () => {
+    // False positives send the draft to revision; they never publish it.
+    expect(names('Shipments rose, Analysts said.')).toEqual(['analysts']);
+    expect(names('The Arm shipped.')).toEqual(['arm']);
+  });
+
+  it('cannot see a name that starts with a lowercase letter (iRobot, xAI)', () => {
+    // A known gap that the model verifier (G10) covers.
+    expect(names('Shipments by iRobot and xAI rose.')).toEqual([]);
+  });
+});
+
+describe('toNameToken', () => {
+  it.each([
+    ['Fixture', 'fixture'],
+    ["Fixture's", 'fixture'],
+    ['FX-1', 'fx-1'],
+    ['U.S', 'us'],
+    ['U.K', 'uk'],
+    ["O'Neil", "o'neil"],
+    ['Z\u00FCrich', 'z\u00FCrich'],
+    ['A.I', 'ai'],
+  ])('turns %j into %j', (word, expected) => {
+    expect(toNameToken(word)).toBe(expected);
+  });
+});
+
+describe('nameTokensOf', () => {
+  it.each([
+    ['Brindle Logistics', ['brindle', 'logistics']],
+    ['FX-1', ['fx-1']],
+    ['Dana Whitcombe', ['dana', 'whitcombe']],
+    ['Robotics of Tomorrow, Inc.', ['robotics', 'of', 'tomorrow', 'inc']],
+    ['U.S. Department', ['us', 'department']],
+    ['', []],
+  ])('lists the tokens of the name value %j', (value, expected) => {
+    expect(nameTokensOf(value)).toEqual(expected);
+  });
+});
