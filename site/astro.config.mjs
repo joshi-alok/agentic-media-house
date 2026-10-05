@@ -1,6 +1,7 @@
 import mdx from '@astrojs/mdx';
 import { satteri } from '@astrojs/markdown-satteri';
 import { defineConfig } from 'astro/config';
+import { markdownFeatures } from './markdown-features.mjs';
 
 // A fully static site. Every route is a folder with an index.html, and every
 // internal link ends in a slash.
@@ -9,9 +10,7 @@ export default defineConfig({
   output: 'static',
   trailingSlash: 'always',
   build: { format: 'directory' },
-  // The text of a piece is exactly the text the gate checked: no curly quotes,
-  // no en dashes, no ellipsis characters added by the Markdown processor.
-  markdown: { processor: satteri({ features: { smartPunctuation: false } }) },
+  markdown: { processor: satteri({ features: markdownFeatures }) },
   integrations: [mdx()],
   vite: {
     build: {

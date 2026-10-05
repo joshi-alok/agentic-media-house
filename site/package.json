@@ -26,6 +26,7 @@
   "devDependencies": {
     "@astrojs/check": "0.9.10",
     "diff": "9.0.0",
+    "satteri": "0.10.5",
     "typescript": "6.0.3"
   }
 }

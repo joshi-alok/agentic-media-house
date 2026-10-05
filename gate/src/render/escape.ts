@@ -1,19 +1,14 @@
 // Escaping for the MDX renderer. A sentence comes from a model, so it is
 // treated as hostile text: after escaping, an MDX parser must read it as plain
-// prose and nothing else. The rules were checked against the MDX parser that
-// Astro uses (site/test/escape-mdx.test.ts runs a hostile list through it).
+// prose and nothing else. site/test/escape-mdx.test.ts runs a hostile list
+// through the MDX parser that Astro uses, configured as the site configures it.
+//
+// This module assumes GitHub-flavoured Markdown is off (site/markdown-features.mjs).
+// With it on, a bare web or email address in a sentence becomes a link whatever
+// is escaped, so the test fails if someone turns it on.
 
 /** Characters that are escaped wherever they appear, by a backslash in front. */
-const ALWAYS = /[\\`*_{}<>[\]~&|]/g;
-
-/** `://` starts a GFM autolink literal. Escaping the slashes keeps the URL as text. */
-const SCHEME = /:\/\//g;
-
-/** `www.` starts a GFM autolink literal. */
-const WWW = /\bwww\./gi;
-
-/** An at sign makes an email address into a link. */
-const AT_SIGN = /@/g;
+const ALWAYS = /[\\`*_{}<>[\]&]/g;
 
 /** MDX reads a line that starts with `import` or `export` as JavaScript. */
 const ESM_KEYWORD = /^(\s*)(import|export)(?![\p{L}\p{N}_])/u;
@@ -35,17 +30,14 @@ function escapeLineStart(line: string): string {
 }
 
 /**
- * `text` made safe as MDX prose. Every character MDX or GFM could act on is
- * escaped, and the characters that only matter at the start of a line (`#`,
+ * `text` made safe as MDX prose. Every character that MDX or Markdown could act
+ * on is escaped, and the characters that only matter at the start of a line (`#`,
  * `-`, `+`, `=`, a list number, `import`, `export`) are escaped on every line of
  * the text. Rendered, the result reads exactly like `text`.
  */
 export function escapeMdx(text: string): string {
   return text
     .replace(ALWAYS, (char) => `\\${char}`)
-    .replace(SCHEME, ':\\/\\/')
-    .replace(WWW, (found) => `${found.slice(0, 3)}\\.`)
-    .replace(AT_SIGN, '\\@')
     .split('\n')
     .map(escapeLineStart)
     .join('\n');

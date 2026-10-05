@@ -33,9 +33,7 @@ describe('escapeMdx: characters escaped wherever they appear', () => {
     ['curly braces', 'Use {x} here', 'Use \\{x\\} here'],
     ['angle brackets', 'a <b> and </b>', 'a \\<b\\> and \\</b\\>'],
     ['square brackets', 'see [1] and [a](b)', 'see \\[1\\] and \\[a\\](b)'],
-    ['a tilde', 'about ~5 kg', 'about \\~5 kg'],
     ['an ampersand', 'AT&T and &copy;', 'AT\\&T and \\&copy;'],
-    ['a pipe', 'a | b', 'a \\| b'],
     ['a greater-than sign in the middle of a line', 'a > b', 'a \\> b'],
   ])('escapes %s', (_label, text, expected) => {
     expect(escapeMdx(text)).toBe(expected);
@@ -79,17 +77,6 @@ describe('escapeMdx: lines that MDX would read as an import or export', () => {
 
   it('leaves a word that merely starts with the keyword', () => {
     expect(escapeMdx('important news, exported goods, imports')).toBe('important news, exported goods, imports');
-  });
-});
-
-describe('escapeMdx: text that GFM would turn into a link', () => {
-  it.each([
-    ['a URL with a scheme', 'see https://a.example/x', 'see https:\\/\\/a.example/x'],
-    ['a www address', 'see www.a.example', 'see www\\.a.example'],
-    ['a WWW address in capitals', 'see WWW.A.EXAMPLE', 'see WWW\\.A.EXAMPLE'],
-    ['an email address', 'write to me@a.example', 'write to me\\@a.example'],
-  ])('breaks up %s', (_label, text, expected) => {
-    expect(escapeMdx(text)).toBe(expected);
   });
 });
 
