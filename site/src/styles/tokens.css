@@ -1,0 +1,33 @@
+/* Design tokens. Colour means something here: blue is a link or a receipt,
+   green and red appear only for a gate that passed or failed, and everything
+   else is grey. Light and dark follow the system setting; there is no toggle.
+   Every text colour reaches 4.5:1 on both grounds in both schemes
+   (site/test/contrast.test.ts). The light link began as #1F6FEB, which reaches
+   only 4.3:1 on paper, so it is #1B66DF. */
+:root {
+  color-scheme: light dark;
+
+  --bg: #FFFFFF;
+  --paper: #F6F7F8;
+  --line: #E4E7EA;
+  --line-2: #C9CDD2;
+  --t1: #14181D;
+  --t2: #5B6470;
+  --link: #1B66DF;
+  --pass: #0E7C3A;
+  --fail: #C4262C;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1216;
+    --paper: #151A20;
+    --line: #232A32;
+    --line-2: #343D47;
+    --t1: #E8ECF0;
+    --t2: #9AA6B2;
+    --link: #6EA8FF;
+    --pass: #3DD68C;
+    --fail: #FF7A7F;
+  }
+}

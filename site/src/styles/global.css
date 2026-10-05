@@ -1,0 +1,238 @@
+/* Reset, base type and the pieces shared by every page. System fonts only, so
+   the site makes no font requests. One-pixel hairlines and square corners
+   throughout. Focus rings are outlines, which are not borders, so they may be
+   two pixels wide. There is no motion. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-radius: 0;
+}
+
+html {
+  font-size: 106.25%;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (min-width: 48em) {
+  html {
+    font-size: 112.5%;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--t1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 2rem;
+}
+
+h2 {
+  font-size: 1.35rem;
+}
+
+h3 {
+  font-size: 1.1rem;
+}
+
+p,
+ul,
+ol,
+dl,
+blockquote,
+table {
+  margin: 0 0 1em;
+}
+
+a {
+  color: var(--link);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+code,
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+/* Keyboard focus: a two-pixel outline in the link colour. */
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+/* The page frame. */
+.container {
+  width: 100%;
+  max-width: 72rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+/* Skip link: the first thing a keyboard reaches, hidden until it has focus. */
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -4rem;
+  z-index: 10;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg);
+  color: var(--link);
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* One reading column, about 65 characters wide. */
+.prose {
+  max-width: 65ch;
+}
+
+.prose h2 {
+  margin: 2em 0 0.6em;
+}
+
+.prose ul {
+  padding-left: 1.2em;
+}
+
+.prose li {
+  margin-bottom: 0.4em;
+}
+
+/* A claim marker: a small blue number after a sentence that links to its receipt. */
+.prose a[href*="/receipts/#"] {
+  font-size: 0.7em;
+  line-height: 0;
+  vertical-align: super;
+  text-decoration: none;
+}
+
+.prose a[href*="/receipts/#"] + a[href*="/receipts/#"] {
+  margin-left: 0.3em;
+}
+
+.prose a[href*="/receipts/#"]:hover {
+  text-decoration: underline;
+}
+
+/* Chips: small labels in a hairline box. Green and red mean a gate passed or failed, nothing else. */
+.chip {
+  display: inline-block;
+  padding: 0 0.5em;
+  border: 1px solid var(--line-2);
+  color: var(--t2);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.chip--pass {
+  border-color: var(--pass);
+  color: var(--pass);
+}
+
+.chip--fail {
+  border-color: var(--fail);
+  color: var(--fail);
+}
+
+.chip--tier1 {
+  border-color: var(--t1);
+  color: var(--t1);
+}
+
+.chip--tier2 {
+  border-style: dashed;
+  color: var(--t2);
+}
+
+/* Tables: hairline rows, a firmer line under the header. */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 0.5rem 1rem 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  border-bottom-color: var(--line-2);
+  font-weight: 600;
+}
+
+/* The ledger strip: four plain figures with a label each. */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 1rem 2rem;
+  margin: 0;
+  padding: 1rem 0;
+  border-top: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line);
+}
+
+.stat {
+  margin: 0;
+}
+
+.stat dt {
+  color: var(--t2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stat dd {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
