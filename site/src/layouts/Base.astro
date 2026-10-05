@@ -36,6 +36,7 @@ const image = ogImage === undefined ? undefined : new URL(ogImage, Astro.site).h
     <link rel="canonical" href={canonical} />
     <!-- An empty icon, so that browsers do not ask for /favicon.ico. -->
     <link rel="icon" href="data:," />
+    <link rel="alternate" type="application/rss+xml" title="Robywire" href="/rss.xml" />
     {noindex && <meta name="robots" content="noindex" />}
     <meta property="og:site_name" content="Robywire" />
     <meta property="og:type" content={ogType} />
