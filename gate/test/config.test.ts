@@ -12,6 +12,7 @@ describe('defaultConfig', () => {
       headingMax: 80,
       spanMax: 300,
       titleSimilarityThreshold: 0.6,
+      titleWindowDays: 14,
       bannedPhrases: DEFAULT_BANNED_PHRASES,
     });
   });
@@ -96,13 +97,13 @@ describe('defaultContext', () => {
     expect(ctx.config.openingWords).toEqual({ min: 40, max: 60 });
   });
 
-  it('accepts published slugs as any iterable and recent titles as an array', () => {
+  it('accepts published slugs as any iterable and recent titles, each with its date, as an array', () => {
     const ctx = defaultContext({
       publishedSlugs: ['fixture-robotics-ships-fx-1'],
-      recentTitles: ['An earlier title'],
+      recentTitles: [{ title: 'An earlier title', publishedAt: '2026-10-01' }],
     });
     expect(ctx.publishedSlugs.has('fixture-robotics-ships-fx-1')).toBe(true);
-    expect(ctx.recentTitles).toEqual(['An earlier title']);
+    expect(ctx.recentTitles).toEqual([{ title: 'An earlier title', publishedAt: '2026-10-01' }]);
   });
 
   it('replaces the allow-list when one is given, and lowercases its words', () => {

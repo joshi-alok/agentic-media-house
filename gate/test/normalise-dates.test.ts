@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MONTH_NAMES, dateMatches, parseDateToken } from '../src/normalise';
+import { MONTH_NAMES, dateMatches, dayNumber, parseDateToken } from '../src/normalise';
 import type { ParsedDate } from '../src/normalise';
 
 const day = (iso: string): ParsedDate => ({ iso, precision: 'day' });
@@ -116,6 +116,31 @@ describe('MONTH_NAMES', () => {
       expect(parseDateToken(`15 ${name} 2026`), name).toEqual(day(expected));
     }
   });
+});
+
+describe('dayNumber', () => {
+  it('counts days from 1970-01-01', () => {
+    expect(dayNumber('1970-01-01')).toBe(0);
+    expect(dayNumber('1970-01-02')).toBe(1);
+    expect(dayNumber('1969-12-31')).toBe(-1);
+    expect(dayNumber('2000-01-01')).toBe(10957);
+  });
+
+  it('makes the difference of two dates the number of calendar days between them', () => {
+    expect(dayNumber('2026-10-04')! - dayNumber('2026-09-20')!).toBe(14);
+    expect(dayNumber('2027-01-05')! - dayNumber('2026-12-22')!).toBe(14);
+    expect(dayNumber('2028-03-01')! - dayNumber('2028-02-16')!).toBe(14);
+    expect(dayNumber('2027-03-01')! - dayNumber('2027-02-15')!).toBe(14);
+    expect(dayNumber('2028-03-01')! - dayNumber('2028-02-28')!).toBe(2);
+    expect(dayNumber('2027-03-01')! - dayNumber('2027-02-28')!).toBe(1);
+  });
+
+  it.each(['2026-02-30', '2026-02-29', '2026-13-01', '2026-00-10', '2026-10-00', '2026-8-4', '24 August 2026', '2026', '', '2026-10-04T00:00:00Z', ' 2026-10-04', '2026-10-04 ', '0999-01-01'])(
+    'is undefined for %j, which is not a real date written YYYY-MM-DD',
+    (date) => {
+      expect(dayNumber(date)).toBeUndefined();
+    },
+  );
 });
 
 describe('dateMatches', () => {

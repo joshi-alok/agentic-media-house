@@ -3,7 +3,7 @@ import { ALL_CHECKS, ALL_FAILURE_CODES, CHECK_IDS, checkG3, checkG4, runGateWith
 import { cloneGolden } from '@robywire/gate/fixtures';
 import { sentenceWith } from '../src/cases/support';
 import { runSeeded } from '../src/run';
-import { SEEDED_CASES, SEEDED_PUBLISHED_SLUG, SEEDED_RECENT_TITLE, seededContext } from '../src/seeded';
+import { SEEDED_CASES, SEEDED_PUBLISHED_SLUG, SEEDED_RECENT_PUBLISHED_AT, SEEDED_RECENT_TITLE, seededContext } from '../src/seeded';
 import type { SeededCase } from '../src/seeded';
 
 // The seeded-defect evals: take the golden piece, break it in one known way,
@@ -28,9 +28,16 @@ describe('the baseline', () => {
   it('runs under a context with a published slug and a recent title, so the hygiene cases have something to collide with', () => {
     const ctx = seededContext();
     expect([...ctx.publishedSlugs]).toEqual([SEEDED_PUBLISHED_SLUG]);
-    expect(ctx.recentTitles).toEqual([SEEDED_RECENT_TITLE]);
+    expect(ctx.recentTitles).toEqual([{ title: SEEDED_RECENT_TITLE, publishedAt: SEEDED_RECENT_PUBLISHED_AT }]);
     expect(cloneGolden().draft.slug).not.toBe(SEEDED_PUBLISHED_SLUG);
     expect(cloneGolden().draft.title.text).not.toBe(SEEDED_RECENT_TITLE);
+  });
+
+  it('dates the recent title inside the window, so the duplicate-title case is not ignored as old', () => {
+    const golden = cloneGolden().draft.publishedAt;
+    const days = (Date.parse(golden) - Date.parse(SEEDED_RECENT_PUBLISHED_AT)) / 86_400_000;
+    expect(days).toBeGreaterThanOrEqual(0);
+    expect(days).toBeLessThanOrEqual(seededContext().config.titleWindowDays);
   });
 
   it('gives each caller a fresh context', () => {

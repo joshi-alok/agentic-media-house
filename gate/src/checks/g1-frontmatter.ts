@@ -1,6 +1,6 @@
 import { BEATS, CATEGORY_VOCAB, CROSS_TAGS, DESK_AUTHOR_NAME } from '../constants';
 import type { Check, Failure } from '../gate';
-import { parseDateToken } from '../normalise';
+import { dayNumber } from '../normalise';
 import { SLUG_PATTERN } from '../schemas';
 
 /** Every failure code G1 can report. */
@@ -50,8 +50,7 @@ export const checkG1: Check = ({ draft }, ctx) => {
     );
   }
 
-  // The regex fixes the shape (parseDateToken alone would also take "24 August 2026"); the parser checks the calendar.
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.publishedAt) || parseDateToken(draft.publishedAt)?.precision !== 'day') {
+  if (dayNumber(draft.publishedAt) === undefined) {
     fail('G1_BAD_DATE', `publishedAt "${draft.publishedAt}" is not a real date in the form YYYY-MM-DD`, 'publishedAt');
   }
 

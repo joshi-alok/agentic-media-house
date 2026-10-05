@@ -1,4 +1,5 @@
 import type { Check, Failure } from '../gate';
+import { dayNumber } from '../normalise';
 import { allSentences, describeLocation } from '../sentences';
 import { jaccard, normaliseQuotes } from '../text';
 
@@ -51,7 +52,12 @@ export function titleTokens(title: string): Set<string> {
  *   a free slug with `disambiguateSlug` before it composes; this is the guard.
  * - The title is not a near-duplicate of a recent title (G9_TITLE_DUPLICATE):
  *   the overlap of their word sets, shared words over all words, reaches
- *   `titleSimilarityThreshold`. Only the closest recent title is reported.
+ *   `titleSimilarityThreshold`. A title is recent when it was published on
+ *   the draft's day or up to `titleWindowDays` (14) calendar days before it,
+ *   in UTC; a title dated after the draft is ignored. A date that is not a
+ *   real date, on either side, cannot rule a title out, so that title is
+ *   compared (G1 reports a draft date that is not real). Only the closest
+ *   recent title is reported.
  *   The default 0.6 was calibrated on the pairs in `g9-hygiene.test.ts`.
  *   A rewording that changes most of the words is not caught here; choosing a
  *   story that is not a repeat is the Select stage's job.
@@ -75,11 +81,16 @@ export const checkG9: Check = ({ draft }, ctx) => {
   }
 
   const mine = titleTokens(draft.title.text);
+  const today = dayNumber(draft.publishedAt) ?? NaN;
   let closest: { title: string; score: number } | undefined;
   for (const recent of ctx.recentTitles) {
-    const score = jaccard(mine, titleTokens(recent));
+    // How many days before the draft the title was published. It is NaN when either date is not real, and NaN is
+    // neither below 0 nor above the window, so such a title is compared.
+    const days = today - (dayNumber(recent.publishedAt) ?? NaN);
+    if (days < 0 || days > ctx.config.titleWindowDays) continue;
+    const score = jaccard(mine, titleTokens(recent.title));
     if (score >= ctx.config.titleSimilarityThreshold && (closest === undefined || score > closest.score)) {
-      closest = { title: recent, score };
+      closest = { title: recent.title, score };
     }
   }
   if (closest !== undefined) {

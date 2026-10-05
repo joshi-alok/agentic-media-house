@@ -305,6 +305,19 @@ export function parseDateToken(raw: string): ParsedDate | null {
 }
 
 /**
+ * The number of days from 1970-01-01 (UTC) to `date`, which must be a real
+ * calendar date written exactly YYYY-MM-DD; undefined for anything else
+ * (2026-02-30, 2026-8-4, "24 August 2026", a date with a time, a year before
+ * 1000). The difference of two day numbers is the number of calendar days
+ * between the dates, leap days included, whatever the time zone of the machine.
+ */
+export function dayNumber(date: string): number | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || parseDateToken(date)?.precision !== 'day') return undefined;
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number];
+  return Date.UTC(year, month - 1, day) / 86_400_000;
+}
+
+/**
  * Does a date written in a sentence agree with a date a claim licenses? They
  * match when the claim date is equal at the sentence date's precision: a day
  * needs the same day, a month the same month, a year the same year. A claim

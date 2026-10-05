@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CHECKS } from '../src/checks';
 import { TITLE_STOP_WORDS, checkG9, titleTokens } from '../src/checks/g9-hygiene';
 import { DEFAULT_BANNED_PHRASES, defaultConfig, defaultContext } from '../src/config';
+import type { RecentTitle } from '../src/config';
 import type { ContextOverrides } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import type { CheckOutput, GateInput } from '../src/gate';
@@ -14,6 +15,11 @@ const codes = (output: CheckOutput) => output.failures.map((failure) => failure.
 const GOLDEN_TITLE = 'Fixture Robotics ships its FX-1 warehouse arm to a second plant';
 const GOLDEN_SLUG = 'fixture-robotics-ships-fx-1-to-second-plant';
 
+// The golden piece is dated 2026-10-04. These recent titles are two days older, well inside the window.
+const RECENT_DATE = '2026-10-02';
+const recent = (title: string, publishedAt = RECENT_DATE): RecentTitle => ({ title, publishedAt });
+const recents = (...titles: string[]): RecentTitle[] => titles.map((title) => recent(title));
+
 describe('G9: the golden piece', () => {
   it('passes with no failures and no hold reasons', () => {
     expect(checkG9(cloneGolden(), defaultContext())).toEqual({ failures: [], holdReasons: [] });
@@ -22,7 +28,7 @@ describe('G9: the golden piece', () => {
   it('passes when other pieces are published and recent, as long as they are different', () => {
     const ctx = defaultContext({
       publishedSlugs: ['northgate-unveils-atlas-9', `${GOLDEN_SLUG}-2025`],
-      recentTitles: ['Northgate Dynamics unveils Atlas-9 quadruped for pipeline inspection', 'Standards body publishes new safety rules for warehouse robots'],
+      recentTitles: recents('Northgate Dynamics unveils Atlas-9 quadruped for pipeline inspection', 'Standards body publishes new safety rules for warehouse robots'),
     });
     expect(checkG9(cloneGolden(), ctx)).toEqual({ failures: [], holdReasons: [] });
   });
@@ -34,11 +40,11 @@ describe('G9: the golden piece', () => {
 
   it('does not change its input or its context', () => {
     const input = cloneGolden();
-    const ctx = defaultContext({ publishedSlugs: [GOLDEN_SLUG], recentTitles: [GOLDEN_TITLE] });
+    const ctx = defaultContext({ publishedSlugs: [GOLDEN_SLUG], recentTitles: recents(GOLDEN_TITLE) });
     checkG9(input, ctx);
     expect(input).toEqual(cloneGolden());
     expect([...ctx.publishedSlugs]).toEqual([GOLDEN_SLUG]);
-    expect(ctx.recentTitles).toEqual([GOLDEN_TITLE]);
+    expect(ctx.recentTitles).toEqual(recents(GOLDEN_TITLE));
   });
 });
 
@@ -147,8 +153,8 @@ const DIFFERENT: Pair[] = [
 ];
 
 const score = (pair: Pair) => jaccard(titleTokens(pair.a), titleTokens(pair.b));
-const duplicateOf = (title: string, recent: string, overrides?: ContextOverrides) =>
-  codes(run((g) => (g.draft.title.text = title), { recentTitles: [recent], ...overrides })).includes('G9_TITLE_DUPLICATE');
+const duplicateOf = (title: string, earlier: string, overrides?: ContextOverrides) =>
+  codes(run((g) => (g.draft.title.text = title), { recentTitles: recents(earlier), ...overrides })).includes('G9_TITLE_DUPLICATE');
 
 describe('G9_TITLE_DUPLICATE: calibrating the 0.6 threshold', () => {
   it('starts at 0.6', () => {
@@ -201,7 +207,7 @@ describe('G9_TITLE_DUPLICATE: calibrating the 0.6 threshold', () => {
 describe('G9_TITLE_DUPLICATE', () => {
   it('fails a title that repeats a recent title, and says which and how close', () => {
     const output = run(() => undefined, {
-      recentTitles: ['Fixture Robotics begins shipping FX-1 warehouse arm to second plant'],
+      recentTitles: recents('Fixture Robotics begins shipping FX-1 warehouse arm to second plant'),
     });
     expect(output.failures).toEqual([
       {
@@ -216,11 +222,11 @@ describe('G9_TITLE_DUPLICATE', () => {
 
   it('reports one failure, naming the closest of several recent titles', () => {
     const output = run(() => undefined, {
-      recentTitles: [
+      recentTitles: recents(
         'Fixture Robotics begins shipping FX-1 warehouse arm to second plant', // 8/11
         GOLDEN_TITLE, // identical
         'Fixture Robotics ships FX-1 warehouse arm to third plant', // 8/10
-      ],
+      ),
     });
     expect(output.failures).toHaveLength(1);
     expect(output.failures[0]!.message).toContain(`recent title "${GOLDEN_TITLE}": 1.00 word overlap`);
@@ -228,14 +234,14 @@ describe('G9_TITLE_DUPLICATE', () => {
 
   it('names the first of two recent titles that are equally close', () => {
     const output = run(() => undefined, {
-      recentTitles: ['Fixture Robotics ships FX-1 warehouse arm to second plant', GOLDEN_TITLE],
+      recentTitles: recents('Fixture Robotics ships FX-1 warehouse arm to second plant', GOLDEN_TITLE),
     });
     expect(output.failures[0]!.message).toContain('recent title "Fixture Robotics ships FX-1 warehouse arm to second plant"');
   });
 
   it('ignores a recent title that is not close, and an empty list of recent titles', () => {
     expect(run(() => undefined, { recentTitles: [] }).failures).toEqual([]);
-    expect(run(() => undefined, { recentTitles: ['Northgate Dynamics unveils Atlas-9'] }).failures).toEqual([]);
+    expect(run(() => undefined, { recentTitles: recents('Northgate Dynamics unveils Atlas-9') }).failures).toEqual([]);
   });
 
   it('ignores case, punctuation and stop words in both titles', () => {
@@ -245,6 +251,72 @@ describe('G9_TITLE_DUPLICATE', () => {
 
   it('does not call a title with no words a duplicate of anything', () => {
     expect(duplicateOf('The of', 'The of')).toBe(false);
+  });
+});
+
+describe('G9_TITLE_DUPLICATE: only recent titles count', () => {
+  // The same title as the golden piece's, published on another day.
+  const on = (publishedAt: string, draftDate = '2026-10-04', overrides?: ContextOverrides) =>
+    codes(
+      run((g) => (g.draft.publishedAt = draftDate), { recentTitles: [recent(GOLDEN_TITLE, publishedAt)], ...overrides }),
+    ).includes('G9_TITLE_DUPLICATE');
+
+  it('starts with a window of 14 days', () => {
+    expect(defaultConfig().titleWindowDays).toBe(14);
+  });
+
+  it('counts a title from the same day, from yesterday and from exactly 14 days earlier', () => {
+    expect(on('2026-10-04')).toBe(true);
+    expect(on('2026-10-03')).toBe(true);
+    expect(on('2026-09-20')).toBe(true);
+  });
+
+  it('ignores a title from 15 days earlier, and from long ago', () => {
+    expect(on('2026-09-19')).toBe(false);
+    expect(on('2025-10-04')).toBe(false);
+  });
+
+  it('ignores a title dated after the draft', () => {
+    expect(on('2026-10-05')).toBe(false);
+    expect(on('2027-10-04')).toBe(false);
+  });
+
+  it('counts days across the end of a month, a year and a leap day', () => {
+    expect(on('2026-12-22', '2027-01-05')).toBe(true);
+    expect(on('2026-12-21', '2027-01-05')).toBe(false);
+    expect(on('2028-02-16', '2028-03-01')).toBe(true);
+    expect(on('2028-02-15', '2028-03-01')).toBe(false);
+    expect(on('2027-02-15', '2027-03-01')).toBe(true);
+    expect(on('2027-02-14', '2027-03-01')).toBe(false);
+  });
+
+  it('reads the window from the context', () => {
+    const window = (titleWindowDays: number) => ({ config: { titleWindowDays } });
+    expect(on('2026-10-01', '2026-10-04', window(3))).toBe(true);
+    expect(on('2026-09-30', '2026-10-04', window(3))).toBe(false);
+    expect(on('2026-10-04', '2026-10-04', window(0))).toBe(true);
+    expect(on('2026-10-03', '2026-10-04', window(0))).toBe(false);
+    expect(on('2026-08-05', '2026-10-04', window(60))).toBe(true);
+    expect(on('2026-08-04', '2026-10-04', window(60))).toBe(false);
+  });
+
+  it('skips an old title and names the recent one', () => {
+    const output = run(() => undefined, {
+      recentTitles: [recent(GOLDEN_TITLE, '2026-08-01'), recent('Fixture Robotics begins shipping FX-1 warehouse arm to second plant', '2026-10-01')],
+    });
+    expect(output.failures).toHaveLength(1);
+    expect(output.failures[0]!.message).toContain('"Fixture Robotics begins shipping FX-1 warehouse arm to second plant"');
+  });
+
+  it('compares a recent title whose date is not a real date, because a duplicate is worse than a false alarm', () => {
+    expect(on('yesterday')).toBe(true);
+    expect(on('2026-02-30')).toBe(true);
+    expect(on('')).toBe(true);
+  });
+
+  it('compares every recent title when the draft date is not a real date; G1 reports that date', () => {
+    expect(on('2020-01-01', 'soon')).toBe(true);
+    expect(on('2020-01-01', '')).toBe(true);
   });
 });
 

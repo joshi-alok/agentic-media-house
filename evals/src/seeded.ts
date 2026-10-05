@@ -1,6 +1,6 @@
 import type { CheckId, GateInput } from '@robywire/gate';
 
-export { SEEDED_PUBLISHED_SLUG, SEEDED_RECENT_TITLE, seededContext } from './context';
+export { SEEDED_PUBLISHED_SLUG, SEEDED_RECENT_PUBLISHED_AT, SEEDED_RECENT_TITLE, seededContext } from './context';
 export { SEEDED_CASES } from './cases';
 
 /**

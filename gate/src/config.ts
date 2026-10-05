@@ -22,6 +22,8 @@ export interface GateConfig {
   spanMax: number;
   /** G9: a new title whose word overlap with a recent title reaches this is a near-duplicate. */
   titleSimilarityThreshold: number;
+  /** G9: a title counts as recent when it was published on the draft's day or up to this many days before it. */
+  titleWindowDays: number;
   /** G9: phrases that must not appear anywhere in the piece. Lowercase, plain apostrophes. */
   bannedPhrases: readonly string[];
 }
@@ -78,8 +80,15 @@ export function defaultConfig(): GateConfig {
     headingMax: 80,
     spanMax: 300,
     titleSimilarityThreshold: 0.6,
+    titleWindowDays: 14,
     bannedPhrases: DEFAULT_BANNED_PHRASES,
   };
+}
+
+/** The title of a piece that has been published, and the day it was published (YYYY-MM-DD). */
+export interface RecentTitle {
+  title: string;
+  publishedAt: string;
 }
 
 /** Everything a check needs besides the draft and the claims. */
@@ -87,8 +96,12 @@ export interface GateContext {
   config: GateConfig;
   /** Slugs of pieces already published (G9 rejects a slug collision). */
   publishedSlugs: ReadonlySet<string>;
-  /** Titles of recent pieces (G9 rejects a near-duplicate title). */
-  recentTitles: readonly string[];
+  /**
+   * Titles of published pieces with their dates. G9 rejects a title that is a
+   * near-duplicate of one published within `config.titleWindowDays` before the
+   * draft's own date. The list may hold older titles too; they are ignored.
+   */
+  recentTitles: readonly RecentTitle[];
   /** Lowercase words G4 accepts as names without a claim. */
   nameAllowList: ReadonlySet<string>;
 }
@@ -97,7 +110,7 @@ export interface ContextOverrides {
   /** Merged over the default thresholds, field by field. */
   config?: Partial<GateConfig>;
   publishedSlugs?: Iterable<string>;
-  recentTitles?: readonly string[];
+  recentTitles?: readonly RecentTitle[];
   /** Replaces the default allow-list. Spread DEFAULT_NAME_ALLOW_LIST into it to extend the default. */
   nameAllowList?: Iterable<string>;
 }
