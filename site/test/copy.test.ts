@@ -6,16 +6,21 @@ import {
   deskIntro,
   disclosure,
   gateIntro,
+  heldOutcomeText,
+  holdsPageIntro,
   holdsText,
   meaningLimit,
   methodDisclosure,
   modelCheckText,
+  neverDoes,
   notRunningNote,
   notRunningYet,
   ownerReleaseText,
   receiptsIntro,
   scoreboardCaveat,
   siteDescription,
+  sourcesText,
+  statusPageIntro,
   trialText,
 } from '../src/lib/copy';
 import { LIVE } from '../src/lib/live';
@@ -293,6 +298,90 @@ describe('meaningLimit', () => {
   });
 });
 
+describe('holdsPageIntro', () => {
+  const START = 'A hold is a draft the gate did not clear.';
+  const END =
+    'This page lists when each hold happened, which beats the draft was filed under, and the reasons the gate gave. It never shows the held text, because a draft that was stopped is text this site does not vouch for.';
+  const OFF = `${START} It is not published, and once the pipeline runs it will wait for the owner. ${END}`;
+  const ON = `${START} It is not published: it waits for the owner. ${END}`;
+
+  it.each(CASES)('says a hold waits for the owner only when the Desk publishes (%s)', (_name, live) => {
+    expect(holdsPageIntro(live)).toBe(live.publishing ? ON : OFF);
+  });
+
+  it('says in both tenses that the held text is never shown', () => {
+    for (const live of [NONE, ALL]) expect(holdsPageIntro(live)).toContain('It never shows the held text');
+  });
+});
+
+describe('heldOutcomeText', () => {
+  const OFF = 'A draft did not clear the gate, and once the pipeline runs it will wait for the owner. Nothing was published.';
+  const ON = 'A draft did not clear the gate and waits for the owner. Nothing was published.';
+
+  it.each(CASES)('says a held draft waits for the owner only when the Desk publishes (%s)', (_name, live) => {
+    expect(heldOutcomeText(live)).toBe(live.publishing ? ON : OFF);
+  });
+
+  it('says in both tenses that nothing was published', () => {
+    for (const live of [NONE, ALL]) expect(heldOutcomeText(live).endsWith('Nothing was published.')).toBe(true);
+  });
+});
+
+describe('statusPageIntro', () => {
+  const OFF =
+    'This page will show the record the Desk will keep of its own runs: when it last ran, how that run ended, how many drafts the gate has held, and how many corrections have been published. The page is built from that record, so it stays empty until the Desk runs.';
+  const ON =
+    'This page shows the record the Desk keeps of its own runs: when it last ran, how that run ended, how many drafts the gate has held, and how many corrections have been published. The page is built from that record.';
+
+  it.each(CASES)('speaks of the record of the Desk in the present tense only when the Desk publishes (%s)', (_name, live) => {
+    expect(statusPageIntro(live)).toBe(live.publishing ? ON : OFF);
+  });
+});
+
+describe('sourcesText', () => {
+  const TIERS =
+    "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
+  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting; the story will be held.`;
+  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting; the story is held.`;
+
+  it.each(CASES)('says what the Desk does in the present tense only when it publishes (%s)', (_name, live) => {
+    expect(sourcesText(live)).toBe(live.publishing ? ON : OFF);
+  });
+
+  it('keeps the definition of the two tiers and the rule of the gate in both tenses', () => {
+    for (const live of [NONE, ALL]) {
+      expect(sourcesText(live)).toContain(TIERS);
+      expect(sourcesText(live)).toContain('can appear only as an attribution that names the outlet');
+    }
+  });
+});
+
+describe('neverDoes', () => {
+  const OFF = [
+    'It will contact no one. It will send no email to a company and ask nobody for comment, so no piece will say "we asked and did not hear back".',
+    'It will not republish its sources. A piece will quote short passages, each attributed and at most 300 characters, and will not copy articles.',
+    'It will use no photographs. Each piece already gets a fact card drawn from its own claims.',
+    "It will not rewrite another outlet's reporting as its own. A story with no reachable primary source will be held.",
+    'It will not publish a sentence the gate cannot trace to a source, and the gate already refuses one.',
+  ];
+  const ON = [
+    'It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".',
+    'It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.',
+    'It uses no photographs. Each piece gets a fact card drawn from its own claims.',
+    "It does not rewrite another outlet's reporting as its own. A story with no reachable primary source is held.",
+    'It does not publish a sentence the gate cannot trace to a source.',
+  ];
+
+  it.each(CASES)('lists five things, in the present tense only when the Desk publishes (%s)', (_name, live) => {
+    expect(neverDoes(live)).toEqual(live.publishing ? ON : OFF);
+  });
+
+  it('says in the future tense that the card is already drawn and the gate already refuses, which the code does today', () => {
+    expect(neverDoes(NONE)[2]).toContain('already gets a fact card');
+    expect(neverDoes(NONE)[4]).toContain('the gate already refuses one');
+  });
+});
+
 // --- Where the copy may be written ---------------------------------------------------
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
@@ -318,7 +407,7 @@ describe('the source of the site', () => {
 
   it('uses every function of copy.ts: a page, a component or the feed calls each one, so no old sentence is left beside a new one', () => {
     const exported = [...readFileSync(path.join(SRC, 'lib', 'copy.ts'), 'utf8').matchAll(/^export function (\w+)/gm)].map((match) => match[1]!);
-    expect(exported.length).toBeGreaterThanOrEqual(14);
+    expect(exported.length).toBeGreaterThanOrEqual(19);
     const everything = files.map((file) => readFileSync(file, 'utf8')).join('\n');
     for (const name of exported) expect(everything, name).toContain(`${name}(`);
   });
@@ -330,6 +419,10 @@ describe('the source of the site', () => {
     ['a pipeline that writes the site', /(?:is|are|will be) written by an automated pipeline/i],
     ['a daily site or schedule', /\bdaily\b/i],
     ['what each number links to', /Each number in the article/i],
+    ['a hold that waits for the owner', /waits for the owner/i],
+    ['the record the Desk keeps of its own runs', /record the Desk keeps/i],
+    ['what the Desk never does', /\bIt (?:contacts no one|does not republish its sources|uses no photographs|does not rewrite another outlet|does not publish a sentence)/],
+    ['the sources the Desk writes from', /The Desk writes from tier 1 sources|never states a fact on that authority|the Desk does not rewrite a competitor/i],
   ])('has no file that writes a sentence about %s outside copy.ts and live.ts', (_what, pattern) => {
     const found = files.filter((file) => pattern.test(readFileSync(file, 'utf8'))).map((file) => path.relative(SRC, file));
     expect(found).toEqual([]);

@@ -22,7 +22,7 @@ export const CLAIMS_CASES: SeededCase[] = [
     id: 'swapped-unit',
     check: 'G4',
     code: 'G4_NUMBER_UNSUPPORTED',
-    description: 'A sentence gives the payload as 12 lb; the claim it cites says 12 kg.',
+    description: 'A sentence gives the number of the claim it cites with a different unit.',
     apply: (base) => {
       sentenceWith(base, 'The datasheet lists a 12 kg').text = 'The datasheet lists a 12 lb rated payload and a 1.4 m maximum reach.';
       return base;
@@ -32,7 +32,7 @@ export const CLAIMS_CASES: SeededCase[] = [
     id: 'swapped-number-in-words',
     check: 'G4',
     code: 'G4_NUMBER_UNSUPPORTED',
-    description: 'A sentence gives the payload as thirteen kilograms, written in words; the claim it cites says 12 kg.',
+    description: 'A sentence gives a number written in words, with its unit, that is not the number of the claim it cites.',
     apply: (base) => {
       sentenceWith(base, 'The datasheet lists a 12 kg').text = 'The datasheet lists a rated payload of thirteen kilograms and a 1.4 m maximum reach.';
       return base;
@@ -42,7 +42,7 @@ export const CLAIMS_CASES: SeededCase[] = [
     id: 'uncheckable-number-word',
     check: 'G4',
     code: 'G4_NUMBER_WORD_UNCHECKABLE',
-    description: 'A sentence says the round has twice as many investors as before, an amount that no claim can support.',
+    description: 'A sentence states an amount in a word, such as "twice", that no claim can support.',
     apply: (base) => {
       sentenceWith(base, 'It lists 7 investors').text = 'It lists 7 investors in the round, twice as many as before.';
       return base;
@@ -52,7 +52,7 @@ export const CLAIMS_CASES: SeededCase[] = [
     id: 'swapped-date',
     check: 'G4',
     code: 'G4_DATE_UNSUPPORTED',
-    description: 'A sentence gives the first sale as 29 October 2026; the filing says 29 September 2026.',
+    description: 'A sentence gives a date that is not the date of the claim it cites.',
     apply: (base) => {
       sentenceWith(base, 'The filing dates the first sale').text =
         'The filing dates the first sale of the $450 million round to 29 October 2026.';
@@ -63,7 +63,7 @@ export const CLAIMS_CASES: SeededCase[] = [
     id: 'invented-name',
     check: 'G4',
     code: 'G4_NAME_UNSUPPORTED',
-    description: 'A sentence names Harlow Capital as lead investor; the filing names Corvane Partners.',
+    description: 'A sentence names a company that no claim it cites mentions.',
     apply: (base) => {
       sentenceWith(base, 'The round, led by').text = 'The round, led by Harlow Capital, totals $450 million, according to a regulatory filing.';
       return base;
@@ -113,7 +113,7 @@ export const CLAIMS_CASES: SeededCase[] = [
     id: 'value-outside-span',
     check: 'G4',
     code: 'G4_VALUE_NOT_IN_SPAN',
-    description: 'A claim lists a value, 38 kg, that is not in the quotation it says it was taken from.',
+    description: 'A claim lists a value that is not in the quotation it says it was taken from.',
     apply: (base) => {
       claimOf(base, 'c-13').span.quote = 'Arm mass: 39 kg.';
       return base;
@@ -123,7 +123,7 @@ export const CLAIMS_CASES: SeededCase[] = [
     id: 'altered-quote',
     check: 'G5',
     code: 'G5_QUOTE_NOT_VERBATIM',
-    description: "A quotation changes one word of the source's: ten weeks, not nine.",
+    description: 'A quotation changes one word of the passage it quotes.',
     apply: (base) => {
       sentenceWith(base, 'We went from pilot').text =
         '"We went from pilot to production in ten weeks," said Dana Whitcombe, chief operating officer of Brindle Logistics.';

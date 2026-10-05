@@ -56,7 +56,7 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
     id: 'analysis-flood',
     check: 'G7',
     code: 'G7_ANALYSIS_SHARE',
-    description: 'Eleven analysis sentences are added, which takes analysis over 20% of the body.',
+    description: 'Analysis sentences are added until they make up more of the body than the rule allows.',
     apply: (base) => {
       const last = base.draft.sections.at(-1)!.paragraphs.at(-1)!;
       for (let i = 0; i < 11; i++) last.push({ kind: 'analysis', text: 'That is a plain reading of the figures.', claimIds: [] });
@@ -67,7 +67,7 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
     id: 'analysis-new-number',
     check: 'G7',
     code: 'G7_ANALYSIS_NEW_VALUE',
-    description: 'An analysis sentence works out a percentage, 22%, that no fact sentence states.',
+    description: 'An analysis sentence works out a percentage that no fact sentence states.',
     apply: (base) => {
       sentenceWith(base, 'The measured rate sits below').text =
         'The measured rate is 22% below the datasheet maximum, which is normal for a figure quoted as an upper limit.';

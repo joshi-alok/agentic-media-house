@@ -60,6 +60,34 @@ describe('the cases', () => {
     for (const item of SEEDED_CASES) expect(item.description, item.id).not.toMatch(/fixture (data|robotics)|fixture-robotics/i);
   });
 
+  // The descriptions are printed on the production /method page. A description that counts the sentences of the golden
+  // piece, or names a claim of it, or says what a cut leaves of its length, would go stale without a test failing when
+  // the golden piece is rewritten. The cases themselves fail loudly then: a helper throws when the sentence it looks for
+  // is gone, and a case that stops breaking the piece is not caught.
+  describe('describe the rule that is broken, not the shape of the golden piece', () => {
+    const golden = cloneGolden();
+    // Plain digits and number words ("four") are not the golden piece's alone: the rules use numbers too.
+    const goldenValues = [...new Set(golden.claims.flatMap((claim) => claim.values.map((value) => value.raw)))].filter((raw) => !/^\d+$/.test(raw) && !/^[a-z]+$/.test(raw));
+    const COUNT = '(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\\d+)';
+    const SHAPES: [string, RegExp][] = [
+      ['a claim of the golden piece (c-99, which no claim has, is the only id a case may make up)', /\bc-(?!99\b)\d+\b/],
+      ['a count of its parts, as in "four of the five"', new RegExp(`\\b${COUNT} of the ${COUNT}\\b`, 'i')],
+      ['a count of its sentences, as in "eleven analysis sentences"', new RegExp(`\\b${COUNT} (?:analysis|limitation|fact) sentences\\b`, 'i')],
+      ['what a cut leaves of its length, as in "under 600 words"', /\bunder \d+ words\b/i],
+    ];
+
+    it('has the values the golden claims list, so that the check below looks for something', () => {
+      expect(goldenValues).toContain('Corvane Partners');
+      expect(goldenValues).toContain('38 kg');
+      expect(goldenValues.length).toBeGreaterThan(20);
+    });
+
+    it.each(SEEDED_CASES.map((item) => [item.id, item.description] as const))('%s', (id, description) => {
+      for (const [what, pattern] of SHAPES) expect(description, `${id} mentions ${what}`).not.toMatch(pattern);
+      for (const value of goldenValues) expect(description, `${id} mentions the value "${value}", which only the golden piece has`).not.toContain(value);
+    });
+  });
+
   it('are listed in the order of the checks, G1 to G9, so the scoreboard reads in order', () => {
     const positions = SEEDED_CASES.map((item) => CHECK_IDS.indexOf(item.check));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));

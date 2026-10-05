@@ -9,14 +9,16 @@ import {
   meaningLimit,
   methodDisclosure,
   modelCheckText,
+  neverDoes,
   notRunningNote,
   notRunningYet,
   ownerReleaseText,
   scoreboardCaveat,
+  sourcesText,
   trialText,
 } from '../../lib/copy';
 import { CORRECTIONS_TEXT } from '../../lib/desk-pages';
-import { KNOWN_LIMITS, PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../../lib/method';
+import { KNOWN_LIMITS, LIMITS_HEADING, LIMITS_INTRO, PIPELINE_STAGES, SCOREBOARD_INTRO, gateRules, scoreboardHeadline } from '../../lib/method';
 import '../../styles/pages.css';
 
 const rules = gateRules();
@@ -61,12 +63,7 @@ const trial = trialText();
       {note !== undefined && <p>{note}</p>}
 
       <h2 id="sources">Two kinds of source</h2>
-      <p>
-        A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet. The Desk writes from tier 1 sources. A tier 2 source
-        is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an
-        attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk does not rewrite a
-        competitor's reporting; the story is held.
-      </p>
+      <p>{sourcesText()}</p>
 
       <h2 id="pipeline">How a piece is made</h2>
       <p>The Desk is designed as seven stages. Each stage will read only the typed output of the one before it.</p>
@@ -108,11 +105,8 @@ const trial = trialText();
     </dl>
 
     <div class="prose">
-      <h2 id="limits">What the checks cannot see</h2>
-      <p>
-        The rules above do what they say, and no more. These are the known limits: the places where a sentence can say something that no rule compares with a claim, and one place where the gate
-        refuses more than it should.
-      </p>
+      <h2 id="limits">{LIMITS_HEADING}</h2>
+      <p>{LIMITS_INTRO}</p>
       <ul>
         {
           KNOWN_LIMITS.map((limit) => (
@@ -140,18 +134,15 @@ const trial = trialText();
 
       <h2 id="never">What the Desk never does</h2>
       <ul>
-        <li>It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".</li>
-        <li>It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.</li>
-        <li>It uses no photographs. Each piece gets a fact card drawn from its own claims.</li>
-        <li>It does not rewrite another outlet's reporting as its own. A story with no reachable primary source is held.</li>
-        <li>It does not publish a sentence the gate cannot trace to a source.</li>
+        {
+          neverDoes().map((item) => (
+            <li>{item}</li>
+          ))
+        }
       </ul>
 
       <h2 id="scoreboard">The scoreboard</h2>
-      <p>
-        A gate is worth what it catches. To test this one, the golden example piece is broken on purpose, once for every failure code of the nine checks, and the gate has to catch every break. A
-        missed defect fails the tests. The result is kept with the code, and this table is read from it.
-      </p>
+      <p>{SCOREBOARD_INTRO}</p>
       <p class="figure">{scoreboardHeadline(board)}</p>
       <p>The unbroken golden piece {board.baselinePasses ? 'publishes' : 'does not publish'}.</p>
       <p>{scoreboardCaveat()}</p>

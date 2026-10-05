@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { YAMLParseError } from 'yaml';
@@ -34,6 +35,16 @@ describe('the real sources.yml', () => {
     const statuses = everyStatus(load());
     expect(statuses).toContain('blocked');
     expect(statuses).toContain('n/a');
+  });
+
+  it('is described truthfully by the README: it does not say that every status starts as unverified, and it names each other status the file keeps', () => {
+    const readme = readFileSync(fileURLToPath(new URL('../../README.md', import.meta.url)), 'utf8');
+    const line = readme.split('\n').find((text) => text.startsWith('Every `status`'));
+    expect(line, 'the README sentence about the statuses').toBeDefined();
+    expect(line).not.toMatch(/^Every `status` starts as `unverified`;/);
+    const kept = [...new Set(everyStatus(load()))].filter((status) => status !== 'unverified');
+    expect(kept.sort()).toEqual(['blocked', 'n/a']);
+    for (const status of kept) expect(line, status).toContain(`\`${status}\``);
   });
 
   it('lists at least five humanoid companies', () => {

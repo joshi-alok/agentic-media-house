@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CHECK_IDS, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
+import { readFileSync } from 'node:fs';
+import board from '@robywire/evals/scoreboard';
+import { ALL_FAILURE_CODES, CHECK_IDS, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
 import { LIVE } from '../src/lib/live';
-import { PIPELINE_STAGES, gateRules, scoreboardHeadline } from '../src/lib/method';
+import { LIMITS_HEADING, PIPELINE_STAGES, SCOREBOARD_INTRO, gateRules, scoreboardHeadline } from '../src/lib/method';
 
 // The method page is where a distrustful reader checks what the Desk claims
 // about itself. These tests keep its numbers in step with the gate, keep each
@@ -72,6 +74,13 @@ describe('gateRules', () => {
       expect(extractTokens(`It grew ${word} last quarter.`).uncheckable).toEqual([word]);
     });
 
+    it('does not claim to be total: it says what the reader finds and points at the list of its limits, which the page has under the same heading', () => {
+      expect(g4).not.toMatch(/^Every number, date and name/);
+      expect(g4).toMatch(/^The reader of the gate finds the numbers, dates and capitalised names in each factual sentence/);
+      expect(g4).toContain(`(what it cannot find is listed under "${LIMITS_HEADING}")`);
+      expect(g4).toContain('each one it finds must appear among the values of a claim that sentence cites');
+    });
+
     it('names the rules for the first word of a sentence and for headings, which Part A of this milestone added', () => {
       expect(g4).toContain('a sentence may open with a capitalised word only if it is an ordinary function word or a word of a claim the sentence cites');
       expect(g4).toContain('a section heading has no number, date or quotation');
@@ -128,6 +137,26 @@ describe('PIPELINE_STAGES', () => {
       expect(stage.text, stage.name).toMatch(/^[A-Z]/);
       expect(stage.text.endsWith('.'), stage.name).toBe(true);
     }
+  });
+});
+
+describe('SCOREBOARD_INTRO', () => {
+  it('says the golden piece is broken at least once for every failure code, because some codes have several cases', () => {
+    expect(SCOREBOARD_INTRO).toContain('broken on purpose, at least once for every failure code of the nine checks');
+    expect(SCOREBOARD_INTRO).not.toContain('on purpose, once for every');
+  });
+
+  it('is true: every failure code has at least one case, and some have more', () => {
+    const counts = new Map<string, number>();
+    for (const item of board.cases) counts.set(item.code, (counts.get(item.code) ?? 0) + 1);
+    expect([...counts.keys()].sort()).toEqual([...ALL_FAILURE_CODES].sort());
+    expect(Math.max(...counts.values())).toBeGreaterThan(1);
+  });
+
+  it('is what the README says too', () => {
+    const readme = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
+    expect(readme).toContain('breaks it in a known way at least once for every failure code of the nine checks');
+    expect(readme).not.toContain('in a known way once for every failure code');
   });
 });
 

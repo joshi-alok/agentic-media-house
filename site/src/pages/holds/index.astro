@@ -1,6 +1,7 @@
 ---
 import TableWrap from '../../components/TableWrap.astro';
 import Base from '../../layouts/Base.astro';
+import { holdsPageIntro } from '../../lib/copy';
 import { holdRows } from '../../lib/desk-pages';
 import { getDeskState } from '../../lib/desk-state';
 import '../../styles/pages.css';
@@ -15,10 +16,7 @@ const rows = holdRows(await getDeskState());
       <p class="dek">What the gate stopped, and why.</p>
     </header>
     <div class="page-text">
-      <p>
-        A hold is a draft the gate did not clear. It is not published: it waits for the owner. This page lists when each hold happened, which beats the draft was filed under, and the reasons the gate
-        gave. It never shows the held text, because a draft that was stopped is text this site does not vouch for.
-      </p>
+      <p>{holdsPageIntro()}</p>
       <p>Each reason is a code from the gate with a plain-English label. What the gate checks is on the <a href="/method/">method page</a>.</p>
     </div>
     {

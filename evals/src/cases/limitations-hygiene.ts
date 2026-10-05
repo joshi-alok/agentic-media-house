@@ -28,7 +28,7 @@ export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
     id: 'limitation-mixed-group',
     check: 'G8',
     code: 'G8_LIMITATION_GROUP',
-    description: 'One limitation sentence covers a press-release claim, c-1, together with datasheet claims.',
+    description: 'One limitation sentence covers claims that have different bases.',
     apply: (base) => {
       base.draft.limitations[0]!.claimIds = ['c-1', 'c-8', 'c-9'];
       return base;
@@ -38,7 +38,7 @@ export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
     id: 'limitation-edited-text',
     check: 'G8',
     code: 'G8_LIMITATION_MISMATCH',
-    description: 'A limitation sentence is reworded to say the datasheet figures were independently confirmed.',
+    description: 'A limitation sentence is reworded to say the figures were independently confirmed.',
     apply: (base) => {
       base.draft.limitations[0]!.text = 'The datasheet figures have been confirmed independently.';
       return base;

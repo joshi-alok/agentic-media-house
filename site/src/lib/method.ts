@@ -7,6 +7,9 @@ import type { CheckId, GateConfig } from '@robywire/gate';
 // written in the future tense because none of them is running yet. The
 // sentences whose tense depends on a part of the Desk being live are in copy.ts.
 
+/** The heading of the list of known limits on the method page. The rule G4 points at it, so the two cannot drift apart. */
+export const LIMITS_HEADING = 'What the checks cannot see';
+
 export interface GateRule {
   id: CheckId;
   name: string;
@@ -42,7 +45,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G4',
       name: 'Values',
-      text: 'Every number, date and name in a factual sentence appears among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a sentence may open with a capitalised word only if it is an ordinary function word or a word of a claim the sentence cites; a section heading has no number, date or quotation and no capitalised word that no claim cited in that section contains; and every value a claim lists is really in its quoted passage.',
+      text: `The reader of the gate finds the numbers, dates and capitalised names in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a sentence may open with a capitalised word only if it is an ordinary function word or a word of a claim the sentence cites; a section heading has no number, date or quotation and no capitalised word that no claim cited in that section contains; and every value a claim lists is really in its quoted passage.`,
     },
     {
       id: 'G5',
@@ -72,16 +75,22 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
   ];
 }
 
-/** One thing the checks cannot do, with a sentence that shows it with the real token reader. */
+/** One thing the checks cannot do, with an example that known-limits.test.ts shows with the real reader or the real gate. */
 export interface KnownLimit {
   /**
    * `unseen`: the reader finds no number, date, name or amount in the example, so no claim is compared with it.
-   * `strict`: the reader refuses the example's first word although the sentence may be fine.
+   * `misread`: the reader finds a number in the example that is not the amount the sentence means.
+   * `strict`: the gate refuses the example although the sentence may be fine.
+   * `unchecked`: the example is text that a model writes and no rule reads: it passes whatever it says.
    */
-  kind: 'unseen' | 'strict';
+  kind: 'unseen' | 'misread' | 'strict' | 'unchecked';
   text: string;
   example: string;
 }
+
+/** The sentence that opens the list of known limits, one phrase for each kind of limit. */
+export const LIMITS_INTRO =
+  'The rules above do what they say, and no more. These are the known limits: the places where a sentence can say something that no rule compares with a claim, where the reader takes a word for a number it does not mean, where the gate refuses more than it should, and the text that a model writes and no rule reads.';
 
 /**
  * What the code cannot see, and where it refuses more than it should. The limit that meaning is not checked is
@@ -105,6 +114,16 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'unseen',
+    text: 'The word "one" on its own is not read as a number, so "one robot" is compared with no claim, although "one kilogram" is read as 1 kg.',
+    example: 'The plant shipped one robot.',
+  },
+  {
+    kind: 'unseen',
+    text: 'Fractions written in words, such as "a third" and "a quarter", are not read.',
+    example: 'A third of the arms shipped, and a quarter were returned.',
+  },
+  {
+    kind: 'unseen',
     text: 'A date that is not written out, such as "last year" or "next month", is not read.',
     example: 'It shipped last year and will ship next month.',
   },
@@ -114,9 +133,34 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
     example: 'iRobot and xAI joined the round.',
   },
   {
+    kind: 'misread',
+    text: 'A fraction that starts with a number word is read as that number: "two thirds" is read as the number 2, so the gate looks for a claim that lists a 2.',
+    example: 'The plant shipped two thirds of the arms.',
+  },
+  {
+    kind: 'misread',
+    text: 'A compound such as "six-axis" is read as the number 6 with no unit, so a claim that lists a 6 in any unit supports it.',
+    example: 'The six-axis arm shipped.',
+  },
+  {
     kind: 'strict',
     text: 'The name check is strict on purpose: it reads every capitalised word as a name, so an ordinary capitalised word, such as a noun that opens a sentence or a word in a Title Case heading, sends a draft back for revision. A false alarm costs a revision round; a name that slipped through would cost a wrong claim.',
     example: 'Output rose 5 percent.',
+  },
+  {
+    kind: 'strict',
+    text: 'A sentence cannot open with a name that starts with a lowercase letter, such as iRobot or xAI: every sentence must start with a capital letter or a digit, so the sentence has to be reworded.',
+    example: 'iRobot shipped the arm.',
+  },
+  {
+    kind: 'unchecked',
+    text: 'The page address of a piece and the text and the label of each claim are written by a model, and no rule reads them for figures or names: a label such as "Harlow Logistics 12 plants" passes.',
+    example: 'Harlow Logistics 12 plants',
+  },
+  {
+    kind: 'unchecked',
+    text: 'A section heading that names no figure and no capitalised word is not checked at all, whatever it asserts: "the arms keep failing" passes.',
+    example: 'the arms keep failing',
   },
 ];
 
@@ -156,6 +200,10 @@ export const PIPELINE_STAGES: readonly PipelineStage[] = [
     text: 'A draft that passes will be built and published. A draft that does not will be held for the owner as a draft pull request that carries the gate report.',
   },
 ];
+
+/** The paragraph that explains the scoreboard on the method page. There are more cases than codes, so it says at least once. */
+export const SCOREBOARD_INTRO =
+  'A gate is worth what it catches. To test this one, the golden example piece is broken on purpose, at least once for every failure code of the nine checks, and the gate has to catch every break. A missed defect fails the tests. The result is kept with the code, and this table is read from it.';
 
 /** The headline of the scoreboard: how many of the seeded defects the gate caught. */
 export function scoreboardHeadline(board: { total: number; caught: number }): string {

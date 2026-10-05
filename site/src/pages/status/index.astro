@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import { heldOutcomeText, statusPageIntro } from '../../lib/copy';
 import { statusView } from '../../lib/desk-pages';
 import { getDeskState } from '../../lib/desk-state';
 import { articlePath } from '../../lib/paths';
@@ -19,10 +20,7 @@ const piece = lastRun?.slug == null ? undefined : (await getPieces()).find((cand
       <p class="dek">What the Desk did last.</p>
     </header>
     <div class="page-text">
-      <p>
-        This page shows the record the Desk keeps of its own runs: when it last ran, how that run ended, how many drafts the gate has held, and how many corrections have been published. The page is
-        built from that record.
-      </p>
+      <p>{statusPageIntro()}</p>
       {lastRun === null && <p class="empty">The Desk has not run yet.</p>}
     </div>
     <dl class="facts">
@@ -60,7 +58,7 @@ const piece = lastRun?.slug == null ? undefined : (await getPieces()).find((cand
       <dt>No story</dt>
       <dd>Nothing met the bar that day, so nothing was written. This is a normal outcome.</dd>
       <dt>Held</dt>
-      <dd>A draft did not clear the gate and waits for the owner. Nothing was published.</dd>
+      <dd>{heldOutcomeText()}</dd>
       <dt>Failed</dt>
       <dd>The run itself broke. Nothing was published.</dd>
     </dl>

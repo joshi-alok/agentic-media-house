@@ -25,7 +25,7 @@ The workspace packages export their TypeScript source directly, so there is no b
 
 If a story has no reachable tier-1 source, that fact goes in the piece. It is never quietly laundered through a competitor's reporting.
 
-Every `status` starts as `unverified`; the Desk changes it as it fetches. `gate/src/sources.ts` validates the file (`loadSources`) and `gate/test/sources.test.ts` checks it on every test run.
+Every `status` starts as `unverified`, except the two that the original list already had: `blocked` for the arXiv feed, which the fetcher cannot reach, and `n/a` for the funding announcement, which has no fixed address. The Desk changes the others as it fetches. `gate/src/sources.ts` validates the file (`loadSources`) and `gate/test/sources.test.ts` checks it on every test run.
 
 ## Which parts are live
 
@@ -83,7 +83,7 @@ A piece is two files: the MDX that readers see and the ledger JSON behind its re
 
 ## Reading the scoreboard
 
-`npm run evals:seeded` is the proof that the gate works. It takes one golden piece, breaks it in a known way once for every failure code of the nine checks, and fails if the gate misses any. It writes the result to `evals/scoreboard/seeded.json`, which is committed; a test fails if the committed file is out of date, so run the command and commit the file after any change to the gate.
+`npm run evals:seeded` is the proof that the gate works. It takes one golden piece, breaks it in a known way at least once for every failure code of the nine checks, and fails if the gate misses any. It writes the result to `evals/scoreboard/seeded.json`, which is committed; a test fails if the committed file is out of date, so run the command and commit the file after any change to the gate.
 
 The site shows the same file on its `/method/` page, under the headline `N of N seeded defects caught`. Each row is one defect:
 

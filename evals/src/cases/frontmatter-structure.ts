@@ -118,7 +118,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     id: 'short-opening',
     check: 'G2',
     code: 'G2_OPENING_LENGTH',
-    description: 'The opening paragraph is one sentence, far under 40 words.',
+    description: 'The opening paragraph is shorter than the length the rule requires.',
     apply: (base) => {
       base.draft.opening = base.draft.opening.slice(0, 1);
       return base;
@@ -138,7 +138,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     id: 'short-body',
     check: 'G2',
     code: 'G2_BODY_LENGTH',
-    description: 'Four of the five limitation sentences are cut, which leaves the piece under 600 words.',
+    description: 'The body is shorter than the length the rule requires.',
     apply: (base) => {
       base.draft.limitations = base.draft.limitations.slice(0, 1);
       return base;
@@ -211,7 +211,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     id: 'limitation-uncovered-claim',
     check: 'G2',
     code: 'G2_LIMITATION_COVERAGE',
-    description: "A claim that needs a limitation is left out of the sentence that describes its group: c-12, the datasheet's pick rate.",
+    description: 'A claim that needs a limitation is left out of the limitation sentence that describes its group.',
     apply: (base) => {
       const [datasheet] = base.draft.limitations;
       datasheet!.claimIds = datasheet!.claimIds.filter((id) => id !== 'c-12');
@@ -222,7 +222,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     id: 'no-limitations',
     check: 'G2',
     code: 'G2_LIMITATIONS_MISSING',
-    description: "The piece rests on datasheet and press-release claims but has no 'What we couldn't verify' section.",
+    description: "The 'What we couldn't verify' section is missing from a piece that rests on a company's own claims.",
     apply: (base) => {
       base.draft.limitations = [];
       return base;

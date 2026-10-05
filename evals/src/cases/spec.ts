@@ -10,7 +10,7 @@ export const SPEC_CASES: SeededCase[] = [
     id: 'swapped-number',
     check: 'G4',
     code: 'G4_NUMBER_UNSUPPORTED',
-    description: 'A sentence says the arm weighs 83 kg; the claim it cites says 38 kg.',
+    description: 'A sentence states a number whose digits are swapped from the number of the claim it cites.',
     apply: (base) => {
       sentenceWith(base, 'The arm itself weighs').text = 'The arm itself weighs 83 kg and draws 650 W in typical use.';
       return base;

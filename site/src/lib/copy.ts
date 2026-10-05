@@ -122,3 +122,54 @@ export function meaningLimit(live: Live = LIVE): string {
     'Meaning is not checked by code. The checks make sure that every figure, name and quotation in a sentence comes from a claim the sentence cites, not that the sentence says what the claim says, or that a paraphrase is fair.';
   return live.verifier ? `${start} That is the job of the independent model check.` : `${start} That will be the job of the independent model check, which is not running yet.`;
 }
+
+/** The first paragraph of the holds page. A hold waits for the owner only once the pipeline that sends it runs. */
+export function holdsPageIntro(live: Live = LIVE): string {
+  const start = 'A hold is a draft the gate did not clear.';
+  const end =
+    'This page lists when each hold happened, which beats the draft was filed under, and the reasons the gate gave. It never shows the held text, because a draft that was stopped is text this site does not vouch for.';
+  return live.publishing
+    ? `${start} It is not published: it waits for the owner. ${end}`
+    : `${start} It is not published, and once the pipeline runs it will wait for the owner. ${end}`;
+}
+
+/** The first paragraph of the status page: the record the Desk keeps of its own runs, which exists once the Desk runs. */
+export function statusPageIntro(live: Live = LIVE): string {
+  return live.publishing
+    ? 'This page shows the record the Desk keeps of its own runs: when it last ran, how that run ended, how many drafts the gate has held, and how many corrections have been published. The page is built from that record.'
+    : 'This page will show the record the Desk will keep of its own runs: when it last ran, how that run ended, how many drafts the gate has held, and how many corrections have been published. The page is built from that record, so it stays empty until the Desk runs.';
+}
+
+/** The paragraph on the method page about the two kinds of source. What the Desk does is in the tense of its flag; what the gate enforces is already true. */
+export function sourcesText(live: Live = LIVE): string {
+  const tiers = "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
+  return live.publishing
+    ? `${tiers} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting; the story is held.`
+    : `${tiers} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting; the story will be held.`;
+}
+
+/** The list "What the Desk never does" on the method page, one item for each promise. */
+export function neverDoes(live: Live = LIVE): string[] {
+  return live.publishing
+    ? [
+        'It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".',
+        'It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.',
+        'It uses no photographs. Each piece gets a fact card drawn from its own claims.',
+        "It does not rewrite another outlet's reporting as its own. A story with no reachable primary source is held.",
+        'It does not publish a sentence the gate cannot trace to a source.',
+      ]
+    : [
+        'It will contact no one. It will send no email to a company and ask nobody for comment, so no piece will say "we asked and did not hear back".',
+        'It will not republish its sources. A piece will quote short passages, each attributed and at most 300 characters, and will not copy articles.',
+        'It will use no photographs. Each piece already gets a fact card drawn from its own claims.',
+        "It will not rewrite another outlet's reporting as its own. A story with no reachable primary source will be held.",
+        'It will not publish a sentence the gate cannot trace to a source, and the gate already refuses one.',
+      ];
+}
+
+/** What the outcome "held" means, in the list on the status page. A held draft waits for the owner only once the pipeline that sends it runs. */
+export function heldOutcomeText(live: Live = LIVE): string {
+  return live.publishing
+    ? 'A draft did not clear the gate and waits for the owner. Nothing was published.'
+    : 'A draft did not clear the gate, and once the pipeline runs it will wait for the owner. Nothing was published.';
+}
