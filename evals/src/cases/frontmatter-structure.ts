@@ -14,6 +14,16 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'empty-description',
+    check: 'G1',
+    code: 'G1_DESCRIPTION_EMPTY',
+    description: 'The description is blank.',
+    apply: (base) => {
+      base.draft.description.text = '  ';
+      return base;
+    },
+  },
+  {
     id: 'long-description',
     check: 'G1',
     code: 'G1_DESCRIPTION_TOO_LONG',
@@ -91,6 +101,16 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     description: 'The author name is blank.',
     apply: (base) => {
       base.draft.author.name = '  ';
+      return base;
+    },
+  },
+  {
+    id: 'author-not-desk',
+    check: 'G1',
+    code: 'G1_AUTHOR_NOT_DESK',
+    description: 'The author is a person, not the Desk.',
+    apply: (base) => {
+      base.draft.author.name = 'Jane Doe';
       return base;
     },
   },

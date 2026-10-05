@@ -1,5 +1,6 @@
 ---
 import { render } from 'astro:content';
+import { DESK_AUTHOR_NAME, DESK_BYLINE_LABEL } from '@robywire/gate';
 import BeatChips from '../../../components/BeatChips.astro';
 import CorrectionNotice from '../../../components/CorrectionNotice.astro';
 import Base from '../../../layouts/Base.astro';
@@ -31,7 +32,7 @@ const jsonLd = jsonLdScript(newsArticleJsonLd({ slug: piece.slug, ...piece.data 
       <BeatChips categories={piece.data.categories} />
       <h1>{piece.data.title}</h1>
       <p class="dek">{piece.data.description}</p>
-      <p class="byline"><a href="/method/">Robywire Desk &middot; automated, source-verified</a> &middot; <time datetime={piece.data.publishedAt}>{formatDate(piece.data.publishedAt)}</time></p>
+      <p class="byline"><a href="/method/">{DESK_AUTHOR_NAME} &middot; {DESK_BYLINE_LABEL}</a> &middot; <time datetime={piece.data.publishedAt}>{formatDate(piece.data.publishedAt)}</time></p>
     </header>
     <CorrectionNotice corrections={corrections} />
     <div class="prose">

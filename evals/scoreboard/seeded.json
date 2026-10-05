@@ -1,6 +1,6 @@
 {
-  "total": 49,
-  "caught": 49,
+  "total": 51,
+  "caught": 51,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -9,6 +9,13 @@
       "check": "G1",
       "code": "G1_TITLE_EMPTY",
       "description": "The title is empty.",
+      "caught": true
+    },
+    {
+      "id": "empty-description",
+      "check": "G1",
+      "code": "G1_DESCRIPTION_EMPTY",
+      "description": "The description is blank.",
       "caught": true
     },
     {
@@ -65,6 +72,13 @@
       "check": "G1",
       "code": "G1_AUTHOR_MISSING",
       "description": "The author name is blank.",
+      "caught": true
+    },
+    {
+      "id": "author-not-desk",
+      "check": "G1",
+      "code": "G1_AUTHOR_NOT_DESK",
+      "description": "The author is a person, not the Desk.",
       "caught": true
     },
     {

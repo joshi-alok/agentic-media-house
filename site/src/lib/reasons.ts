@@ -4,6 +4,7 @@
 
 export const REASON_LABELS: Readonly<Record<string, string>> = {
   G1_TITLE_EMPTY: 'The title was empty',
+  G1_DESCRIPTION_EMPTY: 'The description was empty',
   G1_DESCRIPTION_TOO_LONG: 'The description was too long',
   G1_BAD_DATE: 'The date was not a real date',
   G1_SLUG_FORMAT: 'The page address was malformed',
@@ -11,6 +12,7 @@ export const REASON_LABELS: Readonly<Record<string, string>> = {
   G1_CATEGORY_UNKNOWN: 'A category is not one the site uses',
   G1_CATEGORY_NO_BEAT: 'Tagged funding without a beat',
   G1_AUTHOR_MISSING: 'The author name was missing',
+  G1_AUTHOR_NOT_DESK: 'The author was not the Desk',
   G2_OPENING_LENGTH: 'The opening paragraph was the wrong length',
   G2_TAKEAWAYS_COUNT: 'The piece had the wrong number of key takeaways',
   G2_BODY_LENGTH: 'The piece was too short or too long',

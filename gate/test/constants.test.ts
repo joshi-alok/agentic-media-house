@@ -6,6 +6,8 @@ import {
   CHECK_IDS,
   CLAIM_TYPES,
   CROSS_TAGS,
+  DESK_AUTHOR_NAME,
+  DESK_BYLINE_LABEL,
   SAFE_BASES,
   STATUSES,
 } from '../src/constants';
@@ -56,5 +58,17 @@ describe('closed vocabularies', () => {
 
   it('numbers the checks G1 to G9', () => {
     expect(CHECK_IDS).toEqual(['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8', 'G9']);
+  });
+});
+
+describe('the byline of the Desk', () => {
+  it('names the author of every piece', () => {
+    expect(DESK_AUTHOR_NAME).toBe('Robywire Desk');
+  });
+
+  it('says in a few plain words how a piece is made, and claims no verification that does not exist yet', () => {
+    expect(DESK_BYLINE_LABEL).toBe('automated, with sources linked');
+    expect(DESK_BYLINE_LABEL).not.toMatch(/verif|check|audit/i);
+    expect(DESK_BYLINE_LABEL).toMatch(/^[\x20-\x7E]+$/);
   });
 });

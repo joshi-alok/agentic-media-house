@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { DESK_AUTHOR_NAME } from '../constants';
 import { renderLimitation } from '../limitations';
 import type { AnalysisSentence, Claim, ClaimValue, Draft, FactSentence, LimitationSentence } from '../schemas';
 
@@ -426,7 +427,7 @@ const DRAFT: Draft = {
   slug: 'fixture-robotics-ships-fx-1-to-second-plant',
   publishedAt: '2026-10-04',
   categories: ['industrial-warehouse', 'funding'],
-  author: { name: 'Robywire Desk' },
+  author: { name: DESK_AUTHOR_NAME },
   title: fact('Fixture Robotics ships its FX-1 warehouse arm to a second plant', 'c-1'),
   description: fact(
     'Fixture Robotics has begun shipping the FX-1 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor.',

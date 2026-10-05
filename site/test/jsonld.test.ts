@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DESK_AUTHOR_NAME } from '@robywire/gate';
 import { jsonLdScript, newsArticleJsonLd } from '../src/lib/jsonld';
 
 const SITE = 'https://robywire.example';
@@ -25,7 +26,7 @@ describe('newsArticleJsonLd', () => {
   });
 
   it('names the Desk as the author and Robywire as the publisher', () => {
-    expect(data.author).toEqual({ '@type': 'Organization', name: 'Robywire Desk' });
+    expect(data.author).toEqual({ '@type': 'Organization', name: DESK_AUTHOR_NAME });
     expect(data.publisher).toEqual({ '@type': 'Organization', name: 'Robywire', url: SITE });
   });
 

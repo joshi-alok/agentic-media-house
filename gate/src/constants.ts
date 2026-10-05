@@ -1,3 +1,14 @@
+/** The name every piece is published under. G1 rejects any other author, and the frontmatter schema accepts no other. */
+export const DESK_AUTHOR_NAME = 'Robywire Desk';
+
+/**
+ * The few words after the Desk's name in the byline of an article. It says how a
+ * piece is made and claims nothing that does not exist yet: it must not say the
+ * piece is "verified" while the model verifier (G10) is not running. The
+ * wording is the owner's to confirm; change it here and nowhere else.
+ */
+export const DESK_BYLINE_LABEL = 'automated, with sources linked';
+
 /** The seven beats from the content contract (section 4). A closed vocabulary. */
 export const BEATS = [
   'humanoids',

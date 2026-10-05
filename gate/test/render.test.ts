@@ -308,16 +308,37 @@ describe('NewsFrontmatter', () => {
 
   it.each([
     ['an empty title', { ...valid, title: '' }],
+    ['a title of spaces', { ...valid, title: '   ' }],
+    ['an empty description', { ...valid, description: '' }],
+    ['a description of spaces', { ...valid, description: '   ' }],
     ['a description over 155 characters', { ...valid, description: 'x'.repeat(156) }],
     ['a date that is not a calendar date', { ...valid, publishedAt: '2026-02-30' }],
     ['no category', { ...valid, categories: [] }],
     ['four categories', { ...valid, categories: ['humanoids', 'funding', 'field-mobility', 'home-consumer'] }],
     ['a category outside the vocabulary', { ...valid, categories: ['robots'] }],
+    ['the same category twice', { ...valid, categories: ['humanoids', 'humanoids'] }],
+    ['funding without a beat', { ...valid, categories: ['funding'] }],
     ['another format', { ...valid, format: 'explainer' }],
     ['a key the contract does not know', { ...valid, image: 'x' }],
     ['an author without a name', { ...valid, author: { name: '' } }],
+    ['an author that is not the Desk', { ...valid, author: { name: 'Jane Doe' } }],
   ])('rejects %s', (_label, data) => {
     expect(NewsFrontmatter.safeParse(data).success).toBe(false);
+  });
+
+  it('accepts a title and a description of one character', () => {
+    expect(NewsFrontmatter.safeParse({ ...valid, title: 'A', description: 'D' }).success).toBe(true);
+  });
+
+  it('accepts funding beside a beat, and three different categories', () => {
+    expect(NewsFrontmatter.safeParse({ ...valid, categories: ['funding', 'humanoids'] }).success).toBe(true);
+    expect(NewsFrontmatter.safeParse({ ...valid, categories: ['humanoids', 'field-mobility', 'funding'] }).success).toBe(true);
+  });
+
+  it('trims the spaces around a title and a description, and counts the length after trimming', () => {
+    const parsed = NewsFrontmatter.parse({ ...valid, title: '  A title ', description: ` ${'x'.repeat(155)} ` });
+    expect(parsed.title).toBe('A title');
+    expect(parsed.description).toBe('x'.repeat(155));
   });
 });
 

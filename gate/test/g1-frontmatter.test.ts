@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CHECKS } from '../src/checks';
 import { checkG1 } from '../src/checks/g1-frontmatter';
 import { defaultContext } from '../src/config';
+import { DESK_AUTHOR_NAME } from '../src/constants';
 import { cloneGolden } from '../src/fixtures';
 import type { GateInput } from '../src/gate';
 import { mutate } from './helpers';
@@ -51,6 +52,30 @@ describe('G1_TITLE_EMPTY', () => {
 
   it('passes for a one-word title', () => {
     expect(codesAfter((g) => (g.draft.title.text = 'Funding'))).toEqual([]);
+  });
+});
+
+describe('G1_DESCRIPTION_EMPTY', () => {
+  it.each(['', ' ', '\n\t '])('fails for the description %j, and says where', (description) => {
+    const out = checkG1(mutate(cloneGolden(), (g) => (g.draft.description.text = description)), defaultContext());
+    expect(out.failures).toEqual([
+      {
+        check: 'G1',
+        code: 'G1_DESCRIPTION_EMPTY',
+        message: 'the description is empty: the page and search results need a one-sentence description',
+        where: 'description',
+      },
+    ]);
+  });
+
+  it('passes for a one-word description', () => {
+    expect(codesAfter((g) => (g.draft.description.text = 'Funding'))).toEqual([]);
+  });
+
+  it('is not also reported as too long', () => {
+    expect(codesAfter((g) => (g.draft.description.text = ''), defaultContext({ config: { descriptionMax: 0 } }))).toEqual([
+      'G1_DESCRIPTION_EMPTY',
+    ]);
   });
 });
 
@@ -168,6 +193,33 @@ describe('G1_AUTHOR_MISSING', () => {
   });
 });
 
+describe('G1_AUTHOR_NOT_DESK', () => {
+  it.each(['Jane Doe', 'Robywire', 'robywire desk', 'Robywire  Desk', 'Robywire Desk ', ' Robywire Desk', 'Robywire Desk.'])(
+    'fails for the author name %j, and says what it must be',
+    (name) => {
+      const out = checkG1(mutate(cloneGolden(), (g) => (g.draft.author.name = name)), defaultContext());
+      expect(out.failures).toEqual([
+        {
+          check: 'G1',
+          code: 'G1_AUTHOR_NOT_DESK',
+          message: `the author is "${name}", but every piece is written by the Desk: the author must be "Robywire Desk"`,
+          where: 'author',
+        },
+      ]);
+    },
+  );
+
+  it('passes for the Desk', () => {
+    expect(codesAfter((g) => (g.draft.author.name = DESK_AUTHOR_NAME))).toEqual([]);
+  });
+
+  it('is not also reported for a blank name, which is the missing author', () => {
+    expect(codesAfter((g) => (g.draft.author.name = ''))).toEqual(['G1_AUTHOR_MISSING']);
+    expect(codesAfter((g) => (g.draft.author.name = '  '))).toEqual(['G1_AUTHOR_MISSING']);
+    expect(codesAfter((g) => ((g.draft as { author?: unknown }).author = undefined))).toEqual(['G1_AUTHOR_MISSING']);
+  });
+});
+
 describe('G1: several problems at once', () => {
   it('reports every one, so a single revision round can fix them all', () => {
     const codes = codesAfter((g) => {
@@ -176,7 +228,7 @@ describe('G1: several problems at once', () => {
       g.draft.publishedAt = 'yesterday';
       g.draft.slug = 'Bad Slug';
       g.draft.categories = [];
-      g.draft.author.name = '';
+      g.draft.author.name = 'Jane Doe';
     });
     expect(codes).toEqual([
       'G1_TITLE_EMPTY',
@@ -184,7 +236,7 @@ describe('G1: several problems at once', () => {
       'G1_BAD_DATE',
       'G1_SLUG_FORMAT',
       'G1_CATEGORY_COUNT',
-      'G1_AUTHOR_MISSING',
+      'G1_AUTHOR_NOT_DESK',
     ]);
   });
 });
