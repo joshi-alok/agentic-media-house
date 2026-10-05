@@ -18,7 +18,9 @@
     "evals:seeded": "npm run seeded --workspace @robywire/evals",
     "fixtures:check": "npm run fixtures:check --workspace @robywire/site",
     "build": "npm run build --workspace @robywire/site",
-    "build:fixtures": "npm run build:fixtures --workspace @robywire/site"
+    "build:fixtures": "npm run build:fixtures --workspace @robywire/site",
+    "audit": "node site/scripts/audit.mjs",
+    "audit:prod": "node site/scripts/audit.mjs --prod"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
