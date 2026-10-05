@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { LedgerEntry } from '@robywire/gate';
 import { xmlProblem } from '../scripts/audit/xml.mjs';
-import { CARD_COLOURS, CARD_HEIGHT, CARD_WIDTH, cardFigures, escapeXml, renderCardSvg, wrapText } from '../src/lib/card';
+import { CARD_COLOURS, CARD_HEIGHT, CARD_WIDTH, INLINE_CARD_COLOURS, cardFigures, cardLabel, escapeXml, renderCardSvg, renderInlineCardSvg, wrapText } from '../src/lib/card';
 
 const ELLIPSIS = String.fromCharCode(0x2026);
 const FIXTURES = new URL('../src/content-fixtures/', import.meta.url);
@@ -232,6 +232,14 @@ describe('renderCardSvg', () => {
     for (const family of families) expect(family).toBe('-apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif');
   });
 
+  it('names itself for a reader of the file: role, label and title are the title of the piece', () => {
+    const [opening, title] = svg.split('\n');
+    expect(opening).toBe(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="${escapeXml(GOLDEN.title)}">`,
+    );
+    expect(title).toBe(`<title>${escapeXml(GOLDEN.title)}</title>`);
+  });
+
   it('is the same every time', () => {
     expect(renderCardSvg(GOLDEN)).toBe(svg);
     expect(renderCardSvg(structuredClone(GOLDEN))).toBe(svg);
@@ -286,5 +294,92 @@ describe('renderCardSvg', () => {
     const used = new Set([...svg.matchAll(/#[0-9A-Fa-f]{6}/g)].map((match) => match[0].toUpperCase()));
     expect(used.size).toBeGreaterThan(2);
     for (const colour of used) expect(allowed.has(colour), colour).toBe(true);
+  });
+});
+
+describe('cardLabel', () => {
+  it('names the card, the title and the key figures, so that a reader who cannot see the picture gets them', () => {
+    expect(cardLabel(GOLDEN)).toBe(
+      `Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million, cycle-time cut 18 per cent, list price $38,000)`,
+    );
+  });
+
+  it('says the same figures as the card shows, in the same order', () => {
+    const label = cardLabel(GOLDEN);
+    const shown = textsWithRole(renderCardSvg(GOLDEN), 'figure');
+    let from = 0;
+    for (const figure of shown) {
+      const at = label.indexOf(figure, from);
+      expect(at, figure).toBeGreaterThanOrEqual(from);
+      from = at + figure.length;
+    }
+  });
+
+  it('gives the title alone when the piece has no figures', () => {
+    expect(cardLabel(entryWith((copy) => copy.claims.forEach((claim) => (claim.type = 'event'))))).toBe(`Fact card: ${GOLDEN.title}`);
+  });
+
+  it('gives one figure without a list when there is one', () => {
+    const entry = entryWith((copy) => {
+      for (const claim of copy.claims) if (claim.id !== 'c-17') claim.type = 'spec';
+    });
+    expect(cardLabel(entry)).toBe(`Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million)`);
+  });
+});
+
+describe('renderInlineCardSvg', () => {
+  const inline = renderInlineCardSvg(GOLDEN);
+  const file = renderCardSvg(GOLDEN);
+  const colours = Object.keys(CARD_COLOURS) as (keyof typeof CARD_COLOURS)[];
+
+  /** The drawing: everything except the opening tag of the svg element and its title. */
+  const drawing = (svg: string): string =>
+    svg
+      .split('\n')
+      .filter((line) => !line.startsWith('<svg') && !line.startsWith('<title'))
+      .join('\n');
+
+  it('is a well-formed XML document', () => {
+    expect(xmlProblem(inline)).toBeUndefined();
+  });
+
+  it('is the same drawing as the card file, with the colours of the design tokens in place of their values', () => {
+    const asFile = colours.reduce((text, name) => text.replaceAll(INLINE_CARD_COLOURS[name], CARD_COLOURS[name]), drawing(inline));
+    expect(asFile).toBe(drawing(file));
+  });
+
+  it('has the size of the card as its shape, and none of its own, so that the page decides how large it is', () => {
+    const [opening] = inline.split('\n');
+    expect(opening).toContain('viewBox="0 0 1200 630"');
+    expect(opening).not.toMatch(/\swidth=|\sheight=/);
+  });
+
+  it('is hidden from assistive technology, and cannot be focused, because the figure around it carries the label', () => {
+    const [opening] = inline.split('\n');
+    expect(opening).toBe('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" aria-hidden="true" focusable="false">');
+    expect(inline).not.toMatch(/<title|\srole=|aria-label/);
+  });
+
+  it('writes every colour as a variable of the design tokens, so that it follows the colour scheme', () => {
+    expect(inline).not.toMatch(/#[0-9A-Fa-f]{3,8}\b/);
+    const painted = [...inline.matchAll(/\s(?:fill|stroke)="([^"]*)"/g)].map((match) => match[1]!);
+    expect(painted.length).toBeGreaterThan(8);
+    const allowed = new Set<string>([...Object.values(INLINE_CARD_COLOURS), 'none']);
+    for (const value of painted) expect(allowed.has(value), value).toBe(true);
+  });
+
+  it('uses the variables that hold the same colours as the card file does', () => {
+    expect(INLINE_CARD_COLOURS).toEqual({
+      background: 'var(--bg)',
+      frame: 'var(--line-2)',
+      rule: 'var(--line)',
+      text: 'var(--t1)',
+      quiet: 'var(--t2)',
+      link: 'var(--link)',
+    });
+  });
+
+  it('is the same every time', () => {
+    expect(renderInlineCardSvg(structuredClone(GOLDEN))).toBe(inline);
   });
 });

@@ -9,8 +9,8 @@ const run = (changes: Record<string, string | null> = {}, prod = false) => runCh
 const failed = (results: ReturnType<typeof run>) => results.filter((result) => !result.ok).map((result) => result.id);
 
 describe('CHECKS', () => {
-  it('lists the checks A1 to A16 in order, each with a title of its own', () => {
-    expect(CHECKS.map((check) => check.id)).toEqual(Array.from({ length: 16 }, (_, index) => `A${index + 1}`));
+  it('lists the checks A1 to A17 in order, each with a title of its own', () => {
+    expect(CHECKS.map((check) => check.id)).toEqual(Array.from({ length: 17 }, (_, index) => `A${index + 1}`));
     const titles = CHECKS.map((check) => check.title);
     expect(new Set(titles).size).toBe(titles.length);
     for (const title of titles) expect(title.length).toBeGreaterThan(10);

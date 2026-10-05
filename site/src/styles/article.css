@@ -44,3 +44,16 @@
   border-top: 1px solid var(--line-2);
   color: var(--t2);
 }
+
+/* The fact card: the piece's own picture, drawn into the page. It is as wide as the
+   column and no wider; its colours are the tokens', so it follows the colour scheme. */
+.fact-card {
+  max-width: 65ch;
+  margin: 1.5rem 0 0;
+}
+
+.fact-card svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

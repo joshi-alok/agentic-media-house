@@ -120,8 +120,25 @@ function coloursIn(css) {
   return [...declarations.matchAll(HEX_COLOUR)].map((match) => normaliseHex(match[0])).concat([...declarations.matchAll(FUNCTION_COLOUR)].map((match) => `${match[1].toLowerCase()}()`));
 }
 
+/** The attributes of an SVG element that paint something. */
+const PAINT_ATTRIBUTES = ['fill', 'stroke', 'color', 'stop-color', 'flood-color', 'lighting-color'];
+
 /**
- * A12: the colour law: every colour in the CSS, and in the SVG files, is one of the colours the tokens file defines.
+ * The colours written in the paint attributes of the inline <svg> elements of a page, as normalised hex or as "rgb()".
+ * A reference such as url(#gradient) is not a colour, so it is left out before the attribute is read.
+ * @param {import('./site.mjs').Page} page
+ * @returns {string[]}
+ */
+function inlineSvgColours(page) {
+  return elements(page.document, 'svg')
+    .flatMap((svg) => allElements(svg))
+    .flatMap((element) => PAINT_ATTRIBUTES.map((name) => (attr(element, name) ?? '').replace(/url\([^)]*\)/gi, '')))
+    .flatMap((value) => [...value.matchAll(HEX_COLOUR)].map((match) => normaliseHex(match[0])).concat([...value.matchAll(FUNCTION_COLOUR)].map((match) => `${match[1].toLowerCase()}()`)));
+}
+
+/**
+ * A12: the colour law: every colour in the CSS, in the SVG files and in the colour attributes of an inline SVG in a page is one of the colours the tokens file defines.
+ * A colour that is a variable, such as var(--bg), is the tokens' own and passes.
  * @param {import('./site.mjs').Site} site
  * @param {string} tokensCss  The text of src/styles/tokens.css.
  */
@@ -134,6 +151,7 @@ export function checkColourLaw(site, tokensCss) {
   for (const [file, text] of site.files) {
     if (file.endsWith('.svg')) places.push({ where: file, colours: [...text.matchAll(HEX_COLOUR)].map((match) => normaliseHex(match[0])) });
   }
+  for (const page of site.pages) places.push({ where: `${page.file} (inline svg)`, colours: inlineSvgColours(page) });
 
   /** @type {string[]} */
   const problems = [];

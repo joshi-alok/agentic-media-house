@@ -1,10 +1,13 @@
 import type { LedgerEntry } from '@robywire/gate';
 import { plural } from './format';
 
-// The fact card: a 1200 by 630 picture drawn from a piece's own ledger, used
-// as the share image. It is an SVG written by this file and nothing else: no
-// image, no link, no web font. The same ledger always gives the same bytes.
-// The colours are the light design tokens; a test checks that.
+// The fact card: a 1200 by 630 picture drawn from a piece's own ledger. It is
+// an SVG written by this file and nothing else: no image, no link, no web
+// font. The same ledger always gives the same bytes. It is drawn twice, from
+// one drawing: as a file (card.svg, the share image), in the light design
+// tokens, and inline in the article page, where its colours are the CSS
+// variables of the tokens, so that it follows the colour scheme of the page.
+// A test checks both sets of colours.
 
 export const CARD_WIDTH = 1200;
 export const CARD_HEIGHT = 630;
@@ -17,6 +20,16 @@ export const CARD_COLOURS = {
   quiet: '#5B6470',
   link: '#1B66DF',
 } as const;
+
+/** The same colours as variables of the design tokens, for the card inside a page. */
+export const INLINE_CARD_COLOURS: Readonly<Record<keyof typeof CARD_COLOURS, string>> = {
+  background: 'var(--bg)',
+  frame: 'var(--line-2)',
+  rule: 'var(--line)',
+  text: 'var(--t1)',
+  quiet: 'var(--t2)',
+  link: 'var(--link)',
+};
 
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 
@@ -118,12 +131,14 @@ function text(role: string, x: number, y: number, size: number, weight: number, 
   return `<text data-role="${role}" x="${x}" y="${y}" font-family="${FONT}" font-size="${size}" font-weight="${weight}" fill="${fill}"${extra}>${escapeXml(content)}</text>`;
 }
 
-/** The fact card of a piece as an SVG document. */
-export function renderCardSvg(entry: LedgerEntry): string {
-  const { background, frame, rule, text: ink, quiet, link } = CARD_COLOURS;
+/**
+ * The drawing of the card in the given colours, below the lines that open the svg element.
+ * `head` is those lines: the opening tag and, for the file, the title.
+ */
+function drawCard(entry: LedgerEntry, colours: Readonly<Record<keyof typeof CARD_COLOURS, string>>, head: string[]): string {
+  const { background, frame, rule, text: ink, quiet, link } = colours;
   const parts: string[] = [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" role="img" aria-label="${escapeXml(entry.title)}">`,
-    `<title>${escapeXml(entry.title)}</title>`,
+    ...head,
     `<rect width="${CARD_WIDTH}" height="${CARD_HEIGHT}" fill="${background}"/>`,
     `<rect x="24.5" y="24.5" width="${CARD_WIDTH - 49}" height="${CARD_HEIGHT - 49}" fill="none" stroke="${frame}" stroke-width="1"/>`,
     text('wordmark', LEFT, 100, 26, 600, ink, 'ROBYWIRE', ' letter-spacing="6"'),
@@ -151,4 +166,27 @@ export function renderCardSvg(entry: LedgerEntry): string {
 
   parts.push('</svg>');
   return `${parts.join('\n')}\n`;
+}
+
+/** The fact card of a piece as an SVG document: the file that is served as card.svg and drawn into card.png. */
+export function renderCardSvg(entry: LedgerEntry): string {
+  return drawCard(entry, CARD_COLOURS, [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_WIDTH}" height="${CARD_HEIGHT}" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" role="img" aria-label="${escapeXml(entry.title)}">`,
+    `<title>${escapeXml(entry.title)}</title>`,
+  ]);
+}
+
+/**
+ * The fact card to put inside a page. It is the same drawing in the colours of the design tokens as CSS
+ * variables. It has no size of its own (the stylesheet gives it the width of the column) and no label: the
+ * figure around it carries `cardLabel`, so assistive technology reads the card once.
+ */
+export function renderInlineCardSvg(entry: LedgerEntry): string {
+  return drawCard(entry, INLINE_CARD_COLOURS, [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_WIDTH} ${CARD_HEIGHT}" aria-hidden="true" focusable="false">`]);
+}
+
+/** What a reader who cannot see the card is told: that it is the fact card, the title, and the figures it shows. */
+export function cardLabel(entry: LedgerEntry): string {
+  const figures = cardFigures(entry).map((figure) => `${figure.label} ${figure.value}`);
+  return figures.length === 0 ? `Fact card: ${entry.title}` : `Fact card: ${entry.title} (key figures: ${figures.join(', ')})`;
 }

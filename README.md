@@ -46,7 +46,7 @@ Run everything from the repository root.
 | `npm run fixtures:check` | Regenerate the fixture content and fail, with a diff, if it differs from the committed files. |
 | `npm run build` | The production build, into `site/dist`. It reads `site/src/content/`, which has no pieces yet. |
 | `npm run build:fixtures` | The fixture build, into `site/dist` (see Fixtures below). |
-| `npm run audit` | Run the checks A1 to A12 and A14 to A16 on `site/dist`: HTML, links, receipts, CSS rules, colours, feeds. Exits 1 on any problem. |
+| `npm run audit` | Run the checks A1 to A12 and A14 to A17 on `site/dist`: HTML, links, receipts, the fact card, CSS rules, colours, feeds. Exits 1 on any problem. |
 | `npm run audit:prod` | The same, plus A13: the build has no trace of the fixtures. Run it after `npm run build`. |
 | `npm run lighthouse` | Measure the fixture build in `site/dist` with Lighthouse (home page, lead article and its receipts page, and the first article that carries the Unconfirmed. label with its receipts page) and fail if any score is under 95. |
 | `npm run verify` | All of the above in CI order: typecheck, tests, seeded evals, fixture drift, production build, production audit, fixture build, fixture audit, Lighthouse. |
@@ -74,7 +74,7 @@ A piece is two files: the MDX that readers see and the ledger JSON behind its re
 
 ## The audit
 
-`npm run audit` reads the built pages in `site/dist` and checks them against the rules of the design and of the content. The checks are listed, with a sentence for each, in `site/scripts/audit/checks.mjs`; every check has a test that gives it a page it must accept and a page it must reject. They include: every page parses and has one `h1`, a title, a description and a skip link; no images, no italics, no web fonts, no border over one pixel, no rounded corner; every colour is one of the design tokens in `site/src/styles/tokens.css`; every internal link and `#fragment` resolves; every article links to its receipts page and has `NewsArticle` data; every claim marker in an article leads to its claim; and the feed, the sitemap, `robots.txt` and the 404 page are there and agree.
+`npm run audit` reads the built pages in `site/dist` and checks them against the rules of the design and of the content. The checks are listed, with a sentence for each, in `site/scripts/audit/checks.mjs`; every check has a test that gives it a page it must accept and a page it must reject. They include: every page parses and has one `h1`, a title, a description and a skip link; no images, no italics, no web fonts, no border over one pixel, no rounded corner; every colour, in the CSS and in the colour attributes of an inline SVG, is one of the design tokens in `site/src/styles/tokens.css`; every internal link and `#fragment` resolves; every article links to its receipts page and has `NewsArticle` data; every claim marker in an article leads to its claim; every article shows its fact card, a figure with a label that holds an inline SVG drawn in the tokens' colours; and the feed, the sitemap, `robots.txt` and the 404 page are there and agree.
 
 ## Reading the scoreboard
 

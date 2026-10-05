@@ -4,6 +4,7 @@ import { DESK_AUTHOR_NAME, DESK_BYLINE_LABEL } from '@robywire/gate';
 import BeatChips from '../../../components/BeatChips.astro';
 import CorrectionNotice from '../../../components/CorrectionNotice.astro';
 import Base from '../../../layouts/Base.astro';
+import { cardLabel, renderInlineCardSvg } from '../../../lib/card';
 import { correctionsFor, getDeskState } from '../../../lib/desk-state';
 import { formatDate, plural } from '../../../lib/format';
 import { jsonLdScript, newsArticleJsonLd } from '../../../lib/jsonld';
@@ -23,6 +24,7 @@ const { Content } = await render(piece.entry);
 const corrections = correctionsFor(await getDeskState(), piece.slug);
 const claims = plural(piece.ledger.claims.length, 'claim', 'claims');
 const sources = plural(piece.ledger.sources.length, 'source', 'sources');
+const card = renderInlineCardSvg(piece.ledger);
 const jsonLd = jsonLdScript(newsArticleJsonLd({ slug: piece.slug, ...piece.data }, corrections, Astro.site.href));
 ---
 
@@ -42,6 +44,7 @@ const jsonLd = jsonLdScript(newsArticleJsonLd({ slug: piece.slug, ...piece.data 
       <Content />
     </div>
     <p class="receipts-link">{claims} from {sources} &mdash; <a href={receiptsPath(piece.slug)}>see the receipts</a></p>
+    <figure class="fact-card" data-fact-card role="img" aria-label={cardLabel(piece.ledger)} set:html={card} />
     <script type="application/ld+json" set:html={jsonLd} />
   </article>
 </Base>

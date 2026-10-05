@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from '../scripts/audit/checks-markup.mjs';
 import { checkCrawlFiles, checkNoFixtureLeakage, checkXmlWellFormed } from '../scripts/audit/checks-files.mjs';
-import { checkArticlePages, checkClaimMarkers, checkInternalLinks, checkUnconfirmedLabel } from '../scripts/audit/checks-links.mjs';
+import { checkArticlePages, checkClaimMarkers, checkFactCard, checkInternalLinks, checkUnconfirmedLabel } from '../scripts/audit/checks-links.mjs';
 import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from '../scripts/audit/checks-style.mjs';
 import { siteFromFiles } from '../scripts/audit/site.mjs';
 
@@ -304,6 +304,36 @@ describe('A12 checkColourLaw', () => {
     ]);
   });
 
+  it('reads the colour attributes of an inline SVG in a page, such as the fact card, and accepts the variables of the tokens', () => {
+    const inline = (svg: string) => site({ 'index.html': page(`<h1>x</h1>${svg}`) });
+    expect(checkColourLaw(inline('<svg><rect fill="var(--bg)" stroke="var(--link)"/><text fill="currentColor" stroke="none">x</text></svg>'), tokens)).toEqual(ok('A12'));
+    expect(checkColourLaw(inline('<svg><rect fill="#FFFFFF" stroke="#1B66DF"/></svg>'), tokens)).toEqual(ok('A12'));
+    expect(checkColourLaw(inline('<svg><rect fill="#ABCDEF"/><text stroke="rgb(1 2 3)">x</text></svg>'), tokens).problems).toEqual([
+      'index.html (inline svg): #abcdef is not a colour of the design tokens',
+      'index.html (inline svg): rgb() is not a colour of the design tokens',
+    ]);
+  });
+
+  it('reads every attribute that paints in an inline SVG, and on any element inside it', () => {
+    const inline = (svg: string) => site({ 'index.html': page(`<h1>x</h1>${svg}`) });
+    const problems = checkColourLaw(inline('<svg color="#111111"><g><stop stop-color="#222222"/><feFlood flood-color="#333333"/><feDiffuseLighting lighting-color="#444444"/></g></svg>'), tokens).problems;
+    expect(problems).toEqual(['index.html (inline svg): #111111 is not a colour of the design tokens', 'index.html (inline svg): #222222 is not a colour of the design tokens', 'index.html (inline svg): #333333 is not a colour of the design tokens', 'index.html (inline svg): #444444 is not a colour of the design tokens']);
+  });
+
+  it('reads a function colour written in capitals in an inline SVG', () => {
+    expect(checkColourLaw(site({ 'index.html': page('<h1>x</h1><svg><rect stroke="RGB(0 0 0)"/></svg>') }), tokens).problems).toEqual([
+      'index.html (inline svg): rgb() is not a colour of the design tokens',
+    ]);
+  });
+
+  it('does not take a reference such as url(#abc) in an inline SVG for a colour', () => {
+    expect(checkColourLaw(site({ 'index.html': page('<h1>x</h1><svg><rect fill="url(#abc)"/></svg>') }), tokens)).toEqual(ok('A12'));
+  });
+
+  it('does not read a fill attribute that is not inside an SVG', () => {
+    expect(checkColourLaw(site({ 'index.html': page('<h1>x</h1><p fill="#ABCDEF">x</p>') }), tokens)).toEqual(ok('A12'));
+  });
+
   it('does not take an id selector for a colour', () => {
     expect(checkColourLaw(withCss('#add{margin:0}#bad .x{margin:0}'), tokens)).toEqual(ok('A12'));
   });
@@ -537,6 +567,58 @@ describe('A16 checkUnconfirmedLabel', () => {
 
   it('leaves a missing receipts page to A9', () => {
     expect(checkUnconfirmedLabel(site({ [ARTICLE]: article('Plain.') }))).toEqual(ok('A16'));
+  });
+});
+
+describe('A17 checkFactCard', () => {
+  const SLUG = 'a-story';
+  const ARTICLE = `news/${SLUG}/index.html`;
+  const SVG = '<svg viewBox="0 0 1200 630" aria-hidden="true"><rect width="1200" height="630" fill="var(--bg)"/></svg>';
+  const card = (inner = SVG, attributes = 'role="img" aria-label="Fact card: A story"') => `<figure class="fact-card" data-fact-card ${attributes}>${inner}</figure>`;
+  const article = (body: string) => page(`<h1>x</h1><div class="prose"><p>Text.</p></div>${body}`);
+
+  it('accepts an article with its fact card: a labelled figure that holds an inline SVG', () => {
+    expect(checkFactCard(site({ [ARTICLE]: article(card()) }))).toEqual(ok('A17'));
+  });
+
+  it('accepts a site with no article, such as a production build with no pieces', () => {
+    expect(checkFactCard(site({ 'index.html': page('<h1>x</h1>') }))).toEqual(ok('A17'));
+  });
+
+  it('judges each article by itself, and names the ones that fail', () => {
+    const files = { 'news/a/index.html': article(card()), 'news/b/index.html': article(''), 'news/c/index.html': article(card()) };
+    expect(checkFactCard(site(files))).toEqual({ id: 'A17', ok: false, problems: ['news/b/index.html: has no fact card (a <figure data-fact-card>)'] });
+  });
+
+  it('rejects an article with no figure for the card, even if an SVG is somewhere else on the page', () => {
+    expect(checkFactCard(site({ [ARTICLE]: article(SVG) })).problems).toEqual([`${ARTICLE}: has no fact card (a <figure data-fact-card>)`]);
+  });
+
+  it('does not take a figure for the card unless it has the data-fact-card attribute', () => {
+    expect(checkFactCard(site({ [ARTICLE]: article(`<figure class="fact-card" role="img" aria-label="Fact card">${SVG}</figure>`) })).problems).toEqual([
+      `${ARTICLE}: has no fact card (a <figure data-fact-card>)`,
+    ]);
+  });
+
+  it('rejects a card with no inline SVG, whether it is empty or holds something else', () => {
+    expect(checkFactCard(site({ [ARTICLE]: article(card('')) })).problems).toEqual([`${ARTICLE}: its fact card has no inline <svg>`]);
+    expect(checkFactCard(site({ [ARTICLE]: article(card('<p>A card.</p>')) })).problems).toEqual([`${ARTICLE}: its fact card has no inline <svg>`]);
+    expect(checkFactCard(site({ [ARTICLE]: article(card('<img src="/news/a/card.svg" alt="">')) })).problems).toEqual([`${ARTICLE}: its fact card has no inline <svg>`]);
+  });
+
+  it('rejects a card that has no role="img" or no label, because a picture with no label says nothing to a screen reader', () => {
+    expect(checkFactCard(site({ [ARTICLE]: article(card(SVG, 'aria-label="Fact card"')) })).problems).toEqual([`${ARTICLE}: its fact card needs role="img" and a non-empty aria-label`]);
+    expect(checkFactCard(site({ [ARTICLE]: article(card(SVG, 'role="img"')) })).problems).toEqual([`${ARTICLE}: its fact card needs role="img" and a non-empty aria-label`]);
+    expect(checkFactCard(site({ [ARTICLE]: article(card(SVG, 'role="img" aria-label="  "')) })).problems).toEqual([`${ARTICLE}: its fact card needs role="img" and a non-empty aria-label`]);
+  });
+
+  it('judges every card of an article, so a second, empty one is found', () => {
+    expect(checkFactCard(site({ [ARTICLE]: article(card() + card('')) })).problems).toEqual([`${ARTICLE}: its fact card has no inline <svg>`]);
+  });
+
+  it('looks at articles only: the home page and the receipts pages need no card', () => {
+    const files = { 'index.html': page('<h1>x</h1>'), [`news/${SLUG}/receipts/index.html`]: page('<h1>r</h1>'), [ARTICLE]: article(card()) };
+    expect(checkFactCard(site(files))).toEqual(ok('A17'));
   });
 });
 

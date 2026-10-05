@@ -212,3 +212,22 @@ export function checkUnconfirmedLabel(site) {
   }
   return result('A16', problems);
 }
+
+/**
+ * A17: every article shows its fact card: a <figure data-fact-card> with role="img" and an aria-label that holds an inline <svg>.
+ * The card is a picture, and the design allows no <img>, so it is drawn into the page; the label is what a screen reader reads in its place.
+ * @param {import('./site.mjs').Site} site
+ */
+export function checkFactCard(site) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const { page } of articles(site)) {
+    const figures = elements(page.document, 'figure').filter((figure) => attr(figure, 'data-fact-card') !== undefined);
+    if (figures.length === 0) problems.push(`${page.file}: has no fact card (a <figure data-fact-card>)`);
+    for (const figure of figures) {
+      if (elements(figure, 'svg').length === 0) problems.push(`${page.file}: its fact card has no inline <svg>`);
+      if (attr(figure, 'role') !== 'img' || (attr(figure, 'aria-label') ?? '').trim() === '') problems.push(`${page.file}: its fact card needs role="img" and a non-empty aria-label`);
+    }
+  }
+  return result('A17', problems);
+}

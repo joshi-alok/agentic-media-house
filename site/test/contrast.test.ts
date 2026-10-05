@@ -2,7 +2,9 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { LedgerEntry } from '@robywire/gate';
 import { cssViolations } from '../scripts/audit/css-rules.mjs';
+import { renderInlineCardSvg } from '../src/lib/card';
 
 // The design register is quiet, thin and grey, and it has rules that a
 // reviewer would otherwise have to check by eye: text must be readable in both
@@ -95,6 +97,31 @@ describe('tokens.css', () => {
     expect(luminance(tokens.dark.bg!)).toBeLessThan(0.05);
     expect(luminance(tokens.dark.t1!)).toBeGreaterThan(0.5);
     expect(luminance(tokens.light.bg!)).toBeGreaterThan(0.9);
+  });
+});
+
+// --- The fact card inside an article -----------------------------------------
+
+describe('the fact card inside an article', () => {
+  // The card is drawn in the colours of the tokens, as CSS variables, so it follows the colour scheme of
+  // the page. The ground is the page's own ground; this reads the card that is drawn, takes the token each
+  // text is painted with, and checks that text against the ground in both schemes.
+  const FIXTURE = new URL('content-fixtures/ledger/fixture-robotics-ships-fx-1-to-second-plant.json', new URL('../src/', import.meta.url));
+  const svg = renderInlineCardSvg(LedgerEntry.parse(JSON.parse(readFileSync(FIXTURE, 'utf8'))));
+  const tokenOf = (paint: string): string => /^var\(--([a-z0-9-]+)\)$/.exec(paint)?.[1] ?? paint;
+  const ground = tokenOf(/<rect width="1200" height="630" fill="([^"]*)"/.exec(svg)?.[1] ?? '');
+  const texts = [...new Map([...svg.matchAll(/<text data-role="([^"]*)"[^>]* fill="([^"]*)"/g)].map((match) => [match[1]!, tokenOf(match[2]!)] as const))];
+
+  it('is painted on the ground of the page, and every text on it is painted with a token', () => {
+    expect(ground).toBe('bg');
+    expect(texts.map(([role]) => role)).toEqual(['wordmark', 'title', 'figure', 'figure-label', 'counts', 'host']);
+    for (const [role, token] of texts) expect(TEXT_TOKENS, role).toContain(token);
+  });
+
+  const cases = SCHEMES.flatMap(([scheme, values]) => texts.map(([role, token]) => [scheme, role, token, values] as const));
+
+  it.each(cases)('%s scheme: the %s of the card, in --%s, reaches 4.5:1 on the ground', (_scheme, _role, token, values) => {
+    expect(contrast(values[token]!, values[ground]!)).toBeGreaterThanOrEqual(4.5);
   });
 });
 

@@ -1,5 +1,5 @@
 import { checkCrawlFiles, checkNoFixtureLeakage, checkXmlWellFormed } from './checks-files.mjs';
-import { checkArticlePages, checkClaimMarkers, checkInternalLinks, checkUnconfirmedLabel } from './checks-links.mjs';
+import { checkArticlePages, checkClaimMarkers, checkFactCard, checkInternalLinks, checkUnconfirmedLabel } from './checks-links.mjs';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from './checks-markup.mjs';
 import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from './checks-style.mjs';
 
@@ -32,11 +32,12 @@ export const CHECKS = [
   { id: 'A9', title: 'Every article links to its receipts and has a canonical link and NewsArticle data', run: checkArticlePages },
   { id: 'A10', title: 'The skip link is the first link on every page', run: checkSkipLink },
   { id: 'A11', title: 'Every claim marker points at its claim on the receipts page', run: checkClaimMarkers },
-  { id: 'A12', title: 'Every colour belongs to the design tokens', run: (site, options) => checkColourLaw(site, options.tokensCss) },
+  { id: 'A12', title: 'Every colour in the CSS, the SVG files and the inline SVG belongs to the design tokens', run: (site, options) => checkColourLaw(site, options.tokensCss) },
   { id: 'A13', title: 'No fixture content in a production build', prodOnly: true, run: checkNoFixtureLeakage },
   { id: 'A14', title: 'Every XML file is well-formed', run: checkXmlWellFormed },
   { id: 'A15', title: 'robots.txt, the sitemap, the feed and the 404 page are there and agree', run: checkCrawlFiles },
   { id: 'A16', title: 'An article that cites a claim from another outlet carries the Unconfirmed. label', run: checkUnconfirmedLabel },
+  { id: 'A17', title: 'Every article shows its fact card, a labelled figure with an inline SVG', run: checkFactCard },
 ];
 
 /**
