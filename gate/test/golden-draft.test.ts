@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { defaultConfig, DEFAULT_BANNED_PHRASES } from '../src/config';
 import { CATEGORY_VOCAB } from '../src/constants';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden } from '../src/fixtures';
-import { renderLimitation } from '../src/limitations';
+import { buildLimitations, renderLimitation } from '../src/limitations';
 import { Draft } from '../src/schemas';
 import type { Sentence } from '../src/schemas';
+import { citedClaims } from '../src/sentences';
 import { countWords, normaliseQuotes, quotedSegments } from '../src/text';
 import { extractTokens } from '../src/tokens';
 import { expectValid } from './schema-helpers';
@@ -104,9 +105,12 @@ describe('GOLDEN_DRAFT: citations', () => {
 describe('GOLDEN_DRAFT: analysis', () => {
   const analyses = bodySentences.filter((sentence) => sentence.kind === 'analysis');
 
-  it('has exactly one analysis sentence, and it is in a section', () => {
-    expect(everySentence.filter((sentence) => sentence.kind === 'analysis')).toHaveLength(1);
-    expect(analyses).toHaveLength(1);
+  it('has three analysis sentences, all in sections, the first of them about the measured rate', () => {
+    expect(everySentence.filter((sentence) => sentence.kind === 'analysis')).toHaveLength(3);
+    expect(analyses).toHaveLength(3);
+    expect(analyses[0]?.text).toBe(
+      'The measured rate sits below the datasheet maximum, which is normal for a figure quoted as an upper limit.',
+    );
   });
 
   it('introduces no number, date or name that a fact sentence does not already contain', () => {
@@ -114,10 +118,12 @@ describe('GOLDEN_DRAFT: analysis', () => {
     const factNumbers = new Set(facts.flatMap((tokens) => tokens.numbers.map((token) => `${token.value} ${token.unit ?? ''}`)));
     const factDates = new Set(facts.flatMap((tokens) => tokens.dates.map((token) => token.iso)));
     const factNames = new Set(facts.flatMap((tokens) => tokens.names));
-    const own = extractTokens(analyses[0]?.text ?? '');
-    for (const token of own.numbers) expect(factNumbers.has(`${token.value} ${token.unit ?? ''}`), token.raw).toBe(true);
-    for (const token of own.dates) expect(factDates.has(token.iso), token.raw).toBe(true);
-    for (const token of own.names) expect(factNames.has(token), token).toBe(true);
+    for (const analysis of analyses) {
+      const own = extractTokens(analysis.text);
+      for (const token of own.numbers) expect(factNumbers.has(`${token.value} ${token.unit ?? ''}`), token.raw).toBe(true);
+      for (const token of own.dates) expect(factDates.has(token.iso), token.raw).toBe(true);
+      for (const token of own.names) expect(factNames.has(token), token).toBe(true);
+    }
   });
 });
 
@@ -140,15 +146,23 @@ describe('GOLDEN_DRAFT: quotes', () => {
 });
 
 describe('GOLDEN_DRAFT: limitations', () => {
-  it('has limitation sentences rendered by renderLimitation from the claim they cite', () => {
+  it('has limitation sentences rendered by renderLimitation from the claims they cite', () => {
     expect(GOLDEN_DRAFT.limitations.length).toBeGreaterThan(0);
     for (const sentence of GOLDEN_DRAFT.limitations) {
       expect(sentence.kind).toBe('limitation');
-      expect(sentence.claimIds).toHaveLength(1);
-      const cited = GOLDEN_CLAIMS.find((claim) => claim.id === sentence.claimIds[0]);
-      expect(cited, sentence.text).toBeDefined();
-      expect(sentence.text).toBe(renderLimitation(cited as (typeof GOLDEN_CLAIMS)[number], sentence.template));
+      expect(sentence.claimIds.length).toBeGreaterThan(0);
+      const cited = sentence.claimIds.map((id) => GOLDEN_CLAIMS.find((claim) => claim.id === id) as (typeof GOLDEN_CLAIMS)[number]);
+      expect(cited.every((claim) => claim !== undefined), sentence.text).toBe(true);
+      expect(sentence.text).toBe(renderLimitation(cited, sentence.template));
     }
+  });
+
+  it('has the sentences buildLimitations writes for the claims the rest of the piece cites: three to six of them', () => {
+    const { limitations, ...rest } = GOLDEN_DRAFT;
+    const cited = citedClaims({ ...rest, limitations: [] }, GOLDEN_CLAIMS);
+    expect(GOLDEN_DRAFT.limitations).toEqual(buildLimitations(cited));
+    expect(limitations.length).toBeGreaterThanOrEqual(3);
+    expect(limitations.length).toBeLessThanOrEqual(6);
   });
 
   it('never says the same thing twice', () => {

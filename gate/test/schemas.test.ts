@@ -306,18 +306,18 @@ describe('Sentence', () => {
     expectValid(Sentence, { kind: 'analysis', text: 'That is mid-range.', claimIds: ['c-1', 'c-2'] });
   });
 
-  it('accepts a limitation sentence with exactly one claim id and a template', () => {
+  it('accepts a limitation sentence with one or more claim ids and a template', () => {
     expectValid(Sentence, { kind: 'limitation', text: 'No testing.', claimIds: ['c-1'], template: 'status' });
     expectValid(Sentence, { kind: 'limitation', text: 'Datasheet only.', claimIds: ['c-1'], template: 'basis' });
+    expectValid(Sentence, { kind: 'limitation', text: 'Datasheet only.', claimIds: ['c-1', 'c-2', 'c-10'], template: 'basis' });
   });
 
-  it.each([
-    ['no claim id', []],
-    ['two claim ids', ['c-1', 'c-2']],
-  ])('rejects a limitation sentence with %s', (_label, claimIds) => {
-    expect(failedPaths(Sentence, { kind: 'limitation', text: 'x', claimIds, template: 'basis' })).toEqual([
-      'claimIds',
-    ]);
+  it('rejects a limitation sentence with no claim id', () => {
+    expect(failedPaths(Sentence, { kind: 'limitation', text: 'x', claimIds: [], template: 'basis' })).toEqual(['claimIds']);
+  });
+
+  it('leaves the order and the uniqueness of the claim ids of a limitation sentence to the gate (G8)', () => {
+    expectValid(Sentence, { kind: 'limitation', text: 'x', claimIds: ['c-2', 'c-1', 'c-1'], template: 'basis' });
   });
 
   it('rejects a limitation sentence with a missing or unknown template', () => {

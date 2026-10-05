@@ -6,7 +6,7 @@ import { cloneGolden } from '../src/fixtures';
 import { runGate } from '../src/gate';
 import type { GateInput, GateResult } from '../src/gate';
 import { LedgerEntry } from '../src/schemas';
-import { NewsFrontmatter, renderDraft } from '../src/render';
+import { NewsFrontmatter, escapeMdx, renderDraft } from '../src/render';
 import type { RenderMeta } from '../src/render';
 import { allSentences } from '../src/sentences';
 import { claimById, findSentence, mutate } from './helpers';
@@ -96,6 +96,14 @@ describe('renderDraft: the golden piece', () => {
     expect(limitations.split(' ').length).toBeGreaterThan(40);
   });
 
+  it('writes the limitations as one paragraph, each sentence followed by the markers of every claim it describes', () => {
+    const marker = (id: string) => `[${ledger.order.indexOf(id) + 1}](${RECEIPTS}#${id})`;
+    const expected = golden.draft.limitations.map((sentence) => `${escapeMdx(sentence.text)}${sentence.claimIds.map(marker).join('')}`).join(' ');
+    expect(blocks(mdx).at(-1)).toBe(expected);
+    // One marker for each claim a sentence describes: 8 datasheet claims, 12 press-release claims, 2 demo claims, 2 demonstrated and 5 planned.
+    expect(blocks(mdx).at(-1)!.match(/\]\(/g)).toHaveLength(8 + 12 + 2 + 2 + 5);
+  });
+
   it('follows each sentence with marker links to the receipts page, with no space before the first marker', () => {
     const opening = blocks(mdx)[0]!;
     expect(opening).toContain(`Tarnmoor.[1](${RECEIPTS}#c-1) The first site`);
@@ -106,8 +114,8 @@ describe('renderDraft: the golden piece', () => {
     expect(opening).toContain(`and a third site is planned.[2](${RECEIPTS}#c-23)[3](${RECEIPTS}#c-26) The company`);
   });
 
-  it('labels the one analysis sentence and nothing else', () => {
-    expect(mdx.split('**Analysis.** ')).toHaveLength(2);
+  it('labels the three analysis sentences and nothing else', () => {
+    expect(mdx.split('**Analysis.** ')).toHaveLength(4);
     expect(mdx).toContain('**Analysis.** The measured rate sits below the datasheet maximum');
   });
 

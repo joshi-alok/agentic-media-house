@@ -1,5 +1,5 @@
 import type { LedgerSection } from './constants';
-import type { Draft, Sentence } from './schemas';
+import type { Claim, Draft, Sentence } from './schemas';
 
 /** A sentence of a draft together with where it sits. */
 export interface LocatedSentence {
@@ -42,4 +42,18 @@ export function describeLocation(item: LocatedSentence): string {
   if (item.section === 'title' || item.section === 'description') return item.section;
   if (item.section === 'body') return `section "${item.heading ?? ''}", sentence ${item.position}`;
   return `${item.section}, sentence ${item.position}`;
+}
+
+/**
+ * The claims that the sentences of `draft` cite, other than the limitation
+ * sentences, which only describe claims. Each claim is listed once, in the
+ * order of `claims`; an id that no claim has is ignored.
+ */
+export function citedClaims(draft: Draft, claims: readonly Claim[]): Claim[] {
+  const cited = new Set(
+    allSentences(draft)
+      .filter((item) => item.sentence.kind !== 'limitation')
+      .flatMap((item) => item.sentence.claimIds),
+  );
+  return claims.filter((claim) => cited.has(claim.id));
 }

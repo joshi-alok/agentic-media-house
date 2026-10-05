@@ -8,13 +8,15 @@ import type { CheckOutput, GateInput } from '../src/gate';
 import type { Sentence } from '../src/schemas';
 import { findSentence, mutate } from './helpers';
 
-const twoFacts: Sentence[] = [
+const threeFacts: Sentence[] = [
   { kind: 'fact', text: 'Another plain fact.', claimIds: ['c-1'] },
   { kind: 'fact', text: 'One more plain fact.', claimIds: ['c-1'] },
+  { kind: 'fact', text: 'A third plain fact.', claimIds: ['c-1'] },
 ];
 
-// The golden piece has exactly one analysis sentence. It contains no number,
-// date or name, so it adds nothing the facts do not already say.
+// The golden piece has three analysis sentences. The first, in the section
+// "What the customer reports", is the one these tests change. None of them
+// contains a number, a date or a name, so they add nothing the facts do not already say.
 const ANALYSIS_AT = 'section "What the customer reports", sentence 6';
 const analysisSentence = (g: GateInput) => findSentence(g.draft, (sentence) => sentence.kind === 'analysis');
 
@@ -93,16 +95,16 @@ describe('G7_ANALYSIS_PLACEMENT', () => {
 });
 
 describe('G7_ANALYSIS_SHARE', () => {
-  // The golden body has 47 sentences, one of them analysis: opening 3,
-  // takeaways 4, sections 25, limitations 15. Ten more analysis sentences make
-  // 11 of 57 (19.3%); eleven more make 12 of 58 (20.7%).
+  // The golden body has 40 sentences, three of them analysis: opening 3,
+  // takeaways 4, sections 28, limitations 5. Six more analysis sentences make
+  // 9 of 46 (19.6%); seven more make 10 of 47 (21.3%).
   it('passes up to the cap and fails just over it, and says the numbers', () => {
-    expect(run((g) => addAnalysis(g, 10))).toEqual({ failures: [], holdReasons: [] });
-    expect(run((g) => addAnalysis(g, 11)).failures).toEqual([
+    expect(run((g) => addAnalysis(g, 6))).toEqual({ failures: [], holdReasons: [] });
+    expect(run((g) => addAnalysis(g, 7)).failures).toEqual([
       {
         check: 'G7',
         code: 'G7_ANALYSIS_SHARE',
-        message: 'analysis sentences are 12 of the 58 sentences in the body (20.7%); the cap is 20.0%',
+        message: 'analysis sentences are 10 of the 47 sentences in the body (21.3%); the cap is 20.0%',
         where: 'body',
       },
     ]);
@@ -110,31 +112,34 @@ describe('G7_ANALYSIS_SHARE', () => {
 
   it('reads the cap from the context', () => {
     expect(codes(run(() => undefined, { config: { analysisShareCap: 0 } }))).toEqual(['G7_ANALYSIS_SHARE']);
-    expect(codes(run(() => undefined, { config: { analysisShareCap: 0.02 } }))).toEqual(['G7_ANALYSIS_SHARE']);
-    expect(codes(run(() => undefined, { config: { analysisShareCap: 0.03 } }))).toEqual([]);
+    expect(codes(run(() => undefined, { config: { analysisShareCap: 0.07 } }))).toEqual(['G7_ANALYSIS_SHARE']);
+    expect(codes(run(() => undefined, { config: { analysisShareCap: 0.08 } }))).toEqual([]);
   });
 
   it('passes a share exactly at the cap', () => {
-    expect(run(() => undefined, { config: { analysisShareCap: 1 / 47 } })).toEqual({ failures: [], holdReasons: [] });
+    expect(run(() => undefined, { config: { analysisShareCap: 3 / 40 } })).toEqual({ failures: [], holdReasons: [] });
   });
 
   it.each([
-    ['the opening', (g: GateInput) => g.draft.opening.push(...twoFacts)],
-    ['the takeaways', (g: GateInput) => g.draft.takeaways.push(...twoFacts)],
-    ['a section', (g: GateInput) => g.draft.sections[0]!.paragraphs[0]!.push(...twoFacts)],
-    ['the limitations', (g: GateInput) => g.draft.limitations.push(structuredClone(g.draft.limitations[0]!), structuredClone(g.draft.limitations[1]!))],
-  ])('counts the sentences of %s among the body sentences', (_name, addTwo) => {
-    // 12 analysis sentences of 58 is over the cap; two more body sentences make it exactly 12 of 60, which is 20%.
+    ['the opening', (g: GateInput) => g.draft.opening.push(...threeFacts)],
+    ['the takeaways', (g: GateInput) => g.draft.takeaways.push(...threeFacts)],
+    ['a section', (g: GateInput) => g.draft.sections[0]!.paragraphs[0]!.push(...threeFacts)],
+    [
+      'the limitations',
+      (g: GateInput) => g.draft.limitations.push(structuredClone(g.draft.limitations[0]!), structuredClone(g.draft.limitations[1]!), structuredClone(g.draft.limitations[2]!)),
+    ],
+  ])('counts the sentences of %s among the body sentences', (_name, addThree) => {
+    // 10 analysis sentences of 47 is over the cap; three more body sentences make it exactly 10 of 50, which is 20%.
     const output = run((g) => {
-      addAnalysis(g, 11);
-      addTwo(g);
+      addAnalysis(g, 7);
+      addThree(g);
     });
     expect(output).toEqual({ failures: [], holdReasons: [] });
   });
 
   it('does not count a misplaced analysis sentence in the title or description toward the share', () => {
-    // 2 of 47 would be over a cap of 1 in 47; the title sentence is reported for its placement alone.
-    const output = run((g) => (g.draft.title = asAnalysis(g.draft.title)), { config: { analysisShareCap: 1 / 47 } });
+    // 4 of 41 would be over a cap of 3 in 40; the title sentence is reported for its placement alone.
+    const output = run((g) => (g.draft.title = asAnalysis(g.draft.title)), { config: { analysisShareCap: 3 / 40 } });
     expect(codes(output)).toEqual(['G7_ANALYSIS_PLACEMENT']);
   });
 

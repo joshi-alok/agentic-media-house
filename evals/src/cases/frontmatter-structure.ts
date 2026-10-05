@@ -138,9 +138,9 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     id: 'short-body',
     check: 'G2',
     code: 'G2_BODY_LENGTH',
-    description: 'Half the limitations are cut, which leaves the piece under 600 words.',
+    description: 'Four of the five limitation sentences are cut, which leaves the piece under 600 words.',
     apply: (base) => {
-      base.draft.limitations = base.draft.limitations.slice(0, 7);
+      base.draft.limitations = base.draft.limitations.slice(0, 1);
       return base;
     },
   },
@@ -193,6 +193,17 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     description: 'A section heading is blank.',
     apply: (base) => {
       base.draft.sections[0]!.heading = '  ';
+      return base;
+    },
+  },
+  {
+    id: 'limitation-uncovered-claim',
+    check: 'G2',
+    code: 'G2_LIMITATION_COVERAGE',
+    description: "A claim that needs a limitation is left out of the sentence that describes its group: c-12, the datasheet's pick rate.",
+    apply: (base) => {
+      const [datasheet] = base.draft.limitations;
+      datasheet!.claimIds = datasheet!.claimIds.filter((id) => id !== 'c-12');
       return base;
     },
   },

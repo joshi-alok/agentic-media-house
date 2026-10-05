@@ -96,11 +96,13 @@ export const AnalysisSentence = z.object({
 });
 export type AnalysisSentence = z.infer<typeof AnalysisSentence>;
 
-// A limitation describes exactly one claim's metadata, through one template.
+// A limitation describes the metadata of one claim or of a group of claims that
+// share a basis or a status, through one template. The ids are listed once each,
+// in ascending order of claim number; the gate (G8) checks that.
 export const LimitationSentence = z.object({
   kind: z.literal('limitation'),
   text: z.string(),
-  claimIds: z.tuple([z.string()]),
+  claimIds: z.array(z.string()).min(1),
   template: z.enum(['basis', 'status']),
 });
 export type LimitationSentence = z.infer<typeof LimitationSentence>;

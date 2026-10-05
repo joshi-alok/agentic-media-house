@@ -25,12 +25,22 @@ export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'limitation-mixed-group',
+    check: 'G8',
+    code: 'G8_LIMITATION_GROUP',
+    description: 'One limitation sentence covers a press-release claim, c-1, together with datasheet claims.',
+    apply: (base) => {
+      base.draft.limitations[0]!.claimIds = ['c-1', 'c-8', 'c-9'];
+      return base;
+    },
+  },
+  {
     id: 'limitation-edited-text',
     check: 'G8',
     code: 'G8_LIMITATION_MISMATCH',
-    description: 'A limitation sentence is reworded to say the datasheet figure was independently confirmed.',
+    description: 'A limitation sentence is reworded to say the datasheet figures were independently confirmed.',
     apply: (base) => {
-      base.draft.limitations[0]!.text = 'The 12 kilograms payload figure has been confirmed independently.';
+      base.draft.limitations[0]!.text = 'The datasheet figures have been confirmed independently.';
       return base;
     },
   },

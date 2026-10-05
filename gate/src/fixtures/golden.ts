@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { DESK_AUTHOR_NAME } from '../constants';
-import { renderLimitation } from '../limitations';
-import type { AnalysisSentence, Claim, ClaimValue, Draft, FactSentence, LimitationSentence } from '../schemas';
+import { buildLimitations } from '../limitations';
+import type { AnalysisSentence, Claim, ClaimValue, Draft, FactSentence } from '../schemas';
+import { citedClaims } from '../sentences';
 
 // The golden fixture: one complete, fictional news piece that passes every
 // check. Fixture Robotics, the FX-1 arm, Brindle Logistics and every URL on a
@@ -400,30 +401,17 @@ const CLAIMS: Claim[] = [
     quote: 'Demo day was held on 24 September 2026 in the three-bay test hall.',
     basis: 'demo',
     status: 'demonstrated',
-    values: [date('24 September 2026', '2026-09-24')],
+    values: [date('24 September 2026', '2026-09-24'), number('three', '3')],
   }),
 ];
 
 export const GOLDEN_CLAIMS: Claim[] = deepFreeze(CLAIMS);
 
-const claimById = (id: string): Claim => {
-  const found = CLAIMS.find((item) => item.id === id);
-  if (found === undefined) throw new Error(`the golden fixture has no claim ${id}`);
-  return found;
-};
-
 const fact = (text: string, ...claimIds: string[]): FactSentence => ({ kind: 'fact', text, claimIds });
 const analysis = (text: string, ...claimIds: string[]): AnalysisSentence => ({ kind: 'analysis', text, claimIds });
-// A limitation sentence is rendered from the claim it describes, so the
-// fixture and the gate's templates cannot drift apart.
-const limitation = (id: string, template: 'basis' | 'status'): LimitationSentence => ({
-  kind: 'limitation',
-  text: renderLimitation(claimById(id), template),
-  claimIds: [id],
-  template,
-});
 
-const DRAFT: Draft = {
+// The draft without its limitations. They are built from the claims the rest of the piece cites.
+const BODY: Draft = {
   slug: 'fixture-robotics-ships-fx-1-to-second-plant',
   publishedAt: '2026-10-04',
   categories: ['industrial-warehouse', 'funding'],
@@ -511,8 +499,16 @@ const DRAFT: Draft = {
             'c-27',
             'c-28',
           ),
+          fact("The demonstration took place in the company's three-bay test hall.", 'c-28'),
         ],
-        [fact('Brindle Logistics plans to add a third site in 2027.', 'c-26')],
+        [
+          fact('Brindle Logistics plans to add a third site in 2027.', 'c-26'),
+          analysis(
+            "The customer's results and the company's schedule together describe a rollout that is still at an early stage.",
+            'c-21',
+            'c-26',
+          ),
+        ],
       ],
     },
     {
@@ -530,28 +526,17 @@ const DRAFT: Draft = {
         [
           fact('Fixture Robotics said it will use the funds to expand FX-1 production.', 'c-7'),
           fact('It expects to build 500 FX-1 arms in 2027.', 'c-6'),
+          analysis('The stated use of the funds matches the production plan that the company describes.', 'c-7', 'c-6'),
         ],
       ],
     },
   ],
-  limitations: [
-    limitation('c-8', 'basis'),
-    limitation('c-9', 'basis'),
-    limitation('c-10', 'basis'),
-    limitation('c-11', 'basis'),
-    limitation('c-12', 'basis'),
-    limitation('c-13', 'basis'),
-    limitation('c-14', 'basis'),
-    limitation('c-4', 'basis'),
-    limitation('c-27', 'basis'),
-    limitation('c-27', 'status'),
-    limitation('c-23', 'status'),
-    limitation('c-5', 'status'),
-    limitation('c-25', 'status'),
-    limitation('c-26', 'status'),
-    limitation('c-20', 'basis'),
-  ],
+  limitations: [],
 };
+
+// The limitation sentences come from `buildLimitations`, the same function the
+// pipeline will use, so the fixture and the gate's templates cannot drift apart.
+const DRAFT: Draft = { ...BODY, limitations: buildLimitations(citedClaims(BODY, CLAIMS)) };
 
 export const GOLDEN_DRAFT: Draft = deepFreeze(DRAFT);
 

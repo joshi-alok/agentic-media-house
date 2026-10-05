@@ -1,6 +1,6 @@
-import { SAFE_BASES } from '../constants';
 import type { Check, Failure } from '../gate';
-import { allSentences } from '../sentences';
+import { needsBasisLimitation, needsStatusLimitation } from '../limitations';
+import { allSentences, citedClaims } from '../sentences';
 import { countWords } from '../text';
 
 /** Every failure code G2 can report. */
@@ -13,17 +13,17 @@ export const G2_CODES = [
   'G2_HEADING_TOO_LONG',
   'G2_HEADING_EMPTY',
   'G2_LIMITATIONS_MISSING',
+  'G2_LIMITATION_COVERAGE',
 ] as const;
 
 const MIN_SECTIONS = 2;
-
-const isSafeBasis = (basis: string) => (SAFE_BASES as readonly string[]).includes(basis);
 
 /**
  * G2, structure: the opening paragraph, the key takeaways and the whole body
  * are the right length; there are at least two sections; every heading is
  * there, is short enough (`headingMax`) and is not a question; and a piece that
- * rests on a company's own claims has a "What we couldn't verify" section.
+ * rests on a company's own claims has a "What we couldn't verify" section
+ * that covers each claim that needs a note (G2_LIMITATION_COVERAGE).
  * What a heading may say is G4's question (G4_HEADING_*).
  *
  * The body is the opening, the takeaways, every section paragraph and the
@@ -73,11 +73,31 @@ export const checkG2: Check = ({ draft, claims }, ctx) => {
     }
   }
 
-  const cited = new Set(sentences.flatMap((item) => item.sentence.claimIds));
-  const needLimitations = claims.filter((claim) => cited.has(claim.id) && !isSafeBasis(claim.basis));
-  if (needLimitations.length > 0 && draft.limitations.length === 0) {
-    const ids = needLimitations.map((claim) => claim.id).join(', ');
-    fail('G2_LIMITATIONS_MISSING', `claims ${ids} rest on a datasheet, press release, briefing or demo, but there is no "What we couldn't verify" section`, 'limitations');
+  // A claim cited by the body needs a 'basis' sentence unless its figure comes
+  // from a filing, a standard, a paper or a measurement, and a 'status' sentence
+  // when the capability was only demonstrated or is only planned.
+  const needs = citedClaims(draft, claims).flatMap((claim) => [
+    ...(needsBasisLimitation(claim) ? [{ claim, template: 'basis' as const, key: claim.basis }] : []),
+    ...(needsStatusLimitation(claim) ? [{ claim, template: 'status' as const, key: claim.status }] : []),
+  ]);
+  if (needs.length > 0 && draft.limitations.length === 0) {
+    const ids = [...new Set(needs.map((need) => need.claim.id))].join(', ');
+    fail(
+      'G2_LIMITATIONS_MISSING',
+      `claims ${ids} need a note on what could not be verified (they rest on a datasheet, press release, briefing or demo, or are only demonstrated or planned), but there is no "What we couldn't verify" section`,
+      'limitations',
+    );
+  } else {
+    for (const { claim, template, key } of needs) {
+      const covered = draft.limitations.some((sentence) => sentence.template === template && sentence.claimIds.includes(claim.id));
+      if (!covered) {
+        fail(
+          'G2_LIMITATION_COVERAGE',
+          `claim ${claim.id} (${claim.label}) has the ${template} "${key}", but no limitation sentence with the ${template} template cites it`,
+          claim.id,
+        );
+      }
+    }
   }
 
   return { failures, holdReasons: [] };

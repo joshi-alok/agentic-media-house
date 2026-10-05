@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { GOLDEN_DRAFT } from '../src/fixtures';
-import { allSentences, describeLocation } from '../src/sentences';
+import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '../src/fixtures';
+import { allSentences, citedClaims, describeLocation } from '../src/sentences';
 import type { Draft } from '../src/schemas';
 
 const located = allSentences(GOLDEN_DRAFT);
@@ -80,5 +80,35 @@ describe('describeLocation', () => {
   it('names a body sentence by its heading and position', () => {
     const body = located.filter((item) => item.section === 'body')[3]!;
     expect(describeLocation(body)).toBe('section "What shipped", sentence 4');
+  });
+});
+
+describe('citedClaims', () => {
+  it('lists the claims the golden piece cites, each once, in the order of the claims', () => {
+    const cited = citedClaims(GOLDEN_DRAFT, GOLDEN_CLAIMS);
+    expect(cited.map((claim) => claim.id)).toEqual(GOLDEN_CLAIMS.map((claim) => claim.id));
+    expect(cited[0]).toBe(GOLDEN_CLAIMS[0]);
+  });
+
+  it('leaves out a claim that no sentence cites', () => {
+    const lonely = { ...GOLDEN_CLAIMS[0]!, id: 'c-99' };
+    expect(citedClaims(GOLDEN_DRAFT, [...GOLDEN_CLAIMS, lonely]).map((claim) => claim.id)).not.toContain('c-99');
+  });
+
+  it('does not count a claim that only a limitation sentence cites', () => {
+    const lonely = { ...GOLDEN_CLAIMS[7]!, id: 'c-99' };
+    const draft: Draft = { ...GOLDEN_DRAFT, limitations: [{ ...GOLDEN_DRAFT.limitations[0]!, claimIds: ['c-99'] }] };
+    expect(citedClaims(draft, [...GOLDEN_CLAIMS, lonely]).map((claim) => claim.id)).not.toContain('c-99');
+  });
+
+  it('counts a claim that only the title or the description cites', () => {
+    const lonely = { ...GOLDEN_CLAIMS[0]!, id: 'c-99' };
+    const draft: Draft = { ...GOLDEN_DRAFT, opening: [], takeaways: [], sections: [], limitations: [], title: { ...GOLDEN_DRAFT.title, claimIds: ['c-99'] } };
+    expect(citedClaims(draft, [...GOLDEN_CLAIMS, lonely]).map((claim) => claim.id)).toEqual(['c-1', 'c-8', 'c-99']);
+  });
+
+  it('ignores an id that no claim has, and does not change what it is given', () => {
+    const draft: Draft = { ...GOLDEN_DRAFT, title: { ...GOLDEN_DRAFT.title, claimIds: ['c-999'] }, description: { ...GOLDEN_DRAFT.description, claimIds: [] }, opening: [], takeaways: [], sections: [], limitations: [] };
+    expect(citedClaims(draft, GOLDEN_CLAIMS)).toEqual([]);
   });
 });

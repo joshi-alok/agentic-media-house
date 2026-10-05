@@ -797,7 +797,7 @@ describe('G4: which sentences it reads', () => {
     ['the description', (g: GateInput) => g.draft.description, 'description'],
     ['an opening sentence', (g: GateInput) => g.draft.opening[1]!, 'opening, sentence 2'],
     ['a takeaway', (g: GateInput) => g.draft.takeaways[1]!, 'takeaways, sentence 2'],
-    ['a section sentence', (g: GateInput) => g.draft.sections[1]!.paragraphs[2]![0]!, 'section "What the customer reports", sentence 8'],
+    ['a section sentence', (g: GateInput) => g.draft.sections[1]!.paragraphs[2]![0]!, 'section "What the customer reports", sentence 9'],
   ])('reads %s', (_name, pick, where) => {
     const input = mutate(cloneGolden(), (g) => {
       pick(g).text = 'It weighs 999 kg.';

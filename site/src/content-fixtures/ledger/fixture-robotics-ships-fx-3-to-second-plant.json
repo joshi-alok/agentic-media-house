@@ -763,6 +763,11 @@
           "kind": "date",
           "raw": "24 September 2026",
           "normalised": "2026-09-24"
+        },
+        {
+          "kind": "number",
+          "raw": "three",
+          "normalised": "3"
         }
       ],
       "source": {
@@ -1193,6 +1198,16 @@
       "index": 28,
       "section": "body",
       "kind": "fact",
+      "text": "The demonstration took place in the company's three-bay test hall.",
+      "claimIds": [
+        "c-28"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 29,
+      "section": "body",
+      "kind": "fact",
       "text": "Brindle Logistics plans to add a third site in 2027.",
       "claimIds": [
         "c-26"
@@ -1200,7 +1215,18 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 29,
+      "index": 30,
+      "section": "body",
+      "kind": "analysis",
+      "text": "The customer's results and the company's schedule together describe a rollout that is still at an early stage.",
+      "claimIds": [
+        "c-21",
+        "c-26"
+      ],
+      "heading": "What the customer reports"
+    },
+    {
+      "index": 31,
       "section": "body",
       "kind": "fact",
       "text": "The round, led by Corvane Partners, totals $450 million, according to a regulatory filing.",
@@ -1211,7 +1237,7 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 30,
+      "index": 32,
       "section": "body",
       "kind": "fact",
       "text": "The filing records the first sale on 29 September 2026.",
@@ -1221,7 +1247,7 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 31,
+      "index": 33,
       "section": "body",
       "kind": "fact",
       "text": "It lists 7 investors in the round.",
@@ -1231,7 +1257,7 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 32,
+      "index": 34,
       "section": "body",
       "kind": "fact",
       "text": "Fixture Robotics said it will use the funds to expand FX-3 production.",
@@ -1241,7 +1267,7 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 33,
+      "index": 35,
       "section": "body",
       "kind": "fact",
       "text": "It expects to build 500 FX-3 arms in 2027.",
@@ -1251,138 +1277,83 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 34,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The 12 kilograms payload figure comes from the company's datasheet; no independent measurement was available.",
-      "claimIds": [
-        "c-8"
-      ]
-    },
-    {
-      "index": 35,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The 1.4 metres reach figure comes from the company's datasheet; no independent measurement was available.",
-      "claimIds": [
-        "c-9"
-      ]
-    },
-    {
       "index": 36,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The 2.3 metres per second top speed figure comes from the company's datasheet; no independent measurement was available.",
+      "section": "body",
+      "kind": "analysis",
+      "text": "The stated use of the funds matches the production plan that the company describes.",
       "claimIds": [
-        "c-10"
-      ]
+        "c-7",
+        "c-6"
+      ],
+      "heading": "What the filing shows"
     },
     {
       "index": 37,
       "section": "limitations",
       "kind": "limitation",
-      "text": "The 0.05 mm repeatability figure comes from the company's datasheet; no independent measurement was available.",
+      "text": "The 12 kilograms payload, 1.4 metres reach, 2.3 metres per second top speed, 0.05 mm repeatability, 1.2k pick rate, 38 kg arm mass, 650 W power draw and IP54 ingress protection figures come from the company's datasheet; no independent measurement was available.",
       "claimIds": [
-        "c-11"
+        "c-8",
+        "c-9",
+        "c-10",
+        "c-11",
+        "c-12",
+        "c-13",
+        "c-14",
+        "c-15"
       ]
     },
     {
       "index": 38,
       "section": "limitations",
       "kind": "limitation",
-      "text": "The 1.2k pick rate figure comes from the company's datasheet; no independent measurement was available.",
+      "text": "The Fixture Robotics Tarnmoor shipment, 1 October 2026 announcement date, FX-3 retrofit mounting, $38,000 list price, 60 Tarnmoor delivery schedule, 500 production plan, Fixture Robotics use of funds, Dana Whitcombe pilot-to-production time, 40 Ashvale installation, 18 August 2026 Ashvale go-live date, Brindle Logistics Tarnmoor use and Brindle Logistics third-site rollout figures come from a company press release; no independent measurement was available.",
       "claimIds": [
-        "c-12"
+        "c-1",
+        "c-2",
+        "c-3",
+        "c-4",
+        "c-5",
+        "c-6",
+        "c-7",
+        "c-22",
+        "c-23",
+        "c-24",
+        "c-25",
+        "c-26"
       ]
     },
     {
       "index": 39,
       "section": "limitations",
       "kind": "limitation",
-      "text": "The 38 kg arm mass figure comes from the company's datasheet; no independent measurement was available.",
+      "text": "The trailer unloading and demo day were shown in a demonstration; the source does not describe independent testing.",
       "claimIds": [
-        "c-13"
+        "c-27",
+        "c-28"
       ]
     },
     {
       "index": 40,
       "section": "limitations",
       "kind": "limitation",
-      "text": "The 650 W power draw figure comes from the company's datasheet; no independent measurement was available.",
+      "text": "The trailer unloading and demo day were demonstrated; the source does not report them in commercial deployment.",
       "claimIds": [
-        "c-14"
+        "c-27",
+        "c-28"
       ]
     },
     {
       "index": 41,
       "section": "limitations",
       "kind": "limitation",
-      "text": "The $38,000 list price figure comes from a company press release; no independent measurement was available.",
+      "text": "The Tarnmoor delivery schedule, production plan, use of funds, Tarnmoor use and third-site rollout are planned, not delivered.",
       "claimIds": [
-        "c-4"
-      ]
-    },
-    {
-      "index": 42,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The trailer unloading was shown in a demonstration; the source does not describe independent testing.",
-      "claimIds": [
-        "c-27"
-      ]
-    },
-    {
-      "index": 43,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The trailer unloading was demonstrated; the source does not report it in commercial deployment.",
-      "claimIds": [
-        "c-27"
-      ]
-    },
-    {
-      "index": 44,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The company states the Ashvale installation is deployed; no independent confirmation was available.",
-      "claimIds": [
-        "c-23"
-      ]
-    },
-    {
-      "index": 45,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The Tarnmoor delivery schedule is planned, not delivered.",
-      "claimIds": [
-        "c-5"
-      ]
-    },
-    {
-      "index": 46,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The Tarnmoor use is planned, not delivered.",
-      "claimIds": [
-        "c-25"
-      ]
-    },
-    {
-      "index": 47,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The third-site rollout is planned, not delivered.",
-      "claimIds": [
+        "c-5",
+        "c-6",
+        "c-7",
+        "c-25",
         "c-26"
-      ]
-    },
-    {
-      "index": 48,
-      "section": "limitations",
-      "kind": "limitation",
-      "text": "The 18 per cent cycle-time cut figure was measured by the source and is reported as stated.",
-      "claimIds": [
-        "c-20"
       ]
     }
   ],

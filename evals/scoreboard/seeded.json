@@ -1,6 +1,6 @@
 {
-  "total": 51,
-  "caught": 51,
+  "total": 53,
+  "caught": 53,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -99,7 +99,7 @@
       "id": "short-body",
       "check": "G2",
       "code": "G2_BODY_LENGTH",
-      "description": "Half the limitations are cut, which leaves the piece under 600 words.",
+      "description": "Four of the five limitation sentences are cut, which leaves the piece under 600 words.",
       "caught": true
     },
     {
@@ -135,6 +135,13 @@
       "check": "G2",
       "code": "G2_HEADING_EMPTY",
       "description": "A section heading is blank.",
+      "caught": true
+    },
+    {
+      "id": "limitation-uncovered-claim",
+      "check": "G2",
+      "code": "G2_LIMITATION_COVERAGE",
+      "description": "A claim that needs a limitation is left out of the sentence that describes its group: c-12, the datasheet's pick rate.",
       "caught": true
     },
     {
@@ -320,10 +327,17 @@
       "caught": true
     },
     {
+      "id": "limitation-mixed-group",
+      "check": "G8",
+      "code": "G8_LIMITATION_GROUP",
+      "description": "One limitation sentence covers a press-release claim, c-1, together with datasheet claims.",
+      "caught": true
+    },
+    {
       "id": "limitation-edited-text",
       "check": "G8",
       "code": "G8_LIMITATION_MISMATCH",
-      "description": "A limitation sentence is reworded to say the datasheet figure was independently confirmed.",
+      "description": "A limitation sentence is reworded to say the datasheet figures were independently confirmed.",
       "caught": true
     },
     {
