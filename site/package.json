@@ -3,5 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Astro static site. Astro and its scripts arrive in the site milestone."
+  "description": "Astro static site. Astro and its scripts arrive in the site milestone.",
+  "scripts": {
+    "test": "vitest run",
+    "fixtures:generate": "tsx scripts/generate-fixtures.ts"
+  },
+  "dependencies": {
+    "@robywire/gate": "0.0.0",
+    "yaml": "2.9.1"
+  }
 }

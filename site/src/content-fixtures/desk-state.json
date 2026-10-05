@@ -1,0 +1,38 @@
+{
+  "lastRun": {
+    "at": "2026-10-04T04:41:12Z",
+    "outcome": "published",
+    "runId": "fixture-run-1",
+    "slug": "fixture-robotics-ships-fx-1-to-second-plant"
+  },
+  "holds": [
+    {
+      "at": "2026-09-30T04:38:05Z",
+      "categories": [
+        "humanoids"
+      ],
+      "reasons": [
+        "G4_NUMBER_UNSUPPORTED"
+      ],
+      "prUrl": "https://github.example/robywire/robywire/pull/12"
+    },
+    {
+      "at": "2026-09-29T04:36:40Z",
+      "categories": [
+        "policy-standards",
+        "funding"
+      ],
+      "reasons": [
+        "TIER2_ATTRIBUTION"
+      ]
+    }
+  ],
+  "corrections": [
+    {
+      "at": "2026-10-03T09:12:00Z",
+      "slug": "fixture-robotics-ships-fx-2-to-second-plant",
+      "kind": "correction",
+      "note": "The first version gave the arm's maximum reach as 1.6 m. The datasheet says 1.4 m, and the piece now says so."
+    }
+  ]
+}
