@@ -1,0 +1,58 @@
+---
+import TableWrap from '../../components/TableWrap.astro';
+import Base from '../../layouts/Base.astro';
+import { correctionRows } from '../../lib/desk-pages';
+import { getDeskState } from '../../lib/desk-state';
+import { articlePath } from '../../lib/paths';
+import { getPieces } from '../../lib/pieces';
+import '../../styles/pages.css';
+
+const titles = new Map((await getPieces()).map((piece) => [piece.slug, piece.data.title] as const));
+const rows = correctionRows(await getDeskState(), titles);
+---
+
+<Base title="Corrections" description="Every correction and retraction the Desk has published, newest first." canonicalPath="/corrections/">
+  <div class="container">
+    <header class="page-head">
+      <h1>Corrections</h1>
+      <p class="dek">Every correction and retraction, newest first.</p>
+    </header>
+    <div class="page-text">
+      <p>
+        Nothing on this site is changed or removed without a record. A correction fixes a factual error: the article gets a notice at the top and its updated date changes. A retraction withdraws a
+        piece: the page stays up with a notice, and its receipts stay public. Both are listed here.
+      </p>
+    </div>
+    {
+      rows.length === 0 ? (
+        <p class="empty">No corrections.</p>
+      ) : (
+        <TableWrap label="Corrections">
+          <table>
+            <caption class="visually-hidden">Corrections and retractions, newest first</caption>
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Piece</th>
+                <th scope="col">Kind</th>
+                <th scope="col">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr>
+                  <td>
+                    <time datetime={row.at}>{row.when}</time>
+                  </td>
+                  <td>{row.title === undefined ? <span class="mono">{row.slug}</span> : <a href={articlePath(row.slug)}>{row.title}</a>}</td>
+                  <td>{row.kind}</td>
+                  <td>{row.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableWrap>
+      )
+    }
+  </div>
+</Base>

@@ -1,0 +1,68 @@
+---
+import Base from '../../layouts/Base.astro';
+import { statusView } from '../../lib/desk-pages';
+import { getDeskState } from '../../lib/desk-state';
+import { articlePath } from '../../lib/paths';
+import { getPieces } from '../../lib/pieces';
+import '../../styles/pages.css';
+
+const view = statusView(await getDeskState());
+const lastRun = view.lastRun;
+// The piece the last run published, if the site has it.
+const piece = lastRun?.slug == null ? undefined : (await getPieces()).find((candidate) => candidate.slug === lastRun.slug);
+---
+
+<Base title="Status" description="When the Desk last ran, how that run ended, and how many drafts the gate has held." canonicalPath="/status/">
+  <div class="container">
+    <header class="page-head">
+      <h1>Status</h1>
+      <p class="dek">What the Desk did last.</p>
+    </header>
+    <div class="page-text">
+      <p>
+        This page shows the record the Desk keeps of its own runs: when it last ran, how that run ended, how many drafts the gate has held, and how many corrections have been published. The page is
+        built from that record.
+      </p>
+      {lastRun === null && <p class="empty">The Desk has not run yet.</p>}
+    </div>
+    <dl class="facts">
+      {
+        lastRun !== null && (
+          <>
+            <dt>Last run</dt>
+            <dd>{lastRun.when}</dd>
+            <dt>Outcome</dt>
+            <dd>{lastRun.outcome}</dd>
+            <dt>Run</dt>
+            <dd class="mono">{lastRun.runId}</dd>
+          </>
+        )
+      }
+      {
+        piece !== undefined && (
+          <>
+            <dt>Piece</dt>
+            <dd>
+              <a href={articlePath(piece.slug)}>{piece.data.title}</a>
+            </dd>
+          </>
+        )
+      }
+      <dt>Drafts held</dt>
+      <dd>{view.holds} &middot; <a href="/holds/">what the gate stopped</a></dd>
+      <dt>Corrections</dt>
+      <dd>{view.corrections} &middot; <a href="/corrections/">every correction and retraction</a></dd>
+    </dl>
+    <h2>What the outcomes mean</h2>
+    <dl class="facts">
+      <dt>Published</dt>
+      <dd>A piece cleared the gate and went live.</dd>
+      <dt>No story</dt>
+      <dd>Nothing met the bar that day, so nothing was written. This is a normal outcome.</dd>
+      <dt>Held</dt>
+      <dd>A draft did not clear the gate and waits for the owner. Nothing was published.</dd>
+      <dt>Failed</dt>
+      <dd>The run itself broke. Nothing was published.</dd>
+    </dl>
+  </div>
+</Base>

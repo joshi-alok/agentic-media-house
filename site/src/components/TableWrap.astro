@@ -1,0 +1,14 @@
+---
+// A table that can scroll sideways on a narrow screen, and that a keyboard can
+// reach in order to scroll it.
+interface Props {
+  /** What the table is, for a screen reader. */
+  label: string;
+}
+
+const { label } = Astro.props;
+---
+
+<div class="table-wrap" role="region" aria-label={label} tabindex="0">
+  <slot />
+</div>

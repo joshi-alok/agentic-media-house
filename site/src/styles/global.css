@@ -232,6 +232,13 @@ th {
   font-weight: 600;
 }
 
+/* What a list or table says when it has nothing to show. */
+.empty {
+  max-width: 65ch;
+  margin-bottom: 3rem;
+  color: var(--t2);
+}
+
 /* The ledger strip: four plain figures with a label each. */
 .strip {
   display: grid;

@@ -1,0 +1,62 @@
+/* The plain pages: status, holds, corrections and the method. */
+
+.page-head {
+  max-width: 65ch;
+  margin-bottom: 1.5rem;
+}
+
+.page-head h1 {
+  margin-bottom: 0.5rem;
+}
+
+.page-head .dek {
+  margin-bottom: 0;
+}
+
+.page-text {
+  max-width: 65ch;
+}
+
+/* Name and value pairs: a small grey label, then the value. */
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.5rem 2rem;
+  max-width: 65ch;
+  margin: 0 0 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line-2);
+}
+
+.facts dt {
+  padding-top: 0.2em;
+  color: var(--t2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: 0;
+}
+
+/* A table that scrolls sideways on a narrow screen instead of widening the page. */
+.table-wrap {
+  overflow-x: auto;
+  margin-bottom: 2rem;
+}
+
+.table-wrap table {
+  margin-bottom: 0;
+}
+
+.reasons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reasons li + li {
+  margin-top: 0.25rem;
+}

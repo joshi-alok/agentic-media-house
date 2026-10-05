@@ -56,9 +56,3 @@
   color: var(--t2);
   font-size: 0.85rem;
 }
-
-.empty {
-  max-width: 65ch;
-  margin-bottom: 3rem;
-  color: var(--t2);
-}
