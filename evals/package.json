@@ -1,0 +1,14 @@
+{
+  "name": "@robywire/evals",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Seeded-defect harness that proves the gate catches what it should.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  }
+}

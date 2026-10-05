@@ -1,0 +1,25 @@
+{
+  "name": "robywire",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Robywire: a daily robotics news site, written by the Desk and checked by a code gate.",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "gate",
+    "evals",
+    "site"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

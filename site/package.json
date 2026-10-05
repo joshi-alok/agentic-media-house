@@ -1,0 +1,7 @@
+{
+  "name": "@robywire/site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Astro static site. Astro and its scripts arrive in the site milestone."
+}
