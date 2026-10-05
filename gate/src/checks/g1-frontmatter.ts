@@ -1,0 +1,61 @@
+import { BEATS, CATEGORY_VOCAB, CROSS_TAGS } from '../constants';
+import type { Check, Failure } from '../gate';
+import { parseDateToken } from '../normalise';
+import { SLUG_PATTERN } from '../schemas';
+
+const MIN_CATEGORIES = 1;
+const MAX_CATEGORIES = 3;
+
+const isBeat = (category: string) => (BEATS as readonly string[]).includes(category);
+const isCrossTag = (category: string) => (CROSS_TAGS as readonly string[]).includes(category);
+const isKnown = (category: string) => (CATEGORY_VOCAB as readonly string[]).includes(category);
+
+/**
+ * G1, frontmatter: the fields the site builds from the draft (title,
+ * description, date, slug, categories, author) are present and well formed.
+ */
+export const checkG1: Check = ({ draft }, ctx) => {
+  const failures: Failure[] = [];
+  const fail = (code: string, message: string, where: string) => failures.push({ check: 'G1', code, message, where });
+
+  if (draft.title.text.trim() === '') {
+    fail('G1_TITLE_EMPTY', 'the title is empty', 'title');
+  }
+
+  const length = draft.description.text.length;
+  if (length > ctx.config.descriptionMax) {
+    fail(
+      'G1_DESCRIPTION_TOO_LONG',
+      `the description is ${length} characters; the limit is ${ctx.config.descriptionMax}`,
+      'description',
+    );
+  }
+
+  // The regex fixes the shape (parseDateToken alone would also take "24 August 2026"); the parser checks the calendar.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.publishedAt) || parseDateToken(draft.publishedAt)?.precision !== 'day') {
+    fail('G1_BAD_DATE', `publishedAt "${draft.publishedAt}" is not a real date in the form YYYY-MM-DD`, 'publishedAt');
+  }
+
+  if (!SLUG_PATTERN.test(draft.slug)) {
+    fail('G1_SLUG_FORMAT', `the slug "${draft.slug}" is not lowercase letters and digits separated by single hyphens`, 'slug');
+  }
+
+  const { categories } = draft;
+  if (categories.length < MIN_CATEGORIES || categories.length > MAX_CATEGORIES) {
+    fail('G1_CATEGORY_COUNT', `categories must list ${MIN_CATEGORIES} to ${MAX_CATEGORIES} slugs; found ${categories.length}`, 'categories');
+  } else if (new Set(categories).size !== categories.length) {
+    fail('G1_CATEGORY_COUNT', 'categories lists the same slug more than once', 'categories');
+  }
+  for (const category of categories.filter((item) => !isKnown(item))) {
+    fail('G1_CATEGORY_UNKNOWN', `the category "${category}" is not in the vocabulary (${CATEGORY_VOCAB.join(', ')})`, 'categories');
+  }
+  if (categories.some(isCrossTag) && !categories.some(isBeat)) {
+    fail('G1_CATEGORY_NO_BEAT', 'funding is a tag, not a beat: list the beat the story is about as well', 'categories');
+  }
+
+  if ((draft.author?.name ?? '').trim() === '') {
+    fail('G1_AUTHOR_MISSING', 'the author name is missing', 'author');
+  }
+
+  return { failures, holdReasons: [] };
+};

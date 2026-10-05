@@ -108,8 +108,11 @@ export type LimitationSentence = z.infer<typeof LimitationSentence>;
 export const Sentence = z.discriminatedUnion('kind', [FactSentence, AnalysisSentence, LimitationSentence]);
 export type Sentence = z.infer<typeof Sentence>;
 
+/** A slug is lowercase letters and digits in groups separated by single hyphens. */
+export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export const Draft = z.object({
-  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'slug must be lowercase kebab-case'),
+  slug: z.string().regex(SLUG_PATTERN, 'slug must be lowercase kebab-case'),
   publishedAt: isoDate,
   // A list of strings only. G1 checks the slugs against CATEGORY_VOCAB.
   categories: z.array(z.string()),
