@@ -1,5 +1,5 @@
 import { checkCrawlFiles, checkNoFixtureLeakage, checkXmlWellFormed } from './checks-files.mjs';
-import { checkArticlePages, checkClaimMarkers, checkInternalLinks } from './checks-links.mjs';
+import { checkArticlePages, checkClaimMarkers, checkInternalLinks, checkUnconfirmedLabel } from './checks-links.mjs';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from './checks-markup.mjs';
 import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from './checks-style.mjs';
 
@@ -36,6 +36,7 @@ export const CHECKS = [
   { id: 'A13', title: 'No fixture content in a production build', prodOnly: true, run: checkNoFixtureLeakage },
   { id: 'A14', title: 'Every XML file is well-formed', run: checkXmlWellFormed },
   { id: 'A15', title: 'robots.txt, the sitemap, the feed and the 404 page are there and agree', run: checkCrawlFiles },
+  { id: 'A16', title: 'An article that cites a claim from another outlet carries the Unconfirmed. label', run: checkUnconfirmedLabel },
 ];
 
 /**

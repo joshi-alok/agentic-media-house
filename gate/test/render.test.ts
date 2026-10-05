@@ -2,7 +2,7 @@ import { parse as parseYaml } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import * as api from '../src';
 import { defaultContext } from '../src/config';
-import { cloneGolden } from '../src/fixtures';
+import { cloneGolden, makeTier2Variant } from '../src/fixtures';
 import { runGate } from '../src/gate';
 import type { GateInput, GateResult } from '../src/gate';
 import { LedgerEntry } from '../src/schemas';
@@ -167,6 +167,7 @@ describe('renderDraft: the ledger', () => {
     const last = ledger.sentences[ledger.sentences.length - 1]!;
     expect(last.section).toBe('limitations');
     expect(last.kind).toBe('limitation');
+    expect(ledger.sentences.filter((s) => 'heading' in s).every((s) => s.section === 'body')).toBe(true);
   });
 
   it('orders the claims by first appearance in the body, then claims only the title or description cite', () => {
@@ -254,6 +255,66 @@ describe('renderDraft: order and the claims that count as cited', () => {
       g.draft.limitations = [];
     });
     expect(render(input).mdx).not.toContain("couldn't verify");
+  });
+});
+
+describe('renderDraft: sentences that rest on another outlet', () => {
+  const tier2 = makeTier2Variant(cloneGolden());
+  const { mdx, ledger } = render(tier2);
+  const attributed = 'Mercer Wire reports that 7 investors took part in the round.';
+
+  it('puts the label Unconfirmed. before an attributed fact sentence, in the same form as the Analysis. label', () => {
+    const marker = ledger.order.indexOf('c-19') + 1;
+    expect(mdx).toContain(`**Unconfirmed.** ${attributed}[${marker}](${RECEIPTS}#c-19)`);
+    expect(mdx).toContain(`) **Unconfirmed.** ${attributed}`);
+    expect(mdx.split('**Unconfirmed.** ')).toHaveLength(2);
+    expect(mdx.split('**Analysis.** ')).toHaveLength(4);
+  });
+
+  it('records attributed: true on that ledger sentence and on no other', () => {
+    const flagged = ledger.sentences.filter((sentence) => 'attributed' in sentence);
+    expect(flagged).toEqual([expect.objectContaining({ text: attributed, kind: 'fact', attributed: true, claimIds: ['c-19'] })]);
+  });
+
+  it('leaves a piece with no attributed sentence without the label and without the key', () => {
+    const plain = render(cloneGolden());
+    expect(plain.mdx).not.toContain('Unconfirmed');
+    expect(plain.ledger.sentences.some((sentence) => 'attributed' in sentence)).toBe(false);
+  });
+
+  it('writes no label and no key for a sentence marked attributed: false', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      const sentence = findSentence(g.draft, (item) => item.text === 'It lists 7 investors in the round.');
+      if (sentence.kind === 'fact') sentence.attributed = false;
+    });
+    const result = render(input);
+    expect(result.mdx).not.toContain('Unconfirmed');
+    expect(result.ledger.sentences.some((sentence) => 'attributed' in sentence)).toBe(false);
+  });
+
+  it('puts the label inside a takeaway bullet, after the dash', () => {
+    const input = mutate(tier2, (g) => {
+      const sentence = g.draft.takeaways[0]!;
+      if (sentence.kind === 'fact') sentence.attributed = true;
+    });
+    const bullet = blocks(render(input).mdx)[2]!.split('\n')[0]!;
+    expect(bullet.startsWith('- **Unconfirmed.** Tarnmoor is the second')).toBe(true);
+  });
+
+  it('never gives a sentence both labels: an analysis sentence gets Analysis. only, and no key', () => {
+    const input = mutate(tier2, (g) => {
+      const sentence = findSentence(g.draft, (item) => item.kind === 'analysis');
+      Object.assign(sentence, { attributed: true });
+    });
+    const result = render(input);
+    expect(result.mdx).toContain('**Analysis.** The measured rate sits below');
+    expect(result.mdx).toContain(') **Analysis.** The measured rate sits below');
+    expect(result.mdx.split('**Unconfirmed.** ')).toHaveLength(2);
+    expect(result.ledger.sentences.filter((sentence) => 'attributed' in sentence)).toHaveLength(1);
+  });
+
+  it('keeps the ledger valid against the LedgerEntry schema', () => {
+    expect(LedgerEntry.parse(ledger)).toEqual(ledger);
   });
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from '../scripts/audit/checks-markup.mjs';
 import { checkCrawlFiles, checkNoFixtureLeakage, checkXmlWellFormed } from '../scripts/audit/checks-files.mjs';
-import { checkArticlePages, checkClaimMarkers, checkInternalLinks } from '../scripts/audit/checks-links.mjs';
+import { checkArticlePages, checkClaimMarkers, checkInternalLinks, checkUnconfirmedLabel } from '../scripts/audit/checks-links.mjs';
 import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from '../scripts/audit/checks-style.mjs';
 import { siteFromFiles } from '../scripts/audit/site.mjs';
 
@@ -489,6 +489,54 @@ describe('A11 checkClaimMarkers', () => {
   it('does not take the plain link to the receipts page for a marker', () => {
     const body = `One${marker(1)}.</p><p><a href="/news/${SLUG}/receipts/">see the receipts</a>`;
     expect(checkClaimMarkers(site(files(body, 'c-1')))).toEqual(ok('A11'));
+  });
+});
+
+describe('A16 checkUnconfirmedLabel', () => {
+  const SLUG = 'a-story';
+  const ARTICLE = `news/${SLUG}/index.html`;
+  const RECEIPTS = `news/${SLUG}/receipts/index.html`;
+  const TIER1 = '<span class="chip chip--tier1">Tier 1 source</span>';
+  const TIER2 = '<span class="chip chip--tier2">Tier 2 source</span><span class="chip">Unconfirmed</span>';
+  const receipts = (...chips: string[]) => page(`<h1>r</h1>${chips.map((chip, at) => `<article class="receipt" id="c-${at + 1}"><p class="receipt__chips">${chip}</p></article>`).join('')}`);
+  const article = (sentence: string) => page(`<h1>x</h1><div class="prose"><p>${sentence}</p></div>`);
+  const files = (sentence: string, ...chips: string[]) => ({ [ARTICLE]: article(sentence), [RECEIPTS]: receipts(...chips) });
+
+  it('accepts an article that labels its sentences when its receipts page lists a tier-2 claim', () => {
+    expect(checkUnconfirmedLabel(site(files('<strong>Unconfirmed.</strong> Mercer Wire reports that 7 investors took part.', TIER1, TIER2)))).toEqual(ok('A16'));
+  });
+
+  it('accepts the label with space or a line break around its text, as formatted HTML may have it', () => {
+    expect(checkUnconfirmedLabel(site(files('<strong>\n  Unconfirmed. </strong> Mercer Wire reports it.', TIER2)))).toEqual(ok('A16'));
+  });
+
+  it('accepts an article with only tier-1 claims, with or without the label', () => {
+    expect(checkUnconfirmedLabel(site(files('A plain sentence.', TIER1, TIER1)))).toEqual(ok('A16'));
+    expect(checkUnconfirmedLabel(site(files('<strong>Unconfirmed.</strong> A sentence.', TIER1)))).toEqual(ok('A16'));
+  });
+
+  it('accepts a site with no article', () => {
+    expect(checkUnconfirmedLabel(site({ 'index.html': page('<h1>x</h1>') }))).toEqual(ok('A16'));
+  });
+
+  it('rejects an article that cites a tier-2 claim and has no Unconfirmed. label, naming the article and the number of claims', () => {
+    expect(checkUnconfirmedLabel(site(files('Mercer Wire reports that 7 investors took part.', TIER1, TIER2)))).toEqual({
+      id: 'A16',
+      ok: false,
+      problems: [`${ARTICLE}: its receipts page lists 1 claim from a tier-2 source, but the article has no "Unconfirmed." label`],
+    });
+    expect(checkUnconfirmedLabel(site(files('Plain.', TIER2, TIER2))).problems).toEqual([
+      `${ARTICLE}: its receipts page lists 2 claims from a tier-2 source, but the article has no "Unconfirmed." label`,
+    ]);
+  });
+
+  it('does not take the word in running text for the label: it must be the bold label at the start of a sentence', () => {
+    expect(checkUnconfirmedLabel(site(files('The claim is Unconfirmed. Really.', TIER2))).problems).toHaveLength(1);
+    expect(checkUnconfirmedLabel(site(files('<strong>Analysis.</strong> Not that label.', TIER2))).problems).toHaveLength(1);
+  });
+
+  it('leaves a missing receipts page to A9', () => {
+    expect(checkUnconfirmedLabel(site({ [ARTICLE]: article('Plain.') }))).toEqual(ok('A16'));
   });
 });
 

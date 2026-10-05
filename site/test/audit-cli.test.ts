@@ -32,7 +32,7 @@ describe('the audit command', () => {
   it('exits 0 and says it passed for a site that keeps every rule', () => {
     const { code, output } = audit(['--dir', build()]);
     expect(code).toBe(0);
-    expect(output).toContain('Passed: 14 checks.');
+    expect(output).toContain('Passed: 15 checks.');
     expect(output).toContain('ok    A1');
     expect(output).not.toContain('production build');
   });
@@ -41,7 +41,7 @@ describe('the audit command', () => {
     const { code, output } = audit(['--prod', '--dir', build()]);
     expect(code).toBe(0);
     expect(output).toContain('(production build)');
-    expect(output).toContain('Passed: 15 checks.');
+    expect(output).toContain('Passed: 16 checks.');
   });
 
   it('exits 1 and prints the problem under its check when a rule is broken', () => {
@@ -50,7 +50,7 @@ describe('the audit command', () => {
     expect(code).toBe(1);
     expect(output).toContain('FAIL  A4');
     expect(output).toContain('- index.html: has an <img> element');
-    expect(output).toContain('FAILED: 1 problem in 1 of 14 checks.');
+    expect(output).toContain('FAILED: 1 problem in 1 of 15 checks.');
   });
 
   it('lets fixture content through without --prod and stops it with --prod', () => {

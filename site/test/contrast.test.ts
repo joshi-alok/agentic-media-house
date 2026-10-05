@@ -161,3 +161,18 @@ describe('the stylesheets and templates under site/src', () => {
     expect(lawViolations(readFileSync(file, 'utf8'))).toEqual([]);
   });
 });
+
+describe('the labels at the start of a sentence', () => {
+  // "Analysis." and "Unconfirmed." are both written as bold text (a <strong> element). They share
+  // one look, the browser's own, because no stylesheet says anything about <strong>: a rule that gave
+  // one of them a colour or a style would have to give it to both, and the design allows neither.
+  const css = sourceFiles(SRC)
+    .filter((file) => file.endsWith('.css'))
+    .map((file) => readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''))
+    .join('\n');
+
+  it('are left to the browser: no stylesheet has a rule for <strong>', () => {
+    expect(css).toMatch(/body/);
+    expect(css).not.toMatch(/(^|[^\w-])strong(?![\w-])/);
+  });
+});

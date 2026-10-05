@@ -182,3 +182,33 @@ export function checkClaimMarkers(site) {
   }
   return result('A11', problems);
 }
+
+/**
+ * True when the page has the bold label "Unconfirmed." that the renderer writes before a sentence that rests on another outlet.
+ * Space around the text inside the element does not matter.
+ * @param {import('./dom.mjs').Node} document
+ * @returns {boolean}
+ */
+export function hasUnconfirmedLabel(document) {
+  return elements(document, 'strong').some((label) => textOf(label).trim() === 'Unconfirmed.');
+}
+
+/**
+ * A16: an article whose receipts page lists a claim from a tier-2 source (the "Tier 2 source" chip) labels what rests on it: the article has the bold label "Unconfirmed." that the renderer writes before an attributed sentence.
+ * @param {import('./site.mjs').Site} site
+ */
+export function checkUnconfirmedLabel(site) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const { page, receiptsFile } of articles(site)) {
+    const receipts = site.pages.find((candidate) => candidate.file === receiptsFile);
+    // A missing receipts page is A9's to report.
+    if (receipts === undefined) continue;
+    const tier2 = elements(receipts.document, 'span').filter((chip) => (attr(chip, 'class') ?? '').split(/\s+/).includes('chip--tier2')).length;
+    if (tier2 === 0) continue;
+    if (!hasUnconfirmedLabel(page.document)) {
+      problems.push(`${page.file}: its receipts page lists ${tier2} ${tier2 === 1 ? 'claim' : 'claims'} from a tier-2 source, but the article has no "Unconfirmed." label`);
+    }
+  }
+  return result('A16', problems);
+}

@@ -142,6 +142,9 @@ export const LedgerSentence = z.object({
   kind: z.enum(SENTENCE_KINDS),
   text: z.string(),
   claimIds: z.array(z.string()),
+  // Present, and true, only on a fact sentence that the composer marked as an
+  // attribution to another outlet (check G6). The page labels it "Unconfirmed."
+  attributed: z.boolean().optional(),
 });
 export type LedgerSentence = z.infer<typeof LedgerSentence>;
 

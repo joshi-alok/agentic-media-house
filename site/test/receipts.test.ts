@@ -46,6 +46,14 @@ describe('receiptsView: the claims', () => {
     for (const claim of view.claims) expect(claim.citedBy.length, claim.id).toBeGreaterThan(0);
   });
 
+  it('marks a claim from a tier-2 source as unconfirmed, and a tier-1 claim as not', () => {
+    expect(view.claims.every((claim) => claim.unconfirmed === false)).toBe(true);
+    const outlet = structuredClone(golden);
+    outlet.claims[0]!.source = { ...outlet.claims[0]!.source, tier: 2, outlet: 'Mercer Wire' };
+    const claims = receiptsView(outlet).claims;
+    expect(claims.map((claim) => claim.unconfirmed)).toEqual([true, ...claims.slice(1).map(() => false)]);
+  });
+
   it('includes the outlet only for a source that has one', () => {
     expect('outlet' in view.claims[0]!.source).toBe(false);
     const withOutlet = structuredClone(golden);
@@ -71,15 +79,21 @@ describe('receiptsView: the gate summary', () => {
     expect(receiptsView(shuffled).gate.checks.map((check) => check.id)).toEqual([...CHECK_IDS]);
   });
 
-  it('carries the route and the hold reasons', () => {
+  it('carries the route, and each hold reason with its code and its words', () => {
     expect(view.gate.route).toBe('publish');
     expect(view.gate.holdReasons).toEqual([]);
     const held = structuredClone(golden);
     held.gate = { route: 'hold', checks: { ...held.gate.checks, G6: 'fail' }, holdReasons: ['TIER2_ATTRIBUTION'] };
     const heldView = receiptsView(held);
     expect(heldView.gate.route).toBe('hold');
-    expect(heldView.gate.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+    expect(heldView.gate.holdReasons).toEqual([{ code: 'TIER2_ATTRIBUTION', label: "Rests on another outlet's reporting" }]);
     expect(heldView.gate.checks.find((check) => check.id === 'G6')).toEqual({ id: 'G6', result: 'fail' });
+  });
+
+  it('shows a hold reason that has no label by its code, so that nothing is hidden', () => {
+    const odd = structuredClone(golden);
+    odd.gate.holdReasons = ['SOMETHING_NEW'];
+    expect(receiptsView(odd).gate.holdReasons).toEqual([{ code: 'SOMETHING_NEW', label: 'SOMETHING_NEW' }]);
   });
 
   it('has no verifier row when the ledger has no verifier', () => {
@@ -127,7 +141,7 @@ describe('receiptsView', () => {
     copy.gate.holdReasons = ['TIER2_ATTRIBUTION'];
     copy.verifier = { model: 'claude-sonnet-5-5', passed: true, notes: ['one'] };
     const result = receiptsView(copy);
-    result.gate.holdReasons.push('x');
+    result.gate.holdReasons.push({ code: 'x', label: 'x' });
     result.verifier!.notes.push('x');
     expect(copy.gate.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
     expect(copy.verifier.notes).toEqual(['one']);

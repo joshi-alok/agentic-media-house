@@ -15,6 +15,8 @@ const view = receiptsView(Astro.props.ledger);
 const passed = view.gate.checks.filter((check) => check.result === 'pass').length;
 const sources = new Set(view.claims.map((claim) => claim.source.url)).size;
 const resultChip = (passes: boolean) => (passes ? 'chip chip--pass' : 'chip chip--fail');
+// Each hold reason in plain English, with its code after it for anyone who wants to look it up.
+const holdText = view.gate.holdReasons.length === 0 ? 'none' : view.gate.holdReasons.map((reason) => `${reason.label} (${reason.code})`).join('; ');
 ---
 
 <Base title={`Receipts: ${view.title}`} description={`The source passage behind every claim in "${view.title}".`} canonicalPath={receiptsPath(view.slug)}>
@@ -39,7 +41,7 @@ const resultChip = (passes: boolean) => (passes ? 'chip chip--pass' : 'chip chip
         }
       </ul>
       <p class="gate-notes">
-        Hold reasons: {view.gate.holdReasons.length === 0 ? 'none' : view.gate.holdReasons.join(', ')}. What each check looks at is on the <a href="/method/">method page</a>.
+        Hold reasons: {holdText}. What each check looks at is on the <a href="/method/">method page</a>.
       </p>
       {
         view.verifier !== undefined && (
@@ -74,6 +76,7 @@ const resultChip = (passes: boolean) => (passes ? 'chip chip--pass' : 'chip chip
             </blockquote>
             <p class="receipt__chips">
               <span class={claim.source.tier === 1 ? 'chip chip--tier1' : 'chip chip--tier2'}>{claim.source.tier === 1 ? 'Tier 1 source' : 'Tier 2 source'}</span>
+              {claim.unconfirmed && <span class="chip">Unconfirmed</span>}
               <span class="chip">{claim.basis}</span>
               <span class="chip">{claim.status}</span>
             </p>

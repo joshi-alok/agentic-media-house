@@ -46,7 +46,7 @@ Run everything from the repository root.
 | `npm run fixtures:check` | Regenerate the fixture content and fail, with a diff, if it differs from the committed files. |
 | `npm run build` | The production build, into `site/dist`. It reads `site/src/content/`, which has no pieces yet. |
 | `npm run build:fixtures` | The fixture build, into `site/dist` (see Fixtures below). |
-| `npm run audit` | Run the checks A1 to A12, A14 and A15 on `site/dist`: HTML, links, receipts, CSS rules, colours, feeds. Exits 1 on any problem. |
+| `npm run audit` | Run the checks A1 to A12 and A14 to A16 on `site/dist`: HTML, links, receipts, CSS rules, colours, feeds. Exits 1 on any problem. |
 | `npm run audit:prod` | The same, plus A13: the build has no trace of the fixtures. Run it after `npm run build`. |
 | `npm run lighthouse` | Measure the fixture build in `site/dist` with Lighthouse (home page, lead article, receipts page) and fail if any score is under 95. |
 | `npm run verify` | All of the above in CI order: typecheck, tests, seeded evals, fixture drift, production build, production audit, fixture build, fixture audit, Lighthouse. |

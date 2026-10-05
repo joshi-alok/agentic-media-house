@@ -53,7 +53,8 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
   const receipts = `/news/${draft.slug}/receipts/`;
   const marker = (id: string) => `[${markerOf.get(id)}](${receipts}#${id})`;
   const sentence = (item: Sentence): string => {
-    const label = item.kind === 'analysis' ? '**Analysis.** ' : '';
+    // A sentence has at most one label: analysis is the Desk's reading, "Unconfirmed." marks a fact it only attributes.
+    const label = item.kind === 'analysis' ? '**Analysis.** ' : item.kind === 'fact' && item.attributed === true ? '**Unconfirmed.** ' : '';
     const markers = [...new Set(item.claimIds)].map(marker).join('');
     return `${label}${escapeMdx(item.text)}${markers}`;
   };
@@ -100,8 +101,11 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
   }
 
   const sentences: LedgerSentence[] = located.map((item) => {
-    const entry: LedgerSentence = { index: item.index, section: item.section, kind: item.sentence.kind, text: item.sentence.text, claimIds: [...item.sentence.claimIds] };
-    return item.heading === undefined ? entry : { ...entry, heading: item.heading };
+    const { sentence: written } = item;
+    const entry: LedgerSentence = { index: item.index, section: item.section, kind: written.kind, text: written.text, claimIds: [...written.claimIds] };
+    if (item.heading !== undefined) entry.heading = item.heading;
+    if (written.kind === 'fact' && written.attributed === true) entry.attributed = true;
+    return entry;
   });
 
   const ledger: LedgerEntry = {

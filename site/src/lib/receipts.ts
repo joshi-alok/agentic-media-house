@@ -1,5 +1,6 @@
 import { CHECK_IDS } from '@robywire/gate';
 import type { Basis, CheckId, CheckResult, LedgerEntry, Route, Status } from '@robywire/gate';
+import { reasonLabel } from './reasons';
 
 // The receipts page, as data. The page only lays this out, so what it says can
 // be tested without building the site.
@@ -19,12 +20,20 @@ export interface ReceiptClaim {
   status: Status;
   /** The 0-based indexes, in the ledger's sentence list, of the sentences that cite this claim. */
   citedBy: number[];
+  /** True for a claim from a tier-2 source (another outlet's reporting): the article labels the sentences that cite it "Unconfirmed.". */
+  unconfirmed: boolean;
+}
+
+/** A reason the gate asked for a hold: its code, and the same in plain English. */
+export interface HoldReason {
+  code: string;
+  label: string;
 }
 
 export interface GateSummary {
   route: Route;
   checks: { id: CheckId; result: CheckResult }[];
-  holdReasons: string[];
+  holdReasons: HoldReason[];
 }
 
 export interface ReceiptsView {
@@ -59,6 +68,7 @@ export function receiptsView(ledger: LedgerEntry): ReceiptsView {
       basis: claim.basis,
       status: claim.status,
       citedBy: ledger.sentences.filter((sentence) => sentence.claimIds.includes(id)).map((sentence) => sentence.index),
+      unconfirmed: tier === 2,
     };
   });
 
@@ -69,7 +79,7 @@ export function receiptsView(ledger: LedgerEntry): ReceiptsView {
     gate: {
       route: ledger.gate.route,
       checks: CHECK_IDS.map((id) => ({ id, result: ledger.gate.checks[id] })),
-      holdReasons: [...ledger.gate.holdReasons],
+      holdReasons: ledger.gate.holdReasons.map((code) => ({ code, label: reasonLabel(code) })),
     },
   };
   if (ledger.verifier !== undefined) view.verifier = { ...ledger.verifier, notes: [...ledger.verifier.notes] };

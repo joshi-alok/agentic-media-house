@@ -455,6 +455,12 @@ describe('LedgerEntry', () => {
     expect(failedPaths(LedgerEntry, bad)).toEqual(['sources.0.outlet']);
   });
 
+  it('accepts attributed on a ledger sentence, as true or false, and refuses anything else', () => {
+    expectValid(LedgerEntry, patch(VALID_LEDGER, 'sentences.0.attributed', true));
+    expectValid(LedgerEntry, patch(VALID_LEDGER, 'sentences.0.attributed', false));
+    expect(failedPaths(LedgerEntry, patch(VALID_LEDGER, 'sentences.0.attributed', 'yes'))).toEqual(['sentences.0.attributed']);
+  });
+
   it('rejects a verifier result that lacks a model', () => {
     const bad = patch(VALID_LEDGER, 'verifier', { passed: true, notes: [] });
     expect(failedPaths(LedgerEntry, bad)).toEqual(['verifier.model']);
