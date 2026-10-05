@@ -1,16 +1,13 @@
 ---
 import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
 
 const news = await getCollection('news');
 const ledger = await getCollection('ledger');
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Robywire</title>
-  </head>
-  <body>
+<Base title="Robywire" description="Daily robotics news, with every factual sentence traced to a primary source." canonicalPath="/">
+  <div class="container">
     <p>news: {news.length}, ledger: {ledger.length}</p>
-  </body>
-</html>
+  </div>
+</Base>

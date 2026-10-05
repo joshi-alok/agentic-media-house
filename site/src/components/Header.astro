@@ -1,0 +1,24 @@
+---
+import { NAV_ITEMS, isCurrent } from '../lib/nav';
+
+const pathname = Astro.url.pathname;
+---
+
+<header class="site-header">
+  <div class="container site-header__inner">
+    <a class="wordmark" href="/">Robywire</a>
+    <nav aria-label="Beats">
+      <ul class="nav">
+        {
+          NAV_ITEMS.map((item) => (
+            <li>
+              <a href={item.href} aria-current={isCurrent(item.href, pathname) ? 'page' : undefined}>
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</header>

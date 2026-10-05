@@ -1,0 +1,20 @@
+---
+import { DISCLOSURE, FOOTER_LINKS } from '../lib/nav';
+---
+
+<footer class="site-footer">
+  <div class="container">
+    <p class="disclosure">{DISCLOSURE}</p>
+    <nav aria-label="About this site">
+      <ul class="footer-links">
+        {
+          FOOTER_LINKS.map((item) => (
+            <li>
+              <a href={item.href}>{item.label}</a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+  </div>
+</footer>

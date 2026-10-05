@@ -1,0 +1,74 @@
+/* The frame around every page: the fixture ribbon, the header, the footer. */
+
+.ribbon {
+  padding: 0.35rem 1.25rem;
+  border-bottom: 1px solid var(--line-2);
+  background: var(--paper);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+.site-header {
+  border-bottom: 1px solid var(--line);
+}
+
+.site-header__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 2rem;
+  padding-block: 1rem;
+}
+
+.wordmark {
+  color: var(--t1);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.nav,
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.nav a,
+.footer-links a {
+  color: var(--t2);
+  text-decoration: none;
+}
+
+.nav a:hover,
+.footer-links a:hover {
+  color: var(--link);
+  text-decoration: underline;
+}
+
+.nav a[aria-current="page"] {
+  color: var(--t1);
+  text-decoration: underline;
+}
+
+main {
+  padding-block: 2rem 3rem;
+}
+
+.site-footer {
+  padding-block: 2rem;
+  border-top: 1px solid var(--line);
+  color: var(--t2);
+  font-size: 0.85rem;
+}
+
+.disclosure {
+  max-width: 65ch;
+}
