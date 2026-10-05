@@ -1,0 +1,81 @@
+/* The receipts page of an article. */
+
+.back {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+}
+
+.receipts-intro {
+  max-width: 65ch;
+  color: var(--t2);
+}
+
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.gate-notes {
+  max-width: 65ch;
+}
+
+.receipt {
+  max-width: 65ch;
+  padding: 1.5rem 0;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 1rem;
+}
+
+.receipt:target {
+  background: var(--paper);
+}
+
+.receipt h3 {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.receipt__marker {
+  min-width: 1.5rem;
+  color: var(--link);
+  font-weight: 400;
+}
+
+.receipt blockquote {
+  margin: 0 0 1rem;
+  padding: 0.25rem 0 0.25rem 1rem;
+  border-left: 1px solid var(--line-2);
+}
+
+.receipt blockquote p {
+  margin: 0;
+}
+
+.receipt__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.receipt__meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+}
+
+.receipt__meta dt {
+  color: var(--t2);
+}
+
+.receipt__meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
