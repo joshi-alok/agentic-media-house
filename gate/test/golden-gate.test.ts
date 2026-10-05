@@ -24,6 +24,7 @@ describe('the public API of @robywire/gate', () => {
     'checkG8',
     'checkG9',
     'ALL_FAILURE_CODES',
+    'HOLD_REASONS',
     // slugs and titles
     'disambiguateSlug',
     'titleTokens',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CHECKS } from '../src/checks';
-import { checkG6 } from '../src/checks/g6-sourcing';
+import { HOLD_REASONS, checkG6 } from '../src/checks/g6-sourcing';
 import { defaultContext } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import type { CheckOutput, GateInput } from '../src/gate';
@@ -256,6 +256,15 @@ describe('the hold reason', () => {
 
   it('is not asked for when no sentence cites the tier-2 claim', () => {
     expect(run((g) => addTier2Copy(g, 'c-19'))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('is listed in HOLD_REASONS, which the site reads to give every hold reason a label', () => {
+    const output = run((g) => {
+      makeTier2(g, 'c-19');
+      attribute(g, INVESTORS, 'Mercer Wire reports that 7 investors took part in the round.');
+    });
+    expect(HOLD_REASONS).toEqual(['TIER2_ATTRIBUTION']);
+    expect(output.holdReasons.every((reason) => (HOLD_REASONS as readonly string[]).includes(reason))).toBe(true);
   });
 });
 

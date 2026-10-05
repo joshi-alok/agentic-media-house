@@ -5,8 +5,15 @@ import { normaliseQuotes } from '../text';
 /** Every failure code G6 can report. */
 export const G6_CODES = ['G6_TIER2_UNATTRIBUTED', 'G6_TIER2_IN_ANALYSIS'] as const;
 
+/**
+ * Every reason a check can ask for a hold, as opposed to a failure. A piece with
+ * a hold reason and no failure goes to the owner instead of being revised. The
+ * site gives each reason a label, and a test there fails if one has none.
+ */
+export const HOLD_REASONS = ['TIER2_ATTRIBUTION'] as const;
+
 /** Why a piece that cites a tier-2 claim, even a properly attributed one, can never publish by itself. */
-const HOLD_TIER2 = 'TIER2_ATTRIBUTION';
+const HOLD_TIER2 = HOLD_REASONS[0];
 
 /**
  * G6, sourcing: a claim from a tier-2 outlet (another publication's reporting)
