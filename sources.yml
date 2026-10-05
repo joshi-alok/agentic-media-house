@@ -1,0 +1,176 @@
+# sources.yml - the Desk's tiered source registry.
+#
+# Provenance: copied on 2026-10-04 from the Robywire docs (docs/sources.yml in
+# the robywire-astro project) and adapted for the Desk:
+#   - every "verified" status was reset to "unverified", because the Desk has
+#     not fetched anything yet and cannot vouch for a feed;
+#   - the documented "blocked" (arXiv RSS) and "n/a" statuses were kept;
+#   - the status legend below replaces the original one and adds "n/a".
+# gate/src/sources.ts validates this file and gate/test/sources.test.ts checks it.
+#
+# Status values:
+#   verified   = fetched by the Desk and confirmed current
+#   unverified = plausible URL, the first run must check it
+#   blocked    = our fetcher cannot reach it; needs another route
+#   n/a        = no fixed URL (the entry says where to look instead)
+#
+# Robywire — source list for the daily desk
+#
+# Two tiers, and the distinction is the whole editorial model:
+#
+#   TIER 1 (primary)   — what we WRITE FROM. The company's own announcement,
+#                        the paper, the filing, the standard, the results sheet.
+#   TIER 2 (secondary) — what we use to DISCOVER. Other outlets' feeds tell us
+#                        something happened. They are never the sole source for
+#                        a claim, and never the thing we paraphrase.
+#
+# House rule: discover in tier 2, verify and write from tier 1. If a story has
+# no reachable tier 1 source, that fact goes in the piece — it does not get
+# quietly laundered through a competitor's reporting.
+#
+
+# ---------------------------------------------------------------------------
+# TIER 1 — PRIMARY
+# ---------------------------------------------------------------------------
+
+primary:
+
+  # Company newsrooms and press kits. The single most important tier and the
+  # one entirely missing from the original list. Press kits are also where
+  # licensed imagery comes from (see the image policy in the content contract).
+  companies:
+    humanoids:
+      - { name: Figure,              url: "https://www.figure.ai/news",            status: unverified }
+      - { name: Agility Robotics,    url: "https://www.agilityrobotics.com/news",  status: unverified }
+      - { name: Boston Dynamics,     url: "https://bostondynamics.com/news/",      status: unverified }
+      - { name: Unitree,             url: "https://www.unitree.com/news",          status: unverified }
+      - { name: Apptronik,           url: "https://apptronik.com/news",            status: unverified }
+      - { name: 1X,                  url: "https://www.1x.tech/discover",          status: unverified }
+      - { name: Beijing X-Humanoid,  url: "https://www.x-humanoid.com/",           status: unverified }
+    industrial:
+      - { name: ABB Robotics,        url: "https://new.abb.com/products/robotics", status: unverified }
+      - { name: FANUC,               url: "https://www.fanuc.eu/uk/en/news",       status: unverified }
+      - { name: KUKA,                url: "https://www.kuka.com/en-de/press",      status: unverified }
+      - { name: Universal Robots,    url: "https://www.universal-robots.com/about-universal-robots/news-centre/", status: unverified }
+    software:
+      - { name: Physical Intelligence, url: "https://www.physicalintelligence.company/blog", status: unverified }
+      - { name: NVIDIA Robotics,     url: "https://blogs.nvidia.com/blog/category/robotics/", status: unverified }
+
+  # Research. Papers are primary; a press release about a paper is not.
+  research:
+    - name: arXiv cs.RO
+      url: "http://export.arxiv.org/rss/cs.RO"
+      status: blocked
+      note: >
+        robots.txt disallows our fetcher on the RSS endpoint. Use the arXiv API
+        (export.arxiv.org/api/query?search_query=cat:cs.RO) instead, which is the
+        sanctioned programmatic route.
+
+  # Standards, regulation and safety. Underserved and highly checkable.
+  standards:
+    - { name: ISO TC 299 (robotics),  url: "https://www.iso.org/committee/5915511.html", status: unverified }
+    - { name: OSHA newsroom,          url: "https://www.osha.gov/news",                  status: unverified }
+    - { name: EU Machinery Regulation, url: "https://single-market-economy.ec.europa.eu/sectors/mechanical-engineering/machinery_en", status: unverified }
+
+  # Money. Filings and the company's own announcement beat any coverage of them.
+  funding:
+    - { name: SEC EDGAR full-text,  url: "https://efts.sec.gov/LATEST/search-index?q=robotics", status: unverified }
+    - { name: Company announcement, url: "(the round is always announced on the company's own site first)", status: n/a }
+
+  # Events — for the calendar and for field-notes planning.
+  events:
+    - { name: ICRA,     url: "https://www.ieee-ras.org/conferences-workshops/fully-sponsored/icra/", status: unverified }
+    - { name: IROS,     url: "https://www.ieee-ras.org/conferences-workshops/technically-co-sponsored/iros", status: unverified }
+    - { name: Automate, url: "https://www.automateshow.com/",  status: unverified }
+    - { name: iREX,     url: "https://irex.nikkan.co.jp/en/",  status: unverified }
+
+# ---------------------------------------------------------------------------
+# TIER 2 — SECONDARY (discovery only)
+# ---------------------------------------------------------------------------
+# Every one of these is a competitor. Reading them to learn what happened is
+# normal practice. Rewriting them is not — it is the behaviour Google's
+# scaled-content-abuse policy names, and it is also just bad journalism.
+
+secondary:
+  - name: The Robot Report
+    feed: "https://www.therobotreport.com/feed/"
+    status: unverified          # RSS 2.0 per the Robywire docs; the Desk has not checked it
+    beats: [industrial-warehouse, humanoids, funding]
+    note: Strongest on business, funding and commercial humanoid deployments.
+
+  - name: IEEE Spectrum — Robotics
+    feed: "https://spectrum.ieee.org/feeds/topic/robotics.rss"
+    status: unverified
+    beats: [software-autonomy, humanoids, components-supply-chain]
+    note: Engineering journalism. Often the only outlet that reads the paper.
+
+  - name: Robotics 24/7
+    feed: "https://www.robotics247.com/rss"
+    status: unverified
+    beats: [industrial-warehouse, field-mobility]
+
+  - name: Robohub
+    feed: "https://robohub.org/feed/"
+    status: unverified
+    beats: [software-autonomy, policy-standards]
+    note: Academic and community. Good early signal on research moving to product.
+
+  - name: Robotics Tomorrow
+    feed: "https://www.roboticstomorrow.com/rss"
+    status: unverified
+    beats: [industrial-warehouse, components-supply-chain]
+
+  - name: Tech Xplore — Robotics
+    feed: "https://techxplore.com/rss-feed/robotics-news/"
+    status: unverified
+    beats: [software-autonomy, components-supply-chain]
+    note: Rewrites university press releases. Always trace to the paper.
+
+  - name: ScienceDaily — Robotics
+    feed: "https://www.sciencedaily.com/rss/computers_math/robotics.xml"
+    status: unverified
+    beats: [software-autonomy]
+    note: Aggregates press releases. Discovery only, never a source.
+
+  - name: New Atlas — Robotics
+    feed: "https://newatlas.com/robotics/index.rss"
+    status: unverified
+    beats: [home-consumer, field-mobility]
+    note: One of the few covering consumer and home. Enthusiastic — verify claims.
+
+  - name: Robotics Business News
+    feed: "https://roboticsbusinessnews.com/feed/"
+    status: unverified
+    beats: [funding, industrial-warehouse]
+
+# Dropped from the supplied list:
+#   Phys.org robotics — near-total overlap with Tech Xplore (same publisher
+#   network) and ScienceDaily. Three feeds of the same university press
+#   releases is three times the noise for no extra coverage.
+
+# ---------------------------------------------------------------------------
+# EDITORIAL BAR
+# ---------------------------------------------------------------------------
+# One post a day. On a quiet day, publish the smaller true thing rather than
+# inflating the biggest available thing.
+
+bar:
+  publish_if_any:
+    - A product shipped, was priced, or reached a customer site.
+    - A funding round, acquisition or shutdown with a named amount or acquirer.
+    - A specification, benchmark or results sheet was published that can be read.
+    - A standard, regulation or safety finding changed what is permitted.
+    - A claim we previously covered turned out to be wrong, early or overstated.
+
+  do_not_publish:
+    - A demo video with no specification, price or deployment behind it.
+    - A funding rumour with no named source.
+    - A "partnership" or MoU with no deliverable and no date.
+    - A restatement of another outlet's story with nothing added.
+    - A paper we have not read past the abstract.
+
+  quiet_day_fallback:
+    - "A spec-sheet primer or explainer (format: explainer) on something in the
+       week's news that readers keep mis-reading."
+    - "A follow-up: what happened to a launch we covered 6 or 12 months ago.
+       This is the cheapest genuinely original reporting available to us."

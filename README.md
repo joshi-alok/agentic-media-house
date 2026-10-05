@@ -11,9 +11,21 @@ The full design is in [`docs/superpowers/specs/2026-10-04-the-desk-design.md`](d
 | `gate/` | `@robywire/gate`: pure functions implementing gate checks G1 to G9. No network, no models. |
 | `evals/` | `@robywire/evals`: the seeded-defect harness that proves the gate catches what it should. |
 | `site/` | `@robywire/site`: the Astro static site. |
+| `sources.yml` | The tiered source registry: where the Desk writes from and where it discovers stories. |
 | `docs/` | Specs and plans. |
 
 The workspace packages export their TypeScript source directly, so there is no build step for them.
+
+## Source registry
+
+`sources.yml` is the tiered registry of where stories come from.
+
+- Tier 1 (primary) sources are what the Desk writes from: a company's own announcement, a paper, a filing, a standard, a results sheet.
+- Tier 2 (secondary) sources are what the Desk discovers from: other outlets' feeds that say something happened. They are never the sole source of a claim.
+
+If a story has no reachable tier-1 source, that fact goes in the piece. It is never quietly laundered through a competitor's reporting.
+
+Every `status` starts as `unverified`; the Desk changes it as it fetches. `gate/src/sources.ts` validates the file (`loadSources`) and `gate/test/sources.test.ts` checks it on every test run.
 
 ## Requirements
 
