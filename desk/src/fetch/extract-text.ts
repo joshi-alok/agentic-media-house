@@ -1,6 +1,7 @@
 import { defaultTreeAdapter, parse } from 'parse5';
 import type { DefaultTreeAdapterTypes, TreeAdapter } from 'parse5';
 import type { DefaultTreeAdapterMap } from 'parse5';
+import { normaliseFeedDate } from './feeds';
 import { canonicalUrl } from './url';
 
 // From the HTML of a page to what the rest of the Desk uses: the title, the readable text (which is what a
@@ -32,6 +33,13 @@ export interface ExtractedPage {
   text: string;
   /** The links of the part of the page that is read, each address once, in the order of the page. */
   links: PageLink[];
+  /**
+   * When the page says that it was published, as an ISO time in UTC: the `datePublished` of its structured data (JSON-LD), else its
+   * `article:published_time` meta tag, else the `datetime` of the first `<time>` element of its article. Absent when the page gives
+   * none that can be read. This is what the page says of itself: a page can say what it likes, so it is a check against an old story taken
+   * for today's news, and not a proof of when it was written.
+   */
+  publishedAt?: string;
 }
 
 /** The page cannot be read: it is nested too deeply. */
@@ -175,6 +183,54 @@ function plainText(node: ParentNode): string {
   return collapse(text);
 }
 
+/** The value of an attribute of an element, or undefined when it has none. */
+const attributeOf = (element: Element, name: string): string | undefined => element.attrs.find((attribute) => attribute.name === name)?.value;
+
+/** How deep into structured data the date is looked for. */
+const MAX_DATA_DEPTH = 8;
+
+/** The first `datePublished` that can be read in a value of structured data: the value's own first, then what is inside it, no deeper than MAX_DATA_DEPTH. */
+function dateInData(value: unknown, depth = 0): string | undefined {
+  if (depth > MAX_DATA_DEPTH || typeof value !== 'object' || value === null) return undefined;
+  if (!Array.isArray(value)) {
+    const own = (value as Record<string, unknown>).datePublished;
+    const date = typeof own === 'string' ? normaliseFeedDate(own) : undefined;
+    if (date !== undefined) return date;
+  }
+  for (const inner of Array.isArray(value) ? value : Object.values(value)) {
+    const found = dateInData(inner, depth + 1);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/**
+ * The date that a page gives itself, from the first of three places that gives one that can be read: a script of structured data
+ * (`type` of `application/ld+json`), a meta tag with the property `article:published_time`, and the first `<time>` element with a `datetime`
+ * inside the article, when the page has exactly one (`article`; a page with several is a list of stories, and its first time is not the
+ * date of any of them). A value that cannot be read is passed over, except that the first `<time datetime>` is the only one asked.
+ */
+function dateOfPage(document: ParentNode, article: Element | undefined): string | undefined {
+  const all = [...descendants(document, () => false)];
+  for (const script of all.filter((element) => element.tagName === 'script' && /ld\+json/i.test(attributeOf(element, 'type') ?? ''))) {
+    let data: unknown;
+    try {
+      data = JSON.parse(script.childNodes.map((child) => (child.nodeName === '#text' ? (child as DefaultTreeAdapterTypes.TextNode).value : '')).join(''));
+    } catch {
+      continue;
+    }
+    const date = dateInData(data);
+    if (date !== undefined) return date;
+  }
+  for (const meta of all.filter((element) => element.tagName === 'meta' && attributeOf(element, 'property') === 'article:published_time')) {
+    const date = normaliseFeedDate(attributeOf(meta, 'content') ?? '');
+    if (date !== undefined) return date;
+  }
+  if (article === undefined) return undefined;
+  const time = [...descendants(article, isDropped)].find((element) => element.tagName === 'time' && attributeOf(element, 'datetime') !== undefined);
+  return time === undefined ? undefined : normaliseFeedDate(attributeOf(time, 'datetime') ?? '');
+}
+
 /** The text of the first title element of the page, wherever it is, or an empty string. */
 function titleOf(document: ParentNode): string {
   const title = [...descendants(document, () => false)].find((element) => element.tagName === 'title');
@@ -196,6 +252,8 @@ function titleOf(document: ParentNode): string {
  * link has some (an image link and a headline link to one story). The title is the page's `<title>`, or else
  * the first `<h1>` of the part that is read.
  *
+ * The date that the page gives itself is `publishedAt` (see `ExtractedPage`): from its structured data, its meta tag or the time element of its article.
+ *
  * Throws `ExtractError` for a page nested more than `MAX_DEPTH` levels deep.
  */
 export function extractPage(html: string, baseUrl: string): ExtractedPage {
@@ -213,8 +271,9 @@ export function extractPage(html: string, baseUrl: string): ExtractedPage {
   const elements = [...descendants(document, isDropped)];
   const articles = elements.filter((element) => element.tagName === 'article');
   // The tree of a document always has a body, so the document itself, which would also read the head, is only the last resort for the type.
+  const article = articles.length === 1 ? articles[0] : undefined;
   const root: ParentNode =
-    (articles.length === 1 ? articles[0] : undefined) ??
+    article ??
     elements.find((element) => element.tagName === 'main') ??
     elements.find((element) => element.tagName === 'body') ??
     document;
@@ -260,7 +319,8 @@ export function extractPage(html: string, baseUrl: string): ExtractedPage {
   endLine();
 
   const title = titleOf(document) || firstHeading(root);
-  return { title, text: lines.join('\n'), links: [...links].map(([url, text]) => ({ url, text })) };
+  const publishedAt = dateOfPage(document, article);
+  return { title, text: lines.join('\n'), links: [...links].map(([url, text]) => ({ url, text })), ...(publishedAt === undefined ? {} : { publishedAt }) };
 }
 
 /** The text of the first `<h1>` below `root`, or an empty string. */

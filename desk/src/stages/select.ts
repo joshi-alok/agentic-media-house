@@ -28,6 +28,16 @@ export function selectReplySchema(ids: [string, ...string[]]) {
 }
 
 /**
+ * The span of time in which a story must have been published to be new on the day of a run: the `recencyHours` before the end of that day
+ * (a day is read in UTC), as milliseconds since 1970. A time is in the window when it is at or after `start` and before `end`. Select applies it to
+ * the date of a candidate and Fetch to the date of the page of a candidate that has none.
+ */
+export function recencyWindow(ctx: Pick<StageContext, 'date' | 'config'>): { start: number; end: number } {
+  const end = Date.parse(`${ctx.date}T00:00:00.000Z`) + DAY;
+  return { start: end - ctx.config.recencyHours * HOUR, end };
+}
+
+/**
  * The candidates that go to the model, best first. A candidate is dropped when a published piece covers it, when it was published
  * longer ago than `config.recencyHours` before the end of the day of the run (a candidate with no date is not dropped), when it
  * was published after the end of that day, and when none of its beats is one of the seven beats of the vocabulary. The rest are
@@ -35,8 +45,7 @@ export function selectReplySchema(ids: [string, ...string[]]) {
  * cut to `config.shortlistMax`.
  */
 export function shortlistOf(candidates: Candidate[], ctx: Pick<StageContext, 'date' | 'config' | 'published'>): Candidate[] {
-  const end = Date.parse(`${ctx.date}T00:00:00.000Z`) + DAY;
-  const start = end - ctx.config.recencyHours * HOUR;
+  const { start, end } = recencyWindow(ctx);
   const kept = candidates.filter((candidate) => {
     if (isCovered(candidate, ctx.published, ctx.date)) return false;
     if (!candidate.beats.some((beat) => (BEATS as readonly string[]).includes(beat))) return false;

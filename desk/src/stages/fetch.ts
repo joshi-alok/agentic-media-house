@@ -3,6 +3,7 @@ import type { FetchDocument, SelectArtifact } from '../index';
 import { describeFailure, isSourceFailure } from './context';
 import type { StageContext } from './context';
 import { MAX_TITLE_LENGTH } from './discover';
+import { recencyWindow } from './select';
 
 // Stage 3, Fetch: get the pages that the story will be written from, and keep them as evidence. For the story that
 // Select chose these are the page of its primary source (if Select found one) and the page of the story itself. Each
@@ -25,12 +26,27 @@ export type FetchResult =
   | { ok: false; outcome: 'no-story'; reason: string; artifact: FetchArtifact };
 
 /**
+ * Why the date of a page does not make a story new, or undefined when it does. Used for a story that has no date of its own, whose page has to
+ * have one inside the window of `recencyWindow`. The reason begins with `stale-or-undated`.
+ */
+function staleOrUndated(publishedAt: string | undefined, ctx: Pick<StageContext, 'date' | 'config'>): string | undefined {
+  if (publishedAt === undefined) return 'stale-or-undated: the story has no date and its page gives none either';
+  const { start, end } = recencyWindow(ctx);
+  const time = Date.parse(publishedAt);
+  if (time >= start && time < end) return undefined;
+  return `stale-or-undated: the story has no date and its page says it was published ${publishedAt}, outside the ${ctx.config.recencyHours} hours before the end of ${ctx.date}`;
+}
+
+/**
  * Fetch the pages of the chosen story, store their text and write `03-fetch.json`.
  *
  * A page that cannot be fetched or read (robots.txt forbids it, it is too large, it is not text, it has no text in it) is not
  * fatal: it is recorded in the artifact with the reason and the stage goes on. In particular, when the primary source is
  * unreachable the story falls back to the page of the story alone, which is written in attributed form and held; the artifact
- * says that the primary source failed. When every page fails the result is `no-story`. Any other error ends the run, and that
+ * says that the primary source failed. When every page fails the result is `no-story`. A story that has no date of its own (a headline
+ * link of a newsroom page) must have a page that gives one inside the window of `recencyWindow`, as an old announcement on a newsroom page
+ * is not today's news: when its page gives none, or an old one, nothing more is fetched, the page is recorded as a failure whose reason begins
+ * with `stale-or-undated`, and the result is `no-story` with that reason. Any other error ends the run, and that
  * includes a failure of the evidence store: the Desk does not go on without the evidence it will cite.
  *
  * The text is extracted once, by `extractPage`, and is what the store keeps and what the next stage quotes from. The size recorded
@@ -47,14 +63,23 @@ export async function runFetch(ctx: StageContext, selected: SelectArtifact): Pro
   const documents: FetchDocument[] = [];
   const snapshots: Snapshot[] = [];
   const failures: FetchArtifact['failures'] = [];
+  let stale: string | undefined;
   for (const target of targets) {
     try {
       const page = await ctx.fetcher.get(target.url);
-      const { title, text } = extractPage(page.body, page.finalUrl);
+      const { title, text, publishedAt } = extractPage(page.body, page.finalUrl);
       if (text === '') {
         failures.push({ ...target, reason: 'the page has no text to read' });
         ctx.log(`fetch: ${target.url} has no text to read`);
         continue;
+      }
+      if (target.url === chosen.url && chosen.publishedAt === undefined) {
+        stale = staleOrUndated(publishedAt, ctx);
+        if (stale !== undefined) {
+          failures.push({ ...target, reason: stale });
+          ctx.log(`fetch: ${target.url} is stale or undated: ${stale}`);
+          break;
+        }
       }
       const { hash } = await ctx.evidence.put(text, { url: target.url, finalUrl: page.finalUrl, tier: target.tier, retrievedAt: page.retrievedAt });
       const document: FetchDocument = {
@@ -78,6 +103,7 @@ export async function runFetch(ctx: StageContext, selected: SelectArtifact): Pro
 
   const artifact: FetchArtifact = { date: ctx.date, documents, failures };
   await writeArtifact(ctx.runDir, '03-fetch', artifact, FetchArtifact);
+  if (stale !== undefined) return { ok: false, outcome: 'no-story', reason: stale, artifact };
   if (snapshots.length === 0) {
     const why = failures.map((failure) => `${failure.url}: ${failure.reason}`).join('; ');
     return { ok: false, outcome: 'no-story', reason: `none of the pages of the story could be fetched: ${why}`, artifact };

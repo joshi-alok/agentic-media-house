@@ -6,7 +6,7 @@ import { jsonSchemaOf, ModelError } from '../../src/model/types';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { SelectArtifact, candidateId, readArtifact } from '../../src/run/artifacts';
 import type { DiscoverArtifact } from '../../src/run/artifacts';
-import { SELECT_MAX_OUTPUT_TOKENS, runSelect, selectReplySchema, shortlistOf } from '../../src/stages/select';
+import { SELECT_MAX_OUTPUT_TOKENS, recencyWindow, runSelect, selectReplySchema, shortlistOf } from '../../src/stages/select';
 import { RUN_DATE, candidate } from '../support/candidates';
 import { FETCHED_AT, URLS, stageContext, useScratch, withPages, worldMap } from '../support/context';
 import { FIXTURE_DIR } from '../support/fixtures';
@@ -31,6 +31,19 @@ const NO_BEAT = candidate({ url: 'https://mercer-wire.example/robotics/only-fund
 const ALL = [OLD, NO_BEAT, RELEASE, FUNDING, ARTICLE];
 
 const choose = (id: string | null, reasons = ['A product reached a customer site.']) => ({ chosenId: id, reasons });
+
+describe('recencyWindow', () => {
+  it('is the recencyHours before the end of the day of the run, in UTC: the start is in it and the end is not', () => {
+    const window = recencyWindow({ date: RUN_DATE, config: defaultConfig() });
+    expect(new Date(window.start).toISOString()).toBe('2026-10-03T00:00:00.000Z');
+    expect(new Date(window.end).toISOString()).toBe('2026-10-06T00:00:00.000Z');
+  });
+
+  it('follows the configuration', () => {
+    const window = recencyWindow({ date: RUN_DATE, config: { ...defaultConfig(), recencyHours: 24 } });
+    expect(new Date(window.start).toISOString()).toBe('2026-10-05T00:00:00.000Z');
+  });
+});
 
 describe('shortlistOf', () => {
   const base = { date: RUN_DATE, config: defaultConfig(), published: { slugs: [], titles: [], sourceUrls: [] } };

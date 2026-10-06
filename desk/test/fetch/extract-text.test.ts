@@ -43,6 +43,10 @@ describe('extractPage: a company release', () => {
     }
   });
 
+  it('gives the date that the page gives itself, from its meta tag, which the Fetch stage asks of a story that has no date of its own', () => {
+    expect(page.publishedAt).toBe('2026-10-04T06:00:00.000Z');
+  });
+
   it('lists the links of the article, as addresses without their fragment, with their text', () => {
     expect(page.links).toEqual([
       { url: 'https://brindle-logistics.example/', text: 'Brindle Logistics' },
@@ -266,6 +270,131 @@ describe('extractPage: text that a reader of the page cannot see', () => {
   it('gives a title from a heading that is shown and not from one that is hidden', () => {
     const page = extractPage('<!doctype html><html><body><h1 hidden>Hidden title</h1><h1>Shown title</h1></body></html>', BASE);
     expect(page.title).toBe('Shown title');
+  });
+});
+
+describe('extractPage: the date that the page gives itself', () => {
+  // A newsroom page lists headlines with no date, so a story that is found there can be any age. The page of the story usually says when it
+  // was published, in three places that a program can read: the structured data, the meta tag that social sites read, and a time element
+  // in the article. The first that gives a date that can be read is the date of the page, as an ISO time in UTC. It is what the page says
+  // of itself, and a page can say what it likes: it is a check against an old announcement taken for today's news, and no proof of a date.
+  const withHead = (head: string, body = '<p>Text.</p>') => extractPage(`<!doctype html><html><head>${head}</head><body>${body}</body></html>`, BASE);
+  const ld = (json: unknown, type = 'application/ld+json') => `<script type="${type}">${typeof json === 'string' ? json : JSON.stringify(json)}</script>`;
+  const meta = (value: string) => `<meta property="article:published_time" content="${value}">`;
+
+  it('has no date for a page that gives none, and the field is not there at all', () => {
+    const page = withHead('', '<article><p>Text.</p></article>');
+    expect(page.publishedAt).toBeUndefined();
+    expect('publishedAt' in page).toBe(false);
+  });
+
+  describe('from the structured data of the page', () => {
+    it('reads datePublished of an article, in UTC', () => {
+      expect(withHead(ld({ '@context': 'https://schema.org', '@type': 'NewsArticle', datePublished: '2026-10-01T09:30:00+02:00' })).publishedAt).toBe('2026-10-01T07:30:00.000Z');
+    });
+
+    it('reads a date with no time as the start of that day in UTC, and a time with no zone as UTC', () => {
+      expect(withHead(ld({ datePublished: '2026-10-01' })).publishedAt).toBe('2026-10-01T00:00:00.000Z');
+      expect(withHead(ld({ datePublished: '2026-10-01T09:30:00' })).publishedAt).toBe('2026-10-01T09:30:00.000Z');
+    });
+
+    it.each([
+      ['a list of objects', [{ '@type': 'BreadcrumbList' }, { '@type': 'NewsArticle', datePublished: '2026-10-02' }]],
+      ['a graph', { '@context': 'https://schema.org', '@graph': [{ '@type': 'Organization', name: 'X' }, { '@type': 'NewsArticle', datePublished: '2026-10-02' }] }],
+      ['an object inside an object', { '@type': 'WebPage', mainEntity: { '@type': 'NewsArticle', datePublished: '2026-10-02' } }],
+    ])('finds it in %s', (_what, json) => {
+      expect(withHead(ld(json)).publishedAt).toBe('2026-10-02T00:00:00.000Z');
+    });
+
+    it('takes the first date of the first script that has one, in the order of the page', () => {
+      const head = ld({ '@type': 'Organization' }) + ld({ datePublished: '2026-10-03' }) + ld({ datePublished: '2026-10-04' });
+      expect(withHead(head).publishedAt).toBe('2026-10-03T00:00:00.000Z');
+    });
+
+    it('takes the type of the script in any case, with parameters, and no other type', () => {
+      expect(withHead(ld({ datePublished: '2026-10-03' }, 'Application/LD+JSON; charset=utf-8')).publishedAt).toBe('2026-10-03T00:00:00.000Z');
+      expect(withHead(ld({ datePublished: '2026-10-03' }, 'text/javascript')).publishedAt).toBeUndefined();
+    });
+
+    it.each([
+      ['text that is not JSON', 'not json at all'],
+      ['a date that cannot be read', { datePublished: 'yesterday' }],
+      ['a date that is not a date', { datePublished: '2026-02-31' }],
+      ['a number', { datePublished: 20261001 }],
+      ['only dateModified', { dateModified: '2026-10-01' }],
+      ['a list that is empty', []],
+      ['null', 'null'],
+    ])('ignores %s', (_what, json) => {
+      expect(withHead(ld(json)).publishedAt).toBeUndefined();
+    });
+
+    it('goes on to the next source when its date cannot be read', () => {
+      expect(withHead(ld({ datePublished: 'yesterday' }) + meta('2026-10-01T05:00:00Z')).publishedAt).toBe('2026-10-01T05:00:00.000Z');
+    });
+
+    it('does not follow an object nested deeper than a page of data would be: the date is found at 8 levels down and not at 9', () => {
+      const inside = (levels: number): unknown => {
+        let nested: unknown = { datePublished: '2026-10-01' };
+        for (let level = 0; level < levels; level++) nested = { inner: nested };
+        return nested;
+      };
+      expect(withHead(ld(inside(0))).publishedAt).toBe('2026-10-01T00:00:00.000Z');
+      expect(withHead(ld(inside(8))).publishedAt).toBe('2026-10-01T00:00:00.000Z');
+      expect(withHead(ld(inside(9))).publishedAt).toBeUndefined();
+      expect(withHead(ld(inside(20))).publishedAt).toBeUndefined();
+    });
+  });
+
+  describe('from the meta tag', () => {
+    it('reads article:published_time', () => {
+      expect(withHead(meta('2026-10-01T05:00:00Z')).publishedAt).toBe('2026-10-01T05:00:00.000Z');
+    });
+
+    it('ignores a value that cannot be read, and a tag with another property', () => {
+      expect(withHead(meta('last Thursday')).publishedAt).toBeUndefined();
+      expect(withHead('<meta property="article:modified_time" content="2026-10-01">').publishedAt).toBeUndefined();
+      expect(withHead('<meta name="description" content="2026-10-01">').publishedAt).toBeUndefined();
+    });
+
+    it('goes on to the time element of the article when its value cannot be read', () => {
+      expect(withHead(meta('last Thursday'), '<article><time datetime="2026-10-01">x</time></article>').publishedAt).toBe('2026-10-01T00:00:00.000Z');
+      expect(withHead(meta('last Thursday') + meta('2026-10-02')).publishedAt).toBe('2026-10-02T00:00:00.000Z');
+    });
+
+    it('is second to the structured data', () => {
+      expect(withHead(meta('2026-10-02') + ld({ datePublished: '2026-10-01' })).publishedAt).toBe('2026-10-01T00:00:00.000Z');
+    });
+  });
+
+  describe('from a time element of the article', () => {
+    const inArticle = (inside: string, around = '') => withHead('', `${around}<article><h1>Title</h1>${inside}<p>Text.</p></article>`);
+
+    it('reads the datetime of the first time element inside the one article of the page', () => {
+      expect(inArticle('<time datetime="2026-10-01T05:00:00Z">1 October</time>').publishedAt).toBe('2026-10-01T05:00:00.000Z');
+      expect(inArticle('<time datetime="2026-10-01">1 October</time><time datetime="2026-10-02">2 October</time>').publishedAt).toBe('2026-10-01T00:00:00.000Z');
+    });
+
+    it('is third to the structured data and to the meta tag', () => {
+      expect(withHead(meta('2026-10-02'), '<article><time datetime="2026-10-01">x</time></article>').publishedAt).toBe('2026-10-02T00:00:00.000Z');
+    });
+
+    it('does not read a time element outside the article, or in a part of the article that is left out, or hidden', () => {
+      expect(inArticle('<p>No time.</p>', '<time datetime="2026-10-01">before</time>').publishedAt).toBeUndefined();
+      expect(inArticle('<footer><time datetime="2026-10-01">1 October</time></footer>').publishedAt).toBeUndefined();
+      expect(inArticle('<aside><time datetime="2026-10-01">1 October</time></aside>').publishedAt).toBeUndefined();
+      expect(inArticle('<time hidden datetime="2026-10-01">1 October</time>').publishedAt).toBeUndefined();
+    });
+
+    it('does not read a time element when the page has no article, or more than one, which is a list of stories', () => {
+      expect(withHead('', '<main><time datetime="2026-10-01">x</time><p>Text.</p></main>').publishedAt).toBeUndefined();
+      expect(withHead('', '<p><time datetime="2026-10-01">x</time></p>').publishedAt).toBeUndefined();
+      expect(withHead('', '<article><time datetime="2026-10-01">x</time></article><article><p>Other.</p></article>').publishedAt).toBeUndefined();
+    });
+
+    it('takes the first time element that has a datetime, and no date at all when that one cannot be read', () => {
+      expect(inArticle('<time>1 October</time><time datetime="2026-10-03">3 October</time>').publishedAt).toBe('2026-10-03T00:00:00.000Z');
+      expect(inArticle('<time datetime="2026-10">October</time><time datetime="2026-10-03">3 October</time>').publishedAt).toBeUndefined();
+    });
   });
 });
 

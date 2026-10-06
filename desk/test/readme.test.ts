@@ -26,6 +26,12 @@ describe('the README: what the Desk does not check', () => {
     expect(limits()).toContain('`<template>`');
   });
 
+  it('says that the date a page gives itself is its own word, and what it is a check against', () => {
+    expect(limits()).toContain('`publishedAt`');
+    expect(limits()).toContain('A page can say what it likes about itself');
+    expect(limits()).toContain('`stale-or-undated`');
+  });
+
   it('says that the content of a details element is kept, on purpose', () => {
     expect(limits()).toContain('`<details>`');
     expect(limits()).toContain('on purpose');

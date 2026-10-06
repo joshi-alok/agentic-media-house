@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { defaultConfig } from '../../src/config';
 import { extractPage } from '../../src/fetch/extract-text';
 import { FetchError, FixtureFetcher } from '../../src/fetch/http';
 import { sha256Hex } from '../../src/model/types';
@@ -158,6 +159,96 @@ describe('runFetch: only one page is wanted', () => {
     expect(fetcher.requests).toEqual([URLS.mercerArticle]);
     expect(result.artifact.documents.map((document) => [document.url, document.tier])).toEqual([[URLS.mercerArticle, 2]]);
     expect(result.artifact.failures).toEqual([]);
+  });
+});
+
+describe('runFetch: a story that has no date of its own', () => {
+  // A headline link on a newsroom page has no date, so Select lets it through whatever its age. The page of the story has to say that
+  // it is new: a date of its own, within recencyHours of the run (the same window as Select's, in UTC).
+  const dated = (publishedAt: string | undefined) => {
+    const head = publishedAt === undefined ? '' : `<meta property="article:published_time" content="${publishedAt}">`;
+    return `<html><head><title>FX-1 news</title>${head}</head><body><article><p>Fixture Robotics begins shipping FX-1 arms.</p></article></body></html>`;
+  };
+  const serving = (page: string) => withPages(new FixtureFetcher(FIXTURE_DIR, worldMap(), () => FETCHED_AT), { [URLS.release]: page });
+
+  it('goes on with a page that says that it was published inside the window', async () => {
+    const { ctx } = stageContext(scratch, { fetcher: serving(dated('2026-10-04T06:00:00Z')) });
+    const result = await runFetch(ctx, selected(RELEASE, URLS.release));
+    expect(result.ok).toBe(true);
+    expect(result.artifact.failures).toEqual([]);
+    expect(result.artifact.documents.map((document) => document.url)).toEqual([URLS.release]);
+  });
+
+  it.each([
+    ['the start of the window', '2026-10-03T00:00:00Z'],
+    ['the last moment of the day of the run', '2026-10-05T23:59:59Z'],
+  ])('goes on with a page that was published at %s', async (_what, at) => {
+    const { ctx } = stageContext(scratch, { fetcher: serving(dated(at)) });
+    expect((await runFetch(ctx, selected(RELEASE, URLS.release))).ok).toBe(true);
+  });
+
+  it('ends with no-story when the page says it was published before the window, and records why in 03-fetch.json, and stores nothing', async () => {
+    const { ctx, evidenceDir } = stageContext(scratch, { fetcher: serving(dated('2026-10-02T23:59:59Z')) });
+    const result = await runFetch(ctx, selected(RELEASE, URLS.release));
+    const reason = 'stale-or-undated: the story has no date and its page says it was published 2026-10-02T23:59:59.000Z, outside the 72 hours before the end of 2026-10-05';
+    expect(result).toEqual({
+      ok: false,
+      outcome: 'no-story',
+      reason,
+      artifact: { date: RUN_DATE, documents: [], failures: [{ url: URLS.release, tier: 1, reason }] },
+    });
+    expect(await readArtifact(ctx.runDir, '03-fetch', FetchArtifact)).toEqual(result.artifact);
+    expect(existsSync(evidenceDir)).toBe(false);
+  });
+
+  it('ends with no-story when the page says it was published after the day of the run', async () => {
+    const { ctx } = stageContext(scratch, { fetcher: serving(dated('2026-10-06T00:00:00Z')) });
+    const result = await runFetch(ctx, selected(RELEASE, URLS.release));
+    expect(result.ok).toBe(false);
+    expect(result.artifact.failures[0]?.reason).toContain('stale-or-undated: the story has no date and its page says it was published 2026-10-06T00:00:00.000Z');
+  });
+
+  it('ends with no-story when the page has no date of its own, and says so', async () => {
+    const { ctx, logs } = stageContext(scratch, { fetcher: serving(dated(undefined)) });
+    const result = await runFetch(ctx, selected(RELEASE, URLS.release));
+    const reason = 'stale-or-undated: the story has no date and its page gives none either';
+    expect(result).toMatchObject({ ok: false, outcome: 'no-story', reason });
+    expect(result.artifact.failures).toEqual([{ url: URLS.release, tier: 1, reason }]);
+    expect(logs).toContain(`fetch: ${URLS.release} is stale or undated: ${reason}`);
+  });
+
+  it('follows the configuration: with 24 hours the day before the run is stale', async () => {
+    const config = { ...defaultConfig(), recencyHours: 24 };
+    const { ctx } = stageContext(scratch, { config, fetcher: serving(dated('2026-10-04T23:00:00Z')) });
+    expect((await runFetch(ctx, selected(RELEASE, URLS.release))).ok).toBe(false);
+  });
+
+  it('does not look at the date of the page when the story has a date', async () => {
+    const old = { [URLS.mercerArticle]: dated('2020-01-01T00:00:00Z'), [URLS.release]: dated(undefined) };
+    const { ctx } = stageContext(scratch, { fetcher: withPages(new FixtureFetcher(FIXTURE_DIR, worldMap(), () => FETCHED_AT), old) });
+    const result = await runFetch(ctx, selected(ARTICLE, URLS.release));
+    expect(result.ok).toBe(true);
+    expect(result.artifact.failures).toEqual([]);
+    expect(result.artifact.documents).toHaveLength(2);
+  });
+
+  it('looks only at the page of the story, and not at its primary source, which a dated story may link to whatever its age', async () => {
+    const undated = candidate({ url: URLS.mercerArticle, title: 'A story from a feed without a date', publishedAt: undefined });
+    const pages = { [URLS.release]: dated('2020-01-01T00:00:00Z'), [URLS.mercerArticle]: dated('2026-10-04T08:00:00Z') };
+    const { ctx } = stageContext(scratch, { fetcher: withPages(new FixtureFetcher(FIXTURE_DIR, worldMap(), () => FETCHED_AT), pages) });
+    const result = await runFetch(ctx, selected(undated, URLS.release));
+    expect(result.ok).toBe(true);
+    expect(result.artifact.documents.map((document) => document.url)).toEqual([URLS.release, URLS.mercerArticle]);
+  });
+
+  it('keeps the primary source that was stored before the page of the story was found stale, and ends with no-story', async () => {
+    const undated = candidate({ url: URLS.mercerArticle, title: 'A story from a feed without a date', publishedAt: undefined });
+    const pages = { [URLS.mercerArticle]: dated('2020-01-01T00:00:00Z') };
+    const { ctx } = stageContext(scratch, { fetcher: withPages(new FixtureFetcher(FIXTURE_DIR, worldMap(), () => FETCHED_AT), pages) });
+    const result = await runFetch(ctx, selected(undated, URLS.release));
+    expect(result.ok).toBe(false);
+    expect(result.artifact.documents.map((document) => document.url)).toEqual([URLS.release]);
+    expect(result.artifact.failures.map((failure) => [failure.url, failure.tier])).toEqual([[URLS.mercerArticle, 2]]);
   });
 });
 

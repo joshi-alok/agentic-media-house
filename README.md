@@ -65,6 +65,7 @@ The exit code is 0 for a run that published, held or found no story and for a re
 Models propose and code disposes, and the code has limits. These are the ones that are known, so that nobody reads the checks as more than they are.
 
 - **Text that a style sheet hides.** `extractPage` leaves out an element that hides itself in its own markup (the `hidden` attribute, `aria-hidden="true"`, an inline style of `display:none`, `visibility:hidden` or `font-size:0`) with everything in it, and it leaves out `<template>`. It does not read the style sheets of a page. Text that a class hides, that is moved off the screen, that is the colour of its background or that has an opacity of 0 is read as text of the page, and a quotation of it passes the check that the quotation is on the page. The content of `<details>` is kept on purpose: a reader sees it by opening it.
+- **The date of a story that has none.** A headline link on a newsroom page has no date, so a story that is found there can be any age. The Fetch stage asks its page for one (`publishedAt` of `extractPage`: the structured data, the `article:published_time` meta tag, or the first `<time datetime>` of the article) and ends the run with no story, with the reason `stale-or-undated`, when the page gives none or one outside `recencyHours` of the run. A page can say what it likes about itself, so a page that claims to be new is believed: this stops an old announcement that sits on a newsroom page, and not a page that lies.
 
 ## Requirements
 
