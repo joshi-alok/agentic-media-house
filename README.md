@@ -10,6 +10,7 @@ The full design is in [`docs/superpowers/specs/2026-10-04-the-desk-design.md`](d
 |---|---|
 | `gate/` | `@robywire/gate`: pure functions implementing gate checks G1 to G9, and the renderer that turns a checked draft into a page. No network, no models. |
 | `evals/` | `@robywire/evals`: the seeded-defect harness that proves the gate catches what it should. |
+| `desk/` | `@robywire/desk`: the Desk pipeline, built and tested offline. So far it holds the configuration only. |
 | `site/` | `@robywire/site`: the Astro static site, and the scripts that audit it (`site/scripts/`). |
 | `sources.yml` | The tiered source registry: where the Desk writes from and where it discovers stories. |
 | `docs/` | Specs and plans. |
@@ -30,6 +31,10 @@ Every `status` starts as `unverified`, except the two that the original list alr
 ## Which parts are live
 
 `site/src/lib/live.ts` is the switchboard for the parts of the Desk that Plan 1 does not build: the evidence store, the independent model check, the daily schedule and the pipeline that writes and publishes. Its four flags are all `false`. Every sentence of the site whose tense depends on one of them (the footer, the receipts intro, the home and feed descriptions, and most of the method page) is written by a function in `site/src/lib/copy.ts` that takes the switchboard, and `site/test/copy.test.ts` says what each function writes for all sixteen settings of the flags. It also fails if a page or another file writes such a sentence itself. When a part really runs, turn its flag on and let the tests name the sentences that change.
+
+## The desk workspace
+
+`desk/` (`@robywire/desk`) is where the pipeline is being built, and so far it is a start: it holds the configuration and nothing that reads a source, calls a model or publishes. `desk/src/config.ts` has every setting of a run: how recent a story must be, how many candidates reach the selecting model, the fewest claims a piece needs, the rounds of revision, the politeness of the fetcher, the budget of a run, the model for each role, and the folders `runs/` and `evidence/`. `loadConfig` reads an optional YAML file over the defaults and refuses a setting it does not know or a value that is not allowed. Git ignores `runs/` and `evidence/`: run artifacts and private snapshots of sources never go into the repository. The rest of this section is written when the pipeline is.
 
 ## Requirements
 

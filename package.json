@@ -10,7 +10,8 @@
   "workspaces": [
     "gate",
     "evals",
-    "site"
+    "site",
+    "desk"
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
