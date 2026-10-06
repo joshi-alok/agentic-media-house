@@ -18,6 +18,8 @@ import type {
   FixtureEntry,
   GateReport,
   HttpFetcherOptions,
+  Hold,
+  LastRun,
   Newsroom,
   PageLink,
   ParsedFeed,
@@ -77,6 +79,11 @@ const VALUES = [
   'tier1Hosts',
   'sourceKind',
   'isTier1',
+  'recordRun',
+  'addHold',
+  'readDeskState',
+  'writeDeskState',
+  'updateDeskState',
 ];
 
 describe('the package entry point: fetching', () => {
@@ -117,6 +124,8 @@ describe('the package entry point: fetching', () => {
       Newsroom,
       Tier2Feed,
       SourceKind,
+      LastRun,
+      Hold,
     ];
     const nothing: Exported | undefined = undefined;
     expect(nothing).toBeUndefined();
