@@ -18,3 +18,4 @@ export * from './fetch/http';
 export * from './fetch/url';
 export * from './fetch/extract-text';
 export * from './fetch/feeds';
+export * from './run/evidence';
