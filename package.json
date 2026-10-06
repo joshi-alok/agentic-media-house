@@ -23,6 +23,7 @@
     "audit": "node site/scripts/audit.mjs",
     "audit:prod": "node site/scripts/audit.mjs --prod",
     "lighthouse": "node site/scripts/lighthouse.mjs",
+    "desk": "tsx desk/src/bin.ts",
     "verify": "npm run typecheck && npm run test && npm run evals:seeded && npm run fixtures:check && npm run build && npm run audit:prod && npm run build:fixtures && npm run audit && npm run lighthouse"
   },
   "devDependencies": {

@@ -36,6 +36,16 @@ Every `status` starts as `unverified`, except the two that the original list alr
 
 `desk/` (`@robywire/desk`) is where the pipeline is being built, and so far it is a start: it holds the configuration and nothing that reads a source, calls a model or publishes. `desk/src/config.ts` has every setting of a run: how recent a story must be, how many candidates reach the selecting model, the fewest claims a piece needs, the rounds of revision, the politeness of the fetcher, the budget of a run, the model for each role, and the folders `runs/` and `evidence/`. `loadConfig` reads an optional YAML file over the defaults and refuses a setting it does not know or a value that is not allowed. Git ignores `runs/` and `evidence/`: run artifacts and private snapshots of sources never go into the repository. The rest of this section is written when the pipeline is.
 
+## The desk command
+
+`npm run desk -- <command>` is the command line of the Desk (`tsx desk/src/bin.ts`). Run it from the root of the repository; everything after `--` goes to the Desk.
+
+- `npm run desk -- run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new] [--cassettes <folder>]` runs the pipeline once. A run that is not dry makes one commit; `--dry` writes the artifacts of the run and never touches `site/` or git. `--client api` (the default) needs `ANTHROPIC_API_KEY` in the environment; `--client recorded` replays the replies in `--cassettes`; `--client fake` is a scripted story. `--sources live` (the default) reads `sources.yml`; `--sources fixtures` is a made-up world with no network. The scripted client and the made-up world are only for dry runs, because nothing in them may be published. A day that already has a run is refused unless `--force-new` is given.
+- `npm run desk -- replay <folder of a run> [--sources fixtures|live] [--cassettes <folder>]` runs Extract, Compose and Verify again from what the run kept, with no network, and says whether the artifacts are the same.
+- `npm run desk -- status` prints the last run and the number of holds, from the desk state.
+
+The exit code is 0 for a run that published, held or found no story and for a replay that came out equal, 1 for a run that failed or was refused and for a replay that differs, and 2 for a mistake in the arguments.
+
 ## Requirements
 
 - Node 22.19 or newer (`.nvmrc` says 22, which installs the latest 22.x; Lighthouse needs 22.19) and npm 10 or newer.
