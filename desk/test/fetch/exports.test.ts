@@ -117,7 +117,8 @@ describe('the package entry point: fetching', () => {
     const stages = ['runDiscover', 'runSelect', 'runFetch', 'shortlistOf', 'loadPublishedIndex', 'emptyPublished', 'selectSystem', 'buildSelectUser'];
     const extraction = ['locateQuote', 'claimProblems', 'runExtract', 'extractReplySchema', 'kindOfSnapshot', 'extractSystem', 'buildExtractUser'];
     const assembly = ['slugFromTitle', 'ComposeReply', 'ReplySentence', 'assembleDraft', 'finishDraft'];
-    for (const name of [...stages, ...extraction, ...assembly]) {
+    const composition = ['runCompose', 'gateContextOf', 'composeSystem', 'buildComposeUser'];
+    for (const name of [...stages, ...extraction, ...assembly, ...composition]) {
       expect(entry).not.toHaveProperty(name);
     }
   });
