@@ -17,3 +17,4 @@ export * from './fetch/rate-limit';
 export * from './fetch/http';
 export * from './fetch/url';
 export * from './fetch/extract-text';
+export * from './fetch/feeds';

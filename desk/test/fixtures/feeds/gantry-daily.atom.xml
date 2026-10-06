@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Gantry Daily</title>
+  <link href="https://gantry-daily.example/" rel="alternate"/>
+  <updated>2026-10-04T12:00:00Z</updated>
+  <entry>
+    <title type="html">Fixture Robotics starts FX-1 deliveries to second Brindle plant</title>
+    <link rel="alternate" type="text/html" href="https://gantry-daily.example/2026/10/fx-1-second-brindle-plant"/>
+    <link rel="enclosure" type="image/jpeg" href="https://gantry-daily.example/img/fx-1.jpg"/>
+    <published>2026-10-04T11:30:00+02:00</published>
+    <updated>2026-10-04T12:00:00+02:00</updated>
+    <summary>Deliveries have started, the company said.</summary>
+  </entry>
+  <entry>
+    <title>A podcast episode that only has an audio file</title>
+    <link rel="enclosure" type="audio/mpeg" href="https://gantry-daily.example/audio/episode-41.mp3"/>
+    <published>2026-10-04T08:00:00Z</published>
+  </entry>
+  <entry>
+    <title>Brindle Logistics opens its second plant at Tarnmoor</title>
+    <link href="https://gantry-daily.example/2026/10/brindle-opens-tarnmoor"/>
+    <updated>2026-10-02T18:45:00Z</updated>
+  </entry>
+</feed>

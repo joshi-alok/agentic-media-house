@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Mercer Wire - Robotics</title>
+    <link>https://mercer-wire.example/robotics</link>
+    <description>Robotics news from a made-up outlet.</description>
+    <item>
+      <title>Fixture Robotics starts FX-1 deliveries to Brindle's second plant</title>
+      <link>https://mercer-wire.example/robotics/fx-1-reaches-second-brindle-plant?utm_source=feed&amp;utm_medium=rss</link>
+      <pubDate>Sun, 04 Oct 2026 09:15:00 +0000</pubDate>
+      <description>The arm is priced from $38,000, the outlet reported.</description>
+    </item>
+    <item>
+      <title><![CDATA[Northwind Handling raises $12 million for pallet-moving robots]]></title>
+      <link>https://mercer-wire.example/robotics/northwind-handling-raises-12-million</link>
+      <dc:date>2026-10-03T16:00:00Z</dc:date>
+      <description>A funding round with a named amount.</description>
+    </item>
+    <item>
+      <title>An item that has no link and so cannot be used</title>
+      <pubDate>Sun, 04 Oct 2026 08:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Warehouse robot makers brace for new tariff rules &amp; paperwork</title>
+      <link>https://mercer-wire.example/robotics/tariff-rules-and-paperwork</link>
+      <pubDate>Mon, 28 Sep 2026 07:30:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>
