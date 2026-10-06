@@ -197,7 +197,7 @@ describe('the case lowercase-sentence-start', () => {
   });
 });
 
-describe('the cases that rewrite what another outlet reports', () => {
+describe('the cases that rewrite sources and limitation sentences', () => {
   // Each of these changes several sentences and claims at once, so each is run alone and must break the rule it names and no other.
   it.each([
     ['tier2-only-claim', 'G6_TIER2_UNATTRIBUTED'],
@@ -206,9 +206,20 @@ describe('the cases that rewrite what another outlet reports', () => {
     ['tier2-claim-wrong-basis', 'G6_TIER2_BASIS'],
     ['primary-claim-called-reported', 'G6_TIER1_REPORTED'],
     ['limitation-two-outlets', 'G8_LIMITATION_GROUP'],
+    ['limitation-group-too-large', 'G8_LIMITATION_GROUP_SIZE'],
   ])('%s breaks the rule it names and no other', (id, code) => {
     const only = SEEDED_CASES.filter((item) => item.id === id);
     expect(runSeeded(ALL_CHECKS, only).cases.map((item) => item.gotCodes)).toEqual([[code]]);
+  });
+
+  it('limitation-uncovered-claim takes c-12 out of the sentence that cites it and changes nothing else', () => {
+    const item = SEEDED_CASES.find((candidate) => candidate.id === 'limitation-uncovered-claim')!;
+    const before = cloneGolden();
+    const after = item.apply(cloneGolden());
+    const without = (input: typeof before) => ({ ...input, draft: { ...input.draft, limitations: [] } });
+    expect(without(after)).toEqual(without(before));
+    const changed = after.draft.limitations.filter((sentence, at) => JSON.stringify(sentence) !== JSON.stringify(before.draft.limitations[at]));
+    expect(changed.map((sentence) => sentence.claimIds)).toEqual([['c-13', 'c-14', 'c-15']]);
   });
 });
 

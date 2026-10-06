@@ -1329,16 +1329,12 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The 12 kilograms payload, 1.4 metres reach, 2.3 metres per second top speed, 0.05 mm repeatability, 1.2k pick rate, 38 kg arm mass, 650 W power draw and IP54 ingress protection figures come from the company's datasheet; no independent measurement was available.",
+      "text": "The 12 kilograms payload, 1.4 metres reach, 2.3 metres per second top speed and 0.05 mm repeatability figures come from the company's datasheet; no independent measurement was available.",
       "claimIds": [
         "c-8",
         "c-9",
         "c-10",
-        "c-11",
-        "c-12",
-        "c-13",
-        "c-14",
-        "c-15"
+        "c-11"
       ]
     },
     {
@@ -1346,16 +1342,47 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The Fixture Robotics Tarnmoor shipment, 1 October 2026 announcement date, FX-3 retrofit mounting, $38,000 list price, 60 Tarnmoor delivery schedule, 500 production plan, Fixture Robotics use of funds, Dana Whitcombe pilot-to-production time, 40 Ashvale installation, 18 August 2026 Ashvale go-live date, Brindle Logistics Tarnmoor use and Brindle Logistics third-site rollout figures come from a company press release; no independent measurement was available.",
+      "text": "The 1.2k pick rate, 38 kg arm mass, 650 W power draw and ingress protection figures come from the company's datasheet; no independent measurement was available.",
+      "claimIds": [
+        "c-12",
+        "c-13",
+        "c-14",
+        "c-15"
+      ]
+    },
+    {
+      "index": 39,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The Tarnmoor shipment, announcement date, retrofit mounting and $38,000 list price figures come from a company press release; no independent measurement was available.",
       "claimIds": [
         "c-1",
         "c-2",
         "c-3",
-        "c-4",
+        "c-4"
+      ]
+    },
+    {
+      "index": 40,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The 60 Tarnmoor delivery schedule, 500 production plan, use of funds and pilot-to-production time figures come from a company press release; no independent measurement was available.",
+      "claimIds": [
         "c-5",
         "c-6",
         "c-7",
-        "c-22",
+        "c-22"
+      ]
+    },
+    {
+      "index": 41,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The 40 Ashvale installation, Ashvale go-live date, Tarnmoor use and third-site rollout figures come from a company press release; no independent measurement was available.",
+      "claimIds": [
         "c-23",
         "c-24",
         "c-25",
@@ -1363,7 +1390,7 @@
       ]
     },
     {
-      "index": 39,
+      "index": 42,
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
@@ -1374,7 +1401,7 @@
       ]
     },
     {
-      "index": 40,
+      "index": 43,
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
@@ -1385,16 +1412,25 @@
       ]
     },
     {
-      "index": 41,
+      "index": 44,
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The Tarnmoor delivery schedule, production plan, use of funds, Tarnmoor use and third-site rollout are planned, not delivered.",
+      "text": "The Tarnmoor delivery schedule, production plan, use of funds and Tarnmoor use are planned, not delivered.",
       "claimIds": [
         "c-5",
         "c-6",
         "c-7",
-        "c-25",
+        "c-25"
+      ]
+    },
+    {
+      "index": 45,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
+      "text": "The third-site rollout is planned, not delivered.",
+      "claimIds": [
         "c-26"
       ]
     }

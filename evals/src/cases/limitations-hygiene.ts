@@ -1,7 +1,7 @@
 import { renderLimitation } from '@robywire/gate';
 import { SEEDED_PUBLISHED_SLUG } from '../context';
 import type { SeededCase } from '../seeded';
-import { attributeTo, claimOf, reportedBy, sentenceWith } from './support';
+import { attributeTo, claimOf, limitationCiting, reportedBy, sentenceWith } from './support';
 
 /** Defects in the limitation sentences (G8) and in hygiene (G9). */
 export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
@@ -32,6 +32,20 @@ export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
     description: 'One limitation sentence covers claims that have different bases.',
     apply: (base) => {
       base.draft.limitations[0]!.claimIds = ['c-1', 'c-8', 'c-9'];
+      return base;
+    },
+  },
+  {
+    id: 'limitation-group-too-large',
+    check: 'G8',
+    code: 'G8_LIMITATION_GROUP_SIZE',
+    description: 'One limitation sentence covers more claims than the rule allows, though its wording is the template wording.',
+    apply: (base) => {
+      const one = limitationCiting(base, 'c-8');
+      const two = limitationCiting(base, 'c-12');
+      one.claimIds = [...one.claimIds, ...two.claimIds];
+      one.text = renderLimitation(one.claimIds.map((id) => claimOf(base, id)), 'basis');
+      base.draft.limitations.splice(base.draft.limitations.indexOf(two), 1);
       return base;
     },
   },

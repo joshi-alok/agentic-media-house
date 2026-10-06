@@ -4,6 +4,7 @@ import type { Basis, Status } from '../src/constants';
 import {
   BASIS_TEMPLATES,
   BASIS_TEMPLATES_PLURAL,
+  LIMITATION_MAX_CLAIMS,
   STATUS_TEMPLATES,
   STATUS_TEMPLATES_PLURAL,
   buildLimitations,
@@ -108,21 +109,21 @@ describe('renderLimitation: two or more claims, basis templates', () => {
 
   it('joins three claims as "A, B and C", with no comma before the "and"', () => {
     expect(renderLimitation([claim({}), REACH, RATING], 'basis')).toBe(
-      "The 12 kg payload, 1.4 m reach and IP54 ingress protection figures come from the company's datasheet; no independent measurement was available.",
+      "The 12 kg payload, 1.4 m reach and ingress protection figures come from the company's datasheet; no independent measurement was available.",
     );
   });
 
   it('joins four claims with commas and one "and"', () => {
     const four = [claim({}), REACH, RATING, claim({ id: 'c-4', label: 'mass', values: [{ kind: 'number', raw: '38 kg', normalised: '38', unit: 'kg' }] })];
     expect(renderLimitation(four, 'basis')).toBe(
-      "The 12 kg payload, 1.4 m reach, IP54 ingress protection and 38 kg mass figures come from the company's datasheet; no independent measurement was available.",
+      "The 12 kg payload, 1.4 m reach, ingress protection and 38 kg mass figures come from the company's datasheet; no independent measurement was available.",
     );
   });
 
-  it('writes the figure of each claim by the same rule as for one claim: the first number, else the first value, else nothing', () => {
+  it('writes the figure of each claim by the same rule as for one claim: the first number, else nothing', () => {
     const none = claim({ id: 'c-4', label: 'finish', values: [] });
     expect(renderLimitation([none, RATING], 'basis')).toBe(
-      "The finish and IP54 ingress protection figures come from the company's datasheet; no independent measurement was available.",
+      "The finish and ingress protection figures come from the company's datasheet; no independent measurement was available.",
     );
   });
 
@@ -165,9 +166,12 @@ describe('renderLimitation: the value in the sentence', () => {
     );
   });
 
-  it('falls back to the first value when none is a number', () => {
+  it('names a claim with no number value by its label alone, whatever name or date it lists', () => {
     const named = claim({ label: 'lead investor', basis: 'filing', values: [{ kind: 'name', raw: 'Corvane Partners', normalised: 'corvane partners' }] });
-    expect(renderLimitation([named], 'basis')).toBe('The Corvane Partners lead investor figure comes from a regulatory filing.');
+    expect(renderLimitation([named], 'basis')).toBe('The lead investor figure comes from a regulatory filing.');
+    const dated = claim({ label: 'announcement date', basis: 'filing', values: [{ kind: 'date', raw: '1 October 2026', normalised: '2026-10-01' }] });
+    expect(renderLimitation([dated], 'basis')).toBe('The announcement date figure comes from a regulatory filing.');
+    expect(renderLimitation([named, dated], 'basis')).toBe('The lead investor and announcement date figures come from a regulatory filing.');
   });
 
   it('leaves the value out, with no stray space, when the claim has none', () => {
@@ -186,7 +190,7 @@ describe('renderLimitation: the value in the sentence', () => {
   });
 
   it('does not fill in a placeholder that appears inside a value or a label', () => {
-    const odd = claim({ label: '{v}', values: [{ kind: 'name', raw: '{label}', normalised: 'x' }] });
+    const odd = claim({ label: '{v}', values: [{ kind: 'number', raw: '{label}', normalised: '1' }] });
     expect(renderLimitation([odd], 'basis')).toBe(
       "The {label} {v} figure comes from the company's datasheet; no independent measurement was available.",
     );
@@ -438,5 +442,113 @@ describe('the basis reported', () => {
         template: 'basis',
       },
     ]);
+  });
+});
+
+describe('a claim with no number value, in every template', () => {
+  // A claim that lists a name and a date and no number. Whatever template the sentence uses, it says the label and neither value.
+  const WITHOUT_NUMBER: Partial<Claim> = {
+    label: 'lead investor',
+    values: [
+      { kind: 'name', raw: 'Corvane Partners', normalised: 'corvane partners' },
+      { kind: 'date', raw: '29 September 2026', normalised: '2026-09-29' },
+    ],
+  };
+  const other = { ...WITHOUT_NUMBER, id: 'c-2', label: 'closing' };
+
+  it.each(BASES.filter((basis) => basis !== 'reported'))('writes the label and no value in the singular and the plural %s sentence', (basis) => {
+    const one = renderLimitation([claim({ ...WITHOUT_NUMBER, basis })], 'basis');
+    const two = renderLimitation([claim({ ...WITHOUT_NUMBER, basis }), claim({ ...other, basis })], 'basis');
+    for (const text of [one, two]) {
+      expect(text).toContain('lead investor');
+      expect(text).not.toContain('Corvane');
+      expect(text).not.toContain('2026');
+    }
+    expect(two).toContain('closing');
+  });
+
+  it.each(STATUSES)('writes the label and no value in the singular and the plural %s sentence', (status) => {
+    const one = renderLimitation([claim({ ...WITHOUT_NUMBER, status })], 'status');
+    const two = renderLimitation([claim({ ...WITHOUT_NUMBER, status }), claim({ ...other, status })], 'status');
+    for (const text of [one, two]) {
+      expect(text).toContain('lead investor');
+      expect(text).not.toContain('Corvane');
+      expect(text).not.toContain('2026');
+    }
+  });
+
+  it('writes the reported sentence the same way, with the outlet', () => {
+    const source = { ...BASE_CLAIM.source, tier: 2 as const, outlet: 'Mercer Wire' };
+    expect(renderLimitation([claim({ ...WITHOUT_NUMBER, basis: 'reported', source })], 'basis')).toBe(
+      'The lead investor figure is reported by Mercer Wire and was not checked against a primary source.',
+    );
+  });
+
+  it('keeps the number of a claim that has one, next to one that has none', () => {
+    expect(renderLimitation([claim({}), claim({ ...WITHOUT_NUMBER, id: 'c-2' })], 'basis')).toBe(
+      "The 12 kg payload and lead investor figures come from the company's datasheet; no independent measurement was available.",
+    );
+  });
+});
+
+describe('the cap on the claims of one sentence', () => {
+  const c = (n: number, basis: Basis = 'datasheet', status: Status = 'unspecified'): Claim => claim({ id: `c-${n}`, basis, status, label: `item ${n}` });
+  const ids = (groups: ReturnType<typeof limitationGroups>) => groups.map((group) => [group.template, group.key, group.claims.map((item) => item.id)]);
+
+  it('is four claims', () => {
+    expect(LIMITATION_MAX_CLAIMS).toBe(4);
+  });
+
+  it.each([
+    [1, [1]],
+    [4, [4]],
+    [5, [4, 1]],
+    [8, [4, 4]],
+    [9, [4, 4, 1]],
+  ])('cuts a group of %d claims into sentences of %j claims', (count, sizes) => {
+    const claims = Array.from({ length: count }, (_unused, at) => c(at + 1));
+    const groups = limitationGroups(claims);
+    expect(groups.map((group) => group.claims.length)).toEqual(sizes);
+    expect(buildLimitations(claims).map((sentence) => sentence.claimIds.length)).toEqual(sizes);
+  });
+
+  it('cuts by position in the order of the claim numbers, so c-10 comes after c-9 and the last sentence holds what is left', () => {
+    const groups = limitationGroups([c(12), c(1), c(10), c(2), c(11), c(3)].reverse());
+    expect(ids(groups)).toEqual([
+      ['basis', 'datasheet', ['c-1', 'c-2', 'c-3', 'c-10']],
+      ['basis', 'datasheet', ['c-11', 'c-12']],
+    ]);
+  });
+
+  it('cuts each group on its own: a basis group, a reported group of one outlet and a status group', () => {
+    const source = { ...BASE_CLAIM.source, tier: 2 as const, outlet: 'Mercer Wire' };
+    const reportedClaims = [21, 22, 23, 24, 25].map((n) => claim({ id: `c-${n}`, basis: 'reported', source, label: `item ${n}` }));
+    const planned = [1, 2, 3, 4, 5].map((n) => c(n, 'datasheet', 'planned'));
+    const groups = limitationGroups([...planned, ...reportedClaims]);
+    expect(ids(groups)).toEqual([
+      ['basis', 'datasheet', ['c-1', 'c-2', 'c-3', 'c-4']],
+      ['basis', 'datasheet', ['c-5']],
+      ['basis', 'reported', ['c-21', 'c-22', 'c-23', 'c-24']],
+      ['basis', 'reported', ['c-25']],
+      ['status', 'planned', ['c-1', 'c-2', 'c-3', 'c-4']],
+      ['status', 'planned', ['c-5']],
+    ]);
+  });
+
+  it('writes every cut sentence from its own claims: the wording for one claim, or for two to four, is unchanged', () => {
+    const claims = [1, 2, 3, 4, 5].map((n) => c(n));
+    const [first, second] = buildLimitations(claims);
+    expect(first!.text).toBe(renderLimitation(claims.slice(0, 4), 'basis'));
+    expect(first!.text).toBe(
+      "The 12 kg item 1, 12 kg item 2, 12 kg item 3 and 12 kg item 4 figures come from the company's datasheet; no independent measurement was available.",
+    );
+    expect(second!.text).toBe("The 12 kg item 5 figure comes from the company's datasheet; no independent measurement was available.");
+    expect(second!.claimIds).toEqual(['c-5']);
+  });
+
+  it('cites each claim of a cut group once, in ascending order, across all of its sentences', () => {
+    const claims = Array.from({ length: 11 }, (_unused, at) => c(at + 1));
+    const cited = buildLimitations(claims).flatMap((sentence) => sentence.claimIds);
+    expect(cited).toEqual(claims.map((item) => item.id));
   });
 });

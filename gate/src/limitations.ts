@@ -15,7 +15,8 @@ import type { Claim, LimitationSentence } from './schemas';
 // not mention a figure. The items are joined "A", "A and B", "A, B and C".
 // The templates of the basis `reported` also name the outlet (`{outlet}`), the
 // outlet of the claims themselves, which is why a group of reported claims is
-// never larger than the claims of one outlet.
+// never larger than the claims of one outlet. A sentence covers at most
+// LIMITATION_MAX_CLAIMS claims; a larger group is written as several sentences.
 
 /** What a claim's `basis` tells the reader about where the figure came from: one claim. */
 export const BASIS_TEMPLATES: Readonly<Record<Basis, string>> = {
@@ -71,6 +72,9 @@ export const needsStatusLimitation = (claim: Claim): boolean => STATUSES_WITH_SE
 /** The outlet a claim's source names, without the spaces around it; empty when the source names none. */
 export const outletOf = (claim: Claim): string => claim.source.outlet?.trim() ?? '';
 
+/** The most claims that one limitation sentence may cover. A larger group is split into consecutive sentences. */
+export const LIMITATION_MAX_CLAIMS = 4;
+
 /** The number in a claim id such as "c-12"; NaN for anything that is not a claim id. */
 export function claimNumber(id: string): number {
   const match = /^c-(\d+)$/.exec(id);
@@ -78,11 +82,12 @@ export function claimNumber(id: string): number {
 }
 
 /**
- * The claim's figure as it is written in the source, followed by a space: the
- * first number value, else the first value of any kind, else nothing.
+ * The claim's figure as it is written in the source, followed by a space: its
+ * first number value, else nothing. A claim with no number value is described
+ * by its label alone: a date or a name is not a figure.
  */
 function figureOf(claim: Claim): string {
-  const value = claim.values.find((item) => item.kind === 'number') ?? claim.values[0];
+  const value = claim.values.find((item) => item.kind === 'number');
   return value === undefined ? '' : `${value.raw} `;
 }
 
@@ -122,7 +127,7 @@ export function renderLimitation(claims: readonly Claim[], template: 'basis' | '
 export interface LimitationGroup {
   template: 'basis' | 'status';
   key: Basis | Status;
-  /** Ascending by claim number, each claim once. */
+  /** Ascending by claim number, each claim once, at most LIMITATION_MAX_CLAIMS. */
   claims: Claim[];
 }
 
@@ -133,24 +138,27 @@ export interface LimitationGroup {
  * outlet as well, so that a sentence names one outlet, the outlet of the lowest
  * claim number first. Those that are demonstrated or planned are grouped by
  * status, in that order, after the basis groups. A claim that needs both is in a
- * group of each kind. Inside a group the claims are ordered by claim number.
+ * group of each kind. Inside a group the claims are ordered by claim number, and
+ * a group of more than LIMITATION_MAX_CLAIMS claims is cut by position into
+ * consecutive groups of that size, the last one holding what is left.
  */
 export function limitationGroups(citedClaims: readonly Claim[]): LimitationGroup[] {
   const unique = [...new Map(citedClaims.map((claim) => [claim.id, claim])).values()].sort((a, b) => claimNumber(a.id) - claimNumber(b.id));
   const groups: LimitationGroup[] = [];
+  const add = (template: LimitationGroup['template'], key: LimitationGroup['key'], claims: readonly Claim[]) => {
+    for (let at = 0; at < claims.length; at += LIMITATION_MAX_CLAIMS) {
+      groups.push({ template, key, claims: claims.slice(at, at + LIMITATION_MAX_CLAIMS) });
+    }
+  };
   for (const basis of BASES) {
     const claims = unique.filter((claim) => needsBasisLimitation(claim) && claim.basis === basis);
     // One sentence names one outlet, so the claims that another outlet reported are grouped by outlet.
     const outlets = basis === 'reported' ? [...new Set(claims.map(outletOf))] : [undefined];
     for (const outlet of outlets) {
-      const group = outlet === undefined ? claims : claims.filter((claim) => outletOf(claim) === outlet);
-      if (group.length > 0) groups.push({ template: 'basis', key: basis, claims: group });
+      add('basis', basis, outlet === undefined ? claims : claims.filter((claim) => outletOf(claim) === outlet));
     }
   }
-  for (const status of STATUSES_WITH_SENTENCE) {
-    const claims = unique.filter((claim) => claim.status === status);
-    if (claims.length > 0) groups.push({ template: 'status', key: status, claims });
-  }
+  for (const status of STATUSES_WITH_SENTENCE) add('status', status, unique.filter((claim) => claim.status === status));
   return groups;
 }
 

@@ -1,5 +1,5 @@
 import type { SeededCase } from '../seeded';
-import { sentenceWith } from './support';
+import { limitationCiting, sentenceWith } from './support';
 
 /** Defects in the frontmatter (G1) and in the shape of the piece (G2). */
 export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
@@ -213,8 +213,8 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     code: 'G2_LIMITATION_COVERAGE',
     description: 'A claim that needs a limitation is left out of the limitation sentence that describes its group.',
     apply: (base) => {
-      const [datasheet] = base.draft.limitations;
-      datasheet!.claimIds = datasheet!.claimIds.filter((id) => id !== 'c-12');
+      const datasheet = limitationCiting(base, 'c-12');
+      datasheet.claimIds = datasheet.claimIds.filter((id) => id !== 'c-12');
       return base;
     },
   },

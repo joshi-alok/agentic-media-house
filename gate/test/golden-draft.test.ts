@@ -157,12 +157,12 @@ describe('GOLDEN_DRAFT: limitations', () => {
     }
   });
 
-  it('has the sentences buildLimitations writes for the claims the rest of the piece cites: three to six of them', () => {
+  it('has the sentences buildLimitations writes for the claims the rest of the piece cites: three to ten of them', () => {
     const { limitations, ...rest } = GOLDEN_DRAFT;
     const cited = citedClaims({ ...rest, limitations: [] }, GOLDEN_CLAIMS);
     expect(GOLDEN_DRAFT.limitations).toEqual(buildLimitations(cited));
     expect(limitations.length).toBeGreaterThanOrEqual(3);
-    expect(limitations.length).toBeLessThanOrEqual(6);
+    expect(limitations.length).toBeLessThanOrEqual(10);
   });
 
   it('never says the same thing twice', () => {

@@ -1,5 +1,5 @@
 import { allSentences, buildLimitations, citedClaims } from '@robywire/gate';
-import type { Claim, GateInput, Sentence } from '@robywire/gate';
+import type { Claim, GateInput, LimitationSentence, Sentence } from '@robywire/gate';
 
 // Small helpers for writing seeded cases. They throw when they find nothing,
 // so a case that points at a sentence the golden piece no longer has fails
@@ -9,6 +9,13 @@ import type { Claim, GateInput, Sentence } from '@robywire/gate';
 export function claimOf(input: GateInput, id: string): Claim {
   const found = input.claims.find((claim) => claim.id === id);
   if (found === undefined) throw new Error(`seeded case: the golden piece has no claim ${id}`);
+  return found;
+}
+
+/** The limitation sentence of `input` that cites claim `id`. It is the live sentence, so a case can change it. */
+export function limitationCiting(input: GateInput, id: string): LimitationSentence {
+  const found = input.draft.limitations.find((sentence) => sentence.claimIds.includes(id));
+  if (found === undefined) throw new Error(`seeded case: no limitation sentence of the golden piece cites ${id}`);
   return found;
 }
 

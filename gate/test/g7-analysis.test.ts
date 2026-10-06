@@ -95,16 +95,16 @@ describe('G7_ANALYSIS_PLACEMENT', () => {
 });
 
 describe('G7_ANALYSIS_SHARE', () => {
-  // The golden body has 40 sentences, three of them analysis: opening 3,
-  // takeaways 4, sections 28, limitations 5. Six more analysis sentences make
-  // 9 of 46 (19.6%); seven more make 10 of 47 (21.3%).
+  // The golden body has 44 sentences, three of them analysis: opening 3,
+  // takeaways 4, sections 28, limitations 9. Seven more analysis sentences make
+  // 10 of 51 (19.6%); eight more make 11 of 52 (21.2%).
   it('passes up to the cap and fails just over it, and says the numbers', () => {
-    expect(run((g) => addAnalysis(g, 6))).toEqual({ failures: [], holdReasons: [] });
-    expect(run((g) => addAnalysis(g, 7)).failures).toEqual([
+    expect(run((g) => addAnalysis(g, 7))).toEqual({ failures: [], holdReasons: [] });
+    expect(run((g) => addAnalysis(g, 8)).failures).toEqual([
       {
         check: 'G7',
         code: 'G7_ANALYSIS_SHARE',
-        message: 'analysis sentences are 10 of the 47 sentences in the body (21.3%); the cap is 20.0%',
+        message: 'analysis sentences are 11 of the 52 sentences in the body (21.2%); the cap is 20.0%',
         where: 'body',
       },
     ]);
@@ -112,12 +112,12 @@ describe('G7_ANALYSIS_SHARE', () => {
 
   it('reads the cap from the context', () => {
     expect(codes(run(() => undefined, { config: { analysisShareCap: 0 } }))).toEqual(['G7_ANALYSIS_SHARE']);
-    expect(codes(run(() => undefined, { config: { analysisShareCap: 0.07 } }))).toEqual(['G7_ANALYSIS_SHARE']);
-    expect(codes(run(() => undefined, { config: { analysisShareCap: 0.08 } }))).toEqual([]);
+    expect(codes(run(() => undefined, { config: { analysisShareCap: 0.06 } }))).toEqual(['G7_ANALYSIS_SHARE']);
+    expect(codes(run(() => undefined, { config: { analysisShareCap: 0.07 } }))).toEqual([]);
   });
 
   it('passes a share exactly at the cap', () => {
-    expect(run(() => undefined, { config: { analysisShareCap: 3 / 40 } })).toEqual({ failures: [], holdReasons: [] });
+    expect(run(() => undefined, { config: { analysisShareCap: 3 / 44 } })).toEqual({ failures: [], holdReasons: [] });
   });
 
   it.each([
@@ -129,17 +129,17 @@ describe('G7_ANALYSIS_SHARE', () => {
       (g: GateInput) => g.draft.limitations.push(structuredClone(g.draft.limitations[0]!), structuredClone(g.draft.limitations[1]!), structuredClone(g.draft.limitations[2]!)),
     ],
   ])('counts the sentences of %s among the body sentences', (_name, addThree) => {
-    // 10 analysis sentences of 47 is over the cap; three more body sentences make it exactly 10 of 50, which is 20%.
+    // 11 analysis sentences of 52 is over the cap; three more body sentences make it exactly 11 of 55, which is 20%.
     const output = run((g) => {
-      addAnalysis(g, 7);
+      addAnalysis(g, 8);
       addThree(g);
     });
     expect(output).toEqual({ failures: [], holdReasons: [] });
   });
 
   it('does not count a misplaced analysis sentence in the title or description toward the share', () => {
-    // 4 of 41 would be over a cap of 3 in 40; the title sentence is reported for its placement alone.
-    const output = run((g) => (g.draft.title = asAnalysis(g.draft.title)), { config: { analysisShareCap: 3 / 40 } });
+    // 4 of 45 would be over a cap of 3 in 44; the title sentence is reported for its placement alone.
+    const output = run((g) => (g.draft.title = asAnalysis(g.draft.title)), { config: { analysisShareCap: 3 / 44 } });
     expect(codes(output)).toEqual(['G7_ANALYSIS_PLACEMENT']);
   });
 

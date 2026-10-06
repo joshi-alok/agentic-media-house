@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { DeskState, LedgerEntry, NewsFrontmatter } from '@robywire/gate';
+import { DeskState, LIMITATION_MAX_CLAIMS, LedgerEntry, NewsFrontmatter } from '@robywire/gate';
 import { GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { fixtureFiles, fixturePieces, main, writeFixtures } from '../scripts/generate-fixtures';
 import { receiptsView } from '../src/lib/receipts';
@@ -139,6 +139,24 @@ describe('fixtureFiles: the pieces', () => {
   it('dates each variant retrieval on the day of that variant', () => {
     const ledger = LedgerEntry.parse(JSON.parse(text(`ledger/${SLUGS[1]}.json`)));
     expect(ledger.sources.every((source) => source.retrievedAt === '2026-10-03T04:30:00Z')).toBe(true);
+  });
+});
+
+describe('fixtureFiles: the limitation sentences', () => {
+  const ledgerOf = (slug: string) => LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`)));
+
+  it.each(SLUGS)('cover at most four claims each in %s', (slug) => {
+    const sentences = ledgerOf(slug).sentences.filter((sentence) => sentence.section === 'limitations');
+    expect(sentences.length).toBeGreaterThanOrEqual(9);
+    for (const sentence of sentences) expect(sentence.claimIds.length, sentence.text).toBeLessThanOrEqual(LIMITATION_MAX_CLAIMS);
+  });
+
+  it('name a claim that has no number by its label alone, not by the name or the date it lists', () => {
+    const texts = ledgerOf(GOLDEN_SLUG).sentences.filter((sentence) => sentence.section === 'limitations').map((sentence) => sentence.text);
+    expect(texts).toContain(
+      'The Tarnmoor shipment, announcement date, retrofit mounting and $38,000 list price figures come from a company press release; no independent measurement was available.',
+    );
+    expect(texts.join(' ')).not.toContain('1 October 2026');
   });
 });
 

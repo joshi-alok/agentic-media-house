@@ -1,10 +1,16 @@
 import type { Check, Failure } from '../gate';
-import { claimNumber, joinList, outletOf, renderLimitation } from '../limitations';
+import { LIMITATION_MAX_CLAIMS, claimNumber, joinList, outletOf, renderLimitation } from '../limitations';
 import type { Claim } from '../schemas';
 import { allSentences, describeLocation } from '../sentences';
 
 /** Every failure code G8 can report. */
-export const G8_CODES = ['G8_LIMITATION_PLACEMENT', 'G8_LIMITATION_CLAIMS', 'G8_LIMITATION_GROUP', 'G8_LIMITATION_MISMATCH'] as const;
+export const G8_CODES = [
+  'G8_LIMITATION_PLACEMENT',
+  'G8_LIMITATION_CLAIMS',
+  'G8_LIMITATION_GROUP_SIZE',
+  'G8_LIMITATION_GROUP',
+  'G8_LIMITATION_MISMATCH',
+] as const;
 
 /**
  * What is wrong with the list of claim ids a limitation sentence cites, or
@@ -33,6 +39,8 @@ function claimsProblem(ids: readonly string[], known: ReadonlyMap<string, Claim>
  *   (G8_LIMITATION_PLACEMENT), wherever else it is found.
  * - It cites at least one claim of the piece, each once, in ascending order of
  *   claim number (G8_LIMITATION_CLAIMS).
+ * - It cites at most LIMITATION_MAX_CLAIMS claims; a larger group is written as
+ *   several sentences (G8_LIMITATION_GROUP_SIZE).
  * - The claims of a 'basis' sentence all have the same basis, and those of a
  *   'status' sentence the same status; a 'basis' sentence for the basis
  *   `reported` names one outlet, so its claims also share their outlet
@@ -66,6 +74,14 @@ export const checkG8: Check = ({ draft, claims }) => {
     const problem = claimsProblem(ids, byId);
     if (problem !== undefined) {
       fail('G8_LIMITATION_CLAIMS', `the limitation sentence at ${where} ${problem}`);
+      continue;
+    }
+
+    if (ids.length > LIMITATION_MAX_CLAIMS) {
+      fail(
+        'G8_LIMITATION_GROUP_SIZE',
+        `the limitation sentence at ${where} cites ${ids.length} claims, and a limitation sentence covers at most ${LIMITATION_MAX_CLAIMS}: write one sentence for each ${LIMITATION_MAX_CLAIMS} claims, in ascending order of claim number`,
+      );
       continue;
     }
 

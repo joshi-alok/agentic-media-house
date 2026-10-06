@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildLimitations, citedClaims } from '@robywire/gate';
 import { cloneGolden } from '@robywire/gate/fixtures';
-import { attributeTo, claimOf, reportedBy, sentenceWith } from '../src/cases/support';
+import { attributeTo, claimOf, limitationCiting, reportedBy, sentenceWith } from '../src/cases/support';
 
 // The seeded cases are written with a few helpers. A helper that quietly did less than it says would make a case
 // break the piece in a different way than its description says, so each is tested on its own.
@@ -58,5 +58,25 @@ describe('attributeTo', () => {
     expect(() => attributeTo(cloneGolden(), 'words that no sentence has', 'Anything.')).toThrow(
       'seeded case: no sentence of the golden piece contains "words that no sentence has"',
     );
+  });
+});
+
+describe('limitationCiting', () => {
+  it('finds the limitation sentence that cites the claim', () => {
+    expect(limitationCiting(cloneGolden(), 'c-12').claimIds).toEqual(['c-12', 'c-13', 'c-14', 'c-15']);
+  });
+
+  it('gives the live sentence, so that a case can change it', () => {
+    const input = cloneGolden();
+    limitationCiting(input, 'c-12').claimIds = [];
+    expect(input.draft.limitations.filter((sentence) => sentence.claimIds.length === 0)).toHaveLength(1);
+  });
+
+  it('gives the first sentence when two cite the claim', () => {
+    expect(limitationCiting(cloneGolden(), 'c-27').template).toBe('basis');
+  });
+
+  it('stops, saying so, when no limitation sentence cites the claim', () => {
+    expect(() => limitationCiting(cloneGolden(), 'c-99')).toThrow('seeded case: no limitation sentence of the golden piece cites c-99');
   });
 });

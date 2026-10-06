@@ -1,6 +1,6 @@
 {
-  "total": 57,
-  "caught": 57,
+  "total": 58,
+  "caught": 58,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -352,6 +352,13 @@
       "check": "G8",
       "code": "G8_LIMITATION_GROUP",
       "description": "One limitation sentence covers claims that have different bases.",
+      "caught": true
+    },
+    {
+      "id": "limitation-group-too-large",
+      "check": "G8",
+      "code": "G8_LIMITATION_GROUP_SIZE",
+      "description": "One limitation sentence covers more claims than the rule allows, though its wording is the template wording.",
       "caught": true
     },
     {

@@ -44,6 +44,7 @@ export const REASON_LABELS: Readonly<Record<string, string>> = {
   G7_ANALYSIS_NEW_VALUE: 'Analysis brought in a number, date or name of its own',
   G8_LIMITATION_PLACEMENT: 'A limitation stood outside its section',
   G8_LIMITATION_CLAIMS: 'A limitation cited no claim, an unknown claim or claims out of order',
+  G8_LIMITATION_GROUP_SIZE: 'A limitation covered more claims than the rule allows',
   G8_LIMITATION_GROUP: 'A limitation grouped claims with different bases, statuses or outlets',
   G8_LIMITATION_MISMATCH: 'A limitation did not match its template',
   G9_SLUG_COLLISION: 'The page address was already in use',

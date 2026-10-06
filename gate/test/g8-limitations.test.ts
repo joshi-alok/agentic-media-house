@@ -4,24 +4,28 @@ import { checkG8 } from '../src/checks/g8-limitations';
 import { defaultContext } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import type { CheckOutput, GateInput } from '../src/gate';
-import { renderLimitation } from '../src/limitations';
+import { buildLimitations, renderLimitation } from '../src/limitations';
 import type { LimitationSentence } from '../src/schemas';
 import { claimById, mutate } from './helpers';
 
 const run = (change: (copy: GateInput) => void): CheckOutput => checkG8(mutate(cloneGolden(), change), defaultContext());
 const codes = (output: CheckOutput) => output.failures.map((failure) => failure.code);
 
-// The golden piece has five limitation sentences, one for each group of claims:
-//   1  basis    datasheet      c-8 to c-15, eight claims
-//   2  basis    press-release  c-1 to c-7 and c-22 to c-26, twelve claims
-//   3  basis    demo           c-27 and c-28
-//   4  status   demonstrated   c-27 and c-28
-//   5  status   planned        c-5, c-6, c-7, c-25 and c-26
+// The golden piece has nine limitation sentences, one for each group of at most four claims:
+//   1  basis    datasheet      c-8 to c-11
+//   2  basis    datasheet      c-12 to c-15
+//   3  basis    press-release  c-1 to c-4
+//   4  basis    press-release  c-5, c-6, c-7 and c-22
+//   5  basis    press-release  c-23 to c-26
+//   6  basis    demo           c-27 and c-28
+//   7  status   demonstrated   c-27 and c-28
+//   8  status   planned        c-5, c-6, c-7 and c-25
+//   9  status   planned        c-26
 const first = (g: GateInput): LimitationSentence => g.draft.limitations[0]!;
 const FIRST_TEXT =
-  "The 12 kilograms payload, 1.4 metres reach, 2.3 metres per second top speed, 0.05 mm repeatability, 1.2k pick rate, 38 kg arm mass, 650 W power draw and IP54 ingress protection figures come from the company's datasheet; no independent measurement was available.";
+  "The 12 kilograms payload, 1.4 metres reach, 2.3 metres per second top speed and 0.05 mm repeatability figures come from the company's datasheet; no independent measurement was available.";
 const FIRST_AT = 'limitations, sentence 1';
-const FIRST_IDS = ['c-8', 'c-9', 'c-10', 'c-11', 'c-12', 'c-13', 'c-14', 'c-15'];
+const FIRST_IDS = ['c-8', 'c-9', 'c-10', 'c-11'];
 
 /** Point a limitation sentence at these claim ids. */
 const cites = (sentence: LimitationSentence, ids: string[]) => {
@@ -33,17 +37,21 @@ describe('G8: the golden piece', () => {
     expect(checkG8(cloneGolden(), defaultContext())).toEqual({ failures: [], holdReasons: [] });
   });
 
-  it('has five limitation sentences, one for each group of claims, in both templates', () => {
+  it('has nine limitation sentences, one for each group of at most four claims, in both templates', () => {
     const { limitations } = cloneGolden().draft;
-    expect(limitations).toHaveLength(5);
+    expect(limitations).toHaveLength(9);
     expect(limitations[0]?.text).toBe(FIRST_TEXT);
     expect(limitations[0]?.claimIds).toEqual(FIRST_IDS);
     expect(limitations.map((sentence) => [sentence.template, sentence.claimIds.length])).toEqual([
-      ['basis', 8],
-      ['basis', 12],
+      ['basis', 4],
+      ['basis', 4],
+      ['basis', 4],
+      ['basis', 4],
+      ['basis', 4],
       ['basis', 2],
       ['status', 2],
-      ['status', 5],
+      ['status', 4],
+      ['status', 1],
     ]);
   });
 
@@ -183,6 +191,80 @@ describe('G8_LIMITATION_CLAIMS', () => {
   });
 });
 
+describe('G8_LIMITATION_GROUP_SIZE', () => {
+  const SIZE_MESSAGE = (count: number, at: string) =>
+    `the limitation sentence at ${at} cites ${count} claims, and a limitation sentence covers at most 4: write one sentence for each 4 claims, in ascending order of claim number`;
+
+  /** Make the first sentence cite `ids`, with the text the template renders for them, so that only its size is wrong. */
+  const citingExactly = (g: GateInput, ids: string[]) => {
+    cites(first(g), ids);
+    first(g).text = renderLimitation(ids.map((id) => claimById(g.claims, id)), 'basis');
+  };
+
+  it('fails a sentence that cites more than four claims, even when its text is exactly what the template renders, and says how many', () => {
+    const output = run((g) => citingExactly(g, ['c-8', 'c-9', 'c-10', 'c-11', 'c-12']));
+    expect(output.failures).toEqual([{ check: 'G8', code: 'G8_LIMITATION_GROUP_SIZE', message: SIZE_MESSAGE(5, FIRST_AT), where: FIRST_AT }]);
+  });
+
+  it('accepts a sentence of four claims, the largest the rule allows', () => {
+    expect(run((g) => citingExactly(g, ['c-8', 'c-9', 'c-10', 'c-11']))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('counts the claims of a status sentence too', () => {
+    const output = run((g) => {
+      const sentence = g.draft.limitations[7]!;
+      cites(sentence, ['c-5', 'c-6', 'c-7', 'c-25', 'c-26']);
+      sentence.text = renderLimitation(sentence.claimIds.map((id) => claimById(g.claims, id)), 'status');
+    });
+    expect(output.failures.map((failure) => [failure.code, failure.where])).toEqual([['G8_LIMITATION_GROUP_SIZE', 'limitations, sentence 8']]);
+  });
+
+  it('reports a sentence over the cap for its size alone: not for its group and not for its text', () => {
+    const output = run((g) => {
+      cites(first(g), ['c-1', 'c-8', 'c-9', 'c-10', 'c-11']);
+      first(g).text = 'Anything.';
+    });
+    expect(codes(output)).toEqual(['G8_LIMITATION_GROUP_SIZE']);
+  });
+
+  it('leaves a list of claims that cannot be used to G8_LIMITATION_CLAIMS', () => {
+    expect(codes(run((g) => cites(first(g), ['c-8', 'c-9', 'c-10', 'c-11', 'c-999'])))).toEqual(['G8_LIMITATION_CLAIMS']);
+    expect(codes(run((g) => cites(first(g), ['c-8', 'c-8', 'c-9', 'c-10', 'c-11'])))).toEqual(['G8_LIMITATION_CLAIMS']);
+  });
+
+  it('reports each sentence over the cap', () => {
+    const output = run((g) => {
+      cites(g.draft.limitations[0]!, ['c-8', 'c-9', 'c-10', 'c-11', 'c-12']);
+      cites(g.draft.limitations[1]!, ['c-12', 'c-13', 'c-14', 'c-15', 'c-16']);
+    });
+    expect(output.failures.map((failure) => [failure.code, failure.where])).toEqual([
+      ['G8_LIMITATION_GROUP_SIZE', 'limitations, sentence 1'],
+      ['G8_LIMITATION_GROUP_SIZE', 'limitations, sentence 2'],
+    ]);
+  });
+
+  // buildLimitations is what the composer stage uses, so whatever claims a piece cites, G8 must accept what it writes.
+  it.each([
+    ['all the claims of the golden piece with the basis datasheet', (g: GateInput) => g.claims.forEach((claim) => (claim.basis = 'datasheet'))],
+    ['all of them planned', (g: GateInput) => g.claims.forEach((claim) => (claim.status = 'planned'))],
+    [
+      'thirteen claims that two outlets reported',
+      (g: GateInput) =>
+        g.claims.slice(0, 13).forEach((claim, at) => {
+          claim.basis = 'reported';
+          claim.source.tier = 2;
+          claim.source.outlet = at % 3 === 0 ? 'Tarn Daily' : 'Mercer Wire';
+        }),
+    ],
+  ])('accepts every sentence buildLimitations writes for %s', (_name, change) => {
+    const output = run((g) => {
+      change(g);
+      g.draft.limitations = buildLimitations(g.claims);
+    });
+    expect(output).toEqual({ failures: [], holdReasons: [] });
+  });
+});
+
 describe('G8_LIMITATION_GROUP', () => {
   it('fails a basis sentence whose claims do not share one basis, and says which', () => {
     const output = run((g) => cites(first(g), ['c-1', 'c-8']));
@@ -197,13 +279,13 @@ describe('G8_LIMITATION_GROUP', () => {
   });
 
   it('fails a status sentence whose claims do not share one status, and says which', () => {
-    const output = run((g) => cites(g.draft.limitations[4]!, ['c-5', 'c-27']));
+    const output = run((g) => cites(g.draft.limitations[7]!, ['c-5', 'c-27']));
     expect(output.failures).toEqual([
       {
         check: 'G8',
         code: 'G8_LIMITATION_GROUP',
-        message: 'the limitation sentence at limitations, sentence 5 groups claims with different statuses (c-5: planned, c-27: demonstrated): a status sentence covers claims that share one status',
-        where: 'limitations, sentence 5',
+        message: 'the limitation sentence at limitations, sentence 8 groups claims with different statuses (c-5: planned, c-27: demonstrated): a status sentence covers claims that share one status',
+        where: 'limitations, sentence 8',
       },
     ]);
   });
@@ -252,7 +334,7 @@ describe('G8_LIMITATION_GROUP for claims that another outlet reported', () => {
     g.draft.limitations.push(sentence);
     return sentence;
   };
-  const AT = 'limitations, sentence 6';
+  const AT = 'limitations, sentence 10';
 
   it('accepts a reported sentence whose claims come from one outlet', () => {
     expect(run((g) => reportedPair(g, ['Mercer Wire', 'Mercer Wire']))).toEqual({ failures: [], holdReasons: [] });
@@ -303,7 +385,7 @@ describe('G8_LIMITATION_MISMATCH', () => {
       {
         check: 'G8',
         code: 'G8_LIMITATION_MISMATCH',
-        message: `the limitation sentence at ${FIRST_AT} does not match the basis template for c-8, c-9, c-10, c-11, c-12, c-13, c-14, c-15; it must read: "${FIRST_TEXT}"`,
+        message: `the limitation sentence at ${FIRST_AT} does not match the basis template for c-8, c-9, c-10, c-11; it must read: "${FIRST_TEXT}"`,
         where: FIRST_AT,
       },
     ]);
@@ -327,12 +409,12 @@ describe('G8_LIMITATION_MISMATCH', () => {
   });
 
   it('fails the right text under the wrong template', () => {
-    // The text of sentence 3 (the demo basis) under the status template, over the same two claims.
+    // The text of sentence 6 (the demo basis) under the status template, over the same two claims.
     const output = run((g) => {
-      g.draft.limitations[2]!.template = 'status';
+      g.draft.limitations[5]!.template = 'status';
     });
     expect(output.failures.map((failure) => failure.message)).toEqual([
-      'the limitation sentence at limitations, sentence 3 does not match the status template for c-27, c-28; it must read: "The trailer unloading and demo day were demonstrated; the source does not report them in commercial deployment."',
+      'the limitation sentence at limitations, sentence 6 does not match the status template for c-27, c-28; it must read: "The trailer unloading and demo day were demonstrated; the source does not report them in commercial deployment."',
     ]);
   });
 

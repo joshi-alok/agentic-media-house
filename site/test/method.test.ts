@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import board from '@robywire/evals/scoreboard';
-import { ALL_FAILURE_CODES, BASES, CHECK_IDS, SAFE_BASES, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
+import { ALL_FAILURE_CODES, BASES, CHECK_IDS, LIMITATION_MAX_CLAIMS, SAFE_BASES, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
 import { LIVE } from '../src/lib/live';
 import { LIMITS_HEADING, PIPELINE_STAGES, SCOREBOARD_INTRO, gateRules, scoreboardHeadline } from '../src/lib/method';
 
@@ -100,6 +100,11 @@ describe('gateRules', () => {
   it('says in G2 and G8 that what another outlet reported is covered by a limitation sentence that names the outlet', () => {
     expect(rules.find((rule) => rule.id === 'G2')?.text).toContain('briefing or demo, that only another outlet reported, or that was only demonstrated');
     expect(rules.find((rule) => rule.id === 'G8')?.text).toContain('(and, for claims that another outlet reported, that outlet)');
+  });
+
+  it('says in G8 that a limitation sentence covers at most four claims, and the code agrees', () => {
+    expect(rules.find((rule) => rule.id === 'G8')?.text).toContain('through a fixed template, covers at most four claims, cites each claim once');
+    expect(LIMITATION_MAX_CLAIMS).toBe(4);
   });
 
   it('says in G2 that every sentence starts with a capital letter or a digit, and the code agrees', () => {
