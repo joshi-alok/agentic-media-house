@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { parse } from 'yaml';
 import { z } from 'zod';
+import { describeIssues } from './issues';
 
 // The settings of a run of the Desk. They live here and nowhere else, and they
 // are checked when they are read: a mistake in a config file stops the run before
@@ -72,10 +73,6 @@ export function defaultConfig(): DeskConfig {
     evidenceDir: 'evidence',
   };
 }
-
-/** The problems of a failed parse, one phrase each: the setting and what is wrong with it. */
-const describeIssues = (error: z.ZodError): string =>
-  error.issues.map((issue) => (issue.path.length === 0 ? issue.message : `${issue.path.join('.')}: ${issue.message}`)).join('; ');
 
 /**
  * The settings of a run. With no path, the defaults. With the path of a YAML
