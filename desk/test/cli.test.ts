@@ -1,10 +1,10 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { USAGE, main, parseArgs } from '../src/cli';
 import type { CliDeps, Parsed } from '../src/cli';
-import { DEMO_DATE } from '../src/demo/world';
+import { defaultConfig } from '../src/config';
+import { DEMO_DATE, DEMO_REGISTRY_YAML } from '../src/demo/world';
 import { FetchError } from '../src/fetch/http';
 import type { Transport } from '../src/fetch/http';
 import { FakeGit } from '../src/run/git';
@@ -19,7 +19,6 @@ import { COMMITTED_STATE, filesBelow, makeSite } from './support/site';
 
 const scratch = useScratch();
 const STATE = sitePaths().stateFile;
-const REAL_SOURCES = fileURLToPath(new URL('../../sources.yml', import.meta.url));
 const DRY_DEMO = ['run', '--dry', '--client', 'fake', '--sources', 'fixtures'];
 
 /** A transport that cannot reach anything, as a machine with no network. */
@@ -27,14 +26,22 @@ const offline: Transport = async (url) => {
   throw new FetchError('network', url, 'there is no network');
 };
 
-/** A repository in a new folder, a fake git for it, and everything that `main` is given and prints. */
+/** The user agent of the tests: it links to an address that is not a placeholder, which a live run requires, and no site is ever asked. */
+const TEST_AGENT = 'RobywireDesk/0.1 (+https://robywire.test/method)';
+
+/**
+ * A repository in a new folder, a fake git for it, and everything that `main` is given and prints. Its sources.yml is the registry of the made-up world, whose
+ * hosts are all on `.example` addresses, so no name of a real company is in a test or in what it prints. Its settings are the defaults with the folders below
+ * the repository and a user agent that is not a placeholder; a test that wants the defaults as they are passes `config: undefined`.
+ */
 function setup(overrides: Partial<CliDeps> = {}) {
   const cwd = makeSite(scratch());
-  copyFileSync(REAL_SOURCES, path.join(cwd, 'sources.yml'));
+  writeFileSync(path.join(cwd, 'sources.yml'), DEMO_REGISTRY_YAML);
   const out: string[] = [];
   const err: string[] = [];
   const git = new FakeGit();
-  const deps: CliDeps = { out: (line) => void out.push(line), err: (line) => void err.push(line), env: {}, cwd, now: clock(), git, transport: offline, lookup: publicLookup, ...overrides };
+  const config = { ...defaultConfig(), runDir: path.join(cwd, 'runs'), evidenceDir: path.join(cwd, 'evidence'), userAgent: TEST_AGENT };
+  const deps: CliDeps = { out: (line) => void out.push(line), err: (line) => void err.push(line), env: {}, cwd, now: clock(), git, transport: offline, lookup: publicLookup, config, ...overrides };
   return { cwd, out, err, git, deps, call: (...argv: string[]) => main(argv, deps) };
 }
 
@@ -51,7 +58,7 @@ const refused = (...argv: string[]): string => {
 
 describe('parseArgs: run', () => {
   it('has the defaults of a real run: the api, the live sources, today, not dry', () => {
-    expect(parsed('run')).toEqual({ command: 'run', date: undefined, dry: false, client: 'api', sources: 'live', forceNew: false, cassettes: undefined });
+    expect(parsed('run')).toEqual({ command: 'run', date: undefined, dry: false, client: 'api', sources: 'live', forceNew: false, cassettes: undefined, config: undefined });
   });
 
   it('reads --date', () => {
@@ -135,8 +142,8 @@ describe('parseArgs: run', () => {
 
 describe('parseArgs: replay, status and the rest', () => {
   it('reads replay with the folder of a run, and the options of replay', () => {
-    expect(parsed('replay', 'runs/2026-10-05')).toEqual({ command: 'replay', runDir: 'runs/2026-10-05', sources: 'live', cassettes: undefined });
-    expect(parsed('replay', 'runs/2026-10-05', '--sources', 'fixtures', '--cassettes', 'elsewhere')).toEqual({ command: 'replay', runDir: 'runs/2026-10-05', sources: 'fixtures', cassettes: 'elsewhere' });
+    expect(parsed('replay', 'runs/2026-10-05')).toEqual({ command: 'replay', runDir: 'runs/2026-10-05', sources: 'live', cassettes: undefined, config: undefined });
+    expect(parsed('replay', 'runs/2026-10-05', '--sources', 'fixtures', '--cassettes', 'elsewhere')).toEqual({ command: 'replay', runDir: 'runs/2026-10-05', sources: 'fixtures', cassettes: 'elsewhere', config: undefined });
     expect(parsed('replay', '--sources', 'fixtures', 'runs/x')).toMatchObject({ runDir: 'runs/x', sources: 'fixtures' });
   });
 
@@ -149,10 +156,23 @@ describe('parseArgs: replay, status and the rest', () => {
     expect(refused('replay', 'a', '--cassettes')).toBe('--cassettes needs a value');
   });
 
-  it('reads status, which takes nothing', () => {
-    expect(parsed('status')).toEqual({ command: 'status' });
-    expect(refused('status', '--json')).toBe('status takes no arguments, but was given "--json"');
+  it('reads status, which takes no argument and one option, --config', () => {
+    expect(parsed('status')).toEqual({ command: 'status', config: undefined });
+    expect(parsed('status', '--config', 'desk.yml')).toEqual({ command: 'status', config: 'desk.yml' });
+    expect(refused('status', '--json')).toBe('unknown option --json for status');
+    expect(refused('status', '--dry')).toBe('unknown option --dry for status');
     expect(refused('status', 'now')).toBe('status takes no arguments, but was given "now"');
+    expect(refused('status', '--config')).toBe('--config needs a value');
+    expect(refused('status', '--config', 'a', '--config', 'b')).toBe('--config is given twice');
+  });
+
+  it('reads --config, the path of a file of settings, for run and for replay', () => {
+    expect(parsed('run', '--config', 'desk.yml')).toMatchObject({ command: 'run', config: 'desk.yml' });
+    expect(parsed('run', '--dry', '--config', 'conf/desk.yml', '--sources', 'fixtures', '--client', 'fake')).toMatchObject({ config: 'conf/desk.yml' });
+    expect(parsed('replay', 'runs/x', '--config', 'desk.yml')).toMatchObject({ command: 'replay', runDir: 'runs/x', config: 'desk.yml' });
+    expect(refused('run', '--config')).toBe('--config needs a value');
+    expect(refused('run', '--config', '--dry')).toBe('--config needs a value');
+    expect(refused('replay', 'runs/x', '--config', 'a', '--config', 'b')).toBe('--config is given twice');
   });
 
   it('reads help in three ways', () => {
@@ -191,6 +211,8 @@ describe('main: usage errors', () => {
     expect(USAGE).toContain('desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new]');
     expect(USAGE).toContain('desk replay');
     expect(USAGE).toContain('desk status');
+    expect(USAGE).toContain('[--config <path>]');
+    expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ')).every((line) => line.includes('[--config <path>]'))).toBe(true);
   });
 });
 
@@ -254,6 +276,135 @@ describe('main: run --dry --client fake --sources fixtures', () => {
   });
 });
 
+describe('main: --config, the file of settings', () => {
+  const FILE = [
+    'minClaims: 99',
+    'runDir: out/runs',
+    'evidenceDir: out/evidence',
+    'userAgent: "RobywireDesk/0.1 (+https://robywire.test/method)"',
+    '',
+  ].join('\n');
+
+  /** The same settings with the least number of claims left as it is, so that the story of the made-up world is published. */
+  const FILE_OK = FILE.replace('minClaims: 99\n', '');
+
+  /** A repository that has the given file of settings, and the settings of the tests taken away, so that the file is all there is. */
+  function withFile(yaml: string) {
+    const made = setup({ config: undefined });
+    writeFileSync(path.join(made.cwd, 'desk.yml'), yaml);
+    return made;
+  }
+
+  it('takes the settings from the file, laid over the defaults: the folders and the least number of claims show it', async () => {
+    const { call, out, cwd } = withFile(FILE);
+    expect(await call(...DRY_DEMO, '--config', 'desk.yml')).toBe(0);
+    // minClaims 99 is more than the seven claims of the story: the run ends with no story, at Extract, and says how many were needed.
+    expect(out).toContain('outcome: no-story');
+    expect(out).toContain('stage: extract');
+    expect(out.find((line) => line.startsWith('reason:'))).toContain('at least 99 are needed');
+    expect(existsSync(path.join(cwd, 'out', 'runs', DEMO_DATE, '04-extract.json'))).toBe(true);
+    expect(existsSync(path.join(cwd, 'runs'))).toBe(false);
+  });
+
+  it('resolves a relative folder of the file against the folder it was started in, and an absolute one as it is', async () => {
+    const { call, cwd, out } = withFile(FILE_OK);
+    expect(await call(...DRY_DEMO, '--config', 'desk.yml')).toBe(0);
+    expect(out).toContain('outcome: published');
+    expect(existsSync(path.join(cwd, 'out', 'runs', DEMO_DATE, '06-verify.json'))).toBe(true);
+    const elsewhere = setup({ config: undefined });
+    writeFileSync(path.join(elsewhere.cwd, 'desk.yml'), `runDir: ${path.join(cwd, 'moved-runs')}\nevidenceDir: ${path.join(cwd, 'moved-evidence')}\n`);
+    expect(await elsewhere.call(...DRY_DEMO, '--config', 'desk.yml')).toBe(0);
+    expect(existsSync(path.join(cwd, 'moved-runs', DEMO_DATE))).toBe(true);
+    expect(existsSync(path.join(elsewhere.cwd, 'runs'))).toBe(false);
+  });
+
+  it('takes a path that is relative to the folder it was started in, and one that is absolute', async () => {
+    const { call, cwd, out } = withFile(FILE_OK);
+    mkdirSync(path.join(cwd, 'conf'));
+    writeFileSync(path.join(cwd, 'conf', 'desk.yml'), FILE_OK);
+    expect(await call(...DRY_DEMO, '--config', 'conf/desk.yml')).toBe(0);
+    expect(await call(...DRY_DEMO, '--config', path.join(cwd, 'desk.yml'), '--force-new')).toBe(0);
+    expect(out.filter((line) => line === 'outcome: published')).toHaveLength(2);
+  });
+
+  it('replays a run with the same file, which says where the pages of the run were kept', async () => {
+    const { call, out, cwd } = withFile(FILE_OK);
+    expect(await call(...DRY_DEMO, '--config', 'desk.yml')).toBe(0);
+    expect(await call('replay', path.join('out', 'runs', DEMO_DATE), '--sources', 'fixtures', '--config', 'desk.yml')).toBe(0);
+    expect(out).toContain('replay: equal');
+    expect(existsSync(path.join(cwd, 'runs'))).toBe(false);
+  });
+
+  it.each([
+    ['a file that is not there', 'missing.yml', 'cannot read the file (ENOENT)'],
+    ['a setting that does not exist', 'bad.yml', 'recencyHour'],
+    ['a value that is not allowed', 'worse.yml', 'shortlistMax'],
+  ])('refuses %s with exit code 2, names the file and writes nothing', async (_what, name, fragment) => {
+    const { call, err, out, cwd, git } = setup({ config: undefined });
+    writeFileSync(path.join(cwd, 'bad.yml'), 'recencyHour: 3\n');
+    writeFileSync(path.join(cwd, 'worse.yml'), 'shortlistMax: -1\n');
+    const before = filesBelow(cwd);
+    for (const argv of [[...DRY_DEMO, '--config', name], ['replay', 'runs/x', '--config', name], ['status', '--config', name]]) {
+      err.length = 0;
+      expect(await call(...argv), argv.join(' ')).toBe(2);
+      expect(err[0], argv.join(' ')).toContain(`desk config ${path.join(cwd, name)}`);
+      expect(err[0], argv.join(' ')).toContain(fragment);
+    }
+    expect(out).toEqual([]);
+    expect(git.commits).toEqual([]);
+    expect(filesBelow(cwd)).toEqual(before);
+  });
+
+  it('lets status read a file of settings, which it has no use for but refuses when it is wrong', async () => {
+    const { call, out } = withFile(FILE);
+    expect(await call('status', '--config', 'desk.yml')).toBe(0);
+    expect(out).toEqual(['last run: none yet', 'holds: 0']);
+  });
+});
+
+describe('main: a live run needs a user agent that is not a placeholder', () => {
+  // The user agent is what the Desk calls itself to every site, and it must say where the site that is asking can be read about. The default
+  // links to robywire.example, an address that does not exist, so a live run that has not been given a real one is refused before it asks a site.
+  const PLACEHOLDER = 'RobywireDesk/0.1 (+https://robywire.example/method)';
+
+  it('refuses a live run with the default user agent, with exit code 2 and the way out, and writes nothing and asks nobody', async () => {
+    const { call, err, out, cwd, git } = setup({ config: undefined, env: { ANTHROPIC_API_KEY: 'k' } });
+    const before = filesBelow(cwd);
+    expect(await call('run')).toBe(2);
+    expect(out).toEqual([]);
+    expect(err).toEqual([
+      `desk: the user agent "${PLACEHOLDER}" links to robywire.example, which is a placeholder address: a live run needs a user agent that links to the real /method page of the Desk; set userAgent in a file of settings and pass it with --config <path>`,
+    ]);
+    expect(git.commits).toEqual([]);
+    expect(filesBelow(cwd)).toEqual(before);
+    expect(existsSync(path.join(cwd, 'runs'))).toBe(false);
+  });
+
+  it('refuses it for a dry live run too, and for a user agent given in a file of settings', async () => {
+    const { call, err, cwd } = setup({ config: undefined, env: { ANTHROPIC_API_KEY: 'k' } });
+    expect(await call('run', '--dry')).toBe(2);
+    writeFileSync(path.join(cwd, 'desk.yml'), 'userAgent: "Desk/1 (+https://Desk.Example/method)"\n');
+    expect(await call('run', '--config', 'desk.yml')).toBe(2);
+    expect(err[1]).toContain('links to desk.example, which is a placeholder address');
+  });
+
+  it('does not refuse a user agent that links to another address, or a run that asks no site', async () => {
+    const { call, out } = setup({ config: undefined, env: { ANTHROPIC_API_KEY: 'k' } });
+    expect(await call(...DRY_DEMO)).toBe(0);
+    expect(out).toContain('outcome: published');
+    const live = setup({ env: { ANTHROPIC_API_KEY: 'k' } });
+    expect(await live.call('run', '--date', '2026-10-05')).toBe(1);
+    expect(live.out).toContain('stage: discover');
+  });
+
+  it('does not refuse a replay, which asks no site', async () => {
+    const { call, out } = setup({ config: undefined });
+    await call(...DRY_DEMO);
+    expect(await call('replay', path.join('runs', DEMO_DATE), '--sources', 'fixtures')).toBe(0);
+    expect(out).toContain('replay: equal');
+  });
+});
+
 describe('main: the other clients and sources', () => {
   it('refuses to run a story that is not dry with the scripted client or the made-up world, before anything is written', async () => {
     const { call, err, cwd } = setup();
@@ -283,6 +434,24 @@ describe('main: the other clients and sources', () => {
     // The run was not dry, so it recorded itself: one commit of the desk state, which says that the run failed.
     expect(git.commits.map((commit) => commit.paths)).toEqual([[STATE]]);
     expect(JSON.parse(readFileSync(path.join(cwd, STATE), 'utf8')).lastRun.outcome).toBe('failed');
+  });
+
+  it('fetches live sources through the transport and the lookup that it is given, and asks them for the hosts of the registry and for nobody else', async () => {
+    const urls: string[] = [];
+    const hosts: string[] = [];
+    const transport: Transport = async (url) => {
+      urls.push(url);
+      throw new FetchError('network', url, 'there is no network');
+    };
+    const lookup = async (host: string) => {
+      hosts.push(host);
+      return ['1.2.3.4'];
+    };
+    const { call } = setup({ env: { ANTHROPIC_API_KEY: 'k' }, transport, lookup });
+    expect(await call('run', '--date', '2026-10-05')).toBe(1);
+    expect([...new Set(hosts)].sort()).toEqual(['fixture-robotics.example', 'gantry-daily.example', 'mercer-wire.example']);
+    expect(urls.every((url) => url.endsWith('/robots.txt'))).toBe(true);
+    expect(new Set(urls).size).toBe(3);
   });
 
   it('takes the day from the clock when it is not told one, for live sources', async () => {

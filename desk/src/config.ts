@@ -75,6 +75,25 @@ export function defaultConfig(): DeskConfig {
 }
 
 /**
+ * The host of the address that a user agent links to, when that host is a placeholder: `example`, or a name under `.example`, which no one owns
+ * and the default user agent uses (robywire.example). `undefined` when the first address of the text is anything else, or when there is none. The
+ * first address is the one that has to be the /method page (the schema of the setting requires it). A live run needs a real one: a site that
+ * is asked by a user agent that points nowhere cannot find out who is asking.
+ */
+export function placeholderHost(userAgent: string): string | undefined {
+  const address = /https?:\/\/[^\s)]+/i.exec(userAgent)?.[0];
+  if (address === undefined) return undefined;
+  let host: string;
+  try {
+    // The hostname of a URL is already in lowercase.
+    host = new URL(address).hostname.replace(/\.$/, '');
+  } catch {
+    return undefined;
+  }
+  return host === 'example' || host.endsWith('.example') ? host : undefined;
+}
+
+/**
  * The settings of a run. With no path, the defaults. With the path of a YAML
  * file, the defaults with the file's settings laid over them; the budget and the
  * models are merged one setting at a time. A file that cannot be read, is not

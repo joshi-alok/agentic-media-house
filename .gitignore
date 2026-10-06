@@ -8,5 +8,5 @@ coverage/
 evals/out/
 .DS_Store
 # Run artifacts and snapshots of sources (desk/src/config.ts names both folders) are never committed.
-runs/
-evidence/
+/runs/
+/evidence/

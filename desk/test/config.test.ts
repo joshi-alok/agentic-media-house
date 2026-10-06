@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { DeskConfig, defaultConfig, loadConfig } from '../src/config';
+import { DeskConfig, defaultConfig, loadConfig, placeholderHost } from '../src/config';
 
 // The settings of a run live in one place and are checked when they are read:
 // a mistake in a config file stops the run before it starts, with a message that
@@ -189,7 +189,39 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
 describe('the folders of a run', () => {
   it('are kept out of git: run artifacts and private snapshots of sources never go into the repository', () => {
     const ignored = readFileSync(new URL('../../.gitignore', import.meta.url), 'utf8').split('\n');
-    expect(ignored).toContain(`${defaultConfig().runDir}/`);
-    expect(ignored).toContain(`${defaultConfig().evidenceDir}/`);
+    expect(ignored).toContain(`/${defaultConfig().runDir}/`);
+    expect(ignored).toContain(`/${defaultConfig().evidenceDir}/`);
+  });
+});
+
+describe('placeholderHost', () => {
+  // The user agent is what the Desk calls itself to every site, with the address of the page that says who it is. The default one links to an address that
+  // does not exist, robywire.example, so a live run has to be given a real one: this says which hosts are placeholders (a name under .example is reserved for examples).
+  it.each([
+    ['the default user agent', 'RobywireDesk/0.1 (+https://robywire.example/method)', 'robywire.example'],
+    ['a host in capitals', 'Desk/1 (+https://Desk.EXAMPLE/method)', 'desk.example'],
+    ['a host that is only example', 'Desk/1 (+https://example/method)', 'example'],
+    ['a host with a sub-domain', 'Desk/1 (+http://www.news.example/method)', 'www.news.example'],
+    ['a host with a port', 'Desk/1 (+https://robywire.example:8443/method)', 'robywire.example'],
+    ['a host with a dot at the end', 'Desk/1 (+https://robywire.example./method)', 'robywire.example'],
+    ['an address in the middle of the text', 'Mozilla-like Desk/1 see https://robywire.example/method for more', 'robywire.example'],
+  ])('finds the placeholder in %s', (_what, agent, host) => {
+    expect(placeholderHost(agent)).toBe(host);
+  });
+
+  it.each([
+    ['an address that is not a placeholder', 'Desk/1 (+https://robywire.org/method)'],
+    ['a host that only has example inside its name', 'Desk/1 (+https://example.com/method)'],
+    ['a host that ends in example without a dot', 'Desk/1 (+https://notexample/method)'],
+    ['a name under .test', 'Desk/1 (+https://robywire.test/method)'],
+    ['a path that has example in it', 'Desk/1 (+https://robywire.org/example/method)'],
+    ['no address at all', 'Desk/1'],
+    ['an address that cannot be read', 'Desk/1 (+https://[bad/method)'],
+  ])('finds none in %s', (_what, agent) => {
+    expect(placeholderHost(agent)).toBeUndefined();
+  });
+
+  it('judges the first address of the text, the one that must be the /method page', () => {
+    expect(placeholderHost('Desk/1 (+https://robywire.org/method; https://robywire.example/other)')).toBeUndefined();
   });
 });

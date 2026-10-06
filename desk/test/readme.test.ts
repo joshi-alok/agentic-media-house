@@ -15,6 +15,31 @@ function section(heading: string): string {
   return next < 0 ? rest : rest.slice(0, next);
 }
 
+describe('the README: what the Desk is tested with', () => {
+  const desk = (): string => section('The desk workspace');
+
+  it('does not say that a test fails if anything reaches for a network, which nothing guarantees', () => {
+    expect(README).not.toContain('a test fails if anything reaches for a network');
+  });
+
+  it('says what the guard of the tests does, and that it is a safety net and not a proof', () => {
+    expect(desk()).toContain('`fetch`, `net.connect`, `http.request` and `https.request`');
+    expect(desk()).toContain('network is not available in tests');
+    expect(desk()).toContain('a safety net and not a proof');
+  });
+
+  it('says what the demo proves: the plumbing and the replay, and not the quality of a model', () => {
+    const demo = section('The desk command');
+    expect(demo).toContain('desk demo: ok: completed as published (dry run, scripted model and verifier): this proves the plumbing and replay equality, not model quality');
+  });
+
+  it('says that --config takes a file of settings, and that a live run needs a user agent that is not a placeholder', () => {
+    const command = section('The desk command');
+    expect(command).toContain('[--config <path>]');
+    expect(command).toContain('a user agent that links to an `.example` address is refused');
+  });
+});
+
 describe('the README: what the Desk does not check', () => {
   const limits = (): string => section('What the Desk does not check');
 

@@ -34,7 +34,7 @@ describe('runDemo', () => {
     expect(out).toContain('outcome: published');
     expect(out.some((line) => line.startsWith('dry run: nothing was written to the site or to git'))).toBe(true);
     expect(out).toContain('replay: equal');
-    expect(out.at(-1)).toBe('desk demo: ok: the made-up story was published in a dry run, nothing was written, and the run replays equal');
+    expect(out.at(-1)).toBe('desk demo: ok: completed as published (dry run, scripted model and verifier): this proves the plumbing and replay equality, not model quality');
   });
 
   it('writes nothing into the site and removes its own folder when it is done', async () => {

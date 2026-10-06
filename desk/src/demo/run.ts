@@ -81,7 +81,7 @@ export async function runDemo(deps: DemoDeps, cli: (argv: readonly string[], dep
       for (const problem of problems) deps.err(`desk demo: ${problem}`);
       return 1;
     }
-    deps.out('desk demo: ok: the made-up story was published in a dry run, nothing was written, and the run replays equal');
+    deps.out('desk demo: ok: completed as published (dry run, scripted model and verifier): this proves the plumbing and replay equality, not model quality');
     return 0;
   } finally {
     await rm(work, { recursive: true, force: true });

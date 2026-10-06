@@ -346,7 +346,7 @@ describe('kindOfSnapshot', () => {
   it.each([
     [page(1, URLS.release), 'company-newsroom'],
     [page(1, 'https://www.fixture-robotics.example/news/a', 'https://fixture-robotics.example/news/a'), 'company-newsroom'],
-    [page(1, 'https://arxiv.org/abs/2601.00001'), 'arxiv'],
+    [page(1, 'https://arxiv.org/abs/0000.00000'), 'arxiv'],
     [page(1, 'https://www.sec.gov/Archives/edgar/data/1/x.htm'), 'sec'],
     [page(1, 'https://standards.example/robotics/part-1'), 'standard'],
     [page(2, URLS.mercerArticle), 'tier2'],

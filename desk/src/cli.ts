@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { loadSources } from '@robywire/gate';
 import type { SourcesRegistry } from '@robywire/gate';
-import { HttpFetcher, LocalEvidenceStore, RunRefused, clientFromConfig, defaultConfig, readDeskState, runPath, sitePaths, DryTarget, SiteTarget } from './index';
+import { HttpFetcher, LocalEvidenceStore, RunRefused, clientFromConfig, defaultConfig, loadConfig, placeholderHost, readDeskState, runPath, sitePaths, DryTarget, SiteTarget } from './index';
 import type { BuiltClient, ClientChoice, DeskConfig, Environment, Fetcher, GitTarget, Lookup, RetryOptions, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
@@ -18,9 +18,9 @@ export type ClientKind = 'fake' | 'recorded' | 'api';
 export type SourcesKind = 'fixtures' | 'live';
 
 export type Parsed =
-  | { command: 'run'; date: string | undefined; dry: boolean; client: ClientKind; sources: SourcesKind; forceNew: boolean; cassettes: string | undefined }
-  | { command: 'replay'; runDir: string; sources: SourcesKind; cassettes: string | undefined }
-  | { command: 'status' }
+  | { command: 'run'; date: string | undefined; dry: boolean; client: ClientKind; sources: SourcesKind; forceNew: boolean; cassettes: string | undefined; config: string | undefined }
+  | { command: 'replay'; runDir: string; sources: SourcesKind; cassettes: string | undefined; config: string | undefined }
+  | { command: 'status'; config: string | undefined }
   | { command: 'help' };
 
 /** What the arguments mean, or why they do not. */
@@ -28,9 +28,9 @@ export type ParseResult = { ok: true; args: Parsed } | { ok: false; message: str
 
 export const USAGE = [
   'Usage:',
-  '  desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new] [--cassettes <folder>]',
-  '  desk replay <folder of a run> [--sources fixtures|live] [--cassettes <folder>]',
-  '  desk status',
+  '  desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new] [--cassettes <folder>] [--config <path>]',
+  '  desk replay <folder of a run> [--sources fixtures|live] [--cassettes <folder>] [--config <path>]',
+  '  desk status [--config <path>]',
   '',
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
@@ -38,11 +38,14 @@ export const USAGE = [
   '        A day that already has a run is refused unless --force-new is given.',
   'replay  run Extract, Compose and Verify again from what a run kept, with no network, and say whether the artifacts are the same.',
   'status  print the last run and the number of holds, from the desk state.',
+  '--config says where the settings of the Desk are: a YAML file laid over the defaults (how recent a story must be, how many candidates reach the model, the folders,',
+  '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
 ].join('\n');
 
-const OPTIONS: Readonly<Record<'run' | 'replay', { flags: readonly string[]; valued: readonly string[] }>> = {
-  run: { flags: ['--dry', '--force-new'], valued: ['--date', '--client', '--sources', '--cassettes'] },
-  replay: { flags: [], valued: ['--sources', '--cassettes'] },
+const OPTIONS: Readonly<Record<'run' | 'replay' | 'status', { flags: readonly string[]; valued: readonly string[] }>> = {
+  run: { flags: ['--dry', '--force-new'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
+  replay: { flags: [], valued: ['--sources', '--cassettes', '--config'] },
+  status: { flags: [], valued: ['--config'] },
 };
 
 const CLIENTS: readonly string[] = ['fake', 'recorded', 'api'];
@@ -72,10 +75,6 @@ export function parseArgs(argv: readonly string[]): ParseResult {
 
   const given = new Map<string, string | true>();
   const positional: string[] = [];
-  if (command === 'status') {
-    if (rest.length > 0) return fail(`status takes no arguments, but was given "${rest[0]}"`);
-    return { ok: true, args: { command: 'status' } };
-  }
   const allowed = OPTIONS[command];
   for (let at = 0; at < rest.length; at++) {
     const word = rest[at] as string;
@@ -100,13 +99,17 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     const found = given.get(name);
     return typeof found === 'string' ? found : undefined;
   };
+  if (command === 'status') {
+    if (positional.length > 0) return fail(`status takes no arguments, but was given "${positional[0]}"`);
+    return { ok: true, args: { command: 'status', config: value('--config') } };
+  }
   const sources = value('--sources') ?? 'live';
   if (!SOURCES.includes(sources)) return fail(`--sources is fixtures or live, not "${sources}"`);
 
   if (command === 'replay') {
     if (positional.length === 0) return fail('replay needs the folder of a run');
     if (positional.length > 1) return fail(`replay takes one folder, but was given "${positional.join('" and "')}"`);
-    return { ok: true, args: { command: 'replay', runDir: positional[0] as string, sources: sources as SourcesKind, cassettes: value('--cassettes') } };
+    return { ok: true, args: { command: 'replay', runDir: positional[0] as string, sources: sources as SourcesKind, cassettes: value('--cassettes'), config: value('--config') } };
   }
 
   if (positional.length > 0) return fail(`run takes no arguments, but was given "${positional[0]}"`);
@@ -120,7 +123,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   const cassettes = value('--cassettes');
   if (client === 'recorded' && cassettes === undefined) return fail('--client recorded needs --cassettes, the folder of the recorded replies');
   if (client !== 'recorded' && cassettes !== undefined) return fail('--cassettes is for --client recorded: the other clients record their replies in the folder of the run');
-  return { ok: true, args: { command: 'run', date, dry, client: client as ClientKind, sources: sources as SourcesKind, forceNew: given.has('--force-new'), cassettes } };
+  return { ok: true, args: { command: 'run', date, dry, client: client as ClientKind, sources: sources as SourcesKind, forceNew: given.has('--force-new'), cassettes, config: value('--config') } };
 }
 
 /** What `main` needs from outside. */
@@ -147,10 +150,28 @@ export interface CliDeps {
 
 const describeError = (error: unknown): string => (error instanceof Error ? error.message || error.name : String(error));
 
-/** The settings of a run: those given, or the defaults with their folders below `cwd`. */
-function configOf(deps: CliDeps): DeskConfig {
+/**
+ * The settings of a run: those of the file that `--config` names (laid over the defaults by `loadConfig`, which refuses a file that cannot be read or has a
+ * setting that is wrong, naming the file; the file is looked for from `cwd`, and its folders, when they are relative, are below `cwd`), or else those that `deps` gives, or else the
+ * defaults with their folders below `cwd`.
+ */
+function configOf(deps: CliDeps, file: string | undefined): DeskConfig {
+  if (file !== undefined) {
+    const loaded = loadConfig(path.resolve(deps.cwd, file));
+    return { ...loaded, runDir: path.resolve(deps.cwd, loaded.runDir), evidenceDir: path.resolve(deps.cwd, loaded.evidenceDir) };
+  }
   if (deps.config !== undefined) return deps.config;
   return { ...defaultConfig(), runDir: path.join(deps.cwd, 'runs'), evidenceDir: path.join(deps.cwd, 'evidence') };
+}
+
+/** The settings that the arguments name, or the exit code 2 and the reason, said on the error output: a mistake in a file of settings is a mistake in the arguments. */
+function settingsOf(deps: CliDeps, file: string | undefined): { config: DeskConfig } | { code: number } {
+  try {
+    return { config: configOf(deps, file) };
+  } catch (error) {
+    deps.err(describeError(error));
+    return { code: 2 };
+  }
 }
 
 /** The registry and the fetcher of the sources that were asked for. */
@@ -161,7 +182,16 @@ function sourcesOf(kind: SourcesKind, deps: CliDeps, config: DeskConfig): { sour
 }
 
 async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDeps): Promise<number> {
-  const config = configOf(deps);
+  const settings = settingsOf(deps, args.config);
+  if ('code' in settings) return settings.code;
+  const { config } = settings;
+  const placeholder = args.sources === 'live' ? placeholderHost(config.userAgent) : undefined;
+  if (placeholder !== undefined) {
+    deps.err(
+      `desk: the user agent "${config.userAgent}" links to ${placeholder}, which is a placeholder address: a live run needs a user agent that links to the real /method page of the Desk; set userAgent in a file of settings and pass it with --config <path>`,
+    );
+    return 2;
+  }
   const date = args.date ?? (args.sources === 'fixtures' ? DEMO_DATE : deps.now().toISOString().slice(0, 10));
   let world: ReturnType<typeof sourcesOf>;
   try {
@@ -214,7 +244,9 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
 }
 
 async function replayCommand(args: Extract<Parsed, { command: 'replay' }>, deps: CliDeps): Promise<number> {
-  const config = configOf(deps);
+  const settings = settingsOf(deps, args.config);
+  if ('code' in settings) return settings.code;
+  const { config } = settings;
   try {
     const report = await replayRun(path.resolve(deps.cwd, args.runDir), {
       config,
@@ -234,7 +266,10 @@ async function replayCommand(args: Extract<Parsed, { command: 'replay' }>, deps:
   }
 }
 
-async function statusCommand(deps: CliDeps): Promise<number> {
+async function statusCommand(args: Extract<Parsed, { command: 'status' }>, deps: CliDeps): Promise<number> {
+  // Status reads the desk state alone and has no use for the settings, but a file of settings that is wrong is refused here as everywhere.
+  const settings = settingsOf(deps, args.config);
+  if ('code' in settings) return settings.code;
   try {
     const state = await readDeskState(path.join(deps.cwd, sitePaths().stateFile));
     const { lastRun } = state;
@@ -264,6 +299,6 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
     case 'replay':
       return replayCommand(parsed.args, deps);
     case 'status':
-      return statusCommand(deps);
+      return statusCommand(parsed.args, deps);
   }
 }
