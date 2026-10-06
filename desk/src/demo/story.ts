@@ -14,7 +14,7 @@ import { DEMO_URLS } from './world';
 export const DEMO_CLAIMS = [
   {
     text: 'Fixture Robotics has begun shipping FX-1 warehouse arms to the second Brindle Logistics plant, at Tarnmoor.',
-    label: 'Tarnmoor shipment',
+    label: 'second plant',
     type: 'event',
     quote: 'Fixture Robotics has begun shipping FX-1 warehouse arms, built for tote picking and trailer unloading, to Brindle Logistics for its second plant, at Tarnmoor.',
     values: [
@@ -28,8 +28,8 @@ export const DEMO_CLAIMS = [
     source: 1,
   },
   {
-    text: 'Fixture Robotics announced the shipments on 1 October 2026.',
-    label: 'announcement date',
+    text: 'Fixture Robotics announced on 1 October 2026 that deliveries have started.',
+    label: 'deliveries started',
     type: 'date',
     quote: 'Tarnmoor, 1 October 2026: Fixture Robotics announced that deliveries have started.',
     values: [{ kind: 'date', raw: '1 October 2026', normalised: '2026-10-01' }],
@@ -38,8 +38,8 @@ export const DEMO_CLAIMS = [
     source: 1,
   },
   {
-    text: 'The FX-1 mounts on existing conveyor frames without a new safety cage.',
-    label: 'retrofit mounting',
+    text: 'The FX-1 mounts on existing conveyor frames and needs no new safety cage.',
+    label: 'existing conveyor frames',
     type: 'spec',
     quote: 'The FX-1 mounts on existing conveyor frames and needs no new safety cage, the company said.',
     values: [{ kind: 'name', raw: 'FX-1', normalised: 'fx-1' }],
@@ -49,7 +49,7 @@ export const DEMO_CLAIMS = [
   },
   {
     text: 'Fixture Robotics lists the FX-1 from $38,000, with delivery within 12 weeks of an order.',
-    label: 'list price',
+    label: 'per arm',
     type: 'number',
     quote: 'Fixture Robotics lists the FX-1 from $38,000 per arm, with delivery within 12 weeks of an order.',
     values: [
@@ -64,7 +64,7 @@ export const DEMO_CLAIMS = [
   },
   {
     text: 'Tarnmoor is due to receive 60 arms by 30 November 2026.',
-    label: 'Tarnmoor delivery schedule',
+    label: 'arms due at Tarnmoor',
     type: 'event',
     quote: 'Tarnmoor is due to receive 60 arms by 30 November 2026.',
     values: [
@@ -78,7 +78,7 @@ export const DEMO_CLAIMS = [
   },
   {
     text: 'Fixture Robotics expects to build 500 FX-1 arms in 2027.',
-    label: 'production plan',
+    label: 'FX-1 arms in 2027',
     type: 'event',
     quote: 'Fixture Robotics expects to build 500 FX-1 arms in 2027.',
     values: [
@@ -93,7 +93,7 @@ export const DEMO_CLAIMS = [
   },
   {
     text: 'Fixture Robotics will use the funds to expand FX-1 production.',
-    label: 'use of funds',
+    label: 'expand FX-1 production',
     type: 'event',
     quote: 'Fixture Robotics said it will use the funds to expand FX-1 production.',
     values: [

@@ -72,12 +72,19 @@ describe('LIVE', () => {
 
 describe('receiptsIntro', () => {
   const START =
-    'Each sentence of the article links to the claims it rests on, listed below: the passage of the source that each claim rests on, word for word, and where and when that source was fetched.';
+    'Each sentence of the article links to the claims it rests on, listed below: a short label for each claim, the passage of the source that it rests on, word for word, and where and when that source was fetched. The passage is the evidence; a claim is shown by its label and its passage, never by a paraphrase of the passage.';
   const OFF = `${START} The full source snapshot will be kept in a private evidence store, which is not running yet; this public record keeps its hash, the retrieval time and the quoted passage.`;
   const ON = `${START} The full source snapshot is kept in a private evidence store; this public record keeps its hash, the retrieval time and the quoted passage.`;
 
   it.each(CASES)('says what the evidence store does only when it is live (%s)', (_name, live) => {
     expect(receiptsIntro(live)).toBe(live.evidenceStore ? ON : OFF);
+  });
+
+  it('says that a claim is shown by its label and its passage, and never by a paraphrase', () => {
+    for (const live of [NONE, ALL]) {
+      expect(receiptsIntro(live)).toContain('a short label for each claim, the passage of the source that it rests on, word for word');
+      expect(receiptsIntro(live)).toContain('never by a paraphrase of the passage');
+    }
   });
 
   it('says each sentence links to the claims it rests on, not each number to a claim', () => {

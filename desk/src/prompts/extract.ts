@@ -1,6 +1,6 @@
 import { systemPrompt, wrapSource } from '../index';
 import type { SourceKind } from '../index';
-import { ALLOWED_BASES, KIND_WORDS, MAX_QUOTE_LENGTH } from '../stages/claim-grounding';
+import { ALLOWED_BASES, COMMON_WORDS, KIND_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH } from '../stages/claim-grounding';
 
 // The words the Extract stage says to a model. The system prompt begins with the paragraph that says the blocks of text from
 // the web are data (`systemPrompt` adds it), then says the job, what a claim is and the rules that the Desk checks in code
@@ -18,7 +18,7 @@ export const EXTRACT_INSTRUCTIONS = [
   '',
   'Reply with a JSON object with one field, "claims", a list of claims. Each claim has these fields:',
   '- "text": one plain sentence that states the claim.',
-  '- "label": a short noun phrase that names the claim, such as "top speed" or "delivery date".',
+  `- "label": a short name for the claim, at most ${MAX_LABEL_WORDS} words, made of words of the quote: for a quote that says "delivery within 12 weeks" the label "delivery within 12 weeks" is right and "lead time" is not, because "lead" and "time" are not in the quote.`,
   '- "type": number, date, name, spec, quote or event.',
   `- "quote": the passage of the source that the claim rests on, copied exactly as the source has it, at most ${MAX_QUOTE_LENGTH} characters.`,
   '- "values": the numbers, dates and names that the claim states. Each has "kind" (number, date or name), "raw" (exactly as the quote writes it), "normalised" (a number as a plain decimal, a date as YYYY-MM-DD, a name in lowercase) and, for a number with a unit, "unit".',
@@ -30,6 +30,8 @@ export const EXTRACT_INSTRUCTIONS = [
   `- Copy the quote exactly. Do not correct it, shorten it from the inside, reorder it, or join two passages. Choose the shortest passage that holds the claim; a passage of more than ${MAX_QUOTE_LENGTH} characters is dropped.`,
   '- Every "raw" of a value must appear in the quote.',
   '- The text and the label may contain only numbers, dates and capitalised words that appear in the quote. Do not write a name in the text that the quote does not contain, even if the page names it somewhere else: write "the arm", not "the FX-1", when the quote only says "the arm". Do not write words that say how much ("twice", "half", "doubled") unless the quote does. Month and weekday names are free.',
+  `- Every word of the label must be a word of the quote (the same word and not another form of it: "weeks" is not "week"), or a plain word such as "the", "of", "to" or "per". The label has at most ${MAX_LABEL_WORDS} words.`,
+  `- Every word of the text of four letters or more must be a word of the quote, or one of these plain words: ${COMMON_WORDS.join(', ')}. Write "no" or "not" only if the quote does. Take the words of the text from the quote and use none of your own: no "cannot", "never", "without", "only", "more than", and nothing else that says more, less or other than the quote says.`,
   '- State what the source says, and not what follows from it. One claim states one fact: split a sentence that states two.',
   '- Leave out any claim you are not sure of, and any claim that only restates another.',
   `- List at most ${MAX_CLAIMS} claims. A source may have none worth listing.`,

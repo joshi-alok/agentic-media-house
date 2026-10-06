@@ -44,7 +44,7 @@ function idOf(piece: ComposeReply, text: string): string {
 /** A claim of the outlet that reports the news, from the second page. It is the only way that something from another outlet gets into a piece. */
 const REPORTED = {
   text: 'The arm is priced from $38,000.',
-  label: 'list price',
+  label: 'priced from $38,000',
   type: 'number',
   quote: 'The arm is priced from $38,000, the outlet reported.',
   values: [{ kind: 'number', raw: '$38,000', normalised: '38000', unit: 'USD' }],
@@ -66,7 +66,7 @@ const NOT_ON_THE_PAGE = {
 };
 
 /** A claim whose quotation is on the page and whose label names a company that is not there. */
-const MADE_UP_NAME = { ...DEMO_CLAIMS[3], label: 'Harlow list price' };
+const MADE_UP_NAME = { ...DEMO_CLAIMS[3], label: 'Harlow per arm' };
 
 /** Two rounds of revision in which the composer sends back nothing: it does not fix what it was asked to. */
 const NEVER_FIXES = [{ replacements: [] }, { replacements: [] }];

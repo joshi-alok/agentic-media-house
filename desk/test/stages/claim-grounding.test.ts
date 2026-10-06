@@ -1,9 +1,9 @@
-import { BASES, ClaimSpan, defaultConfig as gateDefaults } from '@robywire/gate';
+import { BASES, ClaimSpan, SENTENCE_STARTERS, defaultConfig as gateDefaults } from '@robywire/gate';
 import type { Basis, ClaimValue } from '@robywire/gate';
 import { describe, expect, it } from 'vitest';
 import { extractPage } from '../../src/fetch/extract-text';
 import type { SourceKind } from '../../src/sources';
-import { ALLOWED_BASES, CLAIM_PROBLEM_CODES, MAX_QUOTE_LENGTH, claimProblems, locateQuote } from '../../src/stages/claim-grounding';
+import { ALLOWED_BASES, CLAIM_PROBLEM_CODES, COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH, claimProblems, locateQuote } from '../../src/stages/claim-grounding';
 import type { ClaimCandidate } from '../../src/stages/claim-grounding';
 import { URLS } from '../support/context';
 import { fixtureText } from '../support/fixtures';
@@ -23,7 +23,7 @@ const number = (raw: string, normalised: string, unit?: string): ClaimValue => (
 function clean(overrides: Partial<ClaimCandidate> = {}): ClaimCandidate {
   return {
     text: 'Fixture Robotics lists the FX-1 from $38,000, with delivery within 12 weeks of an order.',
-    label: 'list price',
+    label: 'per arm',
     quote: LINE[4] as string,
     values: [number('$38,000', '38000', 'USD'), number('12', '12'), name('Fixture Robotics'), name('FX-1')],
     basis: 'press-release',
@@ -144,12 +144,12 @@ describe('claimProblems: a clean claim', () => {
   });
 
   it('has none when its text names a month on the allow-list and a date that the quotation gives in full', () => {
-    const claim = clean({ text: 'Tarnmoor is due to receive arms in November 2026.', label: 'delivery month', quote: LINE[5] as string, values: [name('Tarnmoor')], basis: 'press-release' });
+    const claim = clean({ text: 'Tarnmoor is due to receive arms in November 2026.', label: 'arms due', quote: LINE[5] as string, values: [name('Tarnmoor')], basis: 'press-release' });
     expect(codesOf(claim)).toEqual([]);
   });
 
   it('has none when its text opens with a plain word that the quotation does not contain', () => {
-    expect(codesOf(clean({ text: 'The company lists the FX-1 from $38,000.' }))).toEqual([]);
+    expect(codesOf(clean({ text: 'This lists the FX-1 from $38,000.' }))).toEqual([]);
   });
 });
 
@@ -173,14 +173,14 @@ describe('claimProblems: the quotation', () => {
 
   it('allows a quotation of exactly 300 characters and drops one of 301', () => {
     const page = `${'x'.repeat(301)} end`;
-    const claim = (length: number) => clean({ text: 'The arm.', label: 'arm', quote: 'x'.repeat(length), values: [] });
+    const claim = (length: number) => clean({ text: 'The arm.', label: 'the', quote: 'x'.repeat(length), values: [] });
     expect(codesOf(claim(300), 'company-newsroom', page)).toEqual([]);
     expect(codesOf(claim(301), 'company-newsroom', page)).toEqual(['quote-too-long']);
   });
 
   it('measures the passage as the page has it, so a quotation that is short only because the page pads it with white space is too long', () => {
     const page = `first${' '.repeat(400)}second`;
-    const claim = clean({ text: 'The arm.', label: 'arm', quote: 'first second', values: [] });
+    const claim = clean({ text: 'The arm.', label: 'first', quote: 'first second', values: [] });
     expect(codesOf(claim, 'company-newsroom', page)).toEqual(['quote-too-long']);
   });
 
@@ -222,7 +222,7 @@ describe('claimProblems: the values', () => {
 
   it('keeps a claim whose values stand as whole tokens in the quotation, at the end of a sentence too', () => {
     const page = 'The FX-1 lifts 2.3 kg. It ships in 12 weeks.';
-    const claim = clean({ text: 'The FX-1 lifts 2.3 kg and ships in 12 weeks.', label: 'lead time', quote: page, values: [number('2.3 kg', '2.3', 'kg'), number('12', '12'), number('2.3', '2.3')] });
+    const claim = clean({ text: 'The FX-1 lifts 2.3 kg and ships in 12 weeks.', label: 'ships in 12 weeks', quote: page, values: [number('2.3 kg', '2.3', 'kg'), number('12', '12'), number('2.3', '2.3')] });
     expect(codesOf(claim, 'company-newsroom', page)).toEqual([]);
   });
 
@@ -277,11 +277,163 @@ describe('claimProblems: the text and the label', () => {
     const problems = claimProblems(clean({ text: 'Harlow lists the FX-1 from $83,000 in 15 weeks.', label: 'Harlow 15 week price' }), PAGE, 'company-newsroom', ALLOW);
     expect(problems.map((problem) => problem.code)).toEqual(['text-not-in-quote', 'label-not-in-quote']);
     expect(problems[0]?.message).toBe('the text says what the quotation does not: "$83,000", "15", "Harlow"');
-    expect(problems[1]?.message).toBe('the label says what the quotation does not: "15", "Harlow"');
+    expect(problems[1]?.message).toBe('the label says what the quotation does not: "15", "Harlow", "week", "price"');
   });
 
   it('allows a capitalised word that is on the allow-list, in the text and in the label', () => {
-    expect(codesOf(clean({ text: 'The CEO of Fixture Robotics lists the FX-1 from $38,000.', label: 'CEO price' }))).toEqual([]);
+    expect(codesOf(clean({ text: 'The CEO of Fixture Robotics lists the FX-1 from $38,000.', label: 'CEO per arm' }))).toEqual([]);
+  });
+});
+
+describe('claimProblems: the words of the label', () => {
+  // A label is a short name for a claim. It is printed in the notes under "What we couldn't verify", on the receipts page and on the
+  // fact card, and no rule of the gate reads it, so every word of it must be a word of the quotation.
+  it('has a longest length of six words', () => {
+    expect(MAX_LABEL_WORDS).toBe(6);
+  });
+
+  it.each([
+    ['a word that the quotation does not have', 'list price', ['"list"', '"price"']],
+    ['a lowercase invented name', 'harlow per arm', ['"harlow"']],
+    ['a word that is the start of a word of the quotation', 'list per arm', ['"list"']],
+    ['a word in another form than the quotation has it', 'delivery week', ['"week"']],
+  ] as const)('drops a claim whose label has %s', (_what, label, shown) => {
+    const problems = claimProblems(clean({ label }), PAGE, 'company-newsroom', ALLOW);
+    expect(problems.map((problem) => problem.code)).toEqual(['label-not-in-quote']);
+    expect(problems[0]?.message).toBe(`the label says what the quotation does not: ${shown.join(', ')}`);
+  });
+
+  it.each([
+    ['words of the quotation', 'delivery within 12 weeks'],
+    ['words of the quotation in other cases', 'FIXTURE robotics'],
+    ['a plain word that may start a sentence, though the quotation does not have it', 'to arm'],
+    ['a word on the allow-list', 'CEO per arm'],
+    ['a name with a digit in it', 'the FX-1'],
+    ['a figure of the quotation', 'from $38,000'],
+    ['six words', 'Fixture Robotics lists the FX-1 from'],
+  ])('keeps a claim whose label has %s', (_what, label) => {
+    expect(codesOf(clean({ label }))).toEqual([]);
+  });
+
+  it('reads a word of the label that has a hyphen by its parts when the quotation does not have it whole: tote-picking is as good as tote picking', () => {
+    const page = 'The arms are built for tote picking and trailer unloading.';
+    const labelled = (label: string) => claimProblems(clean({ text: 'The arms are built for tote picking.', label, quote: page, values: [], basis: 'datasheet' }), page, 'company-newsroom', ALLOW);
+    expect(labelled('tote-picking arms')).toEqual([]);
+    expect(labelled('tote-pickers arms').map((problem) => problem.message)).toEqual(['the label says what the quotation does not: "tote-pickers"']);
+    expect(labelled('tote-picking-robots arms').map((problem) => problem.code)).toEqual(['label-not-in-quote']);
+    expect(codesOf(clean({ label: 'FX-1 per arm' }))).toEqual([]);
+  });
+
+  it('drops a claim whose label has more than six words, and says how many it has', () => {
+    const problems = claimProblems(clean({ label: 'Fixture Robotics lists the FX-1 from arm' }), PAGE, 'company-newsroom', ALLOW);
+    expect(problems.map((problem) => problem.code)).toEqual(['label-too-long']);
+    expect(problems[0]?.message).toBe('the label has 7 words, and the longest allowed is 6');
+  });
+
+  it('drops a claim whose label has both a word that is not in the quotation and too many words, and says both', () => {
+    const problems = claimProblems(clean({ label: 'the list price of the arm, from the order' }), PAGE, 'company-newsroom', ALLOW);
+    expect(problems.map((problem) => problem.code)).toEqual(['label-not-in-quote', 'label-too-long']);
+  });
+
+  it('drops a claim whose label has no word at all', () => {
+    for (const label of ['--', '...', ' ']) {
+      const problems = claimProblems(clean({ label }), PAGE, 'company-newsroom', ALLOW);
+      expect(problems.map((problem) => [problem.code, problem.message]), label).toEqual([['label-not-in-quote', 'the label has no word']]);
+    }
+  });
+
+  it('reads the label by the same rule whatever the source: a page of another outlet too', () => {
+    const page = 'The arm is priced from $38,000, the outlet reported.';
+    const claim = clean({ text: 'The arm is priced from $38,000.', label: 'list price', quote: page, values: [number('$38,000', '38000', 'USD')], basis: 'reported' });
+    expect(codesOf(claim, 'tier2', page)).toEqual(['label-not-in-quote']);
+    expect(codesOf({ ...claim, label: 'priced from $38,000' }, 'tier2', page)).toEqual([]);
+  });
+});
+
+describe('claimProblems: the words of the text', () => {
+  // The text of a claim is a plain sentence that a model writes. Its figures, dates and capitalised words are read since part 3;
+  // now its other words are read too: a word of four letters or more must be a word of the quotation or a plain word of grammar.
+  const PAYLOAD = 'The arm lifts 12.5 kg at full reach.';
+  const textOf = (text: string, page = PAYLOAD) =>
+    claimProblems(clean({ text, label: 'the', quote: page, values: [], basis: 'datasheet' }), page, 'company-newsroom', ALLOW);
+
+  it.each([
+    ['an invented lowercase name (the probe of the review)', 'the harlow dynamics arm lifts 12.5 kg', ['"harlow"', '"dynamics"']],
+    ['a negation of four letters or more (the probe of the review)', 'The arm cannot lift 12.5 kg.', ['"cannot"', '"lift"']],
+    ['an assertion of the model', 'The arm never fails and is the safest on the market.', ['"never"', '"fails"', '"safest"', '"market"']],
+    ['a word in another form than the quotation has it', 'The arm lifted 12.5 kg.', ['"lifted"']],
+    ['the word no, which the quotation does not have', 'The arm lifts no more than 12.5 kg.', ['"no"', '"more"', '"than"']],
+    ['the word not, which the quotation does not have', 'The arm does not lift 12.5 kg.', ['"not"', '"lift"']],
+    ['a part of a word with a hyphen', 'The arm lifts 12.5 kg at full-length reach.', ['"length"']],
+  ] as const)('drops a claim whose text has %s', (_what, text, shown) => {
+    const problems = textOf(text);
+    expect(problems.map((problem) => problem.code)).toEqual(['text-not-in-quote']);
+    expect(problems[0]?.message).toBe(`the text says what the quotation does not: ${shown.join(', ')}`);
+  });
+
+  it.each([
+    ['the words of the quotation', 'The arm lifts 12.5 kg at full reach.'],
+    ['the words of the quotation in another order and case', 'At full reach, THE ARM lifts 12.5 kg.'],
+    ['a plain word of grammar', 'The arm, which lifts 12.5 kg, has a full reach.'],
+    ['a figure with a unit that the quotation spells another way', 'The arm lifts 12.5 kilograms at full reach.'],
+    ['words of three letters or fewer that the quotation does not have', 'The arm lifts 12.5 kg at its full reach, per the big dog.'],
+    ['a month on the allow-list', 'The arm lifts 12.5 kg at full reach in October.'],
+  ])('keeps a claim whose text has %s', (_what, text) => {
+    expect(textOf(text).map((problem) => problem.code)).not.toContain('text-not-in-quote');
+  });
+
+  it('keeps a text that says no, not or nor when the quotation says it too', () => {
+    const page = 'The FX-1 needs no new safety cage, and it is not noisy.';
+    expect(textOf('The FX-1 needs no new safety cage and is not noisy.', page)).toEqual([]);
+  });
+
+  it('reads a word with a hyphen by its parts: tote-picking is as good as tote picking', () => {
+    const page = 'The arms are built for tote picking.';
+    expect(textOf('The arms are built for tote-picking.', page)).toEqual([]);
+    expect(textOf('The arms are built for tote-pickers.', page).map((problem) => problem.message)).toEqual(['the text says what the quotation does not: "pickers"']);
+  });
+
+  it('lists a word once, whatever the number of times and the case it is written in, after the figures and the names', () => {
+    const problems = textOf('Harlow ships them to Harlow, 15 times.');
+    expect(problems[0]?.message).toBe('the text says what the quotation does not: "15", "harlow", "ships", "times"');
+  });
+
+  it('shows no more than forty characters of a word, and three dots after a longer one', () => {
+    const long = 'x'.repeat(50);
+    const problems = textOf(`The arm lifts ${long} at full reach.`);
+    expect(problems[0]?.message).toBe(`the text says what the quotation does not: "${'x'.repeat(40)}..."`);
+  });
+});
+
+describe('COMMON_WORDS', () => {
+  it('is frozen, so no caller can add a word', () => {
+    expect(Object.isFrozen(COMMON_WORDS)).toBe(true);
+  });
+
+  it('holds words of four letters or more, in lowercase letters only, each once', () => {
+    expect(new Set(COMMON_WORDS).size).toBe(COMMON_WORDS.length);
+    for (const word of COMMON_WORDS) {
+      expect(word, word).toMatch(/^[a-z]{4,}$/);
+    }
+  });
+
+  it('is small: a list of grammar and not a vocabulary', () => {
+    expect(COMMON_WORDS.length).toBeLessThanOrEqual(30);
+  });
+
+  it('holds no negation, no word that changes how much, when or how sure, no modal, and no word that is a noun, a verb of what happens or a name', () => {
+    const forbidden = [
+      'cannot', 'never', 'without', 'neither', 'none', 'nothing', 'only', 'just', 'even', 'still', 'always', 'often', 'some', 'many', 'most', 'more', 'less', 'least',
+      'every', 'each', 'both', 'over', 'under', 'above', 'below', 'about', 'after', 'before', 'since', 'until', 'than', 'will', 'would', 'could', 'should', 'might',
+      'must', 'shall', 'because', 'while', 'when', 'where', 'between', 'beyond', 'against', 'despite', 'during',
+      'company', 'arm', 'arms', 'robot', 'robots', 'plant', 'price', 'order', 'ships', 'said', 'says', 'lists', 'fixture', 'robotics', 'brindle', 'logistics', 'tarnmoor', 'mercer',
+    ];
+    for (const word of forbidden) expect(COMMON_WORDS, word).not.toContain(word);
+  });
+
+  it('has no word that the gate lets begin a sentence only because it is a negation or a quantity', () => {
+    for (const word of ['not', 'no', 'only', 'all']) expect(SENTENCE_STARTERS).toContain(word);
+    for (const word of ['not', 'no', 'only', 'all']) expect(COMMON_WORDS).not.toContain(word);
   });
 });
 
@@ -345,7 +497,7 @@ describe('claimProblems: all the reasons at once', () => {
   });
 
   it('knows exactly the codes it can give', () => {
-    expect(CLAIM_PROBLEM_CODES).toEqual(['quote-not-found', 'quote-too-long', 'value-not-in-quote', 'text-not-in-quote', 'label-not-in-quote', 'basis-not-allowed', 'tier-basis']);
+    expect(CLAIM_PROBLEM_CODES).toEqual(['quote-not-found', 'quote-too-long', 'value-not-in-quote', 'text-not-in-quote', 'label-not-in-quote', 'label-too-long', 'basis-not-allowed', 'tier-basis']);
   });
 
   it('names the bases of every kind of source in one table', () => {

@@ -229,7 +229,7 @@ describe('cloneGolden', () => {
     copy.claims.pop();
     expect(GOLDEN_DRAFT.title.text).toBe('Fixture Robotics ships its FX-1 warehouse arm to a second plant');
     expect(GOLDEN_DRAFT.categories).toEqual(['industrial-warehouse', 'funding']);
-    expect(GOLDEN_CLAIMS[0]?.label).toBe('Tarnmoor shipment');
+    expect(GOLDEN_CLAIMS[0]?.label).toBe('second plant');
     expect(cloneGolden().claims).toHaveLength(GOLDEN_CLAIMS.length);
   });
 

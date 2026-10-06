@@ -27,7 +27,7 @@ export function disclosure(live: Live = LIVE): string {
 /** The introduction of a receipts page. */
 export function receiptsIntro(live: Live = LIVE): string {
   const start =
-    'Each sentence of the article links to the claims it rests on, listed below: the passage of the source that each claim rests on, word for word, and where and when that source was fetched.';
+    'Each sentence of the article links to the claims it rests on, listed below: a short label for each claim, the passage of the source that it rests on, word for word, and where and when that source was fetched. The passage is the evidence; a claim is shown by its label and its passage, never by a paraphrase of the passage.';
   const store = live.evidenceStore
     ? 'The full source snapshot is kept in a private evidence store; this public record keeps its hash, the retrieval time and the quoted passage.'
     : 'The full source snapshot will be kept in a private evidence store, which is not running yet; this public record keeps its hash, the retrieval time and the quoted passage.';

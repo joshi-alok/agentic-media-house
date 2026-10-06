@@ -159,7 +159,7 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'unchecked',
-    text: 'The page address of a piece and the text and the label of each claim are written by a model, and no rule reads them for figures or names: a label such as "Harlow Logistics 12 plants" passes.',
+    text: 'The page address of a piece and the text and the label of each claim are written by a model, and no rule of the gate reads them for figures or names: a label such as "Harlow Logistics 12 plants" passes the gate. The Extract stage will check the text and the label against the passage before the gate sees the claim, and the receipts page shows the label and the passage, never the text.',
     example: 'Harlow Logistics 12 plants',
   },
   {
@@ -190,7 +190,7 @@ export const PIPELINE_STAGES: readonly PipelineStage[] = [
   },
   {
     name: 'Extract',
-    text: 'A model will break each source into atomic claims, each with the exact passage it rests on. Code will confirm that every passage appears word for word in the stored source.',
+    text: 'A model will break each source into atomic claims, each with the exact passage it rests on. Code will confirm that every passage appears word for word in the stored source, that every value of a claim is in its passage, and that the label and the text of a claim bring in no word, figure or name that the passage does not have.',
   },
   {
     name: 'Compose',

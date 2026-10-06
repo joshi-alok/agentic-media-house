@@ -154,7 +154,7 @@ describe('fixtureFiles: the limitation sentences', () => {
   it('name a claim that has no number by its label alone, not by the name or the date it lists', () => {
     const texts = ledgerOf(GOLDEN_SLUG).sentences.filter((sentence) => sentence.section === 'limitations').map((sentence) => sentence.text);
     expect(texts).toContain(
-      'The Tarnmoor shipment, announcement date, retrofit mounting and $38,000 list price figures come from a company press release; no independent measurement was available.',
+      'The second plant, deliveries started, existing conveyor frames and $38,000 per arm figures come from a company press release; no independent measurement was available.',
     );
     expect(texts.join(' ')).not.toContain('1 October 2026');
   });
@@ -204,6 +204,14 @@ describe('fixtureFiles: the piece that rests on another outlet', () => {
     const receipt = receiptsView(ledger).claims.find((claim) => claim.id === 'c-19');
     expect(receipt?.basis).toBe('reported');
     expect(receipt?.basis).not.toBe('filing');
+  });
+
+  it('shows on its receipt the passage of the outlet, word for word, and not the text of the claim, which still says what the filing said', () => {
+    const receipt = receiptsView(ledger).claims.find((claim) => claim.id === 'c-19');
+    expect(receipt?.quote).toBe('The offering drew 7 investors, according to people familiar with the filing.');
+    expect(receipt?.label).toBe('investor count');
+    expect(receipt).not.toHaveProperty('text');
+    expect(ledger.claims.find((claim) => claim.id === 'c-19')?.text).toBe('Seven investors took part in the offering.');
   });
 
   it('is the only piece with the label: the four others rest on first-hand sources only', () => {

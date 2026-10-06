@@ -63,7 +63,7 @@ const CLAIMS: Claim[] = [
   claim({
     id: 'c-1',
     text: 'Fixture Robotics has begun shipping FX-1 warehouse arms to the second Brindle Logistics plant, at Tarnmoor.',
-    label: 'Tarnmoor shipment',
+    label: 'second plant',
     type: 'event',
     url: RELEASE,
     start: 112,
@@ -75,8 +75,8 @@ const CLAIMS: Claim[] = [
   }),
   claim({
     id: 'c-2',
-    text: 'Fixture Robotics announced the shipments on 1 October 2026.',
-    label: 'announcement date',
+    text: 'Fixture Robotics announced on 1 October 2026 that deliveries have started.',
+    label: 'deliveries started',
     type: 'date',
     url: RELEASE,
     start: 0,
@@ -87,8 +87,8 @@ const CLAIMS: Claim[] = [
   }),
   claim({
     id: 'c-3',
-    text: 'The FX-1 mounts on existing conveyor frames without a new safety cage.',
-    label: 'retrofit mounting',
+    text: 'The FX-1 mounts on existing conveyor frames and needs no new safety cage.',
+    label: 'existing conveyor frames',
     type: 'spec',
     url: RELEASE,
     start: 278,
@@ -100,7 +100,7 @@ const CLAIMS: Claim[] = [
   claim({
     id: 'c-4',
     text: 'Fixture Robotics lists the FX-1 from $38,000, with delivery within 12 weeks of an order.',
-    label: 'list price',
+    label: 'per arm',
     type: 'number',
     url: RELEASE,
     start: 391,
@@ -112,7 +112,7 @@ const CLAIMS: Claim[] = [
   claim({
     id: 'c-5',
     text: 'Tarnmoor is due to receive 60 arms by 30 November 2026.',
-    label: 'Tarnmoor delivery schedule',
+    label: 'arms due at Tarnmoor',
     type: 'event',
     url: RELEASE,
     start: 498,
@@ -124,7 +124,7 @@ const CLAIMS: Claim[] = [
   claim({
     id: 'c-6',
     text: 'Fixture Robotics expects to build 500 FX-1 arms in 2027.',
-    label: 'production plan',
+    label: 'FX-1 arms in 2027',
     type: 'event',
     url: RELEASE,
     start: 559,
@@ -136,7 +136,7 @@ const CLAIMS: Claim[] = [
   claim({
     id: 'c-7',
     text: 'Fixture Robotics will use the funds to expand FX-1 production.',
-    label: 'use of funds',
+    label: 'expand FX-1 production',
     type: 'event',
     url: RELEASE,
     start: 620,

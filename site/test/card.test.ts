@@ -116,7 +116,7 @@ describe('cardFigures', () => {
     expect(cardFigures(GOLDEN)).toEqual([
       { value: 'USD 450 million', label: 'funding round', basis: 'filing' },
       { value: '18 per cent', label: 'cycle-time cut', basis: 'measured' },
-      { value: '$38,000', label: 'list price', basis: 'press release' },
+      { value: '$38,000', label: 'per arm', basis: 'press release' },
     ]);
   });
 
@@ -130,7 +130,7 @@ describe('cardFigures', () => {
       copy.claims.find((claim) => claim.id === 'c-17')!.source.tier = 2;
     });
     expect(entry.order[0]).toBe('c-1');
-    expect(cardFigures(entry).map((figure) => figure.label)).toEqual(['cycle-time cut', 'list price', 'measured pick rate']);
+    expect(cardFigures(entry).map((figure) => figure.label)).toEqual(['cycle-time cut', 'per arm', 'measured pick rate']);
     const first = structuredClone(TIER2_PIECE);
     first.order = ['c-19', ...first.order.filter((id) => id !== 'c-19')];
     expect(first.claims.find((claim) => claim.id === 'c-19')!.source.tier).toBe(2);
@@ -181,7 +181,7 @@ describe('cardFigures', () => {
     const entry = entryWith((copy) => {
       copy.order = [...copy.order].reverse();
     });
-    expect(cardFigures(entry).map((figure) => figure.label)).toEqual(['investor count', 'measured pick rate', 'list price']);
+    expect(cardFigures(entry).map((figure) => figure.label)).toEqual(['investor count', 'measured pick rate', 'per arm']);
   });
 });
 
@@ -207,7 +207,7 @@ describe('renderCardSvg', () => {
 
   it('shows the three key figures with their labels', () => {
     expect(textsWithRole(svg, 'figure')).toEqual(['USD 450 million', '18 per cent', '$38,000']);
-    expect(textsWithRole(svg, 'figure-label')).toEqual(['funding round', 'cycle-time cut', 'list price']);
+    expect(textsWithRole(svg, 'figure-label')).toEqual(['funding round', 'cycle-time cut', 'per arm']);
   });
 
   it('writes the basis of each figure under its label, in small type and the quiet colour', () => {
@@ -443,7 +443,7 @@ describe('the layout of the card', () => {
 describe('cardLabel', () => {
   it('names the card, the title and the key figures with where each comes from, so that a reader who cannot see the picture gets them', () => {
     expect(cardLabel(GOLDEN)).toBe(
-      `Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million (filing), cycle-time cut 18 per cent (measured), list price $38,000 (press release))`,
+      `Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million (filing), cycle-time cut 18 per cent (measured), per arm $38,000 (press release))`,
     );
   });
 

@@ -408,7 +408,7 @@ describe('G2_LIMITATION_COVERAGE', () => {
     expect(out.failures[0]).toEqual({
       check: 'G2',
       code: 'G2_LIMITATION_COVERAGE',
-      message: 'claim c-5 (Tarnmoor delivery schedule) has the status "planned", but no limitation sentence with the status template cites it',
+      message: 'claim c-5 (arms due at Tarnmoor) has the status "planned", but no limitation sentence with the status template cites it',
       where: 'c-5',
     });
     expect(out.failures.map((failure) => failure.where)).toEqual(['c-5', 'c-6', 'c-7', 'c-25', 'c-26']);

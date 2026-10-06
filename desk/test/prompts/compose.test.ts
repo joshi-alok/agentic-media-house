@@ -113,7 +113,7 @@ describe('buildComposeUser', () => {
     expect(first?.text).toBe(
       [
         'text: Fixture Robotics lists the FX-1 from $38,000, with delivery within 12 weeks of an order.',
-        'label: list price',
+        'label: per arm',
         'quote: Fixture Robotics lists the FX-1 from $38,000 per arm, with delivery within 12 weeks of an order.',
         'values: number "$38,000"; number "12"; name "Fixture Robotics"; name "FX-1"',
       ].join('\n'),

@@ -36,7 +36,7 @@ const CLEAN = ['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7'].map((id) => prop
 /** A claim from the report of the outlet, which only reports. */
 const REPORTED = {
   text: 'The arm is priced from $38,000.',
-  label: 'list price',
+  label: 'priced from $38,000',
   type: 'number',
   quote: 'The arm is priced from $38,000, the outlet reported.',
   values: [{ kind: 'number', raw: '$38,000', normalised: '38000', unit: 'USD' }],
@@ -163,7 +163,7 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
     expect(result.artifact.dropped).toHaveLength(1);
     expect(result.artifact.dropped[0]).toMatchObject({ index: 1, text: invented.text, reasons: [{ code: 'quote-not-found' }] });
     expect(result.artifact.dropped[0]?.reasons[0]?.message).toContain('the quotation is not on the page: "Fixture Robotics lists the FX-1 from $28,000');
-    expect(result.artifact.claims.map((claim) => claim.label)).toEqual(['Tarnmoor shipment', 'announcement date', 'retrofit mounting', 'Tarnmoor delivery schedule']);
+    expect(result.artifact.claims.map((claim) => claim.label)).toEqual(['second plant', 'deliveries started', 'existing conveyor frames', 'arms due at Tarnmoor']);
   });
 
   it('logs how many claims were proposed, kept and dropped, when some are dropped', async () => {
@@ -180,7 +180,7 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
   });
 
   it('drops a claim with an invented name in its label', async () => {
-    const { ctx } = setup([...CLEAN, proposed('c-3', { label: 'Harlow retrofit mounting' })]);
+    const { ctx } = setup([...CLEAN, proposed('c-3', { label: 'Harlow existing conveyor frames' })]);
     const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(result.artifact.dropped.map((item) => item.reasons.map((reason) => reason.code))).toEqual([['label-not-in-quote']]);
     expect(result.artifact.dropped[0]?.reasons[0]?.message).toBe('the label says what the quotation does not: "Harlow"');
@@ -193,6 +193,24 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
       [7, 'text-not-in-quote'],
       [8, 'text-not-in-quote'],
     ]);
+  });
+
+  it('drops a claim whose label or text has a word that the quotation lacks, and records each reason as a sentence that a person can read', async () => {
+    const label = proposed('c-4', { label: 'list price' });
+    const text = proposed('c-4', { text: 'the harlow dynamics arm lists the FX-1 from $38,000 per arm' });
+    const tooLong = proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' });
+    const { ctx } = setup([...CLEAN, label, text, tooLong]);
+    const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
+    expect(result.artifact.dropped.map((item) => [item.index, item.reasons])).toEqual([
+      [7, [{ code: 'label-not-in-quote', message: 'the label says what the quotation does not: "list", "price"' }]],
+      [8, [{ code: 'text-not-in-quote', message: 'the text says what the quotation does not: "harlow", "dynamics"' }]],
+      [9, [{ code: 'label-too-long', message: 'the label has 7 words, and the longest allowed is 6' }]],
+    ]);
+    const stored = await readArtifact(ctx.runDir, '04-extract', ExtractArtifact);
+    expect(stored.dropped.flatMap((item) => item.reasons.map((reason) => reason.message))).toEqual(
+      result.artifact.dropped.flatMap((item) => item.reasons.map((reason) => reason.message)),
+    );
+    expect(result.artifact.claims).toHaveLength(7);
   });
 
   it('drops a claim with a value that its quotation lacks', async () => {
@@ -226,7 +244,7 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
   it('keeps a quotation as the page has it when the model wrote it with plain quotation marks and one space', async () => {
     const text = `Dana said ${String.fromCharCode(0x201c)}we went live${String.fromCharCode(0x201d)}.\nThe company${String.fromCharCode(0x2019)}s FX-1 arm is on trial.`;
     const page: Snapshot = { ...RELEASE, text };
-    const claim = { ...proposed('c-1'), text: 'Dana said the arm went live.', label: 'go-live', quote: `Dana said "we went live". The company's FX-1 arm is on trial.`, values: [] };
+    const claim = { ...proposed('c-1'), text: 'Dana said the arm went live.', label: 'went live', quote: `Dana said "we went live". The company's FX-1 arm is on trial.`, values: [] };
     const { ctx } = setup([claim, claim, claim]);
     const result = await runExtract(ctx, [page], selectedStory(ARTICLE, null));
     expect(result.artifact.claims[0]?.span).toEqual({ start: 0, end: text.length, quote: text });

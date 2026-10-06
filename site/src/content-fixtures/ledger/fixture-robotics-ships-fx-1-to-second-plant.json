@@ -12,7 +12,7 @@
     {
       "id": "c-1",
       "text": "Fixture Robotics has begun shipping FX-1 warehouse arms to the second Brindle Logistics plant, at Tarnmoor.",
-      "label": "Tarnmoor shipment",
+      "label": "second plant",
       "type": "event",
       "basis": "press-release",
       "status": "unspecified",
@@ -304,8 +304,8 @@
     },
     {
       "id": "c-2",
-      "text": "Fixture Robotics announced the shipments on 1 October 2026.",
-      "label": "announcement date",
+      "text": "Fixture Robotics announced on 1 October 2026 that deliveries have started.",
+      "label": "deliveries started",
       "type": "date",
       "basis": "press-release",
       "status": "unspecified",
@@ -330,8 +330,8 @@
     },
     {
       "id": "c-3",
-      "text": "The FX-1 mounts on existing conveyor frames without a new safety cage.",
-      "label": "retrofit mounting",
+      "text": "The FX-1 mounts on existing conveyor frames and needs no new safety cage.",
+      "label": "existing conveyor frames",
       "type": "spec",
       "basis": "press-release",
       "status": "unspecified",
@@ -357,7 +357,7 @@
     {
       "id": "c-4",
       "text": "Fixture Robotics lists the FX-1 from $38,000, with delivery within 12 weeks of an order.",
-      "label": "list price",
+      "label": "per arm",
       "type": "number",
       "basis": "press-release",
       "status": "unspecified",
@@ -559,7 +559,7 @@
     {
       "id": "c-5",
       "text": "Tarnmoor is due to receive 60 arms by 30 November 2026.",
-      "label": "Tarnmoor delivery schedule",
+      "label": "arms due at Tarnmoor",
       "type": "event",
       "basis": "press-release",
       "status": "planned",
@@ -812,7 +812,7 @@
     {
       "id": "c-7",
       "text": "Fixture Robotics will use the funds to expand FX-1 production.",
-      "label": "use of funds",
+      "label": "expand FX-1 production",
       "type": "event",
       "basis": "press-release",
       "status": "planned",
@@ -843,7 +843,7 @@
     {
       "id": "c-6",
       "text": "Fixture Robotics expects to build 500 FX-1 arms in 2027.",
-      "label": "production plan",
+      "label": "FX-1 arms in 2027",
       "type": "event",
       "basis": "press-release",
       "status": "planned",
@@ -1356,7 +1356,7 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The Tarnmoor shipment, announcement date, retrofit mounting and $38,000 list price figures come from a company press release; no independent measurement was available.",
+      "text": "The second plant, deliveries started, existing conveyor frames and $38,000 per arm figures come from a company press release; no independent measurement was available.",
       "claimIds": [
         "c-1",
         "c-2",
@@ -1369,7 +1369,7 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The 60 Tarnmoor delivery schedule, 500 production plan, use of funds and pilot-to-production time figures come from a company press release; no independent measurement was available.",
+      "text": "The 60 arms due at Tarnmoor, 500 FX-1 arms in 2027, expand FX-1 production and pilot-to-production time figures come from a company press release; no independent measurement was available.",
       "claimIds": [
         "c-5",
         "c-6",
@@ -1417,7 +1417,7 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The Tarnmoor delivery schedule, production plan, use of funds and Tarnmoor use are planned, not delivered.",
+      "text": "The arms due at Tarnmoor, FX-1 arms in 2027, expand FX-1 production and Tarnmoor use are planned, not delivered.",
       "claimIds": [
         "c-5",
         "c-6",

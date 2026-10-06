@@ -1,4 +1,4 @@
-import { dateMatches, defaultConfig as defaultGateConfig, extractTokens, normaliseQuotes, openingWordAccepted, valueInQuote, wordSet } from '@robywire/gate';
+import { dateMatches, defaultConfig as defaultGateConfig, extractTokens, isSentenceStarter, normaliseQuotes, openingWordAccepted, sentenceWords, toNameToken, valueInQuote, wordSet } from '@robywire/gate';
 import type { Basis, ClaimValue } from '@robywire/gate';
 import type { SourceKind } from '../index';
 
@@ -10,6 +10,26 @@ import type { SourceKind } from '../index';
 
 /** The longest quotation a claim may have: what the claim schema allows and what the gate's configuration says. */
 export const MAX_QUOTE_LENGTH = defaultGateConfig().spanMax;
+
+/** The most words a label may have: a label is a short name for a claim, and it is printed in the notes under "What we couldn't verify", on the receipts page and on the fact card. */
+export const MAX_LABEL_WORDS = 6;
+
+/**
+ * The plain words of four letters or more that the text of a claim may use although the quotation does not have them: words of
+ * grammar and nothing else. There is no noun in the list, no verb that says what happens, no word that names a company or a
+ * product, no negation (`cannot`, `never`, `without`), no word that changes how much or when (`only`, `over`, `under`, `about`,
+ * `after`, `will`, `than`), and no modal (`could`, `would`). Every other word of four letters or more in the text must be a word
+ * of the quotation. The prompt of the Extract stage prints this list, so the model is told exactly what the code allows.
+ */
+export const COMMON_WORDS: readonly string[] = Object.freeze([
+  'also', 'been', 'being', 'does', 'from', 'have', 'into', 'itself', 'onto', 'that', 'their', 'them', 'there', 'these', 'they', 'this',
+  'those', 'through', 'upon', 'were', 'what', 'which', 'whom', 'whose', 'with',
+]);
+
+const COMMON_SET: ReadonlySet<string> = new Set(COMMON_WORDS);
+
+/** The words of fewer than four letters that still change what a sentence says, so that they too must be words of the quotation. */
+const SHORT_NEGATIONS: ReadonlySet<string> = new Set(['no', 'not', 'nor', 'non']);
 
 /**
  * What each kind of page may be the basis of, which is what the claim says its figure rests on. A company's own page is a
@@ -44,6 +64,7 @@ export const CLAIM_PROBLEM_CODES = [
   'value-not-in-quote',
   'text-not-in-quote',
   'label-not-in-quote',
+  'label-too-long',
   'basis-not-allowed',
   'tier-basis',
 ] as const;
@@ -109,6 +130,9 @@ const excerpt = (text: string, length = 80): string => (text.length <= length ? 
 /** `text` with its double quotation marks taken out, so that the words between a pair are read like the rest. */
 const unquoted = (text: string): string => normaliseQuotes(text).replaceAll('"', ' ');
 
+/** Does `word` have four letters or more, not counting digits and signs? */
+const longWord = (word: string): boolean => word.replace(/[^\p{L}]/gu, '').length >= 4;
+
 /**
  * What a sentence of a claim (its text, or its label) says that the quotation does not: the numbers and the dates that it reads
  * (with `extractTokens`, the reader of the gate), the amounts in words that have no value to compare, the capitalised words in the
@@ -134,6 +158,55 @@ function beyondQuote(sentence: string, quote: string, allowList: ReadonlySet<str
   return missing;
 }
 
+/** `items` without the ones that `listed` already has (compared in lowercase) and without repeats. */
+function additional(items: readonly string[], listed: readonly string[]): string[] {
+  const seen = new Set(listed.map((item) => item.toLowerCase()));
+  const result: string[] = [];
+  for (const item of items) {
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
+/**
+ * The words of the text of a claim that go beyond its quotation: a word of four letters or more (or one of `no`, `not`, `nor`, `non`)
+ * that is not a word of the quotation, not in COMMON_WORDS and not on the allow-list. A word with a hyphen is read by its parts, so
+ * "tote-picking" is as good as "tote picking". A word with a digit in it is a figure, which `beyondQuote` reads, and so are the numbers,
+ * the dates and the amounts in words, with their units, which are taken out of the text before its words are read.
+ */
+function wordsBeyondQuote(text: string, quote: string, allowList: ReadonlySet<string>): string[] {
+  const there = wordSet([quote]);
+  const found: string[] = [];
+  // The figures, the dates and the amounts in words are read by `beyondQuote`, with their units: they are taken out before the words are.
+  const own = extractTokens(unquoted(text));
+  let rest = ` ${unquoted(text)} `;
+  for (const raw of [...own.numbers.map((number) => number.raw), ...own.dates.map((date) => date.raw), ...own.uncheckable]) rest = rest.replaceAll(raw, ' ');
+  for (const word of sentenceWords(rest)) {
+    if (/\p{N}/u.test(word)) continue;
+    for (const part of word.split('-')) {
+      const token = toNameToken(part);
+      if (!longWord(token) && !SHORT_NEGATIONS.has(token)) continue;
+      if (!there.has(token) && !COMMON_SET.has(token) && !allowList.has(token)) found.push(part);
+    }
+  }
+  return found;
+}
+
+/**
+ * The words of the label of a claim that are not words of the quotation: every word of a label (a short name) must be a whole word of
+ * the quotation, in any case, or a plain word that may start a sentence (`SENTENCE_STARTERS`), or on the allow-list. A word with a hyphen
+ * passes when it is a word of the quotation or when each of its parts is one.
+ */
+function labelWordsBeyondQuote(label: string, quote: string, allowList: ReadonlySet<string>): string[] {
+  const there = wordSet([quote]);
+  const plain = (word: string): boolean => there.has(toNameToken(word)) || isSentenceStarter(word) || allowList.has(toNameToken(word));
+  // A word with a hyphen is as good as the whole word of the quotation, or as all its parts are.
+  return sentenceWords(unquoted(label)).filter((word) => !plain(word) && !(word.includes('-') && word.split('-').every(plain)));
+}
+
 /** What goes wrong with the basis of a claim from this kind of page, or undefined when the basis fits. */
 function basisProblem(basis: Basis, kind: SourceKind): ClaimProblem | undefined {
   if (ALLOWED_BASES[kind].includes(basis)) return undefined;
@@ -153,7 +226,11 @@ function basisProblem(basis: Basis, kind: SourceKind): ClaimProblem | undefined 
  * 2. Each value the claim lists is inside the quotation as a whole token, compared as the gate compares it (`valueInQuote`, G4_VALUE_NOT_IN_SPAN):
  *    a 2 is not in "12 weeks".
  * 3. The text, and then the label, say nothing that the quotation does not: no number, date, amount in words or capitalised word
- *    that is not in it (see `beyondQuote`). The text and the label are read by no check of the gate.
+ *    that is not in it (see `beyondQuote`). The text and the label are read by no check of the gate. And words: every word of the
+ *    label is a word of the quotation, a plain word that may start a sentence or on the allow-list, and the label is at most
+ *    MAX_LABEL_WORDS words long; every word of the text of four letters or more is a word of the quotation, or one of COMMON_WORDS,
+ *    or on the allow-list, and so is every negation (`no`, `not`, `nor`, `non`). A lowercase name or an assertion in the text or the label
+ *    ("harlow", "never fails", "cannot lift") is therefore a reason to drop the claim.
  * 4. The basis is one that the kind of page allows (ALLOWED_BASES) and agrees with the tier, as check G6 requires.
  */
 export function claimProblems(claim: ClaimCandidate, page: string, kind: SourceKind, allowList: ReadonlySet<string>): ClaimProblem[] {
@@ -171,15 +248,16 @@ export function claimProblems(claim: ClaimCandidate, page: string, kind: SourceK
         problems.push({ code: 'value-not-in-quote', message: `the value "${excerpt(value.raw)}" is not in the quotation` });
       }
     }
-    for (const [code, field, sentence] of [
-      ['text-not-in-quote', 'text', claim.text],
-      ['label-not-in-quote', 'label', claim.label],
-    ] as const) {
-      const beyond = beyondQuote(sentence, passage, allowList);
-      if (beyond.length > 0) {
-        problems.push({ code, message: `the ${field} says what the quotation does not: ${beyond.map((item) => `"${excerpt(item, 40)}"`).join(', ')}` });
-      }
-    }
+    const shown = (items: readonly string[]): string => items.map((item) => `"${excerpt(item, 40)}"`).join(', ');
+    const inText = additional(beyondQuote(claim.text, passage, allowList), []);
+    const textBeyond = [...inText, ...additional(wordsBeyondQuote(claim.text, passage, allowList), inText)];
+    if (textBeyond.length > 0) problems.push({ code: 'text-not-in-quote', message: `the text says what the quotation does not: ${shown(textBeyond)}` });
+    const inLabel = additional(beyondQuote(claim.label, passage, allowList), []);
+    const labelWords = sentenceWords(unquoted(claim.label)).length;
+    const labelBeyond = [...inLabel, ...additional(labelWordsBeyondQuote(claim.label, passage, allowList), inLabel)];
+    if (labelBeyond.length > 0) problems.push({ code: 'label-not-in-quote', message: `the label says what the quotation does not: ${shown(labelBeyond)}` });
+    else if (labelWords === 0) problems.push({ code: 'label-not-in-quote', message: 'the label has no word' });
+    if (labelWords > MAX_LABEL_WORDS) problems.push({ code: 'label-too-long', message: `the label has ${labelWords} words, and the longest allowed is ${MAX_LABEL_WORDS}` });
   }
   const basis = basisProblem(claim.basis, kind);
   if (basis !== undefined) problems.push(basis);

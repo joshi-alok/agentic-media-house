@@ -129,7 +129,7 @@ describe('replayRun: what it finds that is not as the run left it', () => {
     expect(report.artifacts.find((artifact) => artifact.name === '04-extract')).toEqual({
       name: '04-extract',
       status: 'different',
-      detail: 'claims[0].label: stored "a label that the run never wrote", replayed "Tarnmoor shipment"',
+      detail: 'claims[0].label: stored "a label that the run never wrote", replayed "second plant"',
     });
     expect(report.artifacts.filter((artifact) => artifact.status === 'equal').map((artifact) => artifact.name)).toEqual(['05-compose', '06-verify']);
   });
@@ -170,8 +170,8 @@ describe('replayRun: what it finds that is not as the run left it', () => {
       return (await replayRun(dir, replay)).artifacts[0]?.detail ?? null;
     };
     // The text of a value is its JSON, with the quotes: 58 characters make 60, which is shown in full; 59 make 61, which is cut.
-    expect(await detailOf('a'.repeat(58))).toBe(`claims[0].label: stored "${'a'.repeat(58)}", replayed "Tarnmoor shipment"`);
-    expect(await detailOf('a'.repeat(59))).toBe(`claims[0].label: stored ${JSON.stringify('a'.repeat(59)).slice(0, 57)}..., replayed "Tarnmoor shipment"`);
+    expect(await detailOf('a'.repeat(58))).toBe(`claims[0].label: stored "${'a'.repeat(58)}", replayed "second plant"`);
+    expect(await detailOf('a'.repeat(59))).toBe(`claims[0].label: stored ${JSON.stringify('a'.repeat(59)).slice(0, 57)}..., replayed "second plant"`);
   });
 
   it('says what differs when a value is not of the kind the replay made: a list for an object, an object for a list, an object for a text', async () => {

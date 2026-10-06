@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EXTRACT_INSTRUCTIONS, MAX_CLAIMS, buildExtractUser, extractSystem } from '../../src/prompts/extract';
 import type { ExtractSource } from '../../src/prompts/extract';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
-import { MAX_QUOTE_LENGTH } from '../../src/stages/claim-grounding';
+import { COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH } from '../../src/stages/claim-grounding';
 import { blocksOf, outsideBlocks } from '../support/prompts';
 
 // The words that the Extract stage says to a model. What matters here is not the wording but the rules that the wording
@@ -37,6 +37,15 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('may contain only numbers, dates and capitalised words that appear in the quote');
     expect(EXTRACT_INSTRUCTIONS).toContain('write "the arm", not "the FX-1", when the quote only says "the arm"');
     expect(EXTRACT_INSTRUCTIONS).toContain('("twice", "half", "doubled")');
+  });
+
+  it('says that every word of the label is a word of the quote, at most six of them, and that the words of the text are the quote\'s or the plain words that the code allows, which it lists', () => {
+    expect(MAX_LABEL_WORDS).toBe(6);
+    expect(EXTRACT_INSTRUCTIONS).toContain('a short name for the claim, at most 6 words, made of words of the quote');
+    expect(EXTRACT_INSTRUCTIONS).toContain('Every word of the label must be a word of the quote (the same word and not another form of it: "weeks" is not "week")');
+    expect(EXTRACT_INSTRUCTIONS).toContain(`Every word of the text of four letters or more must be a word of the quote, or one of these plain words: ${COMMON_WORDS.join(', ')}.`);
+    expect(EXTRACT_INSTRUCTIONS).toContain('Write "no" or "not" only if the quote does.');
+    expect(EXTRACT_INSTRUCTIONS).toContain('no "cannot", "never", "without", "only", "more than"');
   });
 
   it('says how many claims at most, what to leave out, and that a report of another outlet does not name the outlet', () => {

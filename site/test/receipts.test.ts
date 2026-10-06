@@ -18,10 +18,11 @@ describe('receiptsView: the claims', () => {
     ]);
   });
 
-  it('carries the label, the text and the quoted span of each claim', () => {
+  it('carries the label and the quoted span of each claim, and not the text, which a model paraphrased', () => {
     const first = view.claims[0]!;
-    expect(first.label).toBe('Tarnmoor shipment');
-    expect(first.text).toBe('Fixture Robotics has begun shipping FX-1 warehouse arms to the second Brindle Logistics plant, at Tarnmoor.');
+    expect(first.label).toBe('second plant');
+    expect('text' in first).toBe(false);
+    for (const claim of view.claims) expect(Object.keys(claim), claim.id).not.toContain('text');
     expect(first.quote).toBe(
       'Fixture Robotics has begun shipping FX-1 warehouse arms, built for tote picking and trailer unloading, to Brindle Logistics for its second plant, at Tarnmoor.',
     );

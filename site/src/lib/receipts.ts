@@ -10,8 +10,10 @@ export interface ReceiptClaim {
   marker: number;
   id: string;
   label: string;
-  text: string;
-  /** The passage of the source that supports the claim, word for word. */
+  /**
+   * The passage of the source that supports the claim, word for word. It is the evidence. The page shows it with the label and
+   * not the `text` of the claim, which is a model's paraphrase of it: a reader is shown what the source says and not what a model said it says.
+   */
   quote: string;
   source: { url: string; tier: 1 | 2; outlet?: string; retrievedAt: string };
   /** The first 12 characters of the snapshot hash. */
@@ -84,7 +86,6 @@ export function receiptsView(ledger: LedgerEntry): ReceiptsView {
       marker: at + 1,
       id,
       label: claim.label,
-      text: claim.text,
       quote: claim.span.quote,
       source: outlet === undefined ? { url, tier, retrievedAt } : { url, tier, outlet, retrievedAt },
       hash: claim.source.snapshotHash.slice(0, 12),
