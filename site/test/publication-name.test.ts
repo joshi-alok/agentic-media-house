@@ -47,8 +47,11 @@ describe('the code of the site', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('does not carry the old name, except in the names that it stays in', () => {
-    const offenders = sources.filter(({ text }) => OLD_NAME.test(withoutInternalNames(text))).map(({ name }) => name);
+  it('does not carry the old name, except in the names that it stays in and in the check of the audit that looks for it', () => {
+    const offenders = sources
+      .filter(({ name }) => name !== path.join('scripts', 'audit', 'checks-files.mjs'))
+      .filter(({ text }) => OLD_NAME.test(withoutInternalNames(text)))
+      .map(({ name }) => name);
     expect(offenders).toEqual([]);
   });
 

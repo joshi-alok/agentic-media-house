@@ -32,7 +32,7 @@ describe('the audit command', () => {
   it('exits 0 and says it passed for a site that keeps every rule', () => {
     const { code, output } = audit(['--dir', build()]);
     expect(code).toBe(0);
-    expect(output).toContain('Passed: 16 checks.');
+    expect(output).toContain('Passed: 17 checks.');
     expect(output).toContain('ok    A1');
     expect(output).not.toContain('production build');
   });
@@ -41,7 +41,7 @@ describe('the audit command', () => {
     const { code, output } = audit(['--prod', '--dir', build()]);
     expect(code).toBe(0);
     expect(output).toContain('(production build)');
-    expect(output).toContain('Passed: 17 checks.');
+    expect(output).toContain('Passed: 18 checks.');
   });
 
   it('exits 1 and prints the problem under its check when a rule is broken', () => {
@@ -50,7 +50,17 @@ describe('the audit command', () => {
     expect(code).toBe(1);
     expect(output).toContain('FAIL  A4');
     expect(output).toContain('- index.html: has an <img> element');
-    expect(output).toContain('FAILED: 1 problem in 1 of 16 checks.');
+    expect(output).toContain('FAILED: 1 problem in 1 of 17 checks.');
+  });
+
+  it('exits 1 and names the file when the old name of the publication is in the build, with or without --prod', () => {
+    const dir = build({ 'rss.xml': '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Robywire</title></channel></rss>' }); // the old name, on purpose
+    for (const args of [['--dir', dir], ['--prod', '--dir', dir]]) {
+      const { code, output } = audit(args);
+      expect(code).toBe(1);
+      expect(output).toContain('FAIL  A18');
+      expect(output).toContain('- rss.xml: contains the old name, in ');
+    }
   });
 
   it('lets fixture content through without --prod and stops it with --prod', () => {

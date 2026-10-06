@@ -9,8 +9,8 @@ const run = (changes: Record<string, string | null> = {}, prod = false) => runCh
 const failed = (results: ReturnType<typeof run>) => results.filter((result) => !result.ok).map((result) => result.id);
 
 describe('CHECKS', () => {
-  it('lists the checks A1 to A17 in order, each with a title of its own', () => {
-    expect(CHECKS.map((check) => check.id)).toEqual(Array.from({ length: 17 }, (_, index) => `A${index + 1}`));
+  it('lists the checks A1 to A18 in order, each with a title of its own', () => {
+    expect(CHECKS.map((check) => check.id)).toEqual(Array.from({ length: 18 }, (_, index) => `A${index + 1}`));
     const titles = CHECKS.map((check) => check.title);
     expect(new Set(titles).size).toBe(titles.length);
     for (const title of titles) expect(title.length).toBeGreaterThan(10);
@@ -39,6 +39,12 @@ describe('runChecks', () => {
     const changes = { 'index.html': smallPage('/', 'Home', '<div class="ribbon">FIXTURE DATA &mdash; not real reporting</div>') };
     expect(failed(run(changes))).toEqual([]);
     expect(failed(run(changes, true))).toEqual(['A13']);
+  });
+
+  it('fails A18 and nothing else when the old name of the publication is in a feed, in a fixture build and in a production build', () => {
+    const changes = { 'rss.xml': '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Robywire</title></channel></rss>' }; // the old name, on purpose
+    expect(failed(run(changes))).toEqual(['A18']);
+    expect(failed(run(changes, true))).toEqual(['A18']);
   });
 
   it('fails the checks that the breakage belongs to, and only those', () => {

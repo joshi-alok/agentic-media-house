@@ -94,7 +94,7 @@ Run everything from the repository root.
 | `npm run evals:verifier` | Run the labelled set of sixty sentences through a verifier and print precision and recall (see The verifier evals). |
 | `npm run build` | The production build, into `site/dist`. It reads `site/src/content/`, which has no pieces yet. |
 | `npm run build:fixtures` | The fixture build, into `site/dist` (see Fixtures below). |
-| `npm run audit` | Run the checks A1 to A12 and A14 to A17 on `site/dist`: HTML, links, receipts, the fact card, CSS rules, colours, feeds. Exits 1 on any problem. |
+| `npm run audit` | Run the checks A1 to A12 and A14 to A18 on `site/dist`: HTML, links, receipts, the fact card, CSS rules, colours, feeds, and that the old name of the publication is nowhere in the build. Exits 1 on any problem. |
 | `npm run audit:prod` | The same, plus A13: the build has no trace of the fixtures. Run it after `npm run build`. |
 | `npm run lighthouse` | Measure the fixture build in `site/dist` with Lighthouse (home page, lead article and its receipts page, and the first article that carries the Unconfirmed. label with its receipts page) and fail if any score is under 95. |
 | `npm run verify` | The checks in CI order: typecheck, tests, seeded evals, fixture drift, the Desk demo, production build, production audit, fixture build, fixture audit, Lighthouse. |

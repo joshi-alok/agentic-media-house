@@ -1,4 +1,4 @@
-import { checkCrawlFiles, checkNoFixtureLeakage, checkXmlWellFormed } from './checks-files.mjs';
+import { checkCrawlFiles, checkNoFixtureLeakage, checkNoOldName, checkXmlWellFormed } from './checks-files.mjs';
 import { checkArticlePages, checkClaimMarkers, checkFactCard, checkInternalLinks, checkUnconfirmedLabel } from './checks-links.mjs';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from './checks-markup.mjs';
 import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from './checks-style.mjs';
@@ -38,6 +38,7 @@ export const CHECKS = [
   { id: 'A15', title: 'robots.txt, the sitemap, the feed and the 404 page are there and agree', run: checkCrawlFiles },
   { id: 'A16', title: 'An article that cites a claim from another outlet carries the Unconfirmed. label', run: checkUnconfirmedLabel },
   { id: 'A17', title: 'Every article shows its fact card, a labelled figure with an inline SVG', run: checkFactCard },
+  { id: 'A18', title: 'The old name of the publication is nowhere in the build: no page, feed, sitemap, card or robots file has it, and no file is named after it', run: checkNoOldName },
 ];
 
 /**

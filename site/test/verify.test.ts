@@ -75,6 +75,10 @@ describe('the README', () => {
     }
   });
 
+  it('lists the checks of the audit that run on every build: A1 to A12 and A14 to A18', () => {
+    expect(readme).toContain('Run the checks A1 to A12 and A14 to A18 on `site/dist`');
+  });
+
   it('names the Node version Lighthouse needs, and the fixture flag', () => {
     expect(readme).toContain('22.19');
     expect(readme).toContain('ROBYWIRE_FIXTURES=1');

@@ -2,9 +2,9 @@ import { result } from './result.mjs';
 import { xmlProblem } from './xml.mjs';
 
 // The checks about the files of the build as a whole: no fixture content in a
-// production build, XML that is well-formed, and the files that crawlers and
-// feed readers look for. Every check takes the model of the site (see site.mjs)
-// and returns { id, ok, problems }.
+// production build, no trace of the old name of the publication, XML that is
+// well-formed, and the files that crawlers and feed readers look for. Every
+// check takes the model of the site (see site.mjs) and returns { id, ok, problems }.
 
 /** What gives away fixture content: the ribbon, the fictional company, and the slug of its pieces. */
 const FIXTURE_TEXT = [
@@ -29,6 +29,40 @@ export function checkNoFixtureLeakage(site) {
     }
   }
   return result('A13', problems);
+}
+
+/** The old name of the publication, in any case. It is the name of things that the code is built from, and of no page, feed or card. */
+const OLD_NAME = /robywire/i;
+
+/**
+ * What stands around the first place where `text` has the old name: twenty characters before it and twenty after it, on one line.
+ * @param {string} text
+ * @returns {string}
+ */
+function around(text) {
+  const found = /** @type {RegExpExecArray} */ (OLD_NAME.exec(text));
+  return text
+    .slice(Math.max(0, found.index - 20), found.index + found[0].length + 20)
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * A18: the old name of the publication is nowhere in the build: no page, feed, sitemap, card, stylesheet or robots file has it, in any case,
+ * and no file is named after it. This holds for the production build and for the fixture build. The check is strict: the names that the old
+ * name stays in (the npm scope @robywire/*, the variable ROBYWIRE_FIXTURES, the folders that tests make) are never written into a build
+ * either, so a build that has one of them is a build that has leaked something, and the check says so.
+ * @param {import('./site.mjs').Site} site
+ */
+export function checkNoOldName(site) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const file of [...site.paths].sort()) {
+    if (OLD_NAME.test(file)) problems.push(`${file}: is named after the old name`);
+    const text = site.files.get(file);
+    if (text !== undefined && OLD_NAME.test(text)) problems.push(`${file}: contains the old name, in "${around(text)}"`);
+  }
+  return result('A18', problems);
 }
 
 /**

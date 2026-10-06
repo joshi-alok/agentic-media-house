@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { checkHtmlParses, checkMetadata, checkNoImages, checkOneHeading, checkSkipLink } from '../scripts/audit/checks-markup.mjs';
-import { checkCrawlFiles, checkNoFixtureLeakage, checkXmlWellFormed } from '../scripts/audit/checks-files.mjs';
+import { checkCrawlFiles, checkNoFixtureLeakage, checkNoOldName, checkXmlWellFormed } from '../scripts/audit/checks-files.mjs';
 import { checkArticlePages, checkClaimMarkers, checkFactCard, checkInternalLinks, checkUnconfirmedLabel } from '../scripts/audit/checks-links.mjs';
 import { checkColourLaw, checkHairlines, checkNoItalics, checkNoWebFonts } from '../scripts/audit/checks-style.mjs';
 import { siteFromFiles } from '../scripts/audit/site.mjs';
@@ -647,6 +647,78 @@ describe('A13 checkNoFixtureLeakage', () => {
       'index.html: contains "fixture-robotics"',
       'news/fixture-robotics-ships-fx-1/card.png: is named after a fixture',
     ]);
+  });
+});
+
+describe('A18 checkNoOldName', () => {
+  // The old name of the publication is written here and nowhere else in this file: the check must refuse it in any case.
+  const OLD = 'Robywire'; // the old name, on purpose
+  const ODD = 'rObYwIrE'; // the old name in odd capitals, on purpose
+
+  it('accepts a build that says the new name everywhere', () => {
+    const files = {
+      'index.html': page('<h1>Agentic Media House</h1>'),
+      'rss.xml': '<rss><channel><title>Agentic Media House</title></channel></rss>',
+      'robots.txt': 'User-agent: *\nAllow: /\n',
+      'n/card.svg': '<svg><text>AGENTIC MEDIA HOUSE</text></svg>',
+      '_astro/a.css': 'a{margin:0}',
+    };
+    expect(checkNoOldName(site(files, ['n/card.png']))).toEqual(ok('A18'));
+  });
+
+  it.each([OLD, OLD.toUpperCase(), OLD.toLowerCase(), ODD])('rejects the old name written as %s', (name) => {
+    expect(checkNoOldName(site({ 'rss.xml': `<title>${name}</title>` }))).toEqual({
+      id: 'A18',
+      ok: false,
+      problems: [`rss.xml: contains the old name, in "<title>${name}</title>"`],
+    });
+  });
+
+  it('rejects it in a page, a feed, a sitemap, a card, a robots file and a stylesheet, and lists the files in order', () => {
+    const files = {
+      'index.html': page(`<h1>${OLD}</h1>`),
+      'rss.xml': `<title>${OLD}</title>`,
+      'sitemap-0.xml': `<loc>https://${OLD.toLowerCase()}.example/</loc>`,
+      'n/card.svg': `<text>${OLD.toUpperCase()}</text>`,
+      'robots.txt': `# ${OLD}\nUser-agent: *\n`,
+      '_astro/a.css': `/* ${OLD} */`,
+    };
+    expect(checkNoOldName(site(files)).problems.map((problem) => problem.split(': ')[0])).toEqual([
+      '_astro/a.css',
+      'index.html',
+      'n/card.svg',
+      'robots.txt',
+      'rss.xml',
+      'sitemap-0.xml',
+    ]);
+  });
+
+  it('rejects a file that is named after the old name, even when its text is clean', () => {
+    const problems = checkNoOldName(site({ 'index.html': page('<h1>x</h1>') }, [`news/${OLD.toLowerCase()}/card.png`])).problems;
+    expect(problems).toEqual([`news/${OLD.toLowerCase()}/card.png: is named after the old name`]);
+  });
+
+  it('says what stands around the name, twenty characters before it and twenty after it, and says each file once', () => {
+    const dots = '.'.repeat(30);
+    const problems = checkNoOldName(site({ 'a.txt': `${dots}${OLD}${dots} ${OLD}` })).problems;
+    expect(problems).toEqual([`a.txt: contains the old name, in "${'.'.repeat(20)}${OLD}${'.'.repeat(20)}"`]);
+  });
+
+  it('shows the text on one line, however many lines it was on', () => {
+    expect(checkNoOldName(site({ 'a.txt': `one\n  two ${OLD}\n\nthree` })).problems).toEqual([`a.txt: contains the old name, in "one two ${OLD} three"`]);
+  });
+
+  it('shows the name without the spaces that would stand at the edge of what is shown', () => {
+    expect(checkNoOldName(site({ 'a.txt': `  \n ${OLD} \n  ` })).problems).toEqual([`a.txt: contains the old name, in "${OLD}"`]);
+  });
+
+  it('is strict: the names that the old name stays in (the npm scope, the variable of the fixtures) are not allowed in a build either', () => {
+    const files = { 'a.txt': 'import x from "@robywire/gate"', 'b.txt': 'ROBYWIRE_FIXTURES=1' };
+    expect(checkNoOldName(site(files)).problems).toHaveLength(2);
+  });
+
+  it('looks only at the name of a file that is not text', () => {
+    expect(checkNoOldName(site({ 'index.html': page('<h1>x</h1>') }, ['n/card.png', 'x/font.woff2']))).toEqual(ok('A18'));
   });
 });
 
