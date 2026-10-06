@@ -116,7 +116,8 @@ describe('the package entry point: fetching', () => {
   it('does not export the stages or their prompts', () => {
     const stages = ['runDiscover', 'runSelect', 'runFetch', 'shortlistOf', 'loadPublishedIndex', 'emptyPublished', 'selectSystem', 'buildSelectUser'];
     const extraction = ['locateQuote', 'claimProblems', 'runExtract', 'extractReplySchema', 'kindOfSnapshot', 'extractSystem', 'buildExtractUser'];
-    for (const name of [...stages, ...extraction]) {
+    const assembly = ['slugFromTitle', 'ComposeReply', 'ReplySentence', 'assembleDraft', 'finishDraft'];
+    for (const name of [...stages, ...extraction, ...assembly]) {
       expect(entry).not.toHaveProperty(name);
     }
   });
