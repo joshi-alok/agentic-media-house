@@ -161,6 +161,16 @@ const VerifyRound = z.strictObject({
   sent: z.array(text),
 });
 
+/** The two facts about the passes that every record of a verification must have: one for the draft of the composer and one for each revision round, numbered in order. */
+function checkHistory(record: { rounds: number; history: readonly { round: number }[] }, context: z.RefinementCtx): void {
+  if (record.history.length !== record.rounds + 1) {
+    context.addIssue({ code: 'custom', path: ['history'], message: 'there must be one pass for the draft of the composer and one for each revision round' });
+  }
+  if (record.history.some((pass, at) => pass.round !== at)) {
+    context.addIssue({ code: 'custom', path: ['history'], message: 'the passes must be numbered 0, 1, 2 and so on, in order' });
+  }
+}
+
 /**
  * What the Verify stage decided: `publish` only when the gate cleared the last draft and the model check passed, otherwise `hold`; how many
  * revision rounds were used; the gate and the model check of the last draft; and every pass, in order.
@@ -175,17 +185,33 @@ export const VerifyArtifact = z
     history: z.array(VerifyRound).min(1),
   })
   .superRefine((artifact, context) => {
-    if (artifact.history.length !== artifact.rounds + 1) {
-      context.addIssue({ code: 'custom', path: ['history'], message: 'there must be one pass for the draft of the composer and one for each revision round' });
-    }
-    if (artifact.history.some((pass, at) => pass.round !== at)) {
-      context.addIssue({ code: 'custom', path: ['history'], message: 'the passes must be numbered 0, 1, 2 and so on, in order' });
-    }
+    checkHistory(artifact, context);
     if (artifact.outcome === 'publish' && !(artifact.gate.route === 'publish' && artifact.verifier.passed)) {
       context.addIssue({ code: 'custom', path: ['outcome'], message: 'a piece is published only when the gate says publish and the model check passed' });
     }
   });
 export type VerifyArtifact = z.infer<typeof VerifyArtifact>;
+
+/**
+ * A draft that was held: what the owner needs to see why, and to release it later without the Desk's help. It is the last draft, the claims
+ * it cites, what the gate and the model check said of it and every pass that led there, and the reasons the hold records in the desk state (the codes
+ * of the gate's failures, the gate's hold reasons and the reasons of the model check). It is written to `held/<slug>.json` in the folder of the run.
+ */
+export const HeldArtifact = z
+  .strictObject({
+    date: isoDate,
+    slug: text,
+    runId: text,
+    reasons: z.array(text).min(1),
+    draft: Draft,
+    claims: z.array(Claim),
+    rounds: z.number().int().nonnegative(),
+    gate: GateReport,
+    verifier: VerifierRecord,
+    history: z.array(VerifyRound).min(1),
+  })
+  .superRefine(checkHistory);
+export type HeldArtifact = z.infer<typeof HeldArtifact>;
 
 /** The folder of the run of a day: `<runsDir>/<date>`. The date must be a real day, so that a date can never name a path elsewhere. */
 export function runPath(runsDir: string, date: string): string {
@@ -202,17 +228,25 @@ function fileOf(dir: string, name: string): string {
 }
 
 /**
- * Check `value` against `schema` and write it to `<dir>/<name>.json`: JSON with two-space indents, the keys of every
- * object in sorted order (so the same artifact is the same bytes on every run) and a final newline. The write is
- * atomic, and an artifact that does not match its schema is not written at all. Returns the path of the file.
+ * Check `value` against `schema` and write it to `file`: JSON with two-space indents, the keys of every object in sorted order (so the same
+ * record is the same bytes on every run) and a final newline. The write is atomic, and a value that does not match its schema is not written at all.
+ * `label` names the file in the error.
  */
-export async function writeArtifact<T>(dir: string, name: string, value: unknown, schema: z.ZodType<T>): Promise<string> {
-  const file = fileOf(dir, name);
+export async function writeJsonFile<T>(file: string, label: string, value: unknown, schema: z.ZodType<T>): Promise<void> {
   const parsed = schema.safeParse(value);
-  if (!parsed.success) throw new Error(`the artifact ${name}.json does not match its schema: ${describeIssues(parsed.error)}`);
+  if (!parsed.success) throw new Error(`${label} does not match its schema: ${describeIssues(parsed.error)}`);
   // canonicalJson sorts the keys; reading it back and writing it again with indents keeps that order.
   const body = JSON.stringify(JSON.parse(canonicalJson(parsed.data)), null, 2);
   await writeFileAtomic(file, `${body}\n`);
+}
+
+/**
+ * Write an artifact to `<dir>/<name>.json` (see `writeJsonFile`) and return the path of the file. An artifact that does not match its
+ * schema is not written at all, and neither is its folder.
+ */
+export async function writeArtifact<T>(dir: string, name: string, value: unknown, schema: z.ZodType<T>): Promise<string> {
+  const file = fileOf(dir, name);
+  await writeJsonFile(file, `the artifact ${name}.json`, value, schema);
   return file;
 }
 

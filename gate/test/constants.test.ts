@@ -11,7 +11,9 @@ import {
   RELEASES,
   SAFE_BASES,
   STATUSES,
+  VERIFIER_REASONS,
 } from '../src/constants';
+import { ALL_FAILURE_CODES, HOLD_REASONS } from '../src/checks';
 
 describe('closed vocabularies', () => {
   it('lists the seven beats from the content contract, in contract order', () => {
@@ -49,6 +51,15 @@ describe('closed vocabularies', () => {
     ]);
     expect(STATUSES).toEqual(['demonstrated', 'deployed', 'planned', 'unspecified']);
     expect(CLAIM_TYPES).toEqual(['number', 'date', 'name', 'spec', 'quote', 'event']);
+  });
+
+  it('names the four reasons the model check gives for a hold, each a G10 code of its own and none a code of G1 to G9 or a hold reason of the gate', () => {
+    expect(VERIFIER_REASONS).toEqual(['G10_NOT_ENTAILED', 'G10_AMBIGUOUS', 'G10_LABEL_UNSUPPORTED', 'G10_NOT_JUDGED']);
+    for (const reason of VERIFIER_REASONS) {
+      expect(reason).toMatch(/^G10_[A-Z_]+$/);
+      expect(ALL_FAILURE_CODES).not.toContain(reason);
+      expect(HOLD_REASONS as readonly string[]).not.toContain(reason);
+    }
   });
 
   it('names the two ways a piece comes to be published', () => {

@@ -93,6 +93,14 @@ export type Release = (typeof RELEASES)[number];
 export const RUN_OUTCOMES = ['published', 'no-story', 'held', 'failed'] as const;
 export type RunOutcome = (typeof RUN_OUTCOMES)[number];
 
+/**
+ * Why the model check (G10, which the Desk runs and the gate does not) held a piece, as the Desk records it in a hold, beside the failure
+ * codes and the hold reasons of the gate: a sentence or a heading the passages do not entail, one the verifier could not judge, a claim whose basis
+ * or status its passage does not support, and an item the verifier gave no verdict on. The site gives each a label, and a test there fails if one has none.
+ */
+export const VERIFIER_REASONS = ['G10_NOT_ENTAILED', 'G10_AMBIGUOUS', 'G10_LABEL_UNSUPPORTED', 'G10_NOT_JUDGED'] as const;
+export type VerifierReason = (typeof VERIFIER_REASONS)[number];
+
 export const CORRECTION_KINDS = ['correction', 'retraction'] as const;
 export type CorrectionKind = (typeof CORRECTION_KINDS)[number];
 

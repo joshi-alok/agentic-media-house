@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_FAILURE_CODES, HOLD_REASONS } from '@robywire/gate';
+import { ALL_FAILURE_CODES, HOLD_REASONS, VERIFIER_REASONS } from '@robywire/gate';
 import { REASON_LABELS, reasonLabel } from '../src/lib/reasons';
 
 // The holds page tells a reader why the gate stopped a draft. The gate reports
@@ -19,8 +19,13 @@ describe('REASON_LABELS', () => {
     expect(missing).toEqual([]);
   });
 
+  it('has a label for every reason the model check can give for a hold', () => {
+    const missing = VERIFIER_REASONS.filter((code) => !Object.hasOwn(REASON_LABELS, code));
+    expect(missing).toEqual([]);
+  });
+
   it('has no label for a code that does not exist, so a removed code does not leave a stale label', () => {
-    const known = new Set<string>([...ALL_FAILURE_CODES, ...HOLD_REASONS]);
+    const known = new Set<string>([...ALL_FAILURE_CODES, ...HOLD_REASONS, ...VERIFIER_REASONS]);
     const stale = Object.keys(REASON_LABELS).filter((code) => !known.has(code));
     expect(stale).toEqual([]);
   });

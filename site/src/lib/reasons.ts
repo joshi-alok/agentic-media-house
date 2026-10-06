@@ -1,6 +1,7 @@
-// Plain words for the codes the gate reports. The holds page shows a label
-// beside each code. site/test/reasons.test.ts fails when the gate gains a
-// failure code or a hold reason that has no label here.
+// Plain words for the codes the gate reports, and for the reasons the model
+// check gives (VERIFIER_REASONS of the gate package). The holds page shows a
+// label beside each code. site/test/reasons.test.ts fails when the gate gains a
+// failure code or a hold reason, or the model check a reason, that has no label here.
 
 export const REASON_LABELS: Readonly<Record<string, string>> = {
   G1_TITLE_EMPTY: 'The title was empty',
@@ -51,6 +52,10 @@ export const REASON_LABELS: Readonly<Record<string, string>> = {
   G9_TITLE_DUPLICATE: 'The title was too close to a recent one',
   G9_BANNED_PHRASE: 'A banned filler phrase was used',
   TIER2_ATTRIBUTION: "Rests on another outlet's reporting",
+  G10_NOT_ENTAILED: 'A sentence said more than its sources say',
+  G10_AMBIGUOUS: 'The model check could not tell if a sentence was supported',
+  G10_LABEL_UNSUPPORTED: 'A claim carried a basis or status its source does not support',
+  G10_NOT_JUDGED: 'The model check gave no verdict on a sentence',
 };
 
 /** The words for a failure code or hold reason. A code with no label is returned as it is, never hidden. */

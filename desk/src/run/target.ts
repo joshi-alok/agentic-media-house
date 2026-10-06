@@ -65,6 +65,11 @@ export interface PublishTarget {
 /** A slug is a file name, so it is held to the shape that the renderer and the gate give every slug: nothing that could name another folder. */
 const PLAIN_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** Whether `slug` is lowercase letters and digits joined by single hyphens, which is the only kind of slug that is safe as a file name. */
+export function isPlainSlug(slug: string): boolean {
+  return PLAIN_SLUG.test(slug);
+}
+
 async function exists(file: string): Promise<boolean> {
   try {
     await stat(file);
@@ -83,7 +88,7 @@ async function check(repoDir: string, paths: SitePaths, change: TargetChange): P
   const files: string[] = [];
   if (change.piece !== undefined) {
     const { slug } = change.piece;
-    if (!PLAIN_SLUG.test(slug)) throw new Error(`"${slug}" is not a plain slug (lowercase letters and digits joined by single hyphens), and a slug is a file name`);
+    if (!isPlainSlug(slug)) throw new Error(`"${slug}" is not a plain slug (lowercase letters and digits joined by single hyphens), and a slug is a file name`);
     for (const file of [paths.newsFile(slug), paths.ledgerFile(slug)]) {
       if (await exists(path.join(repoDir, file))) throw new Error(`${file} is already there, so the slug "${slug}" is taken: the Desk never overwrites a piece`);
       files.push(file);

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { addHold, readDeskState, recordRun } from '../../src/run/desk-state';
 import type { LastRun } from '../../src/run/desk-state';
 import { COMMIT_TRAILER, FakeGit, GitCli } from '../../src/run/git';
-import { DryTarget, SiteTarget, sitePaths } from '../../src/run/target';
+import { DryTarget, SiteTarget, isPlainSlug, sitePaths } from '../../src/run/target';
 import type { TargetChange } from '../../src/run/target';
 import { useScratch } from '../support/context';
 import { COMMITTED_STATE, filesBelow, makeSite } from '../support/site';
@@ -45,6 +45,16 @@ describe('sitePaths', () => {
     expect(paths.newsFile('fixture-piece')).toBe(NEWS);
     expect(paths.ledgerFile('fixture-piece')).toBe(LEDGER);
     expect(sitePaths('web').stateFile).toBe('web/src/data/desk-state.json');
+  });
+});
+
+describe('isPlainSlug', () => {
+  it('accepts lowercase letters and digits joined by single hyphens', () => {
+    for (const slug of ['a', '7', 'fx-1', 'fixture-robotics-ships-fx-1-to-second-plant', '2026-10-05']) expect(isPlainSlug(slug), slug).toBe(true);
+  });
+
+  it('refuses anything else: capitals, spaces, dots, slashes, a hyphen at either end or twice, and nothing', () => {
+    for (const slug of ['', 'A', 'a b', 'a.b', 'a/b', '../a', '-a', 'a-', 'a--b', 'a_b', `caf${String.fromCharCode(0xe9)}`]) expect(isPlainSlug(slug), slug).toBe(false);
   });
 });
 

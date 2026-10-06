@@ -5,7 +5,7 @@ import { defaultContext, runGate } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Candidate, ComposeArtifact, DiscoverArtifact, ExtractArtifact, FetchArtifact, GateReport, SelectArtifact, VerifyArtifact, candidateId, readArtifact, runPath, writeArtifact } from '../../src/run/artifacts';
+import { Candidate, ComposeArtifact, DiscoverArtifact, ExtractArtifact, FetchArtifact, GateReport, HeldArtifact, SelectArtifact, VerifyArtifact, candidateId, readArtifact, runPath, writeArtifact, writeJsonFile } from '../../src/run/artifacts';
 import { sha256Hex } from '../../src/model/types';
 import { RUN_DATE, candidate } from '../support/candidates';
 
@@ -74,6 +74,11 @@ const verifyArtifact = (): VerifyArtifact => ({
     { round: 1, gate: gateReport(), verifier: verifierRecord(), verifierFailures: [], sent: [] },
   ],
 });
+
+const heldArtifact = (): HeldArtifact => {
+  const { date, rounds, gate, verifier, history } = verifyArtifact();
+  return { date, slug: GOLDEN_DRAFT.slug, runId: '2026-10-05-043100', reasons: ['G4_NUMBER_UNSUPPORTED'], draft: structuredClone(GOLDEN_DRAFT), claims: structuredClone(GOLDEN_CLAIMS.slice(0, 3)), rounds, gate, verifier, history };
+};
 
 /** What parsing `value` with `schema` reports, or '' if it is valid. */
 const problem = (schema: z.ZodType, value: unknown): string => {
@@ -372,6 +377,50 @@ describe('VerifyArtifact', () => {
     empty.history[1] = { ...(empty.history[1] as object), verifierFailures: [{ id: 's3', kind: 'sentence', code: 'not_entailed', reason: '' }] } as never;
     expect(problem(VerifyArtifact, empty)).toBe('history.1.verifierFailures.0.reason: Too small: expected string to have >=1 characters');
     expect(problem(VerifyArtifact, { ...verifyArtifact(), note: 'x' })).toBe(': Unrecognized key: "note"');
+  });
+});
+
+describe('HeldArtifact', () => {
+  it('accepts a held draft with the reasons for the hold, the claims it cites and every pass that led there', () => {
+    expect(problem(HeldArtifact, heldArtifact())).toBe('');
+    expect(problem(HeldArtifact, { ...heldArtifact(), reasons: ['TIER2_ATTRIBUTION', 'G10_NOT_ENTAILED'], claims: [] })).toBe('');
+  });
+
+  it('accepts a draft that was held at once, with one pass and no revision', () => {
+    const { history, ...rest } = heldArtifact();
+    expect(problem(HeldArtifact, { ...rest, rounds: 0, history: [{ ...history[1], round: 0 }] })).toBe('');
+  });
+
+  it('refuses a hold with no reason, or with an empty one', () => {
+    expect(problem(HeldArtifact, { ...heldArtifact(), reasons: [] })).not.toBe('');
+    expect(problem(HeldArtifact, { ...heldArtifact(), reasons: [''] })).toContain('reasons.0:');
+  });
+
+  it('refuses a history that does not fit the rounds, or is not numbered in order, as the record of the verification does', () => {
+    expect(problem(HeldArtifact, { ...heldArtifact(), rounds: 3 })).toBe('history: there must be one pass for the draft of the composer and one for each revision round');
+    expect(problem(HeldArtifact, { ...heldArtifact(), history: [...heldArtifact().history].reverse() })).toBe('history: the passes must be numbered 0, 1, 2 and so on, in order');
+  });
+
+  it('refuses a draft or a claim that is not valid, an empty slug or run id, and a field it does not know', () => {
+    expect(problem(HeldArtifact, { ...heldArtifact(), draft: { ...structuredClone(GOLDEN_DRAFT), slug: 'Not A Slug' } })).toBe('draft.slug: slug must be lowercase kebab-case');
+    expect(problem(HeldArtifact, { ...heldArtifact(), claims: [{ id: 'c-1' }] })).toContain('claims.0.');
+    expect(problem(HeldArtifact, { ...heldArtifact(), slug: '' })).toContain('slug:');
+    expect(problem(HeldArtifact, { ...heldArtifact(), runId: '' })).toContain('runId:');
+    expect(problem(HeldArtifact, { ...heldArtifact(), note: 'x' })).toBe(': Unrecognized key: "note"');
+  });
+});
+
+describe('writeJsonFile', () => {
+  it('writes a value to the file it is given in the form of an artifact: sorted keys, two-space indents, a final newline', async () => {
+    const file = path.join(freshDir(), 'held', 'a-piece.json');
+    await writeJsonFile(file, 'the held draft', { b: 1, a: { d: 2, c: 3 } }, z.object({ a: z.object({ c: z.number(), d: z.number() }), b: z.number() }));
+    expect(readFileSync(file, 'utf8')).toBe('{\n  "a": {\n    "c": 3,\n    "d": 2\n  },\n  "b": 1\n}\n');
+  });
+
+  it('writes nothing for a value that does not match, and names the file in the error', async () => {
+    const file = path.join(freshDir(), 'held', 'a-piece.json');
+    await expect(writeJsonFile(file, 'the held draft a-piece.json', { a: 'x' }, z.object({ a: z.number() }))).rejects.toThrow('the held draft a-piece.json does not match its schema: a:');
+    expect(existsSync(path.dirname(file))).toBe(false);
   });
 });
 

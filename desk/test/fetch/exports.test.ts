@@ -20,6 +20,7 @@ import type {
   GateReport,
   GitCliOptions,
   GitTarget,
+  HeldArtifact,
   HttpFetcherOptions,
   Hold,
   LastRun,
@@ -59,6 +60,8 @@ const VALUES = [
   'GateReport',
   'ComposeArtifact',
   'VerifyArtifact',
+  'HeldArtifact',
+  'writeJsonFile',
   'runPath',
   'writeArtifact',
   'readArtifact',
@@ -99,6 +102,7 @@ const VALUES = [
   'sitePaths',
   'SiteTarget',
   'DryTarget',
+  'isPlainSlug',
 ];
 
 describe('the package entry point: fetching', () => {
@@ -118,6 +122,7 @@ describe('the package entry point: fetching', () => {
       GateReport,
       ComposeArtifact,
       VerifyArtifact,
+      HeldArtifact,
       ParsedRobots,
       RobotsRule,
       RobotsGroup,
@@ -161,7 +166,7 @@ describe('the package entry point: fetching', () => {
     const composition = ['runCompose', 'gateContextOf', 'composeSystem', 'buildComposeUser', 'provenance', 'PLACE'];
     const verification = ['verifyPlanOf', 'VerifyReply', 'aggregateVerdicts', 'runVerifier', 'verifySystem', 'buildVerifyUser'];
     const revision = ['runVerify', 'reviseDraft', 'problemsOf', 'reviseReplySchema', 'reviseSystem', 'buildReviseUser'];
-    const publication = ['runPublish'];
+    const publication = ['runPublish', 'runHold', 'holdReasonsOf'];
     for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision, ...publication]) {
       expect(entry).not.toHaveProperty(name);
     }
