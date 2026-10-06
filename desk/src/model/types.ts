@@ -8,7 +8,8 @@ import { z } from 'zod';
 // the user message, in the blocks that `wrapSource` makes.
 
 /** The four jobs a model does in the pipeline. The config names the model for each. */
-export type ModelRole = 'select' | 'extract' | 'compose' | 'verify';
+export const MODEL_ROLES = ['select', 'extract', 'compose', 'verify'] as const;
+export type ModelRole = (typeof MODEL_ROLES)[number];
 
 /** One question to a model, and the shape the answer must have. */
 export interface ModelRequest<T> {
@@ -50,7 +51,7 @@ export interface ModelClient {
  */
 export type ModelErrorKind = 'transport' | 'schema' | 'budget' | 'unrecorded' | 'refused';
 
-/** The only error a `ModelClient` throws. */
+/** The error a `ModelClient` throws when a call fails. */
 export class ModelError extends Error {
   readonly kind: ModelErrorKind;
   /** True only for a transport error that is worth trying again (a 429 or a 5xx); false for every other kind. */
