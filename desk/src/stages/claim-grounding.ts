@@ -1,4 +1,4 @@
-import { dateMatches, defaultConfig as defaultGateConfig, extractTokens, normaliseQuotes, openingWordAccepted, wordSet } from '@robywire/gate';
+import { dateMatches, defaultConfig as defaultGateConfig, extractTokens, normaliseQuotes, openingWordAccepted, valueInQuote, wordSet } from '@robywire/gate';
 import type { Basis, ClaimValue } from '@robywire/gate';
 import type { SourceKind } from '../index';
 
@@ -150,7 +150,8 @@ function basisProblem(basis: Basis, kind: SourceKind): ClaimProblem | undefined 
  *
  * 1. The quotation is on the page (`locateQuote`) and, as the page has it, is at most MAX_QUOTE_LENGTH characters.
  *    While the quotation is not on the page the next three checks have nothing to read, so they are not made.
- * 2. Each value the claim lists is inside the quotation, compared as the gate compares it (G4_VALUE_NOT_IN_SPAN).
+ * 2. Each value the claim lists is inside the quotation as a whole token, compared as the gate compares it (`valueInQuote`, G4_VALUE_NOT_IN_SPAN):
+ *    a 2 is not in "12 weeks".
  * 3. The text, and then the label, say nothing that the quotation does not: no number, date, amount in words or capitalised word
  *    that is not in it (see `beyondQuote`). The text and the label are read by no check of the gate.
  * 4. The basis is one that the kind of page allows (ALLOWED_BASES) and agrees with the tier, as check G6 requires.
@@ -165,9 +166,8 @@ export function claimProblems(claim: ClaimCandidate, page: string, kind: SourceK
     if (passage.length > MAX_QUOTE_LENGTH) {
       problems.push({ code: 'quote-too-long', message: `the passage quoted is ${passage.length} characters, and the longest allowed is ${MAX_QUOTE_LENGTH}` });
     }
-    const folded = normaliseQuotes(passage);
     for (const value of claim.values) {
-      if (!folded.includes(normaliseQuotes(value.raw))) {
+      if (!valueInQuote(value.raw, passage)) {
         problems.push({ code: 'value-not-in-quote', message: `the value "${excerpt(value.raw)}" is not in the quotation` });
       }
     }

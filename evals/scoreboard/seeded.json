@@ -1,6 +1,6 @@
 {
-  "total": 58,
-  "caught": 58,
+  "total": 59,
+  "caught": 59,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -247,6 +247,13 @@
       "check": "G4",
       "code": "G4_VALUE_NOT_IN_SPAN",
       "description": "A claim lists a value that is not in the quotation it says it was taken from.",
+      "caught": true
+    },
+    {
+      "id": "value-inside-longer-number",
+      "check": "G4",
+      "code": "G4_VALUE_NOT_IN_SPAN",
+      "description": "A claim lists the value 2, which is only the end of the 12 in its quotation, and the sentences that cite it give a delivery time of 2 weeks.",
       "caught": true
     },
     {

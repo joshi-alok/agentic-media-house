@@ -5,8 +5,9 @@ import { defaultContext } from '../src/config';
 import type { ContextOverrides } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import type { Failure, GateInput } from '../src/gate';
+import { runGate } from '../src/gate';
 import type { Claim, ClaimValue } from '../src/schemas';
-import { claimById, findSentence, mutate } from './helpers';
+import { allSentences, claimById, findSentence, mutate } from './helpers';
 
 // --- A tiny input: a title that cites the given claims, and nothing else. ----
 
@@ -864,6 +865,43 @@ describe('G4_VALUE_NOT_IN_SPAN', () => {
   it('puts the failure after the sentence failures', () => {
     const claim = claimOf([num('12 kg', '12', 'kg')], { span: { start: 0, end: 5, quote: 'Other' } });
     expect(codes(mini('It lifts 13 kg.', [claim]))).toEqual(['G4_NUMBER_UNSUPPORTED', 'G4_VALUE_NOT_IN_SPAN']);
+  });
+});
+
+describe('G4_VALUE_NOT_IN_SPAN: a value is in its quotation as a whole token', () => {
+  it.each([
+    ['2', 'delivery within 12 weeks of an order'],
+    ['3', 'a top speed of 2.3 m/s'],
+    ['5', 'it lifts 12.5 kg'],
+    ['200', 'ships 1,200 units'],
+  ])('fails for the value %s in "%s", although the sentence says it', (raw, quote) => {
+    const claim = claimOf([num(raw, raw)], { span: { start: 0, end: quote.length, quote } });
+    const out = run(mini(`The figure is ${raw}.`, [claim]));
+    expect(out.failures).toEqual([
+      {
+        check: 'G4',
+        code: 'G4_VALUE_NOT_IN_SPAN',
+        message: `claim c-1 lists the value "${raw}", which does not appear in its quoted span`,
+        where: 'c-1',
+      },
+    ]);
+  });
+
+  it('passes the same values when the quotation has them as whole tokens', () => {
+    const claim = claimOf([num('12', '12'), num('2.3 m/s', '2.3', 'm/s')], { span: { start: 0, end: 40, quote: 'It takes 12 weeks and moves at 2.3 m/s.' } });
+    expect(codes(mini('It takes 12 weeks and moves at 2.3 m/s.', [claim]))).toEqual([]);
+  });
+
+  it('fails the golden piece when a figure is changed to a part of the figure in the quotation: every 12 weeks says 2 weeks and the claim lists 2', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      const c4 = claimOfId(g, 'c-4');
+      c4.values = c4.values.map((value) => (value.raw === '12' ? { ...value, raw: '2', normalised: '2' } : value));
+      for (const { sentence } of allSentences(g.draft)) sentence.text = sentence.text.replaceAll('12 weeks', '2 weeks');
+    });
+    expect(allSentences(input.draft).some(({ sentence }) => sentence.text.includes('2 weeks'))).toBe(true);
+    const out = runGate(input, defaultContext());
+    expect(out.failures.map((failure) => [failure.check, failure.code, failure.where])).toEqual([['G4', 'G4_VALUE_NOT_IN_SPAN', 'c-4']]);
+    expect(out.route).toBe('revise');
   });
 });
 

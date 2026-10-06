@@ -1,3 +1,4 @@
+import { allSentences } from '@robywire/gate';
 import type { SeededCase } from '../seeded';
 import { claimOf, sentenceWith } from './support';
 
@@ -116,6 +117,19 @@ export const CLAIMS_CASES: SeededCase[] = [
     description: 'A claim lists a value that is not in the quotation it says it was taken from.',
     apply: (base) => {
       claimOf(base, 'c-13').span.quote = 'Arm mass: 39 kg.';
+      return base;
+    },
+  },
+  {
+    id: 'value-inside-longer-number',
+    check: 'G4',
+    code: 'G4_VALUE_NOT_IN_SPAN',
+    description:
+      'A claim lists the value 2, which is only the end of the 12 in its quotation, and the sentences that cite it give a delivery time of 2 weeks.',
+    apply: (base) => {
+      const claim = claimOf(base, 'c-4');
+      claim.values = claim.values.map((value) => (value.raw === '12' ? { ...value, raw: '2', normalised: '2' } : value));
+      for (const { sentence } of allSentences(base.draft)) sentence.text = sentence.text.replaceAll('12 weeks', '2 weeks');
       return base;
     },
   },

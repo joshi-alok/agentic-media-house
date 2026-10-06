@@ -208,6 +208,24 @@ describe('claimProblems: the values', () => {
     expect(codesOf(clean({ values: [name('Harlow Logistics')] }))).toEqual(['value-not-in-quote']);
   });
 
+  it.each([
+    ['2', 'a number that ends a longer number (12)'],
+    ['3', 'the first digit of a longer number ($38,000)'],
+    ['38', 'the thousands of a number with a comma ($38,000)'],
+    ['000', 'the last group of a number with a comma ($38,000)'],
+    ['Robot', 'the start of a longer word (Robotics)'],
+    ['week', 'the start of a longer word (weeks)'],
+  ])('drops a claim whose value %s is only a part of a longer figure or word: %s', (raw) => {
+    const claim = clean({ values: [number(raw, raw)] });
+    expect(codesOf(claim)).toEqual(['value-not-in-quote']);
+  });
+
+  it('keeps a claim whose values stand as whole tokens in the quotation, at the end of a sentence too', () => {
+    const page = 'The FX-1 lifts 2.3 kg. It ships in 12 weeks.';
+    const claim = clean({ text: 'The FX-1 lifts 2.3 kg and ships in 12 weeks.', label: 'lead time', quote: page, values: [number('2.3 kg', '2.3', 'kg'), number('12', '12'), number('2.3', '2.3')] });
+    expect(codesOf(claim, 'company-newsroom', page)).toEqual([]);
+  });
+
   it('says once for every value that is missing', () => {
     const problems = claimProblems(clean({ values: [number('7', '7'), name('Harlow'), name('FX-1')] }), PAGE, 'company-newsroom', ALLOW);
     expect(problems.map((problem) => problem.code)).toEqual(['value-not-in-quote', 'value-not-in-quote']);

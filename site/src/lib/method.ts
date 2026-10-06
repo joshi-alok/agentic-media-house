@@ -45,7 +45,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G4',
       name: 'Values',
-      text: `The reader of the gate finds the numbers, dates and capitalised names in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a sentence may open with a capitalised word only if it is an ordinary function word or a word of a claim the sentence cites; a section heading has no number, date or quotation and no capitalised word that no claim cited in that section contains; and every value a claim lists is really in its quoted passage.`,
+      text: `The reader of the gate finds the numbers, dates and capitalised names in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a sentence may open with a capitalised word only if it is an ordinary function word or a word of a claim the sentence cites; a section heading has no number, date or quotation and no capitalised word that no claim cited in that section contains; and every value a claim lists is really in its quoted passage, as a whole word or number (a 2 is not found inside "12 weeks" or "2.3").`,
     },
     {
       id: 'G5',

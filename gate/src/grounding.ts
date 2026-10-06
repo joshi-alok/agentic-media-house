@@ -88,3 +88,40 @@ export function openingWordAccepted(word: string, grounded: ReadonlySet<string>,
   const token = comparable(word);
   return STARTER_SET.has(token) || grounded.has(token) || allowList.has(token);
 }
+
+const LETTER_OR_DIGIT = /^[\p{L}\p{N}]$/u;
+const DIGIT = /^\p{N}$/u;
+
+/** The last character of `text`, which may be one that takes two UTF-16 units; the empty string for no text. */
+const lastCharacter = (text: string): string => Array.from(text.slice(-2)).at(-1) ?? '';
+
+/** The first character of `text`, which may be one that takes two UTF-16 units; the empty string for no text. */
+const firstCharacter = (text: string): string => Array.from(text.slice(0, 2))[0] ?? '';
+
+/**
+ * Is `raw`, a value that a claim lists, in `quote`, the passage the claim was taken from, as a whole token? The two are
+ * compared as the gate compares text everywhere (`normaliseQuotes`: any kind of space is one space, curly quotation marks
+ * and long dashes are the plain ones), and the case counts. Where `raw` stands, the character before it and the character
+ * after it must not be a letter or a digit, so 2 is not in "12 weeks", "Acme" is not in "Acmeville" and "twelve" is not in
+ * "twelves". A dot or a comma that joins a digit at the edge of `raw` to the next digit is no edge either: 2 is not in
+ * "2.3" or in "1,200", and 200 is not in "1,200", while 12 is in "12." at the end of a sentence and in "12, 13". When the
+ * value stands in more than one place one whole place is enough. A value that is empty is in no quotation.
+ */
+export function valueInQuote(raw: string, quote: string): boolean {
+  const wanted = normaliseQuotes(raw);
+  const text = normaliseQuotes(quote);
+  if (wanted === '') return false;
+  const startsWithDigit = DIGIT.test(firstCharacter(wanted));
+  const endsWithDigit = DIGIT.test(lastCharacter(wanted));
+  for (let at = text.indexOf(wanted); at >= 0; at = text.indexOf(wanted, at + 1)) {
+    const end = at + wanted.length;
+    const before = lastCharacter(text.slice(0, at));
+    const after = firstCharacter(text.slice(end));
+    if (LETTER_OR_DIGIT.test(before) || LETTER_OR_DIGIT.test(after)) continue;
+    // "1,200" and "2.3": a dot or a comma between two digits is part of one number.
+    if (startsWithDigit && (before === '.' || before === ',') && DIGIT.test(lastCharacter(text.slice(0, at - 1)))) continue;
+    if (endsWithDigit && (after === '.' || after === ',') && DIGIT.test(firstCharacter(text.slice(end + 1)))) continue;
+    return true;
+  }
+  return false;
+}

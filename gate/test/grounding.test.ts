@@ -6,6 +6,7 @@ import {
   claimWords,
   isSentenceStarter,
   openingWordAccepted,
+  valueInQuote,
   wordSet,
 } from '../src/grounding';
 import { claimById } from './helpers';
@@ -146,5 +147,82 @@ describe('openingWordAccepted', () => {
     ['an ordinary noun that nothing supports', 'Plans', false],
   ])('%s: %s is %s', (_why, word, expected) => {
     expect(openingWordAccepted(word, grounded, allowed)).toBe(expected);
+  });
+});
+
+describe('valueInQuote', () => {
+  // A value is in its quotation only as a whole token: the character before it and the character after it are not a
+  // letter or a digit, and a dot or a comma that joins a digit of the value to the next digit of a number does not count
+  // as an edge either. So 2 is not in 12 weeks, 2.3 m/s, 1,200 or 2k, but 12 is in "12 weeks" and in "12."
+  it.each([
+    ['a number followed by a word', '12', 'delivery within 12 weeks of an order'],
+    ['a number at the end of a sentence', '12', 'delivery within 12.'],
+    ['a number that is the whole quotation', '12', '12'],
+    ['a number in brackets', '12', 'delivery (12) weeks'],
+    ['a decimal number', '2.3', 'a top speed of 2.3 m/s'],
+    ['a number with a thousands comma', '1,200', 'ships 1,200 units'],
+    ['a money amount with its magnitude', '$450 million', 'raised a $450 million round'],
+    ['a money amount at the end of a sentence', '$450 million', 'raised $450 million.'],
+    ['a number with its unit', '12 kg', 'Rated payload: 12 kg'],
+    ['a number in a list', '2', 'items 1, 2, 3'],
+    ['the second place where it stands, after one that is part of a longer number', '2', 'in 12 weeks or 2 weeks'],
+    ['a year at the end of a sentence', '2027', 'builds 500 arms in 2027.'],
+    ['a date', '30 November 2026', 'due by 30 November 2026.'],
+    ['a number written in words', 'twelve', 'within twelve weeks'],
+    ['a name', 'Fixture Robotics', 'Fixture Robotics has begun shipping'],
+    ['a name that is followed by a possessive', 'Acme', "made by Acme's arm"],
+    ['a name with a digit in it', 'FX-1', 'the FX-1 arm'],
+    ['a name in quotation marks', 'Acme', 'the "Acme" arm'],
+  ])('finds %s: %s in "%s"', (_why, raw, quote) => {
+    expect(valueInQuote(raw, quote)).toBe(true);
+  });
+
+  it.each([
+    ['inside a longer number', '2', 'delivery within 12 weeks of an order'],
+    ['at the start of a longer number', '1', 'delivery within 12 weeks of an order'],
+    ['inside a decimal number, before its dot', '2', 'a top speed of 2.3 m/s'],
+    ['inside a decimal number, after its dot', '3', 'a top speed of 2.3 m/s'],
+    ['as the whole number of a decimal number', '12', 'it lifts 12.5 kg'],
+    ['as the decimals of a decimal number', '5', 'it lifts 12.5 kg'],
+    ['as the first group of a number with a thousands comma', '1', 'ships 1,200 units'],
+    ['as the last group of a number with a thousands comma', '200', 'ships 1,200 units'],
+    ['as the decimals of a number that is the first thing of the quotation', '5', '1.5 kg is the payload'],
+    ['as the last group of a number with a thousands comma that is the first thing of the quotation', '200', '1,200 units shipped'],
+    ['in front of a letter', '2', 'a 2k run'],
+    ['after a letter', '2', 'in Q2 the company'],
+    ['inside a name that has a digit after it', 'FX-1', 'the FX-10 arm'],
+    ['inside a longer word', 'twelve', 'within twelves of weeks'],
+    ['at the end of a longer word', 'twelve', 'within untwelve weeks'],
+    ['at the start of a longer name', 'Acme', 'the Acmeville plant'],
+    ['at the start of a longer word with a letter outside ASCII', 'Zo', `the Zo${String.fromCharCode(0xeb)}trope`],
+    ['when it is not there', '13', 'delivery within 12 weeks of an order'],
+    ['when it is written differently in the quotation', '12', 'delivery within twelve weeks'],
+    ['when the case differs', 'Acme', 'made by acme'],
+    ['when it is empty', '', 'delivery within 12 weeks'],
+    ['when it is only white space', ' ', 'delivery within 12 weeks'],
+  ])('does not find it %s: %s in "%s"', (_why, raw, quote) => {
+    expect(valueInQuote(raw, quote)).toBe(false);
+  });
+
+  it('reads white space, quotation marks and dashes as the gate does everywhere else', () => {
+    const nbsp = String.fromCharCode(0xa0);
+    const curly = String.fromCharCode(0x2019);
+    const dash = String.fromCharCode(0x2013);
+    expect(valueInQuote('12 kg', `Rated payload: 12${nbsp}kg`)).toBe(true);
+    expect(valueInQuote('12  kg', 'Rated payload: 12 kg')).toBe(true);
+    expect(valueInQuote(`Acme${curly}s`, "Acme's arm")).toBe(true);
+    expect(valueInQuote("Acme's", `Acme${curly}s arm`)).toBe(true);
+    expect(valueInQuote('FX-1', `the FX${dash}1 arm`)).toBe(true);
+  });
+
+  it('finds a value at the very start and at the very end of the quotation', () => {
+    expect(valueInQuote('12', '12 weeks')).toBe(true);
+    expect(valueInQuote('weeks', '12 weeks')).toBe(true);
+  });
+
+  it('treats a letter outside the basic plane as a letter, and a mark that is no letter as an edge', () => {
+    const letter = String.fromCodePoint(0x1d4d0);
+    expect(valueInQuote('2', `${letter}2`)).toBe(false);
+    expect(valueInQuote('2', `${String.fromCodePoint(0x1f916)}2`)).toBe(true);
   });
 });

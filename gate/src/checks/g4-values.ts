@@ -2,9 +2,9 @@ import type { Check, Failure } from '../gate';
 import { canonicalUnit, dateMatches, parseDateToken, parseNumberToken } from '../normalise';
 import type { ParsedNumber } from '../normalise';
 import type { Claim, ClaimValue } from '../schemas';
-import { claimWords, openingWordAccepted } from '../grounding';
+import { claimWords, openingWordAccepted, valueInQuote } from '../grounding';
 import { allSentences, describeLocation } from '../sentences';
-import { hasQuoted, normaliseQuotes } from '../text';
+import { hasQuoted } from '../text';
 import { extractTokens, nameTokensOf, toNameToken } from '../tokens';
 
 /** Every failure code G4 can report. */
@@ -39,7 +39,8 @@ const claimDate = (value: ClaimValue): string => parseDateToken(value.raw)?.iso 
 /**
  * G4, values: every number, date and name in a fact sentence must come from a
  * claim that sentence cites, and every value a cited claim lists must really
- * be in the claim's quoted span.
+ * be in the claim's quoted span, as a whole token (`valueInQuote`): a 2 is not
+ * in "12 weeks", in "2.3" or in "1,200", whatever a model writes as the raw text.
  *
  * A number matches a claim number with the same canonical value, and the same
  * canonical unit if the sentence gives one. A number written out in words
@@ -178,8 +179,7 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
 
   // Each claim is checked once, however many sentences cite it.
   for (const claim of citedByFacts.values()) {
-    const quote = normaliseQuotes(claim.span.quote);
-    const missing = claim.values.find((value) => !quote.includes(normaliseQuotes(value.raw)));
+    const missing = claim.values.find((value) => !valueInQuote(value.raw, claim.span.quote));
     if (missing !== undefined) {
       failures.push({
         check: 'G4',
