@@ -5,8 +5,9 @@ import { defaultContext, runGate } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Candidate, ComposeArtifact, DiscoverArtifact, ExtractArtifact, FetchArtifact, GateReport, HeldArtifact, SelectArtifact, VerifyArtifact, candidateId, readArtifact, runPath, writeArtifact, writeJsonFile } from '../../src/run/artifacts';
+import { Candidate, ComposeArtifact, DiscoverArtifact, ExtractArtifact, FetchArtifact, GateReport, HeldArtifact, RunRecord, SelectArtifact, VerifyArtifact, candidateId, readArtifact, readJsonFile, runPath, writeArtifact, writeJsonFile } from '../../src/run/artifacts';
 import { sha256Hex } from '../../src/model/types';
+import { defaultConfig } from '../../src/config';
 import { RUN_DATE, candidate } from '../support/candidates';
 
 // The artifacts are the Desk's record of a run: one JSON file per stage, in a folder named for the day.
@@ -79,6 +80,24 @@ const heldArtifact = (): HeldArtifact => {
   const { date, rounds, gate, verifier, history } = verifyArtifact();
   return { date, slug: GOLDEN_DRAFT.slug, runId: '2026-10-05-043100', reasons: ['G4_NUMBER_UNSUPPORTED'], draft: structuredClone(GOLDEN_DRAFT), claims: structuredClone(GOLDEN_CLAIMS.slice(0, 3)), rounds, gate, verifier, history };
 };
+
+const COMMIT = 'a'.repeat(40);
+const runRecord = (): RunRecord => ({
+  runId: '2026-10-05-043100',
+  date: RUN_DATE,
+  startedAt: '2026-10-05T04:31:00.000Z',
+  finishedAt: '2026-10-05T04:33:10.000Z',
+  outcome: 'published',
+  stage: 'publish',
+  reason: null,
+  slug: 'fixture-robotics-ships-fx-1',
+  commit: COMMIT,
+  dry: false,
+  models: defaultConfig().models,
+  budget: { limit: defaultConfig().budget, spent: { calls: 4, inputTokens: 21_000, outputTokens: 3_200 } },
+  artifacts: ['01-discover.json', '02-select.json', '03-fetch.json', '04-extract.json', '05-compose.json', '06-verify.json'],
+  log: ['select: one story was chosen'],
+});
 
 /** What parsing `value` with `schema` reports, or '' if it is valid. */
 const problem = (schema: z.ZodType, value: unknown): string => {
@@ -407,6 +426,92 @@ describe('HeldArtifact', () => {
     expect(problem(HeldArtifact, { ...heldArtifact(), slug: '' })).toContain('slug:');
     expect(problem(HeldArtifact, { ...heldArtifact(), runId: '' })).toContain('runId:');
     expect(problem(HeldArtifact, { ...heldArtifact(), note: 'x' })).toBe(': Unrecognized key: "note"');
+  });
+});
+
+describe('RunRecord', () => {
+  it('accepts a run that published, and the same run as a dry run with no commit', () => {
+    expect(problem(RunRecord, runRecord())).toBe('');
+    expect(problem(RunRecord, { ...runRecord(), dry: true, commit: null })).toBe('');
+  });
+
+  it('accepts a commit of 40 hex characters of every digit, which includes zeros', () => {
+    expect(problem(RunRecord, { ...runRecord(), commit: HASH.slice(0, 40) })).toBe('');
+  });
+
+  it('accepts a hold, with its slug and reason, a run with no story, and a failure, each with a reason and no slug', () => {
+    expect(problem(RunRecord, { ...runRecord(), outcome: 'held', stage: 'hold', reason: 'held for TIER2_ATTRIBUTION' })).toBe('');
+    expect(problem(RunRecord, { ...runRecord(), outcome: 'no-story', stage: 'select', reason: 'No candidate passed the filters.', slug: null })).toBe('');
+    expect(problem(RunRecord, { ...runRecord(), outcome: 'failed', stage: 'compose', reason: 'budget spent: 24 of 24 model calls', slug: null, commit: null })).toBe('');
+  });
+
+  it('accepts a run that made no commit because the desk state could not be changed', () => {
+    expect(problem(RunRecord, { ...runRecord(), outcome: 'no-story', stage: 'extract', reason: 'too few claims', slug: null, commit: null })).toBe('');
+  });
+
+  it('refuses a published run with no slug, or with a reason', () => {
+    expect(problem(RunRecord, { ...runRecord(), slug: null })).toBe('outcome: a published run has a slug and no reason');
+    expect(problem(RunRecord, { ...runRecord(), reason: 'why' })).toBe('outcome: a published run has a slug and no reason');
+  });
+
+  it('refuses a hold with no slug or no reason', () => {
+    const held = { ...runRecord(), outcome: 'held', stage: 'hold', reason: 'held for G4_NUMBER_UNSUPPORTED' };
+    expect(problem(RunRecord, { ...held, slug: null })).toBe('outcome: a held run has a slug and a reason');
+    expect(problem(RunRecord, { ...held, reason: null })).toBe('outcome: a held run has a slug and a reason');
+  });
+
+  it('refuses a run with no story or a failure that has no reason, or that has a slug', () => {
+    for (const outcome of ['no-story', 'failed']) {
+      const record = { ...runRecord(), outcome, stage: 'select', reason: 'why', slug: null, commit: null };
+      expect(problem(RunRecord, { ...record, reason: null })).toBe(`outcome: a run that ended in ${outcome} has a reason and no slug`);
+      expect(problem(RunRecord, { ...record, slug: 'a-piece' })).toBe(`outcome: a run that ended in ${outcome} has a reason and no slug`);
+    }
+  });
+
+  it('refuses a dry run with a commit, and a run that published for real with none', () => {
+    expect(problem(RunRecord, { ...runRecord(), dry: true })).toBe('commit: a dry run makes no commit');
+    expect(problem(RunRecord, { ...runRecord(), commit: null })).toBe('commit: a run that published for real made a commit');
+  });
+
+  it('refuses a run that ends before it starts, and accepts one that ends the moment it starts', () => {
+    expect(problem(RunRecord, { ...runRecord(), finishedAt: '2026-10-05T04:30:59.999Z' })).toBe('finishedAt: a run cannot end before it starts');
+    expect(problem(RunRecord, { ...runRecord(), finishedAt: '2026-10-05T04:31:00.000Z' })).toBe('');
+  });
+
+  it('refuses a commit that is not 40 hex characters, a model or a budget that is not the configuration\'s, a negative count, and a field it does not know', () => {
+    expect(problem(RunRecord, { ...runRecord(), commit: 'abc123' })).toContain('commit:');
+    expect(problem(RunRecord, { ...runRecord(), models: { ...defaultConfig().models, review: 'model-a' } })).toContain('models');
+    expect(problem(RunRecord, { ...runRecord(), budget: { ...runRecord().budget, spent: { calls: -1, inputTokens: 0, outputTokens: 0 } } })).toContain('budget.spent.calls:');
+    expect(problem(RunRecord, { ...runRecord(), budget: { limit: { maxCalls: 0, maxInputTokens: 1, maxOutputTokens: 1 }, spent: runRecord().budget.spent } })).toContain('budget.limit.maxCalls:');
+    expect(problem(RunRecord, { ...runRecord(), note: 'x' })).toBe(': Unrecognized key: "note"');
+  });
+
+  it('refuses a date that is not a day, a time that is not a time, an empty run id or stage, and an outcome that is not one of the four', () => {
+    expect(problem(RunRecord, { ...runRecord(), date: 'yesterday' })).toContain('date:');
+    expect(problem(RunRecord, { ...runRecord(), startedAt: '2026-10-05' })).toContain('startedAt:');
+    expect(problem(RunRecord, { ...runRecord(), runId: '' })).toContain('runId:');
+    expect(problem(RunRecord, { ...runRecord(), stage: '' })).toContain('stage:');
+    expect(problem(RunRecord, { ...runRecord(), outcome: 'done' })).toContain('outcome:');
+  });
+});
+
+describe('readJsonFile', () => {
+  it('reads a file that matches the schema', async () => {
+    const dir = freshDir();
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'run.json'), JSON.stringify(runRecord()));
+    expect(await readJsonFile(path.join(dir, 'run.json'), 'the run record run.json', RunRecord)).toEqual(runRecord());
+  });
+
+  it('says what is missing and where, what is not JSON, and which field does not match, naming the file as it is told to', async () => {
+    const dir = freshDir();
+    mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'run.json');
+    await expect(readJsonFile(file, 'the run record run.json', RunRecord)).rejects.toThrow(`the run record run.json is not in ${dir}`);
+    writeFileSync(file, '{"runId": ');
+    await expect(readJsonFile(file, 'the run record run.json', RunRecord)).rejects.toThrow('the run record run.json is not valid JSON');
+    writeFileSync(file, JSON.stringify({ ...runRecord(), date: 'yesterday' }));
+    await expect(readJsonFile(file, 'the run record run.json', RunRecord)).rejects.toThrow('the run record run.json does not match its schema: date:');
   });
 });
 

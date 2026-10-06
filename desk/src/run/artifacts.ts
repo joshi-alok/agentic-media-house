@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CHECK_IDS, CHECK_RESULTS, Claim, Draft, ROUTES } from '@robywire/gate';
+import { CHECK_IDS, CHECK_RESULTS, Claim, Draft, ROUTES, RUN_OUTCOMES } from '@robywire/gate';
 import { z } from 'zod';
+import { DeskConfig } from '../config';
 import { describeIssues } from '../issues';
 import { canonicalJson, sha256Hex } from '../model/types';
 import { writeFileAtomic } from './atomic';
@@ -213,6 +214,51 @@ export const HeldArtifact = z
   .superRefine(checkHistory);
 export type HeldArtifact = z.infer<typeof HeldArtifact>;
 
+const count = z.number().int().nonnegative();
+
+/**
+ * The record of one run, written when it ends (`run.json` in the folder of the run; a folder that has none is a run that did not end). It says how
+ * the run ended and why, which stage ended it, when, whether it was a dry run, which piece and which commit it made, which models it used, what it
+ * spent against its budget, which artifacts it left, and what the stages logged. The rules of how a run can end are in the schema, so that a record
+ * that says otherwise cannot be written: a published piece has a slug and no reason; a hold has a slug and a reason; a run with no story or a failure
+ * has a reason and no slug; a dry run has no commit, and a run that published for real has one.
+ */
+export const RunRecord = z
+  .strictObject({
+    runId: text,
+    date: isoDate,
+    startedAt: isoDateTime,
+    finishedAt: isoDateTime,
+    outcome: z.enum(RUN_OUTCOMES),
+    /** The stage that ended the run: the last that ran (`publish` or `hold` for a run that got to the end, the one that found no story or failed otherwise). */
+    stage: text,
+    reason: text.nullable(),
+    slug: text.nullable(),
+    /** The id of the commit that the run made (one commit for each run that is not dry), or null when it made none. */
+    commit: z.string().regex(/^[0-9a-f]{40}$/, 'commit must be 40 lowercase hex characters').nullable(),
+    dry: z.boolean(),
+    models: DeskConfig.shape.models,
+    budget: z.strictObject({
+      limit: DeskConfig.shape.budget,
+      spent: z.strictObject({ calls: count, inputTokens: count, outputTokens: count }),
+    }),
+    /** The files the run left in its folder, as paths below it, in order: the artifacts of the stages and the held drafts, not the record itself. */
+    artifacts: z.array(text),
+    log: z.array(z.string()),
+  })
+  .superRefine((record, context) => {
+    const problem = (path: string, message: string): void => context.addIssue({ code: 'custom', path: [path], message });
+    if (Date.parse(record.finishedAt) < Date.parse(record.startedAt)) problem('finishedAt', 'a run cannot end before it starts');
+    if (record.outcome === 'published' && (record.slug === null || record.reason !== null)) problem('outcome', 'a published run has a slug and no reason');
+    if (record.outcome === 'held' && (record.slug === null || record.reason === null)) problem('outcome', 'a held run has a slug and a reason');
+    if ((record.outcome === 'no-story' || record.outcome === 'failed') && (record.slug !== null || record.reason === null)) {
+      problem('outcome', `a run that ended in ${record.outcome} has a reason and no slug`);
+    }
+    if (record.dry && record.commit !== null) problem('commit', 'a dry run makes no commit');
+    if (record.outcome === 'published' && !record.dry && record.commit === null) problem('commit', 'a run that published for real made a commit');
+  });
+export type RunRecord = z.infer<typeof RunRecord>;
+
 /** The folder of the run of a day: `<runsDir>/<date>`. The date must be a real day, so that a date can never name a path elsewhere. */
 export function runPath(runsDir: string, date: string): string {
   if (!isoDate.safeParse(date).success) throw new Error(`${JSON.stringify(date)} is not a date: a run is named for a day, written YYYY-MM-DD`);
@@ -250,23 +296,30 @@ export async function writeArtifact<T>(dir: string, name: string, value: unknown
   return file;
 }
 
-/** Read `<dir>/<name>.json` and check it against `schema`. A file that is missing, is not JSON or does not match is an error that says which. */
-export async function readArtifact<T>(dir: string, name: string, schema: z.ZodType<T>): Promise<T> {
-  const file = fileOf(dir, name);
+/**
+ * Read `file` and check it against `schema`. A file that is missing, is not JSON or does not match is an error that says which, naming it by `label`
+ * (`the artifact 02-select.json`) and, for a file that is missing, the folder it is not in.
+ */
+export async function readJsonFile<T>(file: string, label: string, schema: z.ZodType<T>): Promise<T> {
   let source: string;
   try {
     source = await readFile(file, 'utf8');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw new Error(`the artifact ${name}.json is not in ${dir}`);
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw new Error(`${label} is not in ${path.dirname(file)}`);
     throw error;
   }
   let data: unknown;
   try {
     data = JSON.parse(source);
   } catch (error) {
-    throw new Error(`the artifact ${name}.json is not valid JSON: ${(error as Error).message}`);
+    throw new Error(`${label} is not valid JSON: ${(error as Error).message}`);
   }
   const parsed = schema.safeParse(data);
-  if (!parsed.success) throw new Error(`the artifact ${name}.json does not match its schema: ${describeIssues(parsed.error)}`);
+  if (!parsed.success) throw new Error(`${label} does not match its schema: ${describeIssues(parsed.error)}`);
   return parsed.data;
+}
+
+/** Read `<dir>/<name>.json` and check it against `schema` (see `readJsonFile`). */
+export async function readArtifact<T>(dir: string, name: string, schema: z.ZodType<T>): Promise<T> {
+  return readJsonFile(fileOf(dir, name), `the artifact ${name}.json`, schema);
 }

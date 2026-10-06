@@ -159,6 +159,35 @@ describe('SiteTarget.apply', () => {
   });
 });
 
+describe('SiteTarget.preflight', () => {
+  it('passes when the desk state can be read and the state and the two content folders are clean', async () => {
+    const { target } = setup();
+    await expect(target.preflight()).resolves.toBeUndefined();
+  });
+
+  it('refuses, naming the three places, when any of them has a change that is not committed', async () => {
+    for (const dirty of [STATE, 'site/src/content/news/older.mdx', 'site/src/content/ledger/older.json']) {
+      const { git, target } = setup();
+      git.dirty.add(dirty);
+      await expect(target.preflight()).rejects.toThrow(`has changes that are not committed (${STATE}, site/src/content/news, site/src/content/ledger)`);
+    }
+  });
+
+  it('refuses a desk state that cannot be read, before it asks git', async () => {
+    const { repoDir, target } = setup();
+    writeFileSync(path.join(repoDir, STATE), 'nonsense');
+    await expect(target.preflight()).rejects.toThrow('is not valid JSON');
+  });
+
+  it('writes nothing and commits nothing', async () => {
+    const { repoDir, git, target } = setup();
+    const before = filesBelow(repoDir);
+    await target.preflight();
+    expect(filesBelow(repoDir)).toEqual(before);
+    expect(git.commits).toEqual([]);
+  });
+});
+
 describe('SiteTarget.apply with the real git', () => {
   const ISOLATED = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
   const git = (dir: string, ...args: string[]): string => execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: { ...process.env, ...ISOLATED } }).trim();
@@ -199,6 +228,21 @@ describe('SiteTarget.apply with the real git', () => {
     expect(existsSync(path.join(dir, NEWS))).toBe(false);
     expect(read(dir, STATE)).toBe(COMMITTED_STATE);
     expect(git(dir, 'log', '--format=%s')).toBe('start');
+  });
+});
+
+describe('DryTarget.preflight', () => {
+  it('passes when the desk state can be read, and does not ask git, so a dirty checkout does not stop a dry run', async () => {
+    const repoDir = makeSite(scratch());
+    await expect(new DryTarget(repoDir).preflight()).resolves.toBeUndefined();
+  });
+
+  it('refuses a desk state that cannot be read, or that is not there', async () => {
+    const repoDir = makeSite(scratch());
+    writeFileSync(path.join(repoDir, STATE), '{"lastRun": ');
+    await expect(new DryTarget(repoDir).preflight()).rejects.toThrow('is not valid JSON');
+    rmSync(path.join(repoDir, STATE));
+    await expect(new DryTarget(repoDir).preflight()).rejects.toThrow('does not exist');
   });
 });
 

@@ -55,6 +55,11 @@ export interface PublishTarget {
   /** True for a target that writes nothing. */
   readonly dry: boolean;
   /**
+   * Check, before a run spends anything, that the places it writes to are in order: the desk state can be read and, for a target that writes, nothing
+   * in them has a change that is not committed. Throws when they are not.
+   */
+  preflight(): Promise<void>;
+  /**
    * Write the piece (if there is one), change the desk state and commit it all. Refuses, before anything is written, when the slug is taken,
    * when the places it writes to have changes that are not committed, or when the desk state cannot be read or the change would lose a hold or a
    * correction.
@@ -113,14 +118,23 @@ export class SiteTarget implements PublishTarget {
     this.paths = sitePaths(siteDir);
   }
 
+  /** Refuse when any of `watched` has a change that is not committed. */
+  private async assertClean(watched: string[]): Promise<void> {
+    if (!(await this.git.isClean(watched))) {
+      throw new Error(`the site has changes that are not committed (${watched.join(', ')}), so the Desk does not write there: commit or discard them first`);
+    }
+  }
+
+  async preflight(): Promise<void> {
+    await readDeskState(path.join(this.repoDir, this.paths.stateFile));
+    await this.assertClean([this.paths.stateFile, this.paths.newsDir, this.paths.ledgerDir]);
+  }
+
   async apply(change: TargetChange): Promise<TargetResult> {
     const files = await check(this.repoDir, this.paths, change);
 
     // What the run is about to change must have nothing else of anyone's in it: git is asked before anything is written.
-    const watched = change.piece === undefined ? [this.paths.stateFile] : [this.paths.stateFile, this.paths.newsDir, this.paths.ledgerDir];
-    if (!(await this.git.isClean(watched))) {
-      throw new Error(`the site has changes that are not committed (${watched.join(', ')}), so the Desk does not write there: commit or discard them first`);
-    }
+    await this.assertClean(change.piece === undefined ? [this.paths.stateFile] : [this.paths.stateFile, this.paths.newsDir, this.paths.ledgerDir]);
 
     const stateFile = path.join(this.repoDir, this.paths.stateFile);
     const original = await readFile(stateFile, 'utf8');
@@ -157,6 +171,10 @@ export class DryTarget implements PublishTarget {
     siteDir = 'site',
   ) {
     this.paths = sitePaths(siteDir);
+  }
+
+  async preflight(): Promise<void> {
+    await readDeskState(path.join(this.repoDir, this.paths.stateFile));
   }
 
   async apply(change: TargetChange): Promise<TargetResult> {

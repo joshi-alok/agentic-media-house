@@ -31,8 +31,10 @@ import type {
   PieceFiles,
   PublishTarget,
   RateLimiterOptions,
+  RefusalKind,
   RobotsGroup,
   RobotsRule,
+  RunRecord,
   SelectArtifact,
   SitePaths,
   SourceKind,
@@ -61,7 +63,9 @@ const VALUES = [
   'ComposeArtifact',
   'VerifyArtifact',
   'HeldArtifact',
+  'RunRecord',
   'writeJsonFile',
+  'readJsonFile',
   'runPath',
   'writeArtifact',
   'readArtifact',
@@ -103,6 +107,10 @@ const VALUES = [
   'SiteTarget',
   'DryTarget',
   'isPlainSlug',
+  'RunRefused',
+  'takeRunLock',
+  'LOCK_FILE',
+  'STALE_LOCK_MS',
 ];
 
 describe('the package entry point: fetching', () => {
@@ -123,6 +131,8 @@ describe('the package entry point: fetching', () => {
       ComposeArtifact,
       VerifyArtifact,
       HeldArtifact,
+      RunRecord,
+      RefusalKind,
       ParsedRobots,
       RobotsRule,
       RobotsGroup,
@@ -167,8 +177,9 @@ describe('the package entry point: fetching', () => {
     const verification = ['verifyPlanOf', 'VerifyReply', 'aggregateVerdicts', 'runVerifier', 'verifySystem', 'buildVerifyUser'];
     const revision = ['runVerify', 'reviseDraft', 'problemsOf', 'reviseReplySchema', 'reviseSystem', 'buildReviseUser'];
     const publication = ['runPublish', 'runHold', 'holdReasonsOf'];
+    const orchestration = ['runDesk', 'DEFAULT_STAGES'];
     const demo = ['DEMO_DATE', 'DEMO_URLS', 'DEMO_FIXTURE_DIR', 'demoWorldMap', 'demoFetcher', 'DEMO_REGISTRY_YAML', 'demoRegistry', 'DEMO_CLAIMS', 'DEMO_REPLY', 'DEMO_SELECT_REASON', 'clearingVerifier', 'demoClient'];
-    for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision, ...publication, ...demo]) {
+    for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision, ...publication, ...orchestration, ...demo]) {
       expect(entry).not.toHaveProperty(name);
     }
   });
