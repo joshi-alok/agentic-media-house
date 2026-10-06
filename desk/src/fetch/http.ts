@@ -1,6 +1,8 @@
+import { lookup as systemLookup } from 'node:dns/promises';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DeskConfig } from '../config';
+import { addressProblem, isPublicAddress } from './address';
 import { RateLimiter } from './rate-limit';
 import { parseRobots, productToken, robotsAllows } from './robots';
 import type { ParsedRobots } from './robots';
@@ -11,7 +13,15 @@ import type { ParsedRobots } from './robots';
 // request in a while to a host, it follows at most 5 redirects (and checks robots.txt at each), it
 // refuses a page over the size limit while still reading it, it accepts only html, xml and text, and it
 // tries again, a bounded number of times and after a pause, when a site says 429 or answers with a
-// server error. `FixtureFetcher` is the stand-in that tests and the dry-run demo use: it serves files.
+// server error. It also never goes to a non-public address: before the first request and before every hop of
+// a redirect, the host is looked up, and a name that has any address that is not public (loopback, private,
+// link-local, the metadata service of a cloud) is refused, as is a host written as a number, `localhost`
+// and an address with a user name in it. `FixtureFetcher` is the stand-in that tests and the dry-run demo
+// use: it serves files, and nothing is checked.
+//
+// One limit remains, and the README says it: the name is looked up by the check and again by the transport, so
+// a name server that answers differently the second time (DNS rebinding) could lead the transport to an address
+// that the check did not see. Closing that needs the transport to connect to the address that was checked.
 
 /** A page that was fetched. `url` is what was asked for and `finalUrl` is where the redirects ended. */
 export interface FetchedPage {
@@ -37,10 +47,12 @@ export interface Fetcher {
  * - `too-large`: the page is over the size limit.
  * - `timeout`: no answer, or no end of the page, in time.
  * - `redirects`: too many redirects, or one that leads somewhere that is not an http or https address.
- * - `network`: the site could not be reached, or the address is not one.
+ * - `network`: the site could not be reached, its name could not be looked up, or the address is not one.
  * - `type`: the page is not html, xml or text.
+ * - `address`: the address is one that the Desk never fetches: it has a user name or a password, its host is `localhost` or is written
+ *   as a number, or its name has an address that is not public (on the first request or at a hop of a redirect).
  */
-export type FetchErrorKind = 'robots' | 'status' | 'too-large' | 'timeout' | 'redirects' | 'network' | 'type';
+export type FetchErrorKind = 'robots' | 'status' | 'too-large' | 'timeout' | 'redirects' | 'network' | 'type' | 'address';
 
 export class FetchError extends Error {
   readonly kind: FetchErrorKind;
@@ -69,8 +81,15 @@ export interface TransportRequest {
 /** A function like `fetch`. The default is the global `fetch`; a test passes a script. */
 export type Transport = (url: string, init: TransportRequest) => Promise<Response>;
 
+/** The addresses of a host name, IPv4 and IPv6, as text; it throws when the name cannot be looked up. The default asks the system. */
+export type Lookup = (host: string) => Promise<string[]>;
+
+const lookupOfSystem: Lookup = async (host) => (await systemLookup(host, { all: true, verbatim: true })).map((entry) => entry.address);
+
 export interface HttpFetcherOptions extends Pick<DeskConfig, 'userAgent' | 'maxBytes' | 'requestIntervalMs'> {
   transport?: Transport;
+  /** How names are looked up, to check that none of their addresses is a private one. The default asks the system; a test passes a table. */
+  lookup?: Lookup;
   /** The clock. A test passes its own. */
   now?: () => Date;
   /** How to wait, for the pause between requests to a host and the pause before a retry. A test passes its own. */
@@ -132,6 +151,7 @@ export class HttpFetcher implements Fetcher {
   private readonly token: string;
   private readonly maxBytes: number;
   private readonly transport: Transport;
+  private readonly lookup: Lookup;
   private readonly now: () => Date;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly retries: number;
@@ -147,6 +167,7 @@ export class HttpFetcher implements Fetcher {
     this.token = productToken(options.userAgent);
     this.maxBytes = options.maxBytes;
     this.transport = options.transport ?? ((url, init) => fetch(url, init));
+    this.lookup = options.lookup ?? lookupOfSystem;
     this.now = options.now ?? (() => new Date());
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.retries = options.retries ?? 2;
@@ -162,10 +183,14 @@ export class HttpFetcher implements Fetcher {
     return this.follow(url, start, true);
   }
 
-  /** Fetch `start` and follow its redirects. Robots.txt is checked before each request unless this is the fetch of a robots.txt itself. */
+  /**
+   * Fetch `start` and follow its redirects. Before each request, the first and every hop of a redirect, the address is checked to be one that
+   * the Desk may fetch (`assertPublic`); robots.txt is checked as well unless this is the fetch of a robots.txt itself.
+   */
   private async follow(asked: string, start: URL, checkRobots: boolean): Promise<FetchedPage> {
     let current = start;
     for (let followed = 0; ; followed++) {
+      await this.assertPublic(current);
       if (checkRobots) await this.assertAllowed(current);
       const outcome = await this.send(current);
       if (REDIRECTS.has(outcome.status)) {
@@ -192,6 +217,27 @@ export class HttpFetcher implements Fetcher {
         body: outcome.body,
         retrievedAt: this.now().toISOString(),
       };
+    }
+  }
+
+  /**
+   * Refuse, with an `address` error, an address that the Desk never fetches (`addressProblem`: credentials, `localhost`, a host written as a number), and
+   * a name that has any address that is not public (`isPublicAddress`), however many it has: a name with one public and one private address is
+   * refused. A name that cannot be looked up, or has no address, is a `network` error.
+   */
+  private async assertPublic(url: URL): Promise<void> {
+    const problem = addressProblem(url);
+    if (problem !== undefined) throw new FetchError('address', url.href, problem);
+    let addresses: string[];
+    try {
+      addresses = await this.lookup(url.hostname);
+    } catch (error) {
+      throw new FetchError('network', url.href, `the name ${url.hostname} could not be resolved: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
+    if (addresses.length === 0) throw new FetchError('network', url.href, `the name ${url.hostname} has no address`);
+    const refused = addresses.find((address) => !isPublicAddress(address));
+    if (refused !== undefined) {
+      throw new FetchError('address', url.href, `${url.hostname} resolves to ${refused}, which is not a public address, so the Desk does not fetch from it`);
     }
   }
 

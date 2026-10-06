@@ -14,6 +14,7 @@ export * from './run/atomic';
 export * from './run/artifacts';
 export * from './fetch/robots';
 export * from './fetch/rate-limit';
+export * from './fetch/address';
 export * from './fetch/http';
 export * from './fetch/url';
 export * from './fetch/extract-text';

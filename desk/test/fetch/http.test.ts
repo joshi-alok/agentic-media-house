@@ -4,6 +4,7 @@ import path from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { FetchError, FixtureFetcher, HttpFetcher, MAX_REDIRECTS } from '../../src/fetch/http';
 import type { HttpFetcherOptions } from '../../src/fetch/http';
+import { PUBLIC_ADDRESS, publicLookup, tableLookup } from '../support/lookup';
 import { scriptedTransport } from '../support/transport';
 import type { Route } from '../support/transport';
 
@@ -38,6 +39,7 @@ function setup(routes: Record<string, Route>, options: Partial<HttpFetcherOption
     transport,
     now: () => NOW,
     sleep: async (ms) => void sleeps.push(ms),
+    lookup: publicLookup,
     ...options,
   });
   return { fetcher, sent, sleeps };
@@ -147,7 +149,7 @@ describe('HttpFetcher: a page', () => {
       return new Response(robots ? 'User-agent: *\nAllow: /' : 'hello', { status: 200, headers: { 'content-type': robots ? 'text/plain' : 'text/html' } });
     });
     vi.stubGlobal('fetch', stub);
-    const fetcher = new HttpFetcher({ userAgent: UA, maxBytes: 1000, requestIntervalMs: 0, now: () => NOW });
+    const fetcher = new HttpFetcher({ userAgent: UA, maxBytes: 1000, requestIntervalMs: 0, now: () => NOW, lookup: publicLookup });
     expect((await fetcher.get(PAGE)).body).toBe('hello');
     expect(stub.mock.calls.map((call) => call[0])).toEqual([ROBOTS, PAGE]);
   });
@@ -369,6 +371,169 @@ describe('HttpFetcher: redirects', () => {
     const error = await failure(fetcher.get(PAGE));
     expect(error.kind).toBe('redirects');
     expect(error.message).toContain('which is not an http or https address');
+  });
+});
+
+describe('HttpFetcher: addresses that are not public', () => {
+  // The Desk fetches the address that a feed item or a redirect names, and what comes back is stored and shown to a model. A name that leads to
+  // the machine itself, to the network behind it or to the metadata service of a cloud (169.254.169.254) must not be fetched: not at the
+  // first request, and not at any hop of a redirect. The check is made on the name's own addresses (every one of them), and an address that is
+  // written as a number is refused whatever it is. FixtureFetcher is not checked: it serves files.
+  const HOSTNAME = 'www.fixture-robotics.example';
+
+  /** A fetcher whose names resolve as the table says; it also records what happens, in order, to show that a name is looked up before anything is sent. */
+  function guarded(routes: Record<string, Route>, table: Record<string, string[]>) {
+    const events: string[] = [];
+    const { lookup, asked } = tableLookup(table);
+    const { transport, sent } = scriptedTransport(routes);
+    const fetcher = new HttpFetcher({
+      userAgent: UA,
+      maxBytes: 10_000,
+      requestIntervalMs: 0,
+      now: () => NOW,
+      sleep: async () => undefined,
+      lookup: async (host) => {
+        events.push(`lookup ${host}`);
+        return lookup(host);
+      },
+      transport: async (url, init) => {
+        events.push(`send ${url}`);
+        return transport(url, init);
+      },
+    });
+    return { fetcher, sent, asked, events };
+  }
+
+  it('asks for the addresses of a name before it sends anything, and fetches from a host whose addresses are all public', async () => {
+    const { fetcher, sent, events } = guarded(site({ [PAGE]: { body: 'there' } }), { [HOSTNAME]: [PUBLIC_ADDRESS, '5.6.7.8', '2345:6789::1'] });
+    expect((await fetcher.get(PAGE)).body).toBe('there');
+    expect(events[0]).toBe(`lookup ${HOSTNAME}`);
+    expect(events.indexOf(`send ${ROBOTS}`)).toBeGreaterThan(0);
+    expect(urlsOf(sent)).toEqual([ROBOTS, PAGE]);
+  });
+
+  it.each([
+    ['a private address', ['10.1.2.3']],
+    ['a loopback address', ['127.0.0.1']],
+    ['the address of the metadata service of a cloud', ['169.254.169.254']],
+    ['a private IPv6 address', ['fd00::1']],
+    ['a link-local IPv6 address', ['fe80::1']],
+    ['an IPv4 private address mapped into IPv6', ['::ffff:192.168.0.1']],
+    ['one public address and one private address, in either order', [PUBLIC_ADDRESS, '192.168.1.1']],
+    ['one private address and one public address', ['192.168.1.1', PUBLIC_ADDRESS]],
+    ['an address that is no address', ['not-an-address']],
+  ])('refuses a name that resolves to %s, and sends nothing', async (_what, addresses) => {
+    const { fetcher, sent } = guarded(site({ [PAGE]: { body: 'there' } }), { [HOSTNAME]: addresses });
+    const error = await failure(fetcher.get(PAGE));
+    expect(error.kind).toBe('address');
+    expect(error.url).toBe(PAGE);
+    expect(error.message).toContain(`${HOSTNAME} resolves to `);
+    expect(error.message).toContain('which is not a public address');
+    expect(sent).toEqual([]);
+  });
+
+  it('names the address that it refused', async () => {
+    const { fetcher } = guarded(site({}), { [HOSTNAME]: [PUBLIC_ADDRESS, '10.9.8.7'] });
+    expect((await failure(fetcher.get(PAGE))).message).toBe(`${PAGE}: ${HOSTNAME} resolves to 10.9.8.7, which is not a public address, so the Desk does not fetch from it`);
+  });
+
+  it.each([
+    'http://127.0.0.1/x',
+    'http://8.8.8.8/x',
+    'http://[::1]/x',
+    'http://[2345:6789::1]/x',
+    'http://2130706433/x',
+    'http://0x7f.0.0.1/x',
+    'http://169.254.169.254/latest/meta-data/',
+  ])('refuses the address %s, which is written as a number, without asking a name server', async (address) => {
+    const { fetcher, sent, asked } = guarded(site({}), {});
+    const error = await failure(fetcher.get(address));
+    expect(error.kind).toBe('address');
+    expect(error.message).toContain('the host is an IP address and not a name');
+    expect(sent).toEqual([]);
+    expect(asked).toEqual([]);
+  });
+
+  it.each(['http://localhost/x', 'http://LOCALHOST:8080/x', 'http://localhost./x', 'http://admin.localhost/x'])('refuses %s, without asking a name server', async (address) => {
+    const { fetcher, sent, asked } = guarded(site({}), {});
+    const error = await failure(fetcher.get(address));
+    expect(error.kind).toBe('address');
+    expect(error.message).toContain('the host is localhost');
+    expect(sent).toEqual([]);
+    expect(asked).toEqual([]);
+  });
+
+  it('refuses an address with a user name or a password', async () => {
+    const { fetcher, sent } = guarded(site({}), { [HOSTNAME]: [PUBLIC_ADDRESS] });
+    for (const address of [`https://user:secret@${HOSTNAME}/x`, `https://user@${HOSTNAME}/x`]) {
+      const error = await failure(fetcher.get(address));
+      expect(error.kind).toBe('address');
+      expect(error.message).toContain('the address has a user name or a password');
+    }
+    expect(sent).toEqual([]);
+  });
+
+  it('refuses a name that cannot be resolved, as a network error, and a name that has no address', async () => {
+    const { fetcher } = guarded(site({}), { [HOSTNAME]: [] });
+    const none = await failure(fetcher.get(PAGE));
+    expect(none.kind).toBe('network');
+    expect(none.message).toContain(`the name ${HOSTNAME} has no address`);
+    const unknown = await failure(guarded(site({}), {}).fetcher.get(PAGE));
+    expect(unknown.kind).toBe('network');
+    expect(unknown.message).toContain(`the name ${HOSTNAME} could not be resolved: getaddrinfo ENOTFOUND ${HOSTNAME}`);
+  });
+
+  describe('at every hop of a redirect', () => {
+    const INTERNAL = 'https://internal.fixture-robotics.example';
+
+    it('refuses a redirect to a name that resolves to a private address, and never sends the request to it, nor asks its robots.txt', async () => {
+      const { fetcher, sent } = guarded(site({ [PAGE]: { status: 302, headers: { location: `${INTERNAL}/admin` } } }), { [HOSTNAME]: [PUBLIC_ADDRESS], 'internal.fixture-robotics.example': ['10.0.0.8'] });
+      const error = await failure(fetcher.get(PAGE));
+      expect(error.kind).toBe('address');
+      expect(error.url).toBe(`${INTERNAL}/admin`);
+      expect(urlsOf(sent)).toEqual([ROBOTS, PAGE]);
+    });
+
+    it('refuses a redirect in the middle of a chain, after hops that were allowed', async () => {
+      const routes = site({
+        [`${HOST}/a`]: { status: 302, headers: { location: '/b' } },
+        [`${HOST}/b`]: { status: 302, headers: { location: `${OTHER_HOST}/c` } },
+        [`${OTHER_HOST}/robots.txt`]: { status: 404 },
+        [`${OTHER_HOST}/c`]: { status: 302, headers: { location: 'https://metadata.mercer-wire.example/d' } },
+      });
+      const { fetcher, sent } = guarded(routes, { [HOSTNAME]: [PUBLIC_ADDRESS], 'www.mercer-wire.example': [PUBLIC_ADDRESS], 'metadata.mercer-wire.example': ['169.254.169.254'] });
+      const error = await failure(fetcher.get(`${HOST}/a`));
+      expect(error.kind).toBe('address');
+      expect(error.url).toBe('https://metadata.mercer-wire.example/d');
+      expect(urlsOf(sent)).toEqual([ROBOTS, `${HOST}/a`, `${HOST}/b`, `${OTHER_HOST}/robots.txt`, `${OTHER_HOST}/c`]);
+    });
+
+    it.each(['http://169.254.169.254/latest/meta-data/', 'http://127.0.0.1:8080/', 'http://[::1]/', 'http://localhost:3000/', 'http://2130706433/', 'https://user:pw@www.mercer-wire.example/x'])(
+      'refuses a redirect to %s',
+      async (location) => {
+        const { fetcher, sent } = guarded(site({ [PAGE]: { status: 301, headers: { location } } }), { [HOSTNAME]: [PUBLIC_ADDRESS], 'www.mercer-wire.example': [PUBLIC_ADDRESS] });
+        const error = await failure(fetcher.get(PAGE));
+        expect(error.kind).toBe('address');
+        expect(urlsOf(sent)).toEqual([ROBOTS, PAGE]);
+      },
+    );
+
+    it('follows a redirect to another host whose addresses are public, and asks for its addresses first', async () => {
+      const routes = site({ [PAGE]: { status: 302, headers: { location: `${OTHER_HOST}/moved` } }, [`${OTHER_HOST}/robots.txt`]: { status: 404 }, [`${OTHER_HOST}/moved`]: { body: 'moved here' } });
+      const { fetcher, events } = guarded(routes, { [HOSTNAME]: [PUBLIC_ADDRESS], 'www.mercer-wire.example': ['5.6.7.8'] });
+      const page = await fetcher.get(PAGE);
+      expect(page.finalUrl).toBe(`${OTHER_HOST}/moved`);
+      expect(events.indexOf('lookup www.mercer-wire.example')).toBeGreaterThan(-1);
+      expect(events.indexOf('lookup www.mercer-wire.example')).toBeLessThan(events.indexOf(`send ${OTHER_HOST}/robots.txt`));
+    });
+
+    it('refuses a robots.txt that redirects to a private address, and so fetches nothing from the host: the robots.txt could not be read', async () => {
+      const { fetcher, sent } = guarded({ [ROBOTS]: { status: 301, headers: { location: 'http://10.0.0.1/robots.txt' } }, [PAGE]: { body: 'there' } }, { [HOSTNAME]: [PUBLIC_ADDRESS] });
+      const error = await failure(fetcher.get(PAGE));
+      expect(error.kind).toBe('robots');
+      expect(error.message).toContain('could not be read (address)');
+      expect(urlsOf(sent)).toEqual([ROBOTS]);
+    });
   });
 });
 
@@ -655,6 +820,12 @@ describe('FixtureFetcher', () => {
   writeFileSync(path.join(scratch, 'pages', 'data.bin'), 'data');
 
   const now = () => NOW;
+
+  it('does not check the addresses it serves: a fixture is a file and not a connection', async () => {
+    const fetcher = new FixtureFetcher(scratch, { 'http://localhost/a': 'pages/a.html', 'http://127.0.0.1/b': 'pages/a.html' }, now);
+    expect((await fetcher.get('http://localhost/a')).body).toBe('<p>A</p>');
+    expect((await fetcher.get('http://127.0.0.1/b')).body).toBe('<p>A</p>');
+  });
 
   it('serves the file that an address is mapped to, as a page fetched at the time it is given', async () => {
     const fetcher = new FixtureFetcher(scratch, { [PAGE]: 'pages/a.html' }, now);

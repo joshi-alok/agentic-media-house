@@ -10,6 +10,7 @@ import type { Transport } from '../src/fetch/http';
 import { FakeGit } from '../src/run/git';
 import { sitePaths } from '../src/run/target';
 import { useScratch } from './support/context';
+import { publicLookup } from './support/lookup';
 import { clock } from './support/run';
 import { COMMITTED_STATE, filesBelow, makeSite } from './support/site';
 
@@ -33,7 +34,7 @@ function setup(overrides: Partial<CliDeps> = {}) {
   const out: string[] = [];
   const err: string[] = [];
   const git = new FakeGit();
-  const deps: CliDeps = { out: (line) => void out.push(line), err: (line) => void err.push(line), env: {}, cwd, now: clock(), git, transport: offline, ...overrides };
+  const deps: CliDeps = { out: (line) => void out.push(line), err: (line) => void err.push(line), env: {}, cwd, now: clock(), git, transport: offline, lookup: publicLookup, ...overrides };
   return { cwd, out, err, git, deps, call: (...argv: string[]) => main(argv, deps) };
 }
 

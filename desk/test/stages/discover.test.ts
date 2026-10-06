@@ -9,6 +9,7 @@ import { MAX_PER_SOURCE, MAX_TITLE_LENGTH, runDiscover } from '../../src/stages/
 import { RUN_DATE } from '../support/candidates';
 import { FETCHED_AT, URLS, stageContext, useScratch, withPages, worldMap } from '../support/context';
 import { FIXTURE_DIR } from '../support/fixtures';
+import { publicLookup } from '../support/lookup';
 import { fixtureRegistry, smallRegistry } from '../support/registry';
 import { fileReply, scriptedTransport } from '../support/transport';
 
@@ -178,7 +179,7 @@ describe('runDiscover: a source that fails', () => {
       [URLS.gantryFeed]: fileReply('feeds/gantry-daily.atom.xml'),
     });
     const { ctx } = stageContext(scratch);
-    const fetcher = new HttpFetcher({ userAgent: ctx.config.userAgent, maxBytes: ctx.config.maxBytes, requestIntervalMs: 0, transport, now: () => FETCHED_AT });
+    const fetcher = new HttpFetcher({ userAgent: ctx.config.userAgent, maxBytes: ctx.config.maxBytes, requestIntervalMs: 0, transport, now: () => FETCHED_AT, lookup: publicLookup });
     const artifact = await runDiscover({ ...ctx, fetcher });
     expect(artifact.skipped).toEqual([
       { source: 'Gantry Daily', reason: `${URLS.gantryFeed}: https://gantry-daily.example/robots.txt does not allow RobywireDesk to fetch /atom.xml` },

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { loadSources } from '@robywire/gate';
 import type { SourcesRegistry } from '@robywire/gate';
 import { HttpFetcher, LocalEvidenceStore, RunRefused, clientFromConfig, defaultConfig, readDeskState, runPath, sitePaths, DryTarget, SiteTarget } from './index';
-import type { BuiltClient, ClientChoice, DeskConfig, Environment, Fetcher, GitTarget, RetryOptions, Transport } from './index';
+import type { BuiltClient, ClientChoice, DeskConfig, Environment, Fetcher, GitTarget, Lookup, RetryOptions, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
 import { runDesk } from './run/orchestrate';
@@ -139,6 +139,8 @@ export interface CliDeps {
   config?: DeskConfig;
   /** How live sources are fetched; the default is the global `fetch`. */
   transport?: Transport;
+  /** How the names of live sources are looked up, to check that they are public addresses; the default asks the system. */
+  lookup?: Lookup;
   /** How the api client waits between tries. */
   retry?: RetryOptions;
 }
@@ -154,7 +156,7 @@ function configOf(deps: CliDeps): DeskConfig {
 /** The registry and the fetcher of the sources that were asked for. */
 function sourcesOf(kind: SourcesKind, deps: CliDeps, config: DeskConfig): { sources: SourcesRegistry; fetcher: Fetcher } {
   if (kind === 'fixtures') return { sources: demoRegistry(), fetcher: demoFetcher(deps.now) };
-  const fetcher = new HttpFetcher({ userAgent: config.userAgent, maxBytes: config.maxBytes, requestIntervalMs: config.requestIntervalMs, ...(deps.transport === undefined ? {} : { transport: deps.transport }) });
+  const fetcher = new HttpFetcher({ userAgent: config.userAgent, maxBytes: config.maxBytes, requestIntervalMs: config.requestIntervalMs, ...(deps.transport === undefined ? {} : { transport: deps.transport }), ...(deps.lookup === undefined ? {} : { lookup: deps.lookup }) });
   return { sources: loadSources(path.join(deps.cwd, 'sources.yml')), fetcher };
 }
 

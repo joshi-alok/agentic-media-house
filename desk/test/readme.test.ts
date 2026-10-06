@@ -32,6 +32,12 @@ describe('the README: what the Desk does not check', () => {
     expect(limits()).toContain('`stale-or-undated`');
   });
 
+  it('says which addresses the fetcher refuses, and the one way round the check that is left', () => {
+    expect(limits()).toContain('`HttpFetcher` looks a host up before the first request and before every hop of a redirect');
+    expect(limits()).toContain('the error kind `address`');
+    expect(limits()).toContain('DNS rebinding');
+  });
+
   it('says that the content of a details element is kept, on purpose', () => {
     expect(limits()).toContain('`<details>`');
     expect(limits()).toContain('on purpose');
