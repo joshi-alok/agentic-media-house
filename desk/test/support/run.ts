@@ -42,6 +42,8 @@ export interface RunSetup {
   stages?: Partial<Stages>;
   fetcher?: RunDeskOptions['fetcher'];
   forceNew?: boolean;
+  /** Keep a cassette of every model call in `cassettes`, in the folder of the run, so that the run can be replayed. */
+  record?: boolean;
 }
 
 /**
@@ -55,12 +57,13 @@ export function setupRun(scratch: () => string, options: RunSetup = {}) {
   const git = new FakeGit();
   const fake = options.fake ?? demoClient();
   const logs: string[] = [];
+  const dir = path.join(config.runDir, DEMO_DATE);
   const base: RunDeskOptions = {
     date: DEMO_DATE,
     config,
     sources: demoRegistry(),
     fetcher: options.fetcher ?? demoFetcher(() => FETCHED_AT),
-    model: clientFromConfig(config, { kind: 'fake', fake }, {}),
+    model: clientFromConfig(config, { kind: 'fake', fake }, {}, {}, options.record === true ? path.join(dir, 'cassettes') : undefined),
     evidence: new LocalEvidenceStore(config.evidenceDir),
     target: options.dry === true ? new DryTarget(repoDir) : new SiteTarget(repoDir, git),
     ledgerDir: path.join(repoDir, sitePaths().ledgerDir),
@@ -69,7 +72,6 @@ export function setupRun(scratch: () => string, options: RunSetup = {}) {
     ...(options.stages === undefined ? {} : { stages: options.stages }),
     ...(options.forceNew === undefined ? {} : { forceNew: options.forceNew }),
   };
-  const dir = path.join(config.runDir, DEMO_DATE);
   return { base, repoDir, config, git, fake, logs, dir, run: (overrides: Partial<RunDeskOptions> = {}) => runDesk({ ...base, ...overrides }) };
 }
 

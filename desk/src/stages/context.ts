@@ -47,9 +47,10 @@ export function emptyPublished(): PublishedIndex {
  * What has been published, from the ledgers of the pieces: a folder of `<slug>.json` files (the site keeps them in
  * `site/src/content/ledger`; today it holds none). Other files in the folder are ignored. A folder that does not
  * exist, or a ledger that is not valid, is an error and stops the run: with a wrong list of what is published, the
- * Desk could write a story twice.
+ * Desk could write a story twice. With `keep`, only the ledgers for which it says true are counted, which is how a replay
+ * sees the pieces that there were when its run began and not the one that run made.
  */
-export async function loadPublishedIndex(ledgerDir: string): Promise<PublishedIndex> {
+export async function loadPublishedIndex(ledgerDir: string, keep: (entry: LedgerEntry) => boolean = () => true): Promise<PublishedIndex> {
   let names: string[];
   try {
     names = await readdir(ledgerDir);
@@ -69,6 +70,7 @@ export async function loadPublishedIndex(ledgerDir: string): Promise<PublishedIn
     }
     const entry = LedgerEntry.safeParse(data);
     if (!entry.success) throw new Error(`the ledger ${name} is not valid: ${describeIssues(entry.error)}`);
+    if (!keep(entry.data)) continue;
     index.slugs.push(entry.data.slug);
     index.titles.push({ title: entry.data.title, publishedAt: entry.data.publishedAt });
     for (const source of entry.data.sources) {

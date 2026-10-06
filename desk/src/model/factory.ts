@@ -3,7 +3,7 @@ import { AnthropicClient } from './anthropic';
 import { BudgetedClient } from './budgeted';
 import type { Spent } from './budgeted';
 import type { FakeClient } from './fake';
-import { RecordedClient } from './recorded';
+import { RecordedClient, RecordingClient } from './recorded';
 import { RetryClient } from './retry';
 import type { RetryOptions } from './retry';
 import type { ModelClient } from './types';
@@ -48,8 +48,13 @@ function chosenClient(choice: ClientChoice, env: Environment): ModelClient {
  * out stops the retrying. The key is read from `env`, the environment the caller hands over,
  * and a missing or blank key is refused before anything is built. `retry` changes how retrying
  * waits, which a test needs.
+ *
+ * With `record`, a folder, every call that the chosen client answers is kept in it as a cassette
+ * (see `RecordingClient`), so that the run can be replayed later with no model and no network.
+ * Recording is the innermost layer: a call that fails is not recorded, and a retry that succeeds is.
  */
-export function clientFromConfig(config: DeskConfig, choice: ClientChoice, env: Environment, retry: RetryOptions = {}): BuiltClient {
-  const budgeted = new BudgetedClient(chosenClient(choice, env), config.budget);
+export function clientFromConfig(config: DeskConfig, choice: ClientChoice, env: Environment, retry: RetryOptions = {}, record?: string): BuiltClient {
+  const chosen = chosenClient(choice, env);
+  const budgeted = new BudgetedClient(record === undefined ? chosen : new RecordingClient(chosen, record), config.budget);
   return { client: new RetryClient(budgeted, retry), spent: () => budgeted.spent() };
 }

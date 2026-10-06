@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
@@ -35,6 +35,44 @@ describe('clientFromConfig with the fake client', () => {
 
   it('needs no key', () => {
     expect(() => clientFromConfig(defaultConfig(), { kind: 'fake', fake: new FakeClient() }, {})).not.toThrow();
+  });
+});
+
+describe('clientFromConfig with a folder to record in', () => {
+  it('keeps a cassette of every call the chosen client answers, which a recorded client then replays', async () => {
+    const dir = path.join(scratch, 'recording');
+    const fake = new FakeClient().script('select', { answer: 'one' }, { answer: 'two' });
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake }, {}, noWait, dir);
+    await built.client.json(request());
+    await built.client.json(request({ user: 'Say goodbye.' }));
+    expect(readdirSync(dir)).toHaveLength(2);
+    const replay = clientFromConfig(defaultConfig(), { kind: 'recorded', cassetteDir: dir }, {});
+    expect((await replay.client.json(request())).value).toEqual({ answer: 'one' });
+    expect((await replay.client.json(request({ user: 'Say goodbye.' }))).value).toEqual({ answer: 'two' });
+  });
+
+  it('records nothing for a call that fails, and creates no folder when there is no call', async () => {
+    const dir = path.join(scratch, 'failing');
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake: new FakeClient() }, {}, noWait, dir);
+    expect(existsSync(dir)).toBe(false);
+    await expect(built.client.json(request())).rejects.toThrow('no scripted reply left');
+    expect(existsSync(dir)).toBe(false);
+  });
+
+  it('records a call that succeeds after a retry, once, and counts every try against the budget', async () => {
+    const dir = path.join(scratch, 'retrying');
+    const flaky = new FakeClient().script('select', overloaded(), { answer: 'second try' });
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake: flaky }, {}, noWait, dir);
+    await built.client.json(request());
+    expect(readdirSync(dir)).toHaveLength(1);
+    expect(built.spent().calls).toBe(2);
+  });
+
+  it('records nothing when it is not given a folder', async () => {
+    const before = readdirSync(scratch).length;
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake: new FakeClient().script('select', { answer: 'x' }) }, {});
+    await built.client.json(request());
+    expect(readdirSync(scratch)).toHaveLength(before);
   });
 });
 

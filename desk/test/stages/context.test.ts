@@ -82,6 +82,28 @@ describe('loadPublishedIndex', () => {
     expect(slugs).toEqual([...slugs].sort());
   });
 
+  it('counts only the ledgers that `keep` says yes to, and still refuses one that is not valid', async () => {
+    const all = await loadPublishedIndex(FIXTURE_LEDGERS);
+    const first = all.slugs[0] as string;
+    const kept = await loadPublishedIndex(FIXTURE_LEDGERS, (entry) => entry.slug !== first);
+    expect(kept.slugs).toEqual(all.slugs.slice(1));
+    expect(kept.titles).toEqual(all.titles.slice(1));
+    expect(await loadPublishedIndex(FIXTURE_LEDGERS, () => false)).toEqual(emptyPublished());
+    const dir = scratch();
+    writeFileSync(path.join(dir, 'broken.json'), JSON.stringify({ slug: 'x' }));
+    await expect(loadPublishedIndex(dir, () => false)).rejects.toThrow('the ledger broken.json is not valid: ');
+  });
+
+  it('gives `keep` the whole ledger entry, so that it can read its run and its day', async () => {
+    const seen: string[] = [];
+    await loadPublishedIndex(FIXTURE_LEDGERS, (entry) => {
+      seen.push(`${entry.runId} ${entry.publishedAt}`);
+      return true;
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((line) => /^\S+ \d{4}-\d{2}-\d{2}$/.test(line))).toBe(true);
+  });
+
   it('does not create the folder it is asked about', async () => {
     const dir = scratch();
     mkdirSync(path.join(dir, 'ledger'));
