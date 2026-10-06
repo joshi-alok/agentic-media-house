@@ -82,7 +82,7 @@ describe('gateRules', () => {
     });
 
     it('names the rules for the first word of a sentence and for headings, which Part A of this milestone added', () => {
-      expect(g4).toContain('a sentence may open with a capitalised word only if it is an ordinary function word or a word of a claim the sentence cites');
+      expect(g4).toContain('a sentence may open with a capitalised word only if it is an ordinary function word or a word of the quoted passage, the names or the outlet of a claim the sentence cites (the text and the label of a claim are written by a model and count for nothing)');
       expect(g4).toContain('a section heading has no number, date or quotation');
     });
   });
@@ -122,7 +122,7 @@ describe('gateRules', () => {
   it('says in G7 that analysis may not use a number in words and must open with an ordinary word', () => {
     const g7 = rules.find((rule) => rule.id === 'G7')?.text ?? '';
     expect(g7).toContain('a number (written in digits or words)');
-    expect(g7).toContain('must open with an ordinary function word or a word that some factual sentence uses');
+    expect(g7).toContain('must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites');
   });
 
   it('says in G1 that the author is the Desk', () => {

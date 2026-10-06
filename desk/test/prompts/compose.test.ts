@@ -51,13 +51,13 @@ describe('composeSystem', () => {
   it('says that every sentence starts with a capital letter or a digit, and gives the plain words that may start one: the gate\'s own list', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('Every sentence starts with a capital letter or a digit.');
     expect(COMPOSE_INSTRUCTIONS).toContain(`A sentence starts either with one of these plain words: ${SENTENCE_STARTERS.join(', ')};`);
-    expect(COMPOSE_INSTRUCTIONS).toContain('or with a word that appears in the text, the label, the quoted passage, the name values or the outlet of a claim that the sentence cites');
+    expect(COMPOSE_INSTRUCTIONS).toContain('or with a word that appears in the quoted passage, the name values or the outlet of a claim that the sentence cites. A word that only the text or the label of a claim has is refused');
   });
 
   it('says the rules of a heading: a statement of at most the gate\'s limit, no number, date or quotation, capitalised only as the claims of its section are, no empty section, no repeated neighbour', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain(`A heading is a statement of at most ${GATE.headingMax} characters, never a question.`);
     expect(COMPOSE_INSTRUCTIONS).toContain('A heading has no number, no date and no quotation.');
-    expect(COMPOSE_INSTRUCTIONS).toContain('Every capitalised word of a heading, the first one included, must be a plain word from the list above or a word of a claim cited in that section.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('Every capitalised word of a heading, the first one included, must be a plain word from the list above or a word of the quoted passage, the name values or the outlet of a claim cited in that section.');
     expect(COMPOSE_INSTRUCTIONS).toContain('Do not leave a section with no sentences, and do not give two neighbouring sections the same heading.');
   });
 
@@ -65,6 +65,7 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('Never use analysis in the title, the description, the opening or the takeaways.');
     expect(COMPOSE_INSTRUCTIONS).toContain(`At most ${GATE.analysisShareCap * 100} per cent of the sentences of the piece may be analysis.`);
     expect(COMPOSE_INSTRUCTIONS).toContain('may not contain a number, a date or a name that no fact sentence of the piece contains');
+    expect(COMPOSE_INSTRUCTIONS).toContain('it starts with a plain word or a word of the quoted passage, the name values or the outlet of a claim that it cites');
     expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence may cite only claims from a primary source.');
   });
 

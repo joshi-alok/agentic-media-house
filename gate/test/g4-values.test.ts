@@ -6,7 +6,9 @@ import type { ContextOverrides } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import type { Failure, GateInput } from '../src/gate';
 import { runGate } from '../src/gate';
+import { buildLimitations } from '../src/limitations';
 import type { Claim, ClaimValue } from '../src/schemas';
+import { citedClaims } from '../src/sentences';
 import { allSentences, claimById, findSentence, mutate } from './helpers';
 
 // --- A tiny input: a title that cites the given claims, and nothing else. ----
@@ -463,7 +465,7 @@ describe('G4 opening words', () => {
         check: 'G4',
         code: 'G4_INITIAL_WORD_UNSUPPORTED',
         message:
-          'the sentence at title opens with "Harlow", which is neither an ordinary opening word nor a word of any claim this sentence cites: start with an ordinary word, or cite the claim that mentions it',
+          'the sentence at title opens with "Harlow", which is neither an ordinary opening word nor a word of the quoted passage, the names or the outlet of any claim this sentence cites: start with an ordinary word, or cite the claim whose passage mentions it',
         where: 'title',
       },
     ]);
@@ -494,10 +496,46 @@ describe('G4 opening words', () => {
     expect(failure('SHIPMENTS began at the plant.', [claim])).toEqual([]);
   });
 
-  it('accepts an opening word that appears in the text, the label, or a name value of a cited claim', () => {
-    expect(failure('Rollout began.', [claimOf([], { text: 'The rollout began.' })])).toEqual([]);
-    expect(failure('Rollout began.', [claimOf([], { label: 'rollout' })])).toEqual([]);
+  it('accepts an opening word that is a name value of a cited claim', () => {
     expect(failure('Rollout began.', [claimOf([who('Rollout')])])).toEqual([]);
+  });
+
+  it('does not accept an opening word that is only in the text or the label of a cited claim: a model writes both, and the quotation is the evidence', () => {
+    expect(failure('Rollout began.', [claimOf([], { text: 'The rollout began.' })])).toHaveLength(1);
+    expect(failure('Rollout began.', [claimOf([], { label: 'rollout' })])).toHaveLength(1);
+    expect(failure('Rollout began.', [claimOf([], { text: 'The rollout began.', label: 'rollout' })])).toHaveLength(1);
+  });
+
+  it('does not accept a lowercase invented name that the text and the label of a claim carry, whatever the quotation says (the probe of the review)', () => {
+    const quote = 'Fixture Robotics lists the FX-1 from $38,000 per arm, with delivery within 12 weeks of an order.';
+    const claim = claimOf([num('12', '12')], {
+      text: 'the harlow dynamics arm ships within 12 weeks',
+      label: 'harlow lead time',
+      span: { start: 0, end: quote.length, quote },
+    });
+    const out = run(mini('Harlow ships the arm within 12 weeks of an order.', [claim]));
+    expect(out.failures.map((item) => item.code)).toEqual(['G4_INITIAL_WORD_UNSUPPORTED']);
+    expect(out.failures[0]?.message).toContain('opens with "Harlow"');
+  });
+
+  it('stops the golden piece with that claim text and label, and a sentence that opens with the invented name', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      const c4 = claimOfId(g, 'c-4');
+      c4.text = 'the harlow dynamics arm ships within 12 weeks';
+      c4.label = 'harlow lead time';
+      findSentence(g.draft, (sentence) => sentence.text.startsWith('Fixture Robotics lists the arm from')).text = 'Harlow ships the arm within 12 weeks of an order.';
+      // The notes under "What we couldn't verify" are written by code from the labels of the claims, so they are written again.
+      g.draft.limitations = buildLimitations(citedClaims(g.draft, g.claims));
+    });
+    const out = runGate(input, defaultContext());
+    expect(out.failures.map((item) => [item.check, item.code])).toEqual([['G4', 'G4_INITIAL_WORD_UNSUPPORTED']]);
+    expect(out.route).toBe('revise');
+  });
+
+  it('still accepts an opening word that is in the quotation, whatever case the quotation has it in', () => {
+    const quote = 'HARLOW ships within 12 weeks.';
+    const claim = claimOf([num('12', '12')], { span: { start: 0, end: quote.length, quote } });
+    expect(failure('Harlow ships the arm within 12 weeks of an order.', [claim])).toEqual([]);
   });
 
   it('accepts the outlet of a cited claim, which an attributed sentence has to name', () => {
@@ -693,10 +731,11 @@ describe('G4 headings', () => {
     ]);
   });
 
-  it('accepts a name in a word of the text, label, quoted passage or name values of a claim the section cites', () => {
+  it('accepts a name in a word of the quoted passage or the name values of a claim the section cites, and not in a word that only the label has', () => {
     expect(headingCodes('What Tarnmoor received')).toEqual([]);
     expect(headingCodes('What the Tarnmoor shipment is')).toEqual([]);
-    expect(headingCodes('What the Mounting needs')).toEqual([]);
+    expect(headingCodes('What the Mounting needs')).toEqual(['G4_HEADING_NAME']);
+    expect(headingCodes('What the Mounts need')).toEqual([]);
     expect(headingCodes('What the Ashvale plant does', 1)).toEqual([]);
     expect(headingCodes('What Corvane Partners led', 2)).toEqual([]);
   });
@@ -708,6 +747,18 @@ describe('G4 headings', () => {
       g.draft.sections[2]!.heading = 'What Mercer Wire says';
     };
     expect(goldenCodes(outlet)).toEqual([]);
+  });
+
+  it('does not take a capitalised word of a heading from the text or the label of a claim, only from its quotation, its names and its outlet', () => {
+    const input = (change: (claim: Claim) => void) =>
+      mutate(cloneGolden(), (g) => {
+        g.draft.sections[0]!.heading = 'What Harlow ships';
+        change(claimOfId(g, 'c-1'));
+      });
+    const failuresOf = (made: GateInput) => checkG4(made, defaultContext()).failures.map((failure) => failure.code);
+    expect(failuresOf(input((claim) => { claim.text = 'Harlow ships the arm.'; }))).toEqual(['G4_HEADING_NAME']);
+    expect(failuresOf(input((claim) => { claim.label = 'Harlow shipment'; }))).toEqual(['G4_HEADING_NAME']);
+    expect(failuresOf(input((claim) => { claim.values.push(who('Harlow')); claim.span.quote += ' Harlow'; }))).toEqual([]);
   });
 
   it('takes the claims of the section the heading belongs to, not those of the other sections', () => {

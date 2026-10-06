@@ -1,6 +1,6 @@
 {
-  "total": 59,
-  "caught": 59,
+  "total": 60,
+  "caught": 60,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -219,6 +219,13 @@
       "check": "G4",
       "code": "G4_INITIAL_WORD_UNSUPPORTED",
       "description": "A sentence opens with a company, Harlow Logistics, that the claim it cites never mentions.",
+      "caught": true
+    },
+    {
+      "id": "initial-word-from-claim-label",
+      "check": "G4",
+      "code": "G4_INITIAL_WORD_UNSUPPORTED",
+      "description": "A claim carries a lowercase invented name, harlow, in its text and its label, which a model writes, and a sentence that cites it opens with that name; the quoted passage of the claim does not have it.",
       "caught": true
     },
     {

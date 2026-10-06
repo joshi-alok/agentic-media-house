@@ -3,7 +3,7 @@ import type { Check, Failure } from '../gate';
 import { dateMatches } from '../normalise';
 import type { DateToken, NumberToken } from '../tokens';
 import { extractTokens } from '../tokens';
-import { openingWordAccepted, wordSet } from '../grounding';
+import { claimWords, openingWordAccepted } from '../grounding';
 import { allSentences, describeLocation } from '../sentences';
 
 /** Every failure code G7 can report. */
@@ -34,9 +34,11 @@ const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitat
  *   amount with no value to compare ("half", "doubled") is always new.
  *   The first word of an analysis sentence has its own rule: when it looks like a name
  *   it must be a function word from SENTENCE_STARTERS, a word on the allow-list, or
- *   a whole word (any case, anywhere) of some fact sentence of the piece.
+ *   a whole word (any case) of the quoted passage, the name values or the outlet of
+ *   a claim that the analysis sentence cites. The words of the fact sentences, and the
+ *   text and the label of a claim, ground nothing: they are what a model wrote.
  */
-export const checkG7: Check = ({ draft }, ctx) => {
+export const checkG7: Check = ({ draft, claims }, ctx) => {
   const sentences = allSentences(draft);
   const failures: Failure[] = [];
   const analysis = sentences.filter((item) => item.sentence.kind === 'analysis');
@@ -69,7 +71,7 @@ export const checkG7: Check = ({ draft }, ctx) => {
   const dates: DateToken[] = [];
   const names = new Set<string>();
   const facts = sentences.filter((located) => located.sentence.kind === 'fact');
-  const factWords = wordSet(facts.map((item) => item.sentence.text));
+  const byId = new Map(claims.map((claim) => [claim.id, claim]));
   for (const item of facts) {
     const tokens = extractTokens(item.sentence.text);
     numbers.push(...tokens.numbers);
@@ -80,16 +82,20 @@ export const checkG7: Check = ({ draft }, ctx) => {
   for (const item of analysis) {
     const where = describeLocation(item);
     const tokens = extractTokens(item.sentence.text);
-    const fail = (what: string) =>
+    const fail = (what: string, why = 'which no fact sentence contains') =>
       failures.push({
         check: 'G7',
         code: 'G7_ANALYSIS_NEW_VALUE',
-        message: `the analysis sentence at ${where} introduces the ${what}, which no fact sentence contains`,
+        message: `the analysis sentence at ${where} introduces the ${what}, ${why}`,
         where,
       });
 
-    if (tokens.initialWord !== undefined && !openingWordAccepted(tokens.initialWord, factWords, ctx.nameAllowList)) {
-      fail(`opening word "${tokens.initialWord}"`);
+    const cited = [...new Set(item.sentence.claimIds)].flatMap((id) => byId.get(id) ?? []);
+    if (tokens.initialWord !== undefined && !openingWordAccepted(tokens.initialWord, claimWords(cited), ctx.nameAllowList)) {
+      fail(
+        `opening word "${tokens.initialWord}"`,
+        'which is neither an ordinary opening word nor a word of the quoted passage, the names or the outlet of any claim it cites',
+      );
     }
     for (const token of new Map(tokens.numbers.map((number) => [number.raw, number])).values()) {
       if (!numbers.some((fact) => fact.value === token.value && (token.unit === undefined || fact.unit === token.unit))) {

@@ -108,21 +108,17 @@ describe('wordSet', () => {
 });
 
 describe('claimTexts and claimWords', () => {
-  it('give the text, label, quoted passage, name values and outlet of a claim, and no other value', () => {
+  it('give the quoted passage, the name values and the outlet of a claim, and nothing a model wrote about it: not the text, not the label, no other value', () => {
     const claim = structuredClone(claimById(cloneGolden().claims, 'c-5'));
     claim.source.outlet = 'Mercer Wire';
-    expect(claimTexts(claim)).toEqual([
-      claim.text,
-      claim.label,
-      claim.span.quote,
-      'Tarnmoor',
-      'Mercer Wire',
-    ]);
+    claim.text = 'a sentence that a model wrote';
+    claim.label = 'a label that a model wrote';
+    expect(claimTexts(claim)).toEqual([claim.span.quote, 'Tarnmoor', 'Mercer Wire']);
   });
 
   it('leaves out the outlet when the claim has none', () => {
     const claim = claimById(cloneGolden().claims, 'c-8');
-    expect(claimTexts(claim)).toEqual([claim.text, claim.label, claim.span.quote]);
+    expect(claimTexts(claim)).toEqual([claim.span.quote]);
   });
 
   it('claimWords is the word set of every text of every claim', () => {
@@ -130,6 +126,14 @@ describe('claimTexts and claimWords', () => {
     const words = claimWords([claimById(claims, 'c-8'), claimById(claims, 'c-18')]);
     for (const word of ['payload', 'rated', 'kilograms', 'corvane', 'partners', 'lead', 'investor']) expect(words.has(word), word).toBe(true);
     expect(words.has('tarnmoor')).toBe(false);
+  });
+
+  it('claimWords has no word that only the text or the label of a claim has', () => {
+    const claim = structuredClone(claimById(cloneGolden().claims, 'c-8'));
+    claim.text = 'the harlow dynamics arm is rated for a payload of 12 kg';
+    claim.label = 'harlow payload';
+    expect(claimWords([claim]).has('harlow')).toBe(false);
+    expect(claimWords([claim]).has('payload')).toBe(true);
   });
 });
 

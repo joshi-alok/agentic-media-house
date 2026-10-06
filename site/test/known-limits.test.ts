@@ -3,6 +3,7 @@ import {
   buildLimitations,
   checkG2,
   citedClaims,
+  claimWords,
   defaultContext,
   extractTokens,
   isSentenceStarter,
@@ -43,9 +44,9 @@ describe('KNOWN_LIMITS', () => {
     expect(text).toContain('The name check is strict on purpose');
     expect(unseen).toHaveLength(7);
     expect(misread).toHaveLength(2);
-    expect(strict).toHaveLength(2);
+    expect(strict).toHaveLength(3);
     expect(unchecked).toHaveLength(2);
-    expect(KNOWN_LIMITS).toHaveLength(13);
+    expect(KNOWN_LIMITS).toHaveLength(14);
   });
 
   it.each(KNOWN_LIMITS.map((limit) => [limit.text.slice(0, 40), limit] as const))('is written as plain sentences: %s', (_name, limit) => {
@@ -114,6 +115,19 @@ describe('KNOWN_LIMITS', () => {
     expect(initialWord).toBe('Output');
     expect(openingWordAccepted('Output', new Set(), new Set())).toBe(false);
     expect(openingWordAccepted('Output', new Set(['output']), new Set())).toBe(true);
+  });
+
+  it('is true of the strict limit about the evidence for an opening word: a word that only the text or the label of a claim has is refused, and the same word in the quoted passage is accepted', () => {
+    const limit = withText(strict, 'The only evidence for a capitalised word that opens a sentence or a heading');
+    expect(limit.text).toContain('the text and the label of a claim are written by a model and count for nothing');
+    expect(extractTokens(limit.example).initialWord).toBe('Rollout');
+    const claim = structuredClone(cloneGolden().claims[0]!);
+    claim.text = 'The rollout began.';
+    claim.label = 'rollout';
+    expect(claim.span.quote.toLowerCase()).not.toContain('rollout');
+    expect(openingWordAccepted('Rollout', claimWords([claim]), new Set())).toBe(false);
+    claim.span.quote = `${claim.span.quote} The rollout began.`;
+    expect(openingWordAccepted('Rollout', claimWords([claim]), new Set())).toBe(true);
   });
 
   it('says what the strictness costs and what it buys', () => {

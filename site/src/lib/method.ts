@@ -45,7 +45,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G4',
       name: 'Values',
-      text: `The reader of the gate finds the numbers, dates and capitalised names in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a sentence may open with a capitalised word only if it is an ordinary function word or a word of a claim the sentence cites; a section heading has no number, date or quotation and no capitalised word that no claim cited in that section contains; and every value a claim lists is really in its quoted passage, as a whole word or number (a 2 is not found inside "12 weeks" or "2.3").`,
+      text: `The reader of the gate finds the numbers, dates and capitalised names in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a sentence may open with a capitalised word only if it is an ordinary function word or a word of the quoted passage, the names or the outlet of a claim the sentence cites (the text and the label of a claim are written by a model and count for nothing); a section heading has no number, date or quotation and no capitalised word that is not in the quoted passage, the names or the outlet of a claim cited in that section; and every value a claim lists is really in its quoted passage, as a whole word or number (a 2 is not found inside "12 weeks" or "2.3").`,
     },
     {
       id: 'G5',
@@ -60,7 +60,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G7',
       name: 'Analysis',
-      text: `Analysis, the Desk's own reading of the facts, is labelled, stays out of the title, description, opening and takeaways, makes up at most ${share} percent of the body's sentences, may not bring in a number (written in digits or words), date or name that no factual sentence contains, and must open with an ordinary function word or a word that some factual sentence uses.`,
+      text: `Analysis, the Desk's own reading of the facts, is labelled, stays out of the title, description, opening and takeaways, makes up at most ${share} percent of the body's sentences, may not bring in a number (written in digits or words), date or name that no factual sentence contains, and must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites.`,
     },
     {
       id: 'G8',
@@ -151,6 +151,11 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
     kind: 'strict',
     text: 'A sentence cannot open with a name that starts with a lowercase letter, such as iRobot or xAI: every sentence must start with a capital letter or a digit, so the sentence has to be reworded.',
     example: 'iRobot shipped the arm.',
+  },
+  {
+    kind: 'strict',
+    text: 'The only evidence for a capitalised word that opens a sentence or a heading is the quoted passage of a claim, the names that claim lists and its outlet: the text and the label of a claim are written by a model and count for nothing, so a word that only they have sends the draft back, although it may be an ordinary word.',
+    example: 'Rollout began in the spring.',
   },
   {
     kind: 'unchecked',

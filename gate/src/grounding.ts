@@ -6,8 +6,11 @@ import { toNameToken } from './tokens';
 // sentence begins with a capital letter. That exemption is also a hole: a made-up
 // company at the start of a sentence ("Harlow Logistics plans ...") would only
 // have its second word checked. These helpers close it. An opening word that
-// looks like a name is accepted when it is an ordinary function word, when a claim
-// the sentence rests on contains it, or when the allow-list names it.
+// looks like a name is accepted when it is an ordinary function word, when the
+// evidence of a claim the sentence rests on contains it (the quoted passage, the
+// names the claim lists, the outlet), or when the allow-list names it. The text
+// and the label of a claim are written by a model and are evidence of nothing: a
+// lowercase invented name there ("harlow") must not license a capitalised opening.
 
 /**
  * Function words that may open a sentence without being found in a claim:
@@ -65,15 +68,18 @@ export function wordSet(texts: Iterable<string>): Set<string> {
 }
 
 /**
- * The text a claim can stand behind: what it says, what it is called, the
- * passage it quotes, the names it lists and the outlet that reported it.
+ * The text that is evidence for a word: the passage a claim quotes, the names
+ * it lists and the outlet that reported it. Not the text of the claim and not
+ * its label: a model writes both, and a word that only they have is a word that
+ * only a model has. The quoted passage was found in the page by code, the names
+ * were found in the passage by code, and the outlet is recorded by code.
  */
 export function claimTexts(claim: Claim): string[] {
   const names = claim.values.filter((value) => value.kind === 'name').map((value) => value.raw);
-  return [claim.text, claim.label, claim.span.quote, ...names, ...(claim.source.outlet === undefined ? [] : [claim.source.outlet])];
+  return [claim.span.quote, ...names, ...(claim.source.outlet === undefined ? [] : [claim.source.outlet])];
 }
 
-/** The word set of every text of every claim in `claims`. */
+/** The word set of the evidence (`claimTexts`) of every claim in `claims`. */
 export function claimWords(claims: Iterable<Claim>): Set<string> {
   return wordSet([...claims].flatMap(claimTexts));
 }

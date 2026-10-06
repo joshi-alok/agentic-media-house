@@ -58,8 +58,10 @@ const claimDate = (value: ClaimValue): string => parseDateToken(value.raw)?.iso 
  * The first word of a sentence is not a name token, because every sentence
  * starts with a capital letter. When it looks like a name it has a rule of its
  * own (G4_INITIAL_WORD_UNSUPPORTED): it must be a function word from
- * SENTENCE_STARTERS, or a word of the text, label, quoted passage, name values or
- * outlet of a claim the sentence cites, or on the allow-list. Without it, a
+ * SENTENCE_STARTERS, or a word of the quoted passage, the name values or the
+ * outlet of a claim the sentence cites, or on the allow-list. The text and the
+ * label of a claim ground nothing: a model writes them, and a lowercase invented
+ * name in them ("harlow") would license a capitalised opening. Without the rule, a
  * made-up company at the start of a sentence would only have its second word checked.
  *
  * Section headings are free text that no claim vouches for, so they are held
@@ -100,7 +102,7 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
     if (tokens.initialWord !== undefined && !openingWordAccepted(tokens.initialWord, claimWords(cited), ctx.nameAllowList)) {
       fail(
         'G4_INITIAL_WORD_UNSUPPORTED',
-        `the sentence at ${where} opens with "${tokens.initialWord}", which is neither an ordinary opening word nor a word of any claim this sentence cites: start with an ordinary word, or cite the claim that mentions it`,
+        `the sentence at ${where} opens with "${tokens.initialWord}", which is neither an ordinary opening word nor a word of the quoted passage, the names or the outlet of any claim this sentence cites: start with an ordinary word, or cite the claim whose passage mentions it`,
       );
     }
 
