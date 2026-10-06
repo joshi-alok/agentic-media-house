@@ -101,6 +101,7 @@ export const BASIS_WORDS: Readonly<Record<Basis, string>> = {
   paper: 'paper',
   standard: 'standard',
   measured: 'measured',
+  reported: 'another outlet',
 };
 
 export interface CardFigure {

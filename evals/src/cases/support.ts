@@ -1,4 +1,4 @@
-import { allSentences } from '@robywire/gate';
+import { allSentences, buildLimitations, citedClaims } from '@robywire/gate';
 import type { Claim, GateInput, Sentence } from '@robywire/gate';
 
 // Small helpers for writing seeded cases. They throw when they find nothing,
@@ -17,4 +17,24 @@ export function sentenceWith(input: GateInput, fragment: string): Sentence {
   const found = allSentences(input.draft).find((item) => item.sentence.text.includes(fragment));
   if (found === undefined) throw new Error(`seeded case: no sentence of the golden piece contains "${fragment}"`);
   return found.sentence;
+}
+
+/**
+ * Make claim `id` one that only `outlet` reports: a tier-2 source with the basis `reported`. A reported claim
+ * needs a limitation sentence, so the limitations are written again from the claims the piece cites. Call it
+ * after every sentence that should cite the claim does.
+ */
+export function reportedBy(input: GateInput, id: string, outlet: string): void {
+  const claim = claimOf(input, id);
+  claim.source.tier = 2;
+  claim.source.outlet = outlet;
+  claim.basis = 'reported';
+  input.draft.limitations = buildLimitations(citedClaims(input.draft, input.claims));
+}
+
+/** Write the sentence that contains `fragment` as an attribution to `outlet`: the new text, marked attributed. */
+export function attributeTo(input: GateInput, fragment: string, text: string): void {
+  const sentence = sentenceWith(input, fragment);
+  sentence.text = text;
+  if (sentence.kind === 'fact') sentence.attributed = true;
 }

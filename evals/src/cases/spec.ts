@@ -1,5 +1,5 @@
 import type { SeededCase } from '../seeded';
-import { claimOf, sentenceWith } from './support';
+import { claimOf, reportedBy, sentenceWith } from './support';
 
 /**
  * The four defects the design spec names, under the names the spec gives
@@ -33,9 +33,7 @@ export const SPEC_CASES: SeededCase[] = [
     code: 'G6_TIER2_UNATTRIBUTED',
     description: 'A claim that comes only from another outlet is stated as plain fact, with no attribution.',
     apply: (base) => {
-      const { source } = claimOf(base, 'c-18');
-      source.tier = 2;
-      source.outlet = 'Mercer Wire';
+      reportedBy(base, 'c-18', 'Mercer Wire');
       return base;
     },
   },

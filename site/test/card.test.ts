@@ -90,7 +90,7 @@ describe('BASIS_WORDS', () => {
     expect(Object.keys(BASIS_WORDS).sort()).toEqual([...BASES].sort());
   });
 
-  it('says them as the card shows them: datasheet, press release, briefing, demonstration, filing, paper, standard, measured', () => {
+  it('says them as the card shows them: datasheet, press release, briefing, demonstration, filing, paper, standard, measured, another outlet', () => {
     expect(BASIS_WORDS).toEqual({
       datasheet: 'datasheet',
       'press-release': 'press release',
@@ -100,6 +100,7 @@ describe('BASIS_WORDS', () => {
       paper: 'paper',
       standard: 'standard',
       measured: 'measured',
+      reported: 'another outlet',
     });
   });
 

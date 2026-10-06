@@ -35,7 +35,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G2',
       name: 'Structure',
-      text: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words in at least 2 sections, every section has a heading of at most ${headingMax} characters that is not a question, every sentence starts with a capital letter or a digit (an opening quotation mark or bracket may come first), and every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
+      text: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words in at least 2 sections, every section has a heading of at most ${headingMax} characters that is not a question, every sentence starts with a capital letter or a digit (an opening quotation mark or bracket may come first), and every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
     },
     {
       id: 'G3',
@@ -55,7 +55,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G6',
       name: 'Sourcing',
-      text: 'A claim that comes from another outlet may appear only in a factual sentence that names the outlet and is marked as an attribution, never in analysis; the article labels such a sentence "Unconfirmed.", and a piece that uses one is held for the owner instead of being published.',
+      text: 'A claim that comes from another outlet has the basis "reported" (no claim from a primary source has it) and may appear only in a factual sentence that names the outlet and is marked as an attribution, never in analysis; the article labels such a sentence "Unconfirmed.", and a piece that uses one is held for the owner instead of being published.',
     },
     {
       id: 'G7',
@@ -65,7 +65,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G8',
       name: 'Limitations',
-      text: `The sentences under "What we couldn't verify" are never freely written: each describes a group of claims that share one basis or one status through a fixed template, cites each claim once in ascending order, and the gate writes the sentence again and requires an exact match.`,
+      text: `The sentences under "What we couldn't verify" are never freely written: each describes a group of claims that share one basis or one status (and, for claims that another outlet reported, that outlet) through a fixed template, cites each claim once in ascending order, and the gate writes the sentence again and requires an exact match.`,
     },
     {
       id: 'G9',

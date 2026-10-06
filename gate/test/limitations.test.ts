@@ -12,6 +12,7 @@ import {
   limitationGroups,
   needsBasisLimitation,
   needsStatusLimitation,
+  outletOf,
   renderLimitation,
 } from '../src/limitations';
 import type { Claim } from '../src/schemas';
@@ -329,5 +330,113 @@ describe('buildLimitations', () => {
   it('writes nothing when no claim needs a sentence', () => {
     expect(buildLimitations([])).toEqual([]);
     expect(buildLimitations([claim({ basis: 'filing' }), claim({ id: 'c-2', basis: 'measured', status: 'deployed' })])).toEqual([]);
+  });
+});
+
+describe('outletOf', () => {
+  /** A tier-2 claim whose source names `outlet`, or names none when it is undefined. */
+  const from = (outlet: string | undefined): Claim => claim({ source: { ...BASE_CLAIM.source, tier: 2, ...(outlet === undefined ? {} : { outlet }) } });
+
+  it('is the outlet the source names, without the spaces around it', () => {
+    expect(outletOf(from('Mercer Wire'))).toBe('Mercer Wire');
+    expect(outletOf(from('  Mercer Wire \t'))).toBe('Mercer Wire');
+  });
+
+  it('is empty when the source names no outlet, or only spaces', () => {
+    expect(outletOf(from(undefined))).toBe('');
+    expect(outletOf(from('   '))).toBe('');
+    expect(outletOf(claim({}))).toBe('');
+  });
+});
+
+describe('the basis reported', () => {
+  /** A claim that only another outlet reports: tier 2, with the outlet named, and the basis `reported`. */
+  const reported = (id: string, label: string, outlet: string, raw?: string): Claim =>
+    claim({
+      id,
+      label,
+      basis: 'reported',
+      source: { ...BASE_CLAIM.source, tier: 2, outlet },
+      values: raw === undefined ? [] : [{ kind: 'number', raw, normalised: raw }],
+    });
+
+  it('is never a safe basis, so a reported claim always needs a limitation sentence', () => {
+    expect(SAFE_BASES).not.toContain('reported');
+    expect(needsBasisLimitation(reported('c-1', 'investor count', 'Mercer Wire', '7'))).toBe(true);
+  });
+
+  it('is written in the singular with the figure, the label and the outlet', () => {
+    expect(renderLimitation([reported('c-19', 'investor count', 'Mercer Wire', '7')], 'basis')).toBe(
+      'The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.',
+    );
+  });
+
+  it('is written in the plural with the figure and label of each claim, and the outlet once', () => {
+    const two = [reported('c-19', 'investor count', 'Mercer Wire', '7'), reported('c-20', 'round size', 'Mercer Wire', '$450 million')];
+    expect(renderLimitation(two, 'basis')).toBe(
+      'The 7 investor count and $450 million round size figures are reported by Mercer Wire and were not checked against a primary source.',
+    );
+  });
+
+  it('takes the outlet from the claims themselves, without the spaces around it, and reads a "$" in it as a letter', () => {
+    expect(renderLimitation([reported('c-1', 'investor count', '  Mercer Wire ', '7')], 'basis')).toBe(
+      'The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.',
+    );
+    expect(renderLimitation([reported('c-1', 'investor count', 'Cash $& Wire', '7')], 'basis')).toBe(
+      'The 7 investor count figure is reported by Cash $& Wire and was not checked against a primary source.',
+    );
+  });
+
+  it('names the outlet of the first claim, which is why a group never mixes outlets', () => {
+    const mixed = [reported('c-1', 'investor count', 'Mercer Wire', '7'), reported('c-2', 'round size', 'Tarn Daily', '5')];
+    expect(renderLimitation(mixed, 'basis')).toContain('are reported by Mercer Wire and were');
+  });
+
+  it('has an outlet only in its own templates', () => {
+    for (const basis of BASES) {
+      expect(BASIS_TEMPLATES[basis].includes('{outlet}'), basis).toBe(basis === 'reported');
+      expect(BASIS_TEMPLATES_PLURAL[basis].includes('{outlet}'), basis).toBe(basis === 'reported');
+    }
+    expect(renderLimitation([claim({ source: { ...BASE_CLAIM.source, outlet: 'Mercer Wire' } })], 'basis')).not.toContain('Mercer Wire');
+  });
+
+  it('is grouped by outlet, so two outlets make two groups, the outlet of the lowest claim number first, after the other basis groups', () => {
+    const groups = limitationGroups([
+      reported('c-9', 'a', 'Tarn Daily'),
+      reported('c-2', 'b', 'Mercer Wire'),
+      reported('c-5', 'c', 'Tarn Daily'),
+      reported('c-4', 'd', 'Mercer Wire'),
+      claim({ id: 'c-20', basis: 'demo' }),
+      claim({ id: 'c-21', basis: 'datasheet', status: 'planned' }),
+    ]);
+    expect(groups.map((group) => [group.template, group.key, group.claims.map((item) => item.id)])).toEqual([
+      ['basis', 'datasheet', ['c-21']],
+      ['basis', 'demo', ['c-20']],
+      ['basis', 'reported', ['c-2', 'c-4']],
+      ['basis', 'reported', ['c-5', 'c-9']],
+      ['status', 'planned', ['c-21']],
+    ]);
+  });
+
+  it('is written as one sentence for each outlet by buildLimitations', () => {
+    const claims = [
+      reported('c-9', 'investor count', 'Tarn Daily', '7'),
+      reported('c-2', 'round size', 'Mercer Wire', '$450 million'),
+      reported('c-5', 'valuation', 'Tarn Daily', '$2 billion'),
+    ];
+    expect(buildLimitations(claims)).toEqual([
+      {
+        kind: 'limitation',
+        text: 'The $450 million round size figure is reported by Mercer Wire and was not checked against a primary source.',
+        claimIds: ['c-2'],
+        template: 'basis',
+      },
+      {
+        kind: 'limitation',
+        text: 'The $2 billion valuation and 7 investor count figures are reported by Tarn Daily and were not checked against a primary source.',
+        claimIds: ['c-5', 'c-9'],
+        template: 'basis',
+      },
+    ]);
   });
 });

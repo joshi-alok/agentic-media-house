@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import board from '@robywire/evals/scoreboard';
-import { ALL_FAILURE_CODES, CHECK_IDS, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
+import { ALL_FAILURE_CODES, BASES, CHECK_IDS, SAFE_BASES, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
 import { LIVE } from '../src/lib/live';
 import { LIMITS_HEADING, PIPELINE_STAGES, SCOREBOARD_INTRO, gateRules, scoreboardHeadline } from '../src/lib/method';
 
@@ -89,6 +89,17 @@ describe('gateRules', () => {
 
   it('says in G6 that the article labels a sentence that rests on another outlet "Unconfirmed."', () => {
     expect(rules.find((rule) => rule.id === 'G6')?.text).toContain('the article labels such a sentence "Unconfirmed."');
+  });
+
+  it('says in G6 that a claim from another outlet has the basis "reported" and a primary one never does, and the gate agrees', () => {
+    expect(rules.find((rule) => rule.id === 'G6')?.text).toContain('has the basis "reported" (no claim from a primary source has it)');
+    expect(BASES).toContain('reported');
+    expect(SAFE_BASES).not.toContain('reported');
+  });
+
+  it('says in G2 and G8 that what another outlet reported is covered by a limitation sentence that names the outlet', () => {
+    expect(rules.find((rule) => rule.id === 'G2')?.text).toContain('briefing or demo, that only another outlet reported, or that was only demonstrated');
+    expect(rules.find((rule) => rule.id === 'G8')?.text).toContain('(and, for claims that another outlet reported, that outlet)');
   });
 
   it('says in G2 that every sentence starts with a capital letter or a digit, and the code agrees', () => {

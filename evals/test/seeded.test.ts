@@ -197,6 +197,21 @@ describe('the case lowercase-sentence-start', () => {
   });
 });
 
+describe('the cases that rewrite what another outlet reports', () => {
+  // Each of these changes several sentences and claims at once, so each is run alone and must break the rule it names and no other.
+  it.each([
+    ['tier2-only-claim', 'G6_TIER2_UNATTRIBUTED'],
+    ['tier2-outlet-not-named', 'G6_TIER2_UNATTRIBUTED'],
+    ['tier2-in-analysis', 'G6_TIER2_IN_ANALYSIS'],
+    ['tier2-claim-wrong-basis', 'G6_TIER2_BASIS'],
+    ['primary-claim-called-reported', 'G6_TIER1_REPORTED'],
+    ['limitation-two-outlets', 'G8_LIMITATION_GROUP'],
+  ])('%s breaks the rule it names and no other', (id, code) => {
+    const only = SEEDED_CASES.filter((item) => item.id === id);
+    expect(runSeeded(ALL_CHECKS, only).cases.map((item) => item.gotCodes)).toEqual([[code]]);
+  });
+});
+
 describe('runSeeded with cases of its own', () => {
   // Two numbers are wrong in one sentence, so the gate reports the same code twice.
   const twoWrongNumbers: Omit<SeededCase, 'check' | 'code'> = {

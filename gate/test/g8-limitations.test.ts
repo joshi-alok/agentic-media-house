@@ -234,6 +234,66 @@ describe('G8_LIMITATION_GROUP', () => {
   });
 });
 
+describe('G8_LIMITATION_GROUP for claims that another outlet reported', () => {
+  /** Make c-18 and c-19 (two filing claims that no limitation sentence covers) claims that `outlets` (one each) report, and add a basis sentence for the two of them. */
+  const reportedPair = (g: GateInput, outlets: [string, string], text?: (claims: Parameters<typeof renderLimitation>[0]) => string): LimitationSentence => {
+    const pair = [claimById(g.claims, 'c-18'), claimById(g.claims, 'c-19')];
+    pair.forEach((claim, at) => {
+      claim.source.tier = 2;
+      claim.source.outlet = outlets[at]!;
+      claim.basis = 'reported';
+    });
+    const sentence: LimitationSentence = {
+      kind: 'limitation',
+      template: 'basis',
+      claimIds: ['c-18', 'c-19'],
+      text: (text ?? ((claims) => renderLimitation(claims, 'basis')))(pair),
+    };
+    g.draft.limitations.push(sentence);
+    return sentence;
+  };
+  const AT = 'limitations, sentence 6';
+
+  it('accepts a reported sentence whose claims come from one outlet', () => {
+    expect(run((g) => reportedPair(g, ['Mercer Wire', 'Mercer Wire']))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('fails a reported sentence whose claims come from different outlets, and says which', () => {
+    const output = run((g) => reportedPair(g, ['Mercer Wire', 'Tarn Daily']));
+    expect(output.failures).toEqual([
+      {
+        check: 'G8',
+        code: 'G8_LIMITATION_GROUP',
+        message: `the limitation sentence at ${AT} groups claims reported by different outlets (c-18: Mercer Wire, c-19: Tarn Daily): a reported sentence covers claims from one outlet`,
+        where: AT,
+      },
+    ]);
+  });
+
+  it('does not also report a mismatch for a group of two outlets', () => {
+    expect(codes(run((g) => reportedPair(g, ['Mercer Wire', 'Tarn Daily'], () => 'Anything.')))).toEqual(['G8_LIMITATION_GROUP']);
+  });
+
+  it('reads the outlet without the spaces around it, so one outlet written two ways is still one', () => {
+    expect(run((g) => reportedPair(g, ['Mercer Wire', '  Mercer Wire ']))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('fails a reported sentence that names another outlet than the claims do', () => {
+    const output = run((g) => reportedPair(g, ['Mercer Wire', 'Mercer Wire'], (claims) => renderLimitation(claims, 'basis').replace('Mercer Wire', 'Tarn Daily')));
+    expect(codes(output)).toEqual(['G8_LIMITATION_MISMATCH']);
+  });
+
+  it('does not ask a status sentence for one outlet: it groups by status, whoever reported the claims', () => {
+    const output = run((g) => {
+      const sentence = reportedPair(g, ['Mercer Wire', 'Tarn Daily']);
+      for (const id of sentence.claimIds) claimById(g.claims, id).status = 'planned';
+      sentence.template = 'status';
+      sentence.text = renderLimitation(sentence.claimIds.map((id) => claimById(g.claims, id)), 'status');
+    });
+    expect(output).toEqual({ failures: [], holdReasons: [] });
+  });
+});
+
 describe('G8_LIMITATION_MISMATCH', () => {
   it('fails a limitation sentence whose text is not the template text, and says what it must read', () => {
     const output = run((g) => {

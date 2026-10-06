@@ -1,6 +1,7 @@
+import { buildLimitations, citedClaims } from '@robywire/gate';
 import type { Sentence } from '@robywire/gate';
 import type { SeededCase } from '../seeded';
-import { claimOf, sentenceWith } from './support';
+import { attributeTo, claimOf, reportedBy, sentenceWith } from './support';
 
 const OUTLET = 'Mercer Wire';
 
@@ -18,12 +19,8 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
     code: 'G6_TIER2_UNATTRIBUTED',
     description: 'A sentence is marked attributed to a tier-2 outlet but never says which outlet.',
     apply: (base) => {
-      const { source } = claimOf(base, 'c-19');
-      source.tier = 2;
-      source.outlet = OUTLET;
-      const sentence = sentenceWith(base, 'It lists 7 investors');
-      sentence.text = 'The filing lists 7 investors, according to reports.';
-      if (sentence.kind === 'fact') sentence.attributed = true;
+      attributeTo(base, 'It lists 7 investors', 'The filing lists 7 investors, according to reports.');
+      reportedBy(base, 'c-19', OUTLET);
       return base;
     },
   },
@@ -35,10 +32,33 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
     apply: (base) => {
       const copy = structuredClone(claimOf(base, 'c-12'));
       copy.id = 'c-29';
-      copy.source.tier = 2;
-      copy.source.outlet = OUTLET;
       base.claims.push(copy);
       sentenceWith(base, 'The measured rate sits below').claimIds.push('c-29');
+      reportedBy(base, 'c-29', OUTLET);
+      return base;
+    },
+  },
+  {
+    id: 'tier2-claim-wrong-basis',
+    check: 'G6',
+    code: 'G6_TIER2_BASIS',
+    description: 'A claim that rests only on another outlet is given the basis of a primary source, a filing.',
+    apply: (base) => {
+      const { source } = claimOf(base, 'c-19');
+      source.tier = 2;
+      source.outlet = OUTLET;
+      attributeTo(base, 'It lists 7 investors', `${OUTLET} reports that 7 investors took part in the round.`);
+      return base;
+    },
+  },
+  {
+    id: 'primary-claim-called-reported',
+    check: 'G6',
+    code: 'G6_TIER1_REPORTED',
+    description: 'A claim from a primary source is given the basis reported, which is for what another outlet reports.',
+    apply: (base) => {
+      claimOf(base, 'c-19').basis = 'reported';
+      base.draft.limitations = buildLimitations(citedClaims(base.draft, base.claims));
       return base;
     },
   },

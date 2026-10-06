@@ -13,6 +13,9 @@ import type { Claim, LimitationSentence } from './schemas';
 // the plural template, whose placeholder is `{items}` (the figure and label of
 // each claim) or `{labels}` (the label of each claim) for the templates that do
 // not mention a figure. The items are joined "A", "A and B", "A, B and C".
+// The templates of the basis `reported` also name the outlet (`{outlet}`), the
+// outlet of the claims themselves, which is why a group of reported claims is
+// never larger than the claims of one outlet.
 
 /** What a claim's `basis` tells the reader about where the figure came from: one claim. */
 export const BASIS_TEMPLATES: Readonly<Record<Basis, string>> = {
@@ -24,6 +27,7 @@ export const BASIS_TEMPLATES: Readonly<Record<Basis, string>> = {
   filing: 'The {v}{label} figure comes from a regulatory filing.',
   standard: 'The {label} requirement comes from the published standard.',
   measured: 'The {v}{label} figure was measured by the source and is reported as stated.',
+  reported: 'The {v}{label} figure is reported by {outlet} and was not checked against a primary source.',
 };
 
 /** The same, for two or more claims that share the basis. */
@@ -36,6 +40,7 @@ export const BASIS_TEMPLATES_PLURAL: Readonly<Record<Basis, string>> = {
   filing: 'The {items} figures come from a regulatory filing.',
   standard: 'The {labels} requirements come from the published standard.',
   measured: 'The {items} figures were measured by the source and are reported as stated.',
+  reported: 'The {items} figures are reported by {outlet} and were not checked against a primary source.',
 };
 
 /** What a claim's `status` tells the reader about how far the capability has got: one claim. */
@@ -63,6 +68,9 @@ export const needsBasisLimitation = (claim: Claim): boolean => !(SAFE_BASES as r
 /** Does this claim need a 'status' sentence? Yes when the capability was only demonstrated or is only planned. */
 export const needsStatusLimitation = (claim: Claim): boolean => STATUSES_WITH_SENTENCE.includes(claim.status);
 
+/** The outlet a claim's source names, without the spaces around it; empty when the source names none. */
+export const outletOf = (claim: Claim): string => claim.source.outlet?.trim() ?? '';
+
 /** The number in a claim id such as "c-12"; NaN for anything that is not a claim id. */
 export function claimNumber(id: string): number {
   const match = /^c-(\d+)$/.exec(id);
@@ -86,8 +94,9 @@ export function joinList(items: readonly string[]): string {
 /**
  * Render the limitation sentence for a group of claims through the `basis` or
  * the `status` template. The template is chosen by the first claim's basis (or
- * status); the gate checks that the claims of a group share it. One claim gives
- * the singular sentence, two or more the plural one.
+ * status), and the outlet of a `reported` sentence is the first claim's outlet;
+ * the gate checks that the claims of a group share them. One claim gives the
+ * singular sentence, two or more the plural one.
  */
 export function renderLimitation(claims: readonly Claim[], template: 'basis' | 'status'): string {
   const first = claims[0];
@@ -101,9 +110,10 @@ export function renderLimitation(claims: readonly Claim[], template: 'basis' | '
   const labels = joinList(claims.map((claim) => claim.label));
   // One pass with a function, so a "$" in a value or label is never read as a
   // replacement pattern and a placeholder inside a value is never filled in.
-  return text.replace(/\{(v|label|items|labels)\}/g, (_placeholder, name: string) => {
+  return text.replace(/\{(v|label|items|labels|outlet)\}/g, (_placeholder, name: string) => {
     if (name === 'items') return items;
     if (name === 'labels') return labels;
+    if (name === 'outlet') return outletOf(first);
     return name === 'v' ? figureOf(first) : first.label;
   });
 }
@@ -119,16 +129,23 @@ export interface LimitationGroup {
 /**
  * The groups of claims that need a limitation sentence. `citedClaims` are the
  * claims the body of a piece cites. Those whose basis is not safe are grouped by
- * basis, in the order of BASES; those that are demonstrated or planned are
- * grouped by status, in that order, after the basis groups. A claim that needs
- * both is in a group of each kind. Inside a group the claims are ordered by claim number.
+ * basis, in the order of BASES; the claims that were `reported` are grouped by
+ * outlet as well, so that a sentence names one outlet, the outlet of the lowest
+ * claim number first. Those that are demonstrated or planned are grouped by
+ * status, in that order, after the basis groups. A claim that needs both is in a
+ * group of each kind. Inside a group the claims are ordered by claim number.
  */
 export function limitationGroups(citedClaims: readonly Claim[]): LimitationGroup[] {
   const unique = [...new Map(citedClaims.map((claim) => [claim.id, claim])).values()].sort((a, b) => claimNumber(a.id) - claimNumber(b.id));
   const groups: LimitationGroup[] = [];
   for (const basis of BASES) {
     const claims = unique.filter((claim) => needsBasisLimitation(claim) && claim.basis === basis);
-    if (claims.length > 0) groups.push({ template: 'basis', key: basis, claims });
+    // One sentence names one outlet, so the claims that another outlet reported are grouped by outlet.
+    const outlets = basis === 'reported' ? [...new Set(claims.map(outletOf))] : [undefined];
+    for (const outlet of outlets) {
+      const group = outlet === undefined ? claims : claims.filter((claim) => outletOf(claim) === outlet);
+      if (group.length > 0) groups.push({ template: 'basis', key: basis, claims: group });
+    }
   }
   for (const status of STATUSES_WITH_SENTENCE) {
     const claims = unique.filter((claim) => claim.status === status);

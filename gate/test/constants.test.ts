@@ -35,7 +35,7 @@ describe('closed vocabularies', () => {
     expect(new Set(CATEGORY_VOCAB).size).toBe(CATEGORY_VOCAB.length);
   });
 
-  it('names the eight claim bases, four statuses and six claim types', () => {
+  it('names the nine claim bases, four statuses and six claim types', () => {
     expect(BASES).toEqual([
       'datasheet',
       'press-release',
@@ -45,6 +45,7 @@ describe('closed vocabularies', () => {
       'standard',
       'measured',
       'demo',
+      'reported',
     ]);
     expect(STATUSES).toEqual(['demonstrated', 'deployed', 'planned', 'unspecified']);
     expect(CLAIM_TYPES).toEqual(['number', 'date', 'name', 'spec', 'quote', 'event']);
@@ -54,11 +55,12 @@ describe('closed vocabularies', () => {
     expect(RELEASES).toEqual(['auto', 'owner']);
   });
 
-  it('keeps the safe bases a subset of the bases', () => {
+  it('keeps the safe bases a subset of the bases, and never calls what another outlet reported safe', () => {
     expect(SAFE_BASES).toEqual(['filing', 'standard', 'paper', 'measured']);
     for (const basis of SAFE_BASES) {
       expect(BASES).toContain(basis);
     }
+    expect(SAFE_BASES).not.toContain('reported');
   });
 
   it('numbers the checks G1 to G9', () => {

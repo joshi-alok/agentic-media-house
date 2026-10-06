@@ -788,7 +788,7 @@
       "text": "Seven investors took part in the offering.",
       "label": "investor count",
       "type": "number",
-      "basis": "filing",
+      "basis": "reported",
       "status": "unspecified",
       "values": [
         {
@@ -1381,6 +1381,16 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
+      "text": "The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.",
+      "claimIds": [
+        "c-19"
+      ]
+    },
+    {
+      "index": 41,
+      "section": "limitations",
+      "paragraph": 0,
+      "kind": "limitation",
       "text": "The trailer unloading and demo day were demonstrated; the source does not report them in commercial deployment.",
       "claimIds": [
         "c-27",
@@ -1388,7 +1398,7 @@
       ]
     },
     {
-      "index": 41,
+      "index": 42,
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",

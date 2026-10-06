@@ -1,6 +1,7 @@
+import { renderLimitation } from '@robywire/gate';
 import { SEEDED_PUBLISHED_SLUG } from '../context';
 import type { SeededCase } from '../seeded';
-import { sentenceWith } from './support';
+import { attributeTo, claimOf, reportedBy, sentenceWith } from './support';
 
 /** Defects in the limitation sentences (G8) and in hygiene (G9). */
 export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
@@ -31,6 +32,23 @@ export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
     description: 'One limitation sentence covers claims that have different bases.',
     apply: (base) => {
       base.draft.limitations[0]!.claimIds = ['c-1', 'c-8', 'c-9'];
+      return base;
+    },
+  },
+  {
+    id: 'limitation-two-outlets',
+    check: 'G8',
+    code: 'G8_LIMITATION_GROUP',
+    description: 'One limitation sentence covers claims that two different outlets reported.',
+    apply: (base) => {
+      attributeTo(base, 'It lists 7 investors', 'Mercer Wire reports that 7 investors took part in the round.');
+      attributeTo(base, 'went live on 18 August 2026', 'Tarn Daily reports that the installation at Ashvale went live on 18 August 2026.');
+      reportedBy(base, 'c-19', 'Mercer Wire');
+      reportedBy(base, 'c-24', 'Tarn Daily');
+      const [one, two] = base.draft.limitations.filter((sentence) => sentence.text.includes('is reported by'));
+      one!.claimIds = ['c-19', 'c-24'];
+      one!.text = renderLimitation([claimOf(base, 'c-19'), claimOf(base, 'c-24')], 'basis');
+      base.draft.limitations.splice(base.draft.limitations.indexOf(two!), 1);
       return base;
     },
   },

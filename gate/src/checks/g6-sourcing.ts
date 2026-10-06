@@ -3,7 +3,7 @@ import { allSentences, describeLocation } from '../sentences';
 import { normaliseQuotes } from '../text';
 
 /** Every failure code G6 can report. */
-export const G6_CODES = ['G6_TIER2_UNATTRIBUTED', 'G6_TIER2_IN_ANALYSIS'] as const;
+export const G6_CODES = ['G6_TIER2_UNATTRIBUTED', 'G6_TIER2_IN_ANALYSIS', 'G6_TIER2_BASIS', 'G6_TIER1_REPORTED'] as const;
 
 /**
  * Every reason a check can ask for a hold, as opposed to a failure. A piece with
@@ -26,8 +26,16 @@ const HOLD_TIER2 = HOLD_REASONS[0];
  * withheld while G6 still has a failure, because the piece goes back for
  * revision first.
  *
- * Limitation sentences are not read: they describe a claim and assert nothing.
- * A claim id that does not exist is G3's to report.
+ * The basis of a claim says which of the two it is. A claim that rests only on
+ * another outlet has the basis `reported`, and no other claim has it: a tier-2
+ * claim with any other basis (G6_TIER2_BASIS) would borrow the standing of a
+ * filing or a datasheet, and a tier-1 claim with the basis `reported`
+ * (G6_TIER1_REPORTED) would hide a primary source behind the label of a secondary
+ * one. Each such claim is reported once, wherever a sentence cites it, a
+ * limitation sentence included.
+ *
+ * Limitation sentences are not read for the rules above: they describe a claim
+ * and assert nothing. A claim id that does not exist is G3's to report.
  */
 export const checkG6: Check = ({ draft, claims }) => {
   const byId = new Map(claims.map((claim) => [claim.id, claim]));
@@ -67,6 +75,26 @@ export const checkG6: Check = ({ draft, claims }) => {
         code: 'G6_TIER2_UNATTRIBUTED',
         message: `the fact sentence at ${where} rests on tier-2 ${tier2.length === 1 ? 'claim' : 'claims'} ${ids} but ${problems.join(' and ')}; write "<outlet> reports ..." and mark the sentence attributed`,
         where,
+      });
+    }
+  }
+
+  const cited = new Set(allSentences(draft).flatMap((located) => located.sentence.claimIds));
+  for (const claim of claims) {
+    if (!cited.has(claim.id)) continue;
+    const label = `claim ${claim.id} (${claim.label})`;
+    if (claim.source.tier === 2 && claim.basis !== 'reported') {
+      failures.push({
+        check: 'G6',
+        code: 'G6_TIER2_BASIS',
+        message: `${label} comes from a tier-2 outlet but has the basis "${claim.basis}"; a claim that rests only on another outlet has the basis "reported"`,
+      });
+    }
+    if (claim.source.tier === 1 && claim.basis === 'reported') {
+      failures.push({
+        check: 'G6',
+        code: 'G6_TIER1_REPORTED',
+        message: `${label} comes from a tier-1 source but has the basis "reported"; that basis is for claims that rest only on another outlet, so give it the basis its source supports`,
       });
     }
   }

@@ -125,11 +125,16 @@ describe('runGate on the golden piece', () => {
   });
 });
 
-/** Make c-19 (the investor count) a claim reported by an outlet, and leave the sentence that cites it as it was. */
+/**
+ * Make c-19 (the investor count) a claim reported by an outlet, and leave the sentence that cites it as it was.
+ * The claim has the basis `reported`, which needs a limitation sentence, so the limitations are built again.
+ */
 function makeTier2(g: GateInput): void {
-  const { source } = claimById(g.claims, 'c-19');
-  source.tier = 2;
-  source.outlet = 'Mercer Wire';
+  const claim = claimById(g.claims, 'c-19');
+  claim.source.tier = 2;
+  claim.source.outlet = 'Mercer Wire';
+  claim.basis = 'reported';
+  g.draft.limitations = api.buildLimitations(api.citedClaims(g.draft, g.claims));
 }
 
 /** Then write that sentence the way a tier-2 claim must be written. */
@@ -160,6 +165,8 @@ describe('runGate on the golden piece with one thing wrong', () => {
       },
     ],
     ['G6', 'G6_TIER2_UNATTRIBUTED', (g) => makeTier2(g)],
+    ['G6', 'G6_TIER2_BASIS', (g) => (claimById(g.claims, 'c-19').source = { ...claimById(g.claims, 'c-19').source, tier: 2, outlet: 'Mercer Wire' })],
+    ['G6', 'G6_TIER1_REPORTED', (g) => (claimById(g.claims, 'c-19').basis = 'reported')],
     [
       'G7',
       'G7_ANALYSIS_NEW_VALUE',

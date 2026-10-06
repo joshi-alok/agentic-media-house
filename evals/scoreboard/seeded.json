@@ -1,6 +1,6 @@
 {
-  "total": 54,
-  "caught": 54,
+  "total": 57,
+  "caught": 57,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -285,6 +285,20 @@
       "caught": true
     },
     {
+      "id": "tier2-claim-wrong-basis",
+      "check": "G6",
+      "code": "G6_TIER2_BASIS",
+      "description": "A claim that rests only on another outlet is given the basis of a primary source, a filing.",
+      "caught": true
+    },
+    {
+      "id": "primary-claim-called-reported",
+      "check": "G6",
+      "code": "G6_TIER1_REPORTED",
+      "description": "A claim from a primary source is given the basis reported, which is for what another outlet reports.",
+      "caught": true
+    },
+    {
       "id": "analysis-in-opening",
       "check": "G7",
       "code": "G7_ANALYSIS_PLACEMENT",
@@ -338,6 +352,13 @@
       "check": "G8",
       "code": "G8_LIMITATION_GROUP",
       "description": "One limitation sentence covers claims that have different bases.",
+      "caught": true
+    },
+    {
+      "id": "limitation-two-outlets",
+      "check": "G8",
+      "code": "G8_LIMITATION_GROUP",
+      "description": "One limitation sentence covers claims that two different outlets reported.",
       "caught": true
     },
     {

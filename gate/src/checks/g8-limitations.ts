@@ -1,5 +1,5 @@
 import type { Check, Failure } from '../gate';
-import { claimNumber, joinList, renderLimitation } from '../limitations';
+import { claimNumber, joinList, outletOf, renderLimitation } from '../limitations';
 import type { Claim } from '../schemas';
 import { allSentences, describeLocation } from '../sentences';
 
@@ -34,7 +34,9 @@ function claimsProblem(ids: readonly string[], known: ReadonlyMap<string, Claim>
  * - It cites at least one claim of the piece, each once, in ascending order of
  *   claim number (G8_LIMITATION_CLAIMS).
  * - The claims of a 'basis' sentence all have the same basis, and those of a
- *   'status' sentence the same status (G8_LIMITATION_GROUP).
+ *   'status' sentence the same status; a 'basis' sentence for the basis
+ *   `reported` names one outlet, so its claims also share their outlet
+ *   (G8_LIMITATION_GROUP).
  * - Its text is what the template renders for its claims
  *   (G8_LIMITATION_MISMATCH). A sentence whose claims have changed since it
  *   was written fails here too.
@@ -76,6 +78,16 @@ export const checkG8: Check = ({ draft, claims }) => {
       fail(
         'G8_LIMITATION_GROUP',
         `the limitation sentence at ${where} groups claims with different ${plural} (${examples}): a ${sentence.template} sentence covers claims that share one ${singular}`,
+      );
+      continue;
+    }
+
+    const outlets = [...new Set(group.map(outletOf))];
+    if (sentence.template === 'basis' && keys[0] === 'reported' && outlets.length > 1) {
+      const examples = outlets.map((outlet) => `${(group.find((claim) => outletOf(claim) === outlet) as Claim).id}: ${outlet}`).join(', ');
+      fail(
+        'G8_LIMITATION_GROUP',
+        `the limitation sentence at ${where} groups claims reported by different outlets (${examples}): a reported sentence covers claims from one outlet`,
       );
       continue;
     }

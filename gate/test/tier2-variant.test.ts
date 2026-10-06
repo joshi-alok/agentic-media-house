@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { defaultContext } from '../src/config';
 import { TIER2_OUTLET, cloneGolden, makeTier2Variant, makeVariant } from '../src/fixtures';
 import { runGate } from '../src/gate';
+import { buildLimitations } from '../src/limitations';
 import { Claim, Draft } from '../src/schemas';
-import { allSentences } from '../src/sentences';
+import { allSentences, citedClaims } from '../src/sentences';
 import { claimById, mutate } from './helpers';
 
 // The tier-2 variant is the golden piece with one fact that another outlet
@@ -24,10 +25,11 @@ describe('makeTier2Variant', () => {
     expect(result.route).toBe('hold');
   });
 
-  it('turns the investor count into a tier-2 claim of the outlet, on a .example address with a hash of its own', () => {
+  it('turns the investor count into a tier-2 claim of the outlet, with the basis reported, on a .example address with a hash of its own', () => {
     const claim = claimById(variant.claims, 'c-19');
     expect(claim.source.tier).toBe(2);
     expect(claim.source.outlet).toBe('Mercer Wire');
+    expect(claim.basis).toBe('reported');
     expect(TIER2_OUTLET).toBe('Mercer Wire');
     expect(new URL(claim.source.url).hostname.endsWith('.example')).toBe(true);
     expect(claim.source.snapshotHash).toMatch(/^[0-9a-f]{64}$/);
@@ -42,12 +44,24 @@ describe('makeTier2Variant', () => {
     expect(sentence).toEqual({ kind: 'fact', text: 'Mercer Wire reports that 7 investors took part in the round.', claimIds: ['c-19'], attributed: true });
   });
 
-  it('changes nothing else: one claim and one sentence differ from the golden piece', () => {
+  it('changes nothing else: one claim and one sentence differ from the golden piece, and the limitations are built again', () => {
     const golden = cloneGolden();
     expect(variant.claims.filter((claim, at) => JSON.stringify(claim) !== JSON.stringify(golden.claims[at])).map((claim) => claim.id)).toEqual(['c-19']);
-    const before = allSentences(golden.draft).map((item) => JSON.stringify(item.sentence));
-    const after = allSentences(variant.draft).map((item) => JSON.stringify(item.sentence));
+    const outsideLimitations = (input: ReturnType<typeof cloneGolden>) =>
+      allSentences(input.draft)
+        .filter((item) => item.section !== 'limitations')
+        .map((item) => JSON.stringify(item.sentence));
+    const before = outsideLimitations(golden);
+    const after = outsideLimitations(variant);
+    expect(after).toHaveLength(before.length);
     expect(after.filter((text, at) => text !== before[at])).toHaveLength(1);
+    expect(variant.draft.limitations).toEqual(buildLimitations(citedClaims(variant.draft, variant.claims)));
+  });
+
+  it('adds the sentence that says another outlet reported the figure, and keeps the others', () => {
+    const texts = variant.draft.limitations.map((sentence) => sentence.text);
+    expect(texts).toContain('The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.');
+    expect(texts).toHaveLength(cloneGolden().draft.limitations.length + 1);
   });
 
   it('keeps the claims and the draft valid against the schemas', () => {

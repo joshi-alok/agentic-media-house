@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { GateInput } from '../gate';
-import { allSentences } from '../sentences';
+import { buildLimitations } from '../limitations';
+import { allSentences, citedClaims } from '../sentences';
 
 // A fictional outlet and its page, like every other name and address in the
 // fixtures: nothing here is a real publication.
@@ -16,8 +17,10 @@ const ATTRIBUTED_SENTENCE = `${TIER2_OUTLET} reports that 7 investors took part 
 /**
  * A copy of `base` (the golden piece, or a variant of it) in which the investor
  * count comes from another outlet instead of from the filing. Claim c-19 is now
- * a tier-2 claim of Mercer Wire, and the sentence that cites it is written the
- * way check G6 requires: it names the outlet and is marked `attributed`.
+ * a tier-2 claim of Mercer Wire with the basis `reported`, and the sentence that
+ * cites it is written the way check G6 requires: it names the outlet and is
+ * marked `attributed`. A reported claim needs a limitation sentence, so the
+ * limitations are built again from the claims the piece cites.
  *
  * Nothing fails in the gate, but a piece that rests on another outlet is never
  * published by itself: the gate asks for a hold (TIER2_ATTRIBUTION) and the
@@ -43,9 +46,11 @@ export function makeTier2Variant(base: GateInput): GateInput {
     retrievedAt: claim.source.retrievedAt,
     outlet: TIER2_OUTLET,
   };
+  claim.basis = 'reported';
   claim.span = { start: TIER2_QUOTE_START, end: TIER2_QUOTE_START + TIER2_QUOTE.length, quote: TIER2_QUOTE };
 
   found.sentence.text = ATTRIBUTED_SENTENCE;
   found.sentence.attributed = true;
+  copy.draft.limitations = buildLimitations(citedClaims(copy.draft, copy.claims));
   return copy;
 }

@@ -6,6 +6,7 @@ import { parse as parseYaml } from 'yaml';
 import { DeskState, LedgerEntry, NewsFrontmatter } from '@robywire/gate';
 import { GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { fixtureFiles, fixturePieces, main, writeFixtures } from '../scripts/generate-fixtures';
+import { receiptsView } from '../src/lib/receipts';
 
 // The fixture pieces are what the site shows when it is built with
 // ROBYWIRE_FIXTURES=1. They are generated, never written by hand, and every
@@ -171,6 +172,20 @@ describe('fixtureFiles: the piece that rests on another outlet', () => {
     const marker = ledger.order.indexOf('c-19') + 1;
     expect(mdx).toContain(`**Unconfirmed.** Mercer Wire reports that 7 investors took part in the round.[${marker}](/news/${HELD_SLUG}/receipts/#c-19)`);
     expect(ledger.sentences.filter((sentence) => sentence.attributed === true).map((sentence) => sentence.claimIds)).toEqual([['c-19']]);
+  });
+
+  it('gives the claim the basis reported, and no tier-1 claim of the piece has it', () => {
+    expect(ledger.claims.filter((claim) => claim.basis === 'reported').map((claim) => claim.id)).toEqual(['c-19']);
+    expect(ledger.claims.filter((claim) => claim.source.tier === 1).every((claim) => claim.basis !== 'reported')).toBe(true);
+  });
+
+  it('covers it with a limitation sentence that names the outlet, and its receipt says reported, not filing', () => {
+    const sentence = ledger.sentences.find((item) => item.section === 'limitations' && item.claimIds.includes('c-19'));
+    expect(sentence?.text).toBe('The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.');
+    expect(sentence?.claimIds).toEqual(['c-19']);
+    const receipt = receiptsView(ledger).claims.find((claim) => claim.id === 'c-19');
+    expect(receipt?.basis).toBe('reported');
+    expect(receipt?.basis).not.toBe('filing');
   });
 
   it('is the only piece with the label: the four others rest on first-hand sources only', () => {

@@ -29,7 +29,10 @@ export type CrossTag = (typeof CROSS_TAGS)[number];
 export const CATEGORY_VOCAB = [...BEATS, ...CROSS_TAGS] as const;
 export type Category = (typeof CATEGORY_VOCAB)[number];
 
-/** Where a claim's figure came from. */
+/**
+ * Where a claim's figure came from. `reported` is for a claim whose only source is another outlet
+ * (a tier-2 claim): G6 requires it there and refuses it anywhere else.
+ */
 export const BASES = [
   'datasheet',
   'press-release',
@@ -39,12 +42,14 @@ export const BASES = [
   'standard',
   'measured',
   'demo',
+  'reported',
 ] as const;
 export type Basis = (typeof BASES)[number];
 
 /**
  * Bases that need no "What we couldn't verify" section: the source is a filing,
- * a standard, a paper or a measurement, not a company's own claim.
+ * a standard, a paper or a measurement, not a company's own claim. `reported` is
+ * never safe: what another outlet reports is, by its nature, not checked here.
  */
 export const SAFE_BASES = ['filing', 'standard', 'paper', 'measured'] as const satisfies readonly Basis[];
 export type SafeBasis = (typeof SAFE_BASES)[number];

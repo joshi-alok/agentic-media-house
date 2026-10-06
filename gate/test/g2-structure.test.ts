@@ -304,7 +304,7 @@ describe('G2_LIMITATIONS_MISSING', () => {
     expect(out.failures[0]?.message).toContain('c-1');
   });
 
-  it.each(['datasheet', 'press-release', 'briefing', 'demo'] as const)('treats a %s claim as needing limitations', (basis) => {
+  it.each(['datasheet', 'press-release', 'briefing', 'demo', 'reported'] as const)('treats a %s claim as needing limitations', (basis) => {
     const change = (g: GateInput) => {
       needNothing(g);
       g.claims[0]!.basis = basis;

@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { ALL_CHECKS } from '../src/checks';
 import { HOLD_REASONS, checkG6 } from '../src/checks/g6-sourcing';
 import { defaultContext } from '../src/config';
+import { BASES } from '../src/constants';
 import { cloneGolden } from '../src/fixtures';
 import type { CheckOutput, GateInput } from '../src/gate';
-import { claimById, findSentence, mutate } from './helpers';
+import { allSentences, claimById, findSentence, mutate } from './helpers';
 
 const OUTLET = 'Mercer Wire';
 const OTHER_OUTLET = 'Tarn Daily';
@@ -18,11 +19,12 @@ const GO_LIVE_AT = 'section "What the customer reports", sentence 3';
 
 const sentenceWith = (g: GateInput, text: string) => findSentence(g.draft, (sentence) => sentence.text === text);
 
-/** Make a golden claim a tier-2 claim reported by `outlet`. */
+/** Make a golden claim a tier-2 claim reported by `outlet`: another outlet is its only source, so its basis is `reported`. */
 function makeTier2(g: GateInput, id: string, outlet: string = OUTLET): void {
-  const { source } = claimById(g.claims, id);
-  source.tier = 2;
-  source.outlet = outlet;
+  const claim = claimById(g.claims, id);
+  claim.source.tier = 2;
+  claim.source.outlet = outlet;
+  claim.basis = 'reported';
 }
 
 /** Add a copy of claim `from` as the tier-2 claim c-29, which no sentence cites yet. */
@@ -31,6 +33,7 @@ function addTier2Copy(g: GateInput, from: string): void {
   copy.id = 'c-29';
   copy.source.tier = 2;
   copy.source.outlet = OUTLET;
+  copy.basis = 'reported';
   g.claims.push(copy);
 }
 
@@ -296,6 +299,133 @@ describe('G6_TIER2_IN_ANALYSIS', () => {
     });
     expect(codes(output)).toEqual(['G6_TIER2_IN_ANALYSIS']);
     expect(output.holdReasons).toEqual([]);
+  });
+});
+
+describe('G6_TIER2_BASIS', () => {
+  const BAD_BASIS = 'comes from a tier-2 outlet but has the basis "filing"; a claim that rests only on another outlet has the basis "reported"';
+  /** c-19 as another outlet's claim, properly attributed, but with the basis it had as a filing claim. */
+  const filingBasis = (g: GateInput) => {
+    makeTier2(g, 'c-19');
+    claimById(g.claims, 'c-19').basis = 'filing';
+    attribute(g, INVESTORS, 'Mercer Wire reports that 7 investors took part in the round.');
+  };
+
+  it('fails a tier-2 claim that has any basis but reported, and says which claim and what the basis must be', () => {
+    const output = run(filingBasis);
+    expect(output.failures).toEqual([{ check: 'G6', code: 'G6_TIER2_BASIS', message: `claim c-19 (investor count) ${BAD_BASIS}` }]);
+    expect(output.holdReasons).toEqual([]);
+  });
+
+  it.each(BASES.filter((basis) => basis !== 'reported'))('fails the basis %s on a tier-2 claim', (basis) => {
+    const output = run((g) => {
+      filingBasis(g);
+      claimById(g.claims, 'c-19').basis = basis;
+    });
+    expect(messages(output)).toEqual([`claim c-19 (investor count) comes from a tier-2 outlet but has the basis "${basis}"; a claim that rests only on another outlet has the basis "reported"`]);
+  });
+
+  it('reports a claim once, however many sentences cite it', () => {
+    const output = run((g) => {
+      makeTier2(g, 'c-17');
+      claimById(g.claims, 'c-17').basis = 'filing';
+      for (const located of allSentences(g.draft)) {
+        if (located.sentence.claimIds.includes('c-17') && located.sentence.kind === 'fact') {
+          located.sentence.attributed = true;
+          located.sentence.text = `Mercer Wire reports that ${located.sentence.text}`;
+        }
+      }
+    });
+    expect(output.failures.filter((failure) => failure.code === 'G6_TIER2_BASIS')).toHaveLength(1);
+  });
+
+  it('reads a claim that only a limitation sentence cites', () => {
+    const output = run((g) => {
+      addTier2Copy(g, 'c-19');
+      claimById(g.claims, 'c-29').basis = 'filing';
+      g.draft.limitations[0]!.claimIds = ['c-29'];
+    });
+    expect(codes(output)).toEqual(['G6_TIER2_BASIS']);
+  });
+
+  it('does not read a claim that no sentence cites', () => {
+    const output = run((g) => {
+      addTier2Copy(g, 'c-19');
+      claimById(g.claims, 'c-29').basis = 'filing';
+    });
+    expect(output).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('comes after the failures of the sentences, and keeps the hold reason back', () => {
+    const output = run((g) => {
+      makeTier2(g, 'c-19');
+      claimById(g.claims, 'c-19').basis = 'filing';
+    });
+    expect(codes(output)).toEqual(['G6_TIER2_UNATTRIBUTED', 'G6_TIER2_BASIS']);
+    expect(output.holdReasons).toEqual([]);
+  });
+
+  it('accepts a tier-2 claim whose basis is reported', () => {
+    const output = run((g) => {
+      makeTier2(g, 'c-19');
+      attribute(g, INVESTORS, 'Mercer Wire reports that 7 investors took part in the round.');
+    });
+    expect(codes(output)).toEqual([]);
+  });
+});
+
+describe('G6_TIER1_REPORTED', () => {
+  it('fails a tier-1 claim that has the basis reported, and says which claim and why', () => {
+    const output = run((g) => {
+      claimById(g.claims, 'c-19').basis = 'reported';
+    });
+    expect(output.failures).toEqual([
+      {
+        check: 'G6',
+        code: 'G6_TIER1_REPORTED',
+        message:
+          'claim c-19 (investor count) comes from a tier-1 source but has the basis "reported"; that basis is for claims that rest only on another outlet, so give it the basis its source supports',
+      },
+    ]);
+    expect(output.holdReasons).toEqual([]);
+  });
+
+  it('reports a claim once, however many sentences cite it', () => {
+    const output = run((g) => {
+      claimById(g.claims, 'c-17').basis = 'reported';
+    });
+    expect(codes(output)).toEqual(['G6_TIER1_REPORTED']);
+  });
+
+  it('reads a claim that only a limitation sentence cites, and not one that nothing cites', () => {
+    const limited = run((g) => {
+      const copy = structuredClone(claimById(g.claims, 'c-19'));
+      copy.id = 'c-29';
+      copy.basis = 'reported';
+      g.claims.push(copy);
+      g.draft.limitations[0]!.claimIds = ['c-29'];
+    });
+    expect(codes(limited)).toEqual(['G6_TIER1_REPORTED']);
+    const uncited = run((g) => {
+      const copy = structuredClone(claimById(g.claims, 'c-19'));
+      copy.id = 'c-29';
+      copy.basis = 'reported';
+      g.claims.push(copy);
+    });
+    expect(uncited).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('tells the two apart: a tier-2 claim with the wrong basis and a tier-1 claim that is reported each fail once, with their own code', () => {
+    const output = run((g) => {
+      makeTier2(g, 'c-19');
+      claimById(g.claims, 'c-19').basis = 'filing';
+      claimById(g.claims, 'c-24').basis = 'reported';
+      attribute(g, INVESTORS, 'Mercer Wire reports that 7 investors took part in the round.');
+    });
+    expect(output.failures.map((failure) => [failure.code, failure.message.slice(0, 20)])).toEqual([
+      ['G6_TIER2_BASIS', 'claim c-19 (investor'],
+      ['G6_TIER1_REPORTED', 'claim c-24 (Ashvale '],
+    ]);
   });
 });
 
