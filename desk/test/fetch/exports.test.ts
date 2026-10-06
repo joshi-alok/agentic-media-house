@@ -27,11 +27,16 @@ import type {
   PageLink,
   ParsedFeed,
   ParsedRobots,
+  PieceFiles,
+  PublishTarget,
   RateLimiterOptions,
   RobotsGroup,
   RobotsRule,
   SelectArtifact,
+  SitePaths,
   SourceKind,
+  TargetChange,
+  TargetResult,
   Tier2Feed,
   Transport,
   TransportRequest,
@@ -90,6 +95,10 @@ const VALUES = [
   'COMMIT_TRAILER',
   'GitCli',
   'FakeGit',
+  'assertNothingLost',
+  'sitePaths',
+  'SiteTarget',
+  'DryTarget',
 ];
 
 describe('the package entry point: fetching', () => {
@@ -135,6 +144,11 @@ describe('the package entry point: fetching', () => {
       GitTarget,
       GitCliOptions,
       FakeCommit,
+      SitePaths,
+      PieceFiles,
+      TargetChange,
+      TargetResult,
+      PublishTarget,
     ];
     const nothing: Exported | undefined = undefined;
     expect(nothing).toBeUndefined();
@@ -147,7 +161,8 @@ describe('the package entry point: fetching', () => {
     const composition = ['runCompose', 'gateContextOf', 'composeSystem', 'buildComposeUser', 'provenance', 'PLACE'];
     const verification = ['verifyPlanOf', 'VerifyReply', 'aggregateVerdicts', 'runVerifier', 'verifySystem', 'buildVerifyUser'];
     const revision = ['runVerify', 'reviseDraft', 'problemsOf', 'reviseReplySchema', 'reviseSystem', 'buildReviseUser'];
-    for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision]) {
+    const publication = ['runPublish'];
+    for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision, ...publication]) {
       expect(entry).not.toHaveProperty(name);
     }
   });

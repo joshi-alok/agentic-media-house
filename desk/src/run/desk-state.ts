@@ -68,17 +68,24 @@ const isPrefix = (before: readonly unknown[], after: readonly unknown[]): boolea
   before.length <= after.length && before.every((item, at) => canonicalJson(item) === canonicalJson(after[at]));
 
 /**
+ * Refuse a change that loses a hold or a correction: the holds and the corrections of `before` must be the first ones of `after`, item for item and in
+ * the same order, so that nothing was removed, rewritten or moved. `file` is named in the error.
+ */
+export function assertNothingLost(before: DeskState, after: DeskState, file: string): void {
+  if (!isPrefix(before.holds, after.holds) || !isPrefix(before.corrections, after.corrections)) {
+    throw new Error(`the desk state never loses a hold or a correction: the change to ${file} would remove or rewrite one`);
+  }
+}
+
+/**
  * Read the state in `file`, apply `change` to it and write the result; returns the result. The state that is read is checked first,
- * so a corrupt file ends the update before `change` is called. A change that loses a hold or a correction (one removed, one rewritten, or
- * the order of them changed) is refused: the holds and the corrections of the state that was read must be the first of the new one, in
- * the same order. In every case where there is an error, the file is not touched.
+ * so a corrupt file ends the update before `change` is called. A change that loses a hold or a correction (see `assertNothingLost`) is
+ * refused. In every case where there is an error, the file is not touched.
  */
 export async function updateDeskState(file: string, change: (state: DeskState) => DeskState): Promise<DeskState> {
   const before = await readDeskState(file);
   const after = change(structuredClone(before));
-  if (!isPrefix(before.holds, after.holds) || !isPrefix(before.corrections, after.corrections)) {
-    throw new Error(`the desk state never loses a hold or a correction: the change to ${file} would remove or rewrite one`);
-  }
+  assertNothingLost(before, after, file);
   await writeDeskState(file, after);
   return after;
 }

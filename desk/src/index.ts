@@ -21,4 +21,5 @@ export * from './fetch/feeds';
 export * from './run/evidence';
 export * from './run/desk-state';
 export * from './run/git';
+export * from './run/target';
 export * from './sources';

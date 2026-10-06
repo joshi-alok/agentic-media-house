@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { DeskState } from '@robywire/gate';
 import { describe, expect, it } from 'vitest';
-import { addHold, readDeskState, recordRun, updateDeskState, writeDeskState } from '../../src/run/desk-state';
+import { addHold, assertNothingLost, readDeskState, recordRun, updateDeskState, writeDeskState } from '../../src/run/desk-state';
 import type { Hold, LastRun } from '../../src/run/desk-state';
 import { useScratch } from '../support/context';
 
@@ -172,5 +172,23 @@ describe('updateDeskState', () => {
       }),
     ).rejects.toThrow('the change failed');
     expect(textOf(file)).toBe(before);
+  });
+});
+
+describe('assertNothingLost', () => {
+  const before: DeskState = { lastRun: RUN, holds: [HOLD], corrections: [CORRECTION] };
+
+  it('accepts a state that has the same holds and corrections and more after them, and any last run', () => {
+    const after: DeskState = { lastRun: null, holds: [HOLD, { ...HOLD, reasons: ['G2_BODY_LENGTH'] }], corrections: [CORRECTION, { ...CORRECTION, kind: 'retraction' }] };
+    expect(() => assertNothingLost(before, after, 'desk-state.json')).not.toThrow();
+    expect(() => assertNothingLost(before, before, 'desk-state.json')).not.toThrow();
+  });
+
+  it('refuses a state with a hold or a correction fewer, one rewritten, or the order changed, and names the file', () => {
+    const second: Hold = { ...HOLD, reasons: ['G2_BODY_LENGTH'] };
+    expect(() => assertNothingLost(before, { ...before, holds: [] }, 'desk-state.json')).toThrow('the change to desk-state.json would remove or rewrite one');
+    expect(() => assertNothingLost(before, { ...before, corrections: [] }, 'desk-state.json')).toThrow('never loses');
+    expect(() => assertNothingLost(before, { ...before, holds: [second] }, 'desk-state.json')).toThrow('never loses');
+    expect(() => assertNothingLost({ ...before, holds: [HOLD, second] }, { ...before, holds: [second, HOLD] }, 'desk-state.json')).toThrow('never loses');
   });
 });
