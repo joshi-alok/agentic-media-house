@@ -167,7 +167,8 @@ describe('the package entry point: fetching', () => {
     const verification = ['verifyPlanOf', 'VerifyReply', 'aggregateVerdicts', 'runVerifier', 'verifySystem', 'buildVerifyUser'];
     const revision = ['runVerify', 'reviseDraft', 'problemsOf', 'reviseReplySchema', 'reviseSystem', 'buildReviseUser'];
     const publication = ['runPublish', 'runHold', 'holdReasonsOf'];
-    for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision, ...publication]) {
+    const demo = ['DEMO_DATE', 'DEMO_URLS', 'DEMO_FIXTURE_DIR', 'demoWorldMap', 'demoFetcher', 'DEMO_REGISTRY_YAML', 'demoRegistry', 'DEMO_CLAIMS', 'DEMO_REPLY', 'DEMO_SELECT_REASON', 'clearingVerifier', 'demoClient'];
+    for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision, ...publication, ...demo]) {
       expect(entry).not.toHaveProperty(name);
     }
   });
