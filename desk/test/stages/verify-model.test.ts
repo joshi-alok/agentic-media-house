@@ -2,10 +2,11 @@ import { allSentences } from '@robywire/gate';
 import type { Draft } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
+import { FakeClient } from '../../src/model/fake';
 import { ModelError } from '../../src/model/types';
 import { buildVerifyUser, verifySystem } from '../../src/prompts/verify';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
-import { VERIFY_MAX_OUTPUT_TOKENS, VerifyReply, aggregateVerdicts, runVerifier, verifyPlanOf } from '../../src/stages/verify-model';
+import { VERIFY_MAX_OUTPUT_TOKENS, VerifyReply, aggregateVerdicts, judgePlan, runVerifier, verifyPlanOf } from '../../src/stages/verify-model';
 import { stageContext, useScratch } from '../support/context';
 import { blocksOf, outsideBlocks } from '../support/prompts';
 import { verifierReply } from '../support/verifier';
@@ -220,6 +221,36 @@ describe('aggregateVerdicts', () => {
     aggregateVerdicts(MODEL, plan, reply);
     expect(reply).toEqual(before);
     expect(plan).toEqual(PLAN);
+  });
+});
+
+describe('judgePlan', () => {
+  it('makes one call in the role verify, with the model it is given, the prompt of the verifier and the reply schema, and returns the outcome and the cost', async () => {
+    const fake = new FakeClient().script('verify', verifierReply(PLAN));
+    const { outcome, usage } = await judgePlan(fake, 'model-w', PLAN);
+    expect(fake.calls).toHaveLength(1);
+    const [request] = fake.calls;
+    expect(request?.role).toBe('verify');
+    expect(request?.model).toBe('model-w');
+    expect(request?.system).toBe(verifySystem());
+    expect(request?.user).toBe(buildVerifyUser({ claims: PLAN.claims, sentences: PLAN.sentences, headings: PLAN.headings }));
+    expect(request?.maxOutputTokens).toBe(VERIFY_MAX_OUTPUT_TOKENS);
+    expect(outcome.verifier.model).toBe('model-w');
+    expect(outcome.verifier.passed).toBe(true);
+    expect(usage.inputTokens).toBeGreaterThan(0);
+    expect(usage.outputTokens).toBeGreaterThan(0);
+  });
+
+  it('reads the reply as runVerifier does: what is not entailed fails, and a verdict for what was not asked is a schema error', async () => {
+    const id = PLAN.sentences[2]?.id as string;
+    const failing = await judgePlan(new FakeClient().script('verify', verifierReply(PLAN, { verdicts: { [id]: 'not_entailed' } })), MODEL, PLAN);
+    expect(failing.outcome.failures.map((failure) => failure.id)).toEqual([id]);
+    const unknown = new FakeClient().script('verify', verifierReply(PLAN, { extra: { verdicts: [{ id: 's999', verdict: 'entailed', reason: 'x' }] } }));
+    await expect(judgePlan(unknown, MODEL, PLAN)).rejects.toMatchObject({ name: 'ModelError', kind: 'schema' });
+  });
+
+  it('refuses a plan that has nothing to judge, because the message would be empty', async () => {
+    await expect(judgePlan(new FakeClient(), MODEL, { sentences: [], headings: [], claims: [] })).rejects.toThrow('buildVerifyUser needs at least one sentence or heading to judge');
   });
 });
 

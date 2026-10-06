@@ -1,0 +1,531 @@
+{
+  "about": "Sixty sentences for measuring the verifier of the Desk: for each of twenty sets of passages, one sentence that the passages support, one that says something they do not say, and one that changes what they say in a small way. Everything in it is made up.",
+  "items": [
+    {
+      "id": "e-01",
+      "label": "supported",
+      "sentence": "Fixture Robotics has begun shipping FX-1 arms to a second Brindle Logistics plant, at Tarnmoor.",
+      "passages": [
+        { "quote": "Fixture Robotics has begun shipping FX-1 warehouse arms, built for tote picking and trailer unloading, to Brindle Logistics for its second plant, at Tarnmoor.", "basis": "press-release", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-02",
+      "label": "unsupported",
+      "sentence": "Fixture Robotics has begun shipping FX-1 arms to Brindle Logistics, which is its largest customer.",
+      "passages": [
+        { "quote": "Fixture Robotics has begun shipping FX-1 warehouse arms, built for tote picking and trailer unloading, to Brindle Logistics for its second plant, at Tarnmoor.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The passage does not say that Brindle Logistics is the largest customer of Fixture Robotics."
+    },
+    {
+      "id": "e-03",
+      "label": "distorted",
+      "sentence": "Fixture Robotics has begun shipping FX-1 arms to the first Brindle Logistics plant, at Tarnmoor.",
+      "passages": [
+        { "quote": "Fixture Robotics has begun shipping FX-1 warehouse arms, built for tote picking and trailer unloading, to Brindle Logistics for its second plant, at Tarnmoor.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The second plant has become the first plant."
+    },
+    {
+      "id": "e-04",
+      "label": "supported",
+      "sentence": "Fixture Robotics lists the FX-1 from $38,000 per arm.",
+      "passages": [
+        { "quote": "Fixture Robotics lists the FX-1 from $38,000 per arm, with delivery within 12 weeks of an order.", "basis": "press-release", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-05",
+      "label": "unsupported",
+      "sentence": "Fixture Robotics has cut the price of the FX-1 to $38,000 per arm.",
+      "passages": [
+        { "quote": "Fixture Robotics lists the FX-1 from $38,000 per arm, with delivery within 12 weeks of an order.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The passage gives a list price and says nothing of a price cut."
+    },
+    {
+      "id": "e-06",
+      "label": "distorted",
+      "sentence": "Fixture Robotics lists the FX-1 from $38,000 per arm, with delivery within 12 days of an order.",
+      "passages": [
+        { "quote": "Fixture Robotics lists the FX-1 from $38,000 per arm, with delivery within 12 weeks of an order.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The delivery time of 12 weeks has become 12 days."
+    },
+    {
+      "id": "e-07",
+      "label": "supported",
+      "sentence": "Tarnmoor is due to receive 60 arms by 30 November 2026.",
+      "passages": [
+        { "quote": "Tarnmoor is due to receive 60 arms by 30 November 2026.", "basis": "press-release", "status": "planned" }
+      ]
+    },
+    {
+      "id": "e-08",
+      "label": "unsupported",
+      "sentence": "Tarnmoor will use the 60 arms for inbound trailer unloading.",
+      "passages": [
+        { "quote": "Tarnmoor is due to receive 60 arms by 30 November 2026.", "basis": "press-release", "status": "planned" }
+      ],
+      "flaw": "The passage does not say what the arms will be used for."
+    },
+    {
+      "id": "e-09",
+      "label": "distorted",
+      "sentence": "Tarnmoor has received 60 arms by 30 November 2026.",
+      "passages": [
+        { "quote": "Tarnmoor is due to receive 60 arms by 30 November 2026.", "basis": "press-release", "status": "planned" }
+      ],
+      "flaw": "A delivery that is due has become a delivery that was made."
+    },
+    {
+      "id": "e-10",
+      "label": "supported",
+      "sentence": "Brindle Logistics measured an 18 per cent cut in cycle time on tote-picking cells at Ashvale.",
+      "passages": [
+        { "quote": "At Ashvale, Brindle Logistics measured an 18 per cent cut in cycle time on tote-picking cells, comparing the four weeks before and after the FX-1 arms went live.", "basis": "measured", "status": "deployed" }
+      ]
+    },
+    {
+      "id": "e-11",
+      "label": "unsupported",
+      "sentence": "The 18 per cent cut in cycle time saved Brindle Logistics $2 million in a year.",
+      "passages": [
+        { "quote": "At Ashvale, Brindle Logistics measured an 18 per cent cut in cycle time on tote-picking cells, comparing the four weeks before and after the FX-1 arms went live.", "basis": "measured", "status": "deployed" }
+      ],
+      "flaw": "The passage gives no saving in money."
+    },
+    {
+      "id": "e-12",
+      "label": "distorted",
+      "sentence": "Brindle Logistics measured an 18 per cent cut in cycle time across all of its plants.",
+      "passages": [
+        { "quote": "At Ashvale, Brindle Logistics measured an 18 per cent cut in cycle time on tote-picking cells, comparing the four weeks before and after the FX-1 arms went live.", "basis": "measured", "status": "deployed" }
+      ],
+      "flaw": "A result at one site, on tote-picking cells, has become a result for every plant."
+    },
+    {
+      "id": "e-13",
+      "label": "supported",
+      "sentence": "The FX-1 is rated for a payload of 12 kg at full reach and a maximum reach of 1.4 m.",
+      "passages": [
+        { "quote": "Rated payload: 12 kilograms at full reach.", "basis": "datasheet", "status": "unspecified" },
+        { "quote": "Maximum reach: 1.4 metres from the base.", "basis": "datasheet", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-14",
+      "label": "unsupported",
+      "sentence": "The FX-1 is rated for a payload of 12 kg at full reach, the highest in its class.",
+      "passages": [
+        { "quote": "Rated payload: 12 kilograms at full reach.", "basis": "datasheet", "status": "unspecified" },
+        { "quote": "Maximum reach: 1.4 metres from the base.", "basis": "datasheet", "status": "unspecified" }
+      ],
+      "flaw": "The passages do not compare the arm with any other."
+    },
+    {
+      "id": "e-15",
+      "label": "distorted",
+      "sentence": "The FX-1 is rated for a payload of 12 kg at full reach and a maximum reach of 1.6 m.",
+      "passages": [
+        { "quote": "Rated payload: 12 kilograms at full reach.", "basis": "datasheet", "status": "unspecified" },
+        { "quote": "Maximum reach: 1.4 metres from the base.", "basis": "datasheet", "status": "unspecified" }
+      ],
+      "flaw": "The maximum reach of 1.4 m has become 1.6 m."
+    },
+    {
+      "id": "e-16",
+      "label": "supported",
+      "sentence": "The datasheet lists a throughput of up to 1,200 picks an hour.",
+      "passages": [
+        { "quote": "Throughput: up to 1.2k picks an hour.", "basis": "datasheet", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-17",
+      "label": "unsupported",
+      "sentence": "The datasheet lists a throughput of up to 1,200 picks an hour for mixed cartons.",
+      "passages": [
+        { "quote": "Throughput: up to 1.2k picks an hour.", "basis": "datasheet", "status": "unspecified" }
+      ],
+      "flaw": "The passage does not say what is picked."
+    },
+    {
+      "id": "e-18",
+      "label": "distorted",
+      "sentence": "The datasheet lists a typical throughput of 1,200 picks an hour.",
+      "passages": [
+        { "quote": "Throughput: up to 1.2k picks an hour.", "basis": "datasheet", "status": "unspecified" }
+      ],
+      "flaw": "A figure given as an upper limit has become a typical figure."
+    },
+    {
+      "id": "e-19",
+      "label": "supported",
+      "sentence": "The offering raised USD 450 million and was led by Corvane Partners.",
+      "passages": [
+        { "quote": "Total amount sold: USD 450 million", "basis": "filing", "status": "unspecified" },
+        { "quote": "Lead investor: Corvane Partners", "basis": "filing", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-20",
+      "label": "unsupported",
+      "sentence": "The offering raised USD 450 million and valued Fixture Robotics at $3 billion.",
+      "passages": [
+        { "quote": "Total amount sold: USD 450 million", "basis": "filing", "status": "unspecified" },
+        { "quote": "Lead investor: Corvane Partners", "basis": "filing", "status": "unspecified" }
+      ],
+      "flaw": "The passages give no valuation."
+    },
+    {
+      "id": "e-21",
+      "label": "distorted",
+      "sentence": "The offering raised USD 450 million and was led by Brindle Logistics.",
+      "passages": [
+        { "quote": "Total amount sold: USD 450 million", "basis": "filing", "status": "unspecified" },
+        { "quote": "Lead investor: Corvane Partners", "basis": "filing", "status": "unspecified" }
+      ],
+      "flaw": "The lead investor has become another company."
+    },
+    {
+      "id": "e-22",
+      "label": "supported",
+      "sentence": "Fixture Robotics showed an FX-1 arm unloading mixed cartons from a trailer at its demo day.",
+      "passages": [
+        { "quote": "At its demo day, Fixture Robotics showed an FX-1 arm unloading mixed cartons from a trailer.", "basis": "demo", "status": "demonstrated" }
+      ]
+    },
+    {
+      "id": "e-23",
+      "label": "unsupported",
+      "sentence": "Fixture Robotics showed an FX-1 arm unloading mixed cartons from a trailer faster than a person can.",
+      "passages": [
+        { "quote": "At its demo day, Fixture Robotics showed an FX-1 arm unloading mixed cartons from a trailer.", "basis": "demo", "status": "demonstrated" }
+      ],
+      "flaw": "The passage makes no comparison with a person."
+    },
+    {
+      "id": "e-24",
+      "label": "distorted",
+      "sentence": "Fixture Robotics has deployed FX-1 arms to unload mixed cartons from trailers.",
+      "passages": [
+        { "quote": "At its demo day, Fixture Robotics showed an FX-1 arm unloading mixed cartons from a trailer.", "basis": "demo", "status": "demonstrated" }
+      ],
+      "flaw": "A demonstration has become a deployment."
+    },
+    {
+      "id": "e-25",
+      "label": "supported",
+      "sentence": "Dana Whitcombe, chief operating officer of Brindle Logistics, said that the company went from pilot to production in nine weeks.",
+      "passages": [
+        { "quote": "\"We went from pilot to production in nine weeks,\" said Dana Whitcombe, chief operating officer of Brindle Logistics.", "basis": "press-release", "status": "deployed" }
+      ]
+    },
+    {
+      "id": "e-26",
+      "label": "unsupported",
+      "sentence": "Dana Whitcombe, chief operating officer of Brindle Logistics, said that the company went from pilot to production in nine weeks and plans to double its fleet.",
+      "passages": [
+        { "quote": "\"We went from pilot to production in nine weeks,\" said Dana Whitcombe, chief operating officer of Brindle Logistics.", "basis": "press-release", "status": "deployed" }
+      ],
+      "flaw": "The passage says nothing of doubling a fleet."
+    },
+    {
+      "id": "e-27",
+      "label": "distorted",
+      "sentence": "Dana Whitcombe, chief operating officer of Fixture Robotics, said that the company went from pilot to production in nine weeks.",
+      "passages": [
+        { "quote": "\"We went from pilot to production in nine weeks,\" said Dana Whitcombe, chief operating officer of Brindle Logistics.", "basis": "press-release", "status": "deployed" }
+      ],
+      "flaw": "The speaker has been moved to another company."
+    },
+    {
+      "id": "e-28",
+      "label": "supported",
+      "sentence": "Northwind Machines said in a briefing that the Pallet Pilot moves pallets of up to 800 kg.",
+      "passages": [
+        { "quote": "Northwind Machines said in a briefing that its Pallet Pilot robot moves pallets of up to 800 kilograms.", "basis": "briefing", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-29",
+      "label": "unsupported",
+      "sentence": "Northwind Machines said in a briefing that the Pallet Pilot is already used by three retailers.",
+      "passages": [
+        { "quote": "Northwind Machines said in a briefing that its Pallet Pilot robot moves pallets of up to 800 kilograms.", "basis": "briefing", "status": "unspecified" }
+      ],
+      "flaw": "The passage does not say who uses the robot."
+    },
+    {
+      "id": "e-30",
+      "label": "distorted",
+      "sentence": "Northwind Machines said in a briefing that the Pallet Pilot moves pallets of at least 800 kg.",
+      "passages": [
+        { "quote": "Northwind Machines said in a briefing that its Pallet Pilot robot moves pallets of up to 800 kilograms.", "basis": "briefing", "status": "unspecified" }
+      ],
+      "flaw": "An upper limit has become a lower limit."
+    },
+    {
+      "id": "e-31",
+      "label": "supported",
+      "sentence": "Hollis Dynamics released version 4.2 of Hollis Nav on 14 September 2026.",
+      "passages": [
+        { "quote": "Hollis Dynamics released version 4.2 of its Hollis Nav software on 14 September 2026; the release adds support for two lidar models.", "basis": "press-release", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-32",
+      "label": "unsupported",
+      "sentence": "Hollis Dynamics released version 4.2 of Hollis Nav, which halves the time it takes to map a site.",
+      "passages": [
+        { "quote": "Hollis Dynamics released version 4.2 of its Hollis Nav software on 14 September 2026; the release adds support for two lidar models.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The passage does not say that mapping is faster."
+    },
+    {
+      "id": "e-33",
+      "label": "distorted",
+      "sentence": "Hollis Dynamics released version 4.2 of Hollis Nav on 14 October 2026.",
+      "passages": [
+        { "quote": "Hollis Dynamics released version 4.2 of its Hollis Nav software on 14 September 2026; the release adds support for two lidar models.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The month of the release has changed."
+    },
+    {
+      "id": "e-34",
+      "label": "supported",
+      "sentence": "Standard LSB-7 requires a safety-rated stop within 0.5 seconds for mobile robots over 50 kg.",
+      "passages": [
+        { "quote": "Standard LSB-7 of the Lowmoor Safety Board requires a safety-rated stop within 0.5 seconds for mobile robots over 50 kilograms.", "basis": "standard", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-35",
+      "label": "unsupported",
+      "sentence": "Standard LSB-7 also requires an annual audit of every robot fleet.",
+      "passages": [
+        { "quote": "Standard LSB-7 of the Lowmoor Safety Board requires a safety-rated stop within 0.5 seconds for mobile robots over 50 kilograms.", "basis": "standard", "status": "unspecified" }
+      ],
+      "flaw": "The passage mentions no audit."
+    },
+    {
+      "id": "e-36",
+      "label": "distorted",
+      "sentence": "Standard LSB-7 requires a safety-rated stop within 0.5 seconds for all mobile robots.",
+      "passages": [
+        { "quote": "Standard LSB-7 of the Lowmoor Safety Board requires a safety-rated stop within 0.5 seconds for mobile robots over 50 kilograms.", "basis": "standard", "status": "unspecified" }
+      ],
+      "flaw": "A requirement for robots over 50 kg has become a requirement for all of them."
+    },
+    {
+      "id": "e-37",
+      "label": "supported",
+      "sentence": "Quarry Robotics said that its Q-Haul truck is rated to haul 40 tonnes per trip.",
+      "passages": [
+        { "quote": "Quarry Robotics said its Q-Haul truck is rated to haul 40 tonnes per trip.", "basis": "press-release", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-38",
+      "label": "unsupported",
+      "sentence": "Quarry Robotics said that its Q-Haul truck is rated to haul 40 tonnes per trip, more than any other truck in its class.",
+      "passages": [
+        { "quote": "Quarry Robotics said its Q-Haul truck is rated to haul 40 tonnes per trip.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The passage makes no comparison with other trucks."
+    },
+    {
+      "id": "e-39",
+      "label": "distorted",
+      "sentence": "Quarry Robotics said that its Q-Haul truck is rated to haul 40 tonnes per hour.",
+      "passages": [
+        { "quote": "Quarry Robotics said its Q-Haul truck is rated to haul 40 tonnes per trip.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "A load per trip has become a load per hour."
+    },
+    {
+      "id": "e-40",
+      "label": "supported",
+      "sentence": "Gantry Daily reports that Tarn Mobility plans to open a plant in Brindle by 2028.",
+      "passages": [
+        { "quote": "Tarn Mobility plans to open a plant in Brindle by 2028, Gantry Daily reported, citing two people familiar with the plan.", "basis": "reported", "status": "planned", "outlet": "Gantry Daily" }
+      ]
+    },
+    {
+      "id": "e-41",
+      "label": "unsupported",
+      "sentence": "Gantry Daily reports that Tarn Mobility has chosen Brindle for a plant and will hire 400 people.",
+      "passages": [
+        { "quote": "Tarn Mobility plans to open a plant in Brindle by 2028, Gantry Daily reported, citing two people familiar with the plan.", "basis": "reported", "status": "planned", "outlet": "Gantry Daily" }
+      ],
+      "flaw": "The passage names no choice of site and no hiring."
+    },
+    {
+      "id": "e-42",
+      "label": "distorted",
+      "sentence": "Gantry Daily reports that Tarn Mobility has opened a plant in Brindle.",
+      "passages": [
+        { "quote": "Tarn Mobility plans to open a plant in Brindle by 2028, Gantry Daily reported, citing two people familiar with the plan.", "basis": "reported", "status": "planned", "outlet": "Gantry Daily" }
+      ],
+      "flaw": "A plan has become a plant that is open."
+    },
+    {
+      "id": "e-43",
+      "label": "supported",
+      "sentence": "Ashvale Foods installed 12 Pallet Pilot robots at its Marlow depot.",
+      "passages": [
+        { "quote": "Ashvale Foods installed 12 Pallet Pilot robots at its Marlow depot and plans to add 8 more by March 2027.", "basis": "press-release", "status": "deployed" }
+      ]
+    },
+    {
+      "id": "e-44",
+      "label": "unsupported",
+      "sentence": "Ashvale Foods installed 12 Pallet Pilot robots at its Marlow depot, replacing its forklifts.",
+      "passages": [
+        { "quote": "Ashvale Foods installed 12 Pallet Pilot robots at its Marlow depot and plans to add 8 more by March 2027.", "basis": "press-release", "status": "deployed" }
+      ],
+      "flaw": "The passage says nothing of forklifts."
+    },
+    {
+      "id": "e-45",
+      "label": "distorted",
+      "sentence": "Ashvale Foods installed 20 Pallet Pilot robots at its Marlow depot.",
+      "passages": [
+        { "quote": "Ashvale Foods installed 12 Pallet Pilot robots at its Marlow depot and plans to add 8 more by March 2027.", "basis": "press-release", "status": "deployed" }
+      ],
+      "flaw": "The 8 robots that are planned have been counted as installed."
+    },
+    {
+      "id": "e-46",
+      "label": "supported",
+      "sentence": "Fixture Robotics said that the FX-1 repeats a position more closely than its previous arm, within 0.05 mm against 0.1 mm.",
+      "passages": [
+        { "quote": "Fixture Robotics said the FX-1 repeats a position to within 0.05 mm, against 0.1 mm for its previous arm.", "basis": "press-release", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-47",
+      "label": "unsupported",
+      "sentence": "Fixture Robotics said that the FX-1 repeats a position within 0.05 mm, more closely than any other arm on the market.",
+      "passages": [
+        { "quote": "Fixture Robotics said the FX-1 repeats a position to within 0.05 mm, against 0.1 mm for its previous arm.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The passage compares the arm only with its predecessor."
+    },
+    {
+      "id": "e-48",
+      "label": "distorted",
+      "sentence": "Fixture Robotics said that the FX-1 repeats a position to within 0.1 mm, against 0.05 mm for its previous arm.",
+      "passages": [
+        { "quote": "Fixture Robotics said the FX-1 repeats a position to within 0.05 mm, against 0.1 mm for its previous arm.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The comparison has been turned round."
+    },
+    {
+      "id": "e-49",
+      "label": "supported",
+      "sentence": "The Brindle Logistics installation at Ashvale went live on 18 August 2026.",
+      "passages": [
+        { "quote": "The Brindle Logistics installation at Ashvale went live on 18 August 2026.", "basis": "press-release", "status": "deployed" }
+      ]
+    },
+    {
+      "id": "e-50",
+      "label": "unsupported",
+      "sentence": "The Brindle Logistics installation at Ashvale went live ahead of plan.",
+      "passages": [
+        { "quote": "The Brindle Logistics installation at Ashvale went live on 18 August 2026.", "basis": "press-release", "status": "deployed" }
+      ],
+      "flaw": "The passage does not say what the plan was."
+    },
+    {
+      "id": "e-51",
+      "label": "distorted",
+      "sentence": "The Brindle Logistics installation at Ashvale went live on 18 August 2025.",
+      "passages": [
+        { "quote": "The Brindle Logistics installation at Ashvale went live on 18 August 2026.", "basis": "press-release", "status": "deployed" }
+      ],
+      "flaw": "The year of the go-live has changed."
+    },
+    {
+      "id": "e-52",
+      "label": "supported",
+      "sentence": "The filing records that seven investors took part in the offering.",
+      "passages": [
+        { "quote": "Total number of investors in the offering: 7", "basis": "filing", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-53",
+      "label": "unsupported",
+      "sentence": "The filing records that seven investors took part in the offering, two of them existing shareholders.",
+      "passages": [
+        { "quote": "Total number of investors in the offering: 7", "basis": "filing", "status": "unspecified" }
+      ],
+      "flaw": "The passage does not say who the investors are."
+    },
+    {
+      "id": "e-54",
+      "label": "distorted",
+      "sentence": "The filing records that seven investors led the offering.",
+      "passages": [
+        { "quote": "Total number of investors in the offering: 7", "basis": "filing", "status": "unspecified" }
+      ],
+      "flaw": "Taking part has become leading."
+    },
+    {
+      "id": "e-55",
+      "label": "supported",
+      "sentence": "The company said that the FX-1 mounts on existing conveyor frames without a new safety cage.",
+      "passages": [
+        { "quote": "The FX-1 mounts on existing conveyor frames and needs no new safety cage, the company said.", "basis": "press-release", "status": "unspecified" }
+      ]
+    },
+    {
+      "id": "e-56",
+      "label": "unsupported",
+      "sentence": "The company said that the FX-1 mounts on existing conveyor frames in under an hour.",
+      "passages": [
+        { "quote": "The FX-1 mounts on existing conveyor frames and needs no new safety cage, the company said.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "The passage gives no time for the mounting."
+    },
+    {
+      "id": "e-57",
+      "label": "distorted",
+      "sentence": "The FX-1 mounts on existing conveyor frames and needs no safety cage.",
+      "passages": [
+        { "quote": "The FX-1 mounts on existing conveyor frames and needs no new safety cage, the company said.", "basis": "press-release", "status": "unspecified" }
+      ],
+      "flaw": "No new cage has become no cage, and the company is no longer named as the source."
+    },
+    {
+      "id": "e-58",
+      "label": "supported",
+      "sentence": "Fixture Robotics expects to build 500 FX-1 arms in 2027.",
+      "passages": [
+        { "quote": "Fixture Robotics expects to build 500 FX-1 arms in 2027.", "basis": "press-release", "status": "planned" }
+      ]
+    },
+    {
+      "id": "e-59",
+      "label": "unsupported",
+      "sentence": "Fixture Robotics expects to build 500 FX-1 arms in 2027, which would make it the largest arm maker in the region.",
+      "passages": [
+        { "quote": "Fixture Robotics expects to build 500 FX-1 arms in 2027.", "basis": "press-release", "status": "planned" }
+      ],
+      "flaw": "The passage makes no comparison with other makers."
+    },
+    {
+      "id": "e-60",
+      "label": "distorted",
+      "sentence": "Fixture Robotics expects to build 500 FX-1 arms by 2027.",
+      "passages": [
+        { "quote": "Fixture Robotics expects to build 500 FX-1 arms in 2027.", "basis": "press-release", "status": "planned" }
+      ],
+      "flaw": "A plan for the year 2027 has become a plan for the time up to it."
+    }
+  ]
+}

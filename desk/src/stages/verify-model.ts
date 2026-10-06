@@ -2,6 +2,7 @@ import { allSentences, citedClaims, describeLocation } from '@robywire/gate';
 import type { Claim, Draft, LedgerEntry, LedgerSection } from '@robywire/gate';
 import { z } from 'zod';
 import { ModelError } from '../index';
+import type { ModelClient, ModelUsage } from '../index';
 import { buildVerifyUser, verifySystem } from '../prompts/verify';
 import type { StageContext } from './context';
 
@@ -155,21 +156,31 @@ export function aggregateVerdicts(model: string, plan: VerifyPlan, reply: Verify
 }
 
 /**
- * Ask the verifier model about `draft` and say what it means: one call, in the role `verify`, with the model that the configuration names for
- * it. A reply that does not match `VerifyReply`, or that judges what was not asked, is a `schema` error that ends the run.
+ * Ask a verifier model about `plan` and say what it means: one call, in the role `verify`, with the model `model`, whose reply is checked against `VerifyReply`
+ * and read by `aggregateVerdicts`. A reply that does not match, or that judges what was not asked, is a `schema` error. It is what `runVerifier` does for a
+ * draft, and what the evals do for the sentences of the labelled set, so that both measure the same prompt and the same reading of the reply. Returns what
+ * the call cost along with the outcome.
  */
-export async function runVerifier(ctx: StageContext, draft: Draft, claims: Claim[]): Promise<VerifierOutcome> {
-  const plan = verifyPlanOf(draft, claims);
-  if (plan.sentences.length + plan.headings.length === 0) throw new Error('runVerifier needs a draft with at least one fact sentence or heading to judge');
-  const reply = await ctx.client.json({
+export async function judgePlan(client: ModelClient, model: string, plan: VerifyPlan): Promise<{ outcome: VerifierOutcome; usage: ModelUsage }> {
+  const reply = await client.json({
     role: 'verify',
-    model: ctx.config.models.verify,
+    model,
     system: verifySystem(),
     user: buildVerifyUser({ claims: plan.claims, sentences: plan.sentences, headings: plan.headings }),
     schema: VerifyReply,
     maxOutputTokens: VERIFY_MAX_OUTPUT_TOKENS,
   });
-  const outcome = aggregateVerdicts(ctx.config.models.verify, plan, reply.value);
+  return { outcome: aggregateVerdicts(model, plan, reply.value), usage: reply.usage };
+}
+
+/**
+ * Ask the verifier model about `draft` and say what it means (see `judgePlan`), with the model that the configuration names for the role. A reply that does
+ * not match `VerifyReply`, or that judges what was not asked, is a `schema` error that ends the run.
+ */
+export async function runVerifier(ctx: StageContext, draft: Draft, claims: Claim[]): Promise<VerifierOutcome> {
+  const plan = verifyPlanOf(draft, claims);
+  if (plan.sentences.length + plan.headings.length === 0) throw new Error('runVerifier needs a draft with at least one fact sentence or heading to judge');
+  const { outcome } = await judgePlan(ctx.client, ctx.config.models.verify, plan);
   ctx.log(`verify: the model check ${outcome.verifier.passed ? 'passed' : `failed ${outcome.failures.length} times`}`);
   return outcome;
 }

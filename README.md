@@ -46,6 +46,10 @@ Every `status` starts as `unverified`, except the two that the original list alr
 
 The exit code is 0 for a run that published, held or found no story and for a replay that came out equal, 1 for a run that failed or was refused and for a replay that differs, and 2 for a mistake in the arguments.
 
+## The verifier evals
+
+`npm run evals:verifier` measures a verifier. `desk/evals/verifier-set.json` holds sixty sentences, each with the passages that it is judged against: for each of twenty sets of passages, one sentence that they support, one that says something they do not say, and one that changes what they say in a small way. `desk/evals/run-verifier.ts` runs a model client over the set through the verifier's own prompt and the reading of its reply that the Verify stage uses, and prints precision and recall by label and overall. With no arguments it runs a scripted verifier that knows the answers, which proves the wiring and measures no model. `--client api --model <name>` asks a real model (it needs `ANTHROPIC_API_KEY`), `--batch <n>` sets how many sentences go in one call, and `--min-precision` and `--min-recall` (numbers from 0 to 1) make the command exit with 1 when a score is below them. No floor is set: what a verifier must score is decided when real models have been measured.
+
 ## Requirements
 
 - Node 22.19 or newer (`.nvmrc` says 22, which installs the latest 22.x; Lighthouse needs 22.19) and npm 10 or newer.
