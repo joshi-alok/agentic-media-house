@@ -1,4 +1,5 @@
 import type { Transport, TransportRequest } from '../../src/fetch/http';
+import { fixtureText } from './fixtures';
 
 // A stand-in for the network. It answers each address from a script and records what it was asked,
 // so a test can check what the fetcher sent and in what order, and nothing ever leaves the machine.
@@ -55,4 +56,10 @@ export function scriptedTransport(routes: Record<string, Route>): { transport: T
     return responseOf(step);
   };
   return { transport, sent };
+}
+
+/** A reply that serves a file of `desk/test/fixtures/` with the content type its name suggests. */
+export function fileReply(name: string, reply: Reply = {}): Reply {
+  const type = name.endsWith('.xml') ? 'application/xml' : name.endsWith('.txt') ? 'text/plain' : 'text/html; charset=utf-8';
+  return { body: fixtureText(name), type, ...reply };
 }

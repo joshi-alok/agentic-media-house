@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Mercer Wire - Robotics</title>
+    <item>
+      <title>An item whose tags are never closed</title>
+      <link>https://mercer-wire.example/robotics/never-closed
+    </item>
+  </channel>
+</rss>

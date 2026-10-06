@@ -52,3 +52,15 @@ bar:
 export function fixtureRegistry(): SourcesRegistry {
   return parseSources(FIXTURE_REGISTRY_YAML);
 }
+
+/**
+ * The registry of the tests of the stages: the two outlets of the feed fixtures and the newsroom of Fixture Robotics,
+ * so that a test of a stage has a few sources to read and every one of them has a page in `desk/test/fixtures/`.
+ */
+export function smallRegistry(): SourcesRegistry {
+  const registry = fixtureRegistry();
+  const fixtureRobotics = registry.primary.companies.humanoids?.find((entry) => entry.name === 'Fixture Robotics');
+  registry.primary.companies = fixtureRobotics === undefined ? {} : { humanoids: [fixtureRobotics] };
+  registry.secondary = registry.secondary.filter((entry) => entry.status !== 'blocked');
+  return registry;
+}

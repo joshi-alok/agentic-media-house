@@ -1,0 +1,113 @@
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import { ExtractError } from '../../src/fetch/extract-text';
+import { FeedError } from '../../src/fetch/feeds';
+import { FetchError } from '../../src/fetch/http';
+import { canonicalUrl } from '../../src/fetch/url';
+import { describeFailure, emptyPublished, isSourceFailure, loadPublishedIndex } from '../../src/stages/context';
+import { useScratch } from '../support/context';
+
+// What every stage is given, and what the stages share. The published index is read from the ledgers of
+// the pieces; the ledgers of the fixture pieces of the site are the made-up ones that exist.
+
+const scratch = useScratch();
+const FIXTURE_LEDGERS = fileURLToPath(new URL('../../../site/src/content-fixtures/ledger/', import.meta.url));
+const REAL_LEDGERS = fileURLToPath(new URL('../../../site/src/content/ledger/', import.meta.url));
+
+describe('emptyPublished', () => {
+  it('is nothing published, and a new object each time', () => {
+    expect(emptyPublished()).toEqual({ slugs: [], titles: [], sourceUrls: [] });
+    expect(emptyPublished()).not.toBe(emptyPublished());
+    expect(emptyPublished().slugs).not.toBe(emptyPublished().slugs);
+  });
+});
+
+describe('loadPublishedIndex', () => {
+  it('reads the ledgers of the fixture pieces: their slugs, their titles with their days, and the addresses of their sources', async () => {
+    const files = readdirSync(FIXTURE_LEDGERS)
+      .filter((name) => name.endsWith('.json'))
+      .sort();
+    const index = await loadPublishedIndex(FIXTURE_LEDGERS);
+    expect(files.length).toBeGreaterThan(0);
+    expect(index.slugs).toEqual(files.map((name) => name.replace(/\.json$/, '')));
+    expect(index.titles).toHaveLength(files.length);
+    for (const entry of index.titles) {
+      expect(entry.title).not.toBe('');
+      expect(entry.publishedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    expect(index.sourceUrls).toContain('https://fixture-robotics.example/news/fx-1-second-plant');
+  });
+
+  it('lists each source address once, in its canonical form', async () => {
+    const { sourceUrls } = await loadPublishedIndex(FIXTURE_LEDGERS);
+    expect(new Set(sourceUrls).size).toBe(sourceUrls.length);
+    for (const url of sourceUrls) expect(canonicalUrl(url)).toBe(url);
+  });
+
+  it('is empty for the folder of the site that holds no pieces yet, which holds only a placeholder file', async () => {
+    expect(await loadPublishedIndex(REAL_LEDGERS)).toEqual(emptyPublished());
+  });
+
+  it('ignores files that are not ledgers', async () => {
+    const dir = scratch();
+    writeFileSync(path.join(dir, '.gitkeep'), '');
+    writeFileSync(path.join(dir, 'notes.txt'), 'not a ledger');
+    expect(await loadPublishedIndex(dir)).toEqual(emptyPublished());
+  });
+
+  it('refuses a folder that does not exist, because an index with nothing in it would let the Desk write a story twice', async () => {
+    const missing = path.join(scratch(), 'nowhere');
+    await expect(loadPublishedIndex(missing)).rejects.toThrow(`the ledger folder ${missing} does not exist`);
+  });
+
+  it('refuses a ledger that is not JSON, and one that is not a ledger, and names the file', async () => {
+    const dir = scratch();
+    writeFileSync(path.join(dir, 'broken.json'), '{"slug": ');
+    await expect(loadPublishedIndex(dir)).rejects.toThrow('the ledger broken.json is not valid JSON');
+    writeFileSync(path.join(dir, 'broken.json'), JSON.stringify({ slug: 'x' }));
+    await expect(loadPublishedIndex(dir)).rejects.toThrow('the ledger broken.json is not valid: ');
+  });
+
+  it('refuses a folder when the path is a file', async () => {
+    const dir = scratch();
+    const file = path.join(dir, 'file.json');
+    writeFileSync(file, '{}');
+    await expect(loadPublishedIndex(file)).rejects.toThrow();
+  });
+
+  it('reads the ledgers in the order of their names', async () => {
+    const { slugs } = await loadPublishedIndex(FIXTURE_LEDGERS);
+    expect(slugs).toEqual([...slugs].sort());
+  });
+
+  it('does not create the folder it is asked about', async () => {
+    const dir = scratch();
+    mkdirSync(path.join(dir, 'ledger'));
+    await loadPublishedIndex(path.join(dir, 'ledger'));
+    expect(readdirSync(dir)).toEqual(['ledger']);
+  });
+});
+
+describe('isSourceFailure and describeFailure', () => {
+  const fetchError = new FetchError('status', 'https://a.example/x', 'answered 404', { status: 404 });
+  const feedError = new FeedError('malformed', 'the feed is not well-formed XML: x');
+  const extractError = new ExtractError('the page is nested more than 512 levels deep');
+
+  it('counts a failure to fetch, to read a feed or to read a page as a failure of a source, and nothing else', () => {
+    expect(isSourceFailure(fetchError)).toBe(true);
+    expect(isSourceFailure(feedError)).toBe(true);
+    expect(isSourceFailure(extractError)).toBe(true);
+    expect(isSourceFailure(new Error('a bug'))).toBe(false);
+    expect(isSourceFailure(new TypeError('a bug'))).toBe(false);
+    expect(isSourceFailure('text')).toBe(false);
+    expect(isSourceFailure(undefined)).toBe(false);
+  });
+
+  it('says what went wrong in a sentence', () => {
+    expect(describeFailure(fetchError)).toBe('https://a.example/x: answered 404');
+    expect(describeFailure(feedError)).toBe('the feed cannot be read: the feed is not well-formed XML: x');
+    expect(describeFailure(extractError)).toBe('the page cannot be read: the page is nested more than 512 levels deep');
+  });
+});
