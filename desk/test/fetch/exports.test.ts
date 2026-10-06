@@ -5,6 +5,7 @@ import type {
   DiscoverArtifact,
   EvidenceMeta,
   EvidenceStore,
+  ExtractArtifact,
   ExtractedPage,
   FeedErrorKind,
   FeedItem,
@@ -41,6 +42,7 @@ const VALUES = [
   'SelectArtifact',
   'FetchDocument',
   'FetchArtifact',
+  'ExtractArtifact',
   'runPath',
   'writeArtifact',
   'readArtifact',
@@ -84,6 +86,7 @@ describe('the package entry point: fetching', () => {
       SelectArtifact,
       FetchDocument,
       FetchArtifact,
+      ExtractArtifact,
       ParsedRobots,
       RobotsRule,
       RobotsGroup,
@@ -111,7 +114,9 @@ describe('the package entry point: fetching', () => {
   });
 
   it('does not export the stages or their prompts', () => {
-    for (const name of ['runDiscover', 'runSelect', 'runFetch', 'shortlistOf', 'loadPublishedIndex', 'emptyPublished', 'selectSystem', 'buildSelectUser']) {
+    const stages = ['runDiscover', 'runSelect', 'runFetch', 'shortlistOf', 'loadPublishedIndex', 'emptyPublished', 'selectSystem', 'buildSelectUser'];
+    const extraction = ['locateQuote', 'claimProblems', 'runExtract', 'extractReplySchema', 'kindOfSnapshot', 'extractSystem', 'buildExtractUser'];
+    for (const name of [...stages, ...extraction]) {
       expect(entry).not.toHaveProperty(name);
     }
   });

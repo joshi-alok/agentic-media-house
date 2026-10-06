@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { Claim } from '@robywire/gate';
 import { z } from 'zod';
 import { describeIssues } from '../issues';
 import { canonicalJson, sha256Hex } from '../model/types';
@@ -101,6 +102,30 @@ export const FetchArtifact = z.strictObject({
   failures: z.array(z.strictObject({ url: httpUrl, tier, reason: text })),
 });
 export type FetchArtifact = z.infer<typeof FetchArtifact>;
+
+/** A claim that a model proposed and code dropped: its place in the reply of the model (counting from 0), what it said, and every reason. */
+const DroppedClaim = z.strictObject({
+  index: z.number().int().nonnegative(),
+  text,
+  reasons: z.array(z.strictObject({ code: text, message: text })).min(1),
+});
+
+/**
+ * What the Extract stage kept and what it dropped. The claims are the gate's own `Claim`, numbered `c-1`, `c-2` and so on in order,
+ * each with its source, its quoted span as the page has it and what the model said about it. The quoted spans are the only
+ * text of a page that an artifact holds.
+ */
+export const ExtractArtifact = z
+  .strictObject({
+    date: isoDate,
+    claims: z.array(Claim),
+    dropped: z.array(DroppedClaim),
+  })
+  .refine((artifact) => artifact.claims.every((claim, at) => claim.id === `c-${at + 1}`), {
+    message: 'the claims must be numbered c-1, c-2 and so on, in order',
+    path: ['claims'],
+  });
+export type ExtractArtifact = z.infer<typeof ExtractArtifact>;
 
 /** The folder of the run of a day: `<runsDir>/<date>`. The date must be a real day, so that a date can never name a path elsewhere. */
 export function runPath(runsDir: string, date: string): string {

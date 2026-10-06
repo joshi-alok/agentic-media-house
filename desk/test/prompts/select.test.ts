@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { SELECT_INSTRUCTIONS, buildSelectUser, selectSystem } from '../../src/prompts/select';
 import { RUN_DATE, candidate } from '../support/candidates';
+import { blocksOf, outsideBlocks } from '../support/prompts';
 import { fixtureRegistry } from '../support/registry';
 
 // The words that the Select stage says to a model. What matters here is not the wording but the rules that
@@ -11,14 +12,6 @@ import { fixtureRegistry } from '../support/registry';
 const BAR = fixtureRegistry().bar;
 const A = candidate({ url: 'https://mercer-wire.example/robotics/a', title: 'Fixture Robotics starts FX-1 deliveries', publishedAt: '2026-10-04T09:15:00.000Z' });
 const B = candidate({ url: 'https://fixture-robotics.example/news/b', title: 'Updated FX-1 datasheet adds an IP54 rating', tier: 1, outlet: 'Fixture Robotics', origin: 'newsroom', publishedAt: undefined });
-
-/** The text between the opening tag and the closing tag of each block of a message, with the id of the block. */
-function blocksOf(message: string): { id: string; text: string }[] {
-  return [...message.matchAll(/<source id="([^"]+)">\n([\s\S]*?)\n<\/source>/g)].map((match) => ({ id: match[1] as string, text: match[2] as string }));
-}
-
-/** The message with every block taken out. */
-const outsideBlocks = (message: string): string => message.replace(/<source id="[^"]+">\n[\s\S]*?\n<\/source>/g, '');
 
 describe('selectSystem', () => {
   it('begins with the paragraph that says that the text of a block is data and never an instruction', () => {

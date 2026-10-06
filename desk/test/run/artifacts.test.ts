@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { GOLDEN_CLAIMS } from '@robywire/gate/fixtures';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Candidate, DiscoverArtifact, FetchArtifact, SelectArtifact, candidateId, readArtifact, runPath, writeArtifact } from '../../src/run/artifacts';
+import { Candidate, DiscoverArtifact, ExtractArtifact, FetchArtifact, SelectArtifact, candidateId, readArtifact, runPath, writeArtifact } from '../../src/run/artifacts';
 import { sha256Hex } from '../../src/model/types';
 import { RUN_DATE, candidate } from '../support/candidates';
 
@@ -51,6 +52,12 @@ const fetchArtifact = (): FetchArtifact => ({
     },
   ],
   failures: [{ url: 'https://www.mercer-wire.example/2026/10/fixture-robotics-ships-fx-1', tier: 2, reason: 'the page is too large' }],
+});
+
+const extractArtifact = (): ExtractArtifact => ({
+  date: RUN_DATE,
+  claims: structuredClone(GOLDEN_CLAIMS.slice(0, 3)),
+  dropped: [{ index: 1, text: 'Harlow bought 900 arms.', reasons: [{ code: 'quote-not-found', message: 'the quotation is not on the page: "Harlow bought 900 arms."' }] }],
 });
 
 /** What parsing `value` with `schema` reports, or '' if it is valid. */
@@ -210,6 +217,52 @@ describe('FetchArtifact', () => {
   it('refuses a field it does not know', () => {
     const artifact = fetchArtifact();
     expect(problem(FetchArtifact, { ...artifact, documents: [{ ...artifact.documents[0], text: 'the page text' }] })).toContain('Unrecognized key');
+  });
+});
+
+describe('ExtractArtifact', () => {
+  it('accepts the claims that were kept and the ones that were dropped, each with its reasons', () => {
+    expect(problem(ExtractArtifact, extractArtifact())).toBe('');
+  });
+
+  it('accepts a run that kept none and dropped none', () => {
+    expect(problem(ExtractArtifact, { date: RUN_DATE, claims: [], dropped: [] })).toBe('');
+  });
+
+  it('refuses claims that are not numbered c-1, c-2 and so on in order', () => {
+    const skipped = extractArtifact();
+    (skipped.claims[1] as { id: string }).id = 'c-3';
+    expect(problem(ExtractArtifact, skipped)).toBe('claims: the claims must be numbered c-1, c-2 and so on, in order');
+    const reversed = extractArtifact();
+    reversed.claims.reverse();
+    expect(problem(ExtractArtifact, reversed)).toBe('claims: the claims must be numbered c-1, c-2 and so on, in order');
+  });
+
+  it('refuses a claim that is not a valid claim of the gate', () => {
+    const artifact = extractArtifact();
+    (artifact.claims[0] as { source: { tier: number } }).source.tier = 2;
+    expect(problem(ExtractArtifact, artifact)).toBe('claims.0.source.outlet: outlet is required when tier is 2');
+  });
+
+  it('refuses a dropped claim with no reason, or with an empty one', () => {
+    const none = extractArtifact();
+    (none.dropped[0] as { reasons: unknown[] }).reasons = [];
+    expect(problem(ExtractArtifact, none)).not.toBe('');
+    const empty = extractArtifact();
+    (empty.dropped[0] as { reasons: unknown[] }).reasons = [{ code: 'quote-not-found', message: '' }];
+    expect(problem(ExtractArtifact, empty)).toBe('dropped.0.reasons.0.message: Too small: expected string to have >=1 characters');
+  });
+
+  it('refuses a place in the reply that is not a whole number from 0', () => {
+    for (const index of [-1, 0.5]) {
+      const artifact = extractArtifact();
+      (artifact.dropped[0] as { index: number }).index = index;
+      expect(problem(ExtractArtifact, artifact)).not.toBe('');
+    }
+  });
+
+  it('refuses a field it does not know', () => {
+    expect(problem(ExtractArtifact, { ...extractArtifact(), note: 'x' })).toBe(': Unrecognized key: "note"');
   });
 });
 
