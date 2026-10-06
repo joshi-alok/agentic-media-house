@@ -1,9 +1,8 @@
+import { PUBLICATION_NAME } from '@robywire/gate';
 import type { Category } from '@robywire/gate';
 
 // Small text helpers for the pages. Dates are written from their digits, never
 // through the machine's time zone, so a build gives the same page anywhere.
-
-export const SITE_NAME = 'Robywire';
 
 // Written as a code so that this file stays plain ASCII.
 const EM_DASH = String.fromCharCode(0x2014);
@@ -76,7 +75,7 @@ export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** The text of the <title> element: the page name, then the site name, unless the page name already has it. */
+/** The text of the <title> element: the page name, then the name of the publication, unless the page name already has it. */
 export function documentTitle(page: string): string {
-  return page.includes(SITE_NAME) ? page : `${page} ${EM_DASH} ${SITE_NAME}`;
+  return page.includes(PUBLICATION_NAME) ? page : `${page} ${EM_DASH} ${PUBLICATION_NAME}`;
 }

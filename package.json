@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Robywire: a robotics news site built so that every factual sentence traces to a primary source, with a code gate that checks it and the Desk, the pipeline that will write it.",
+  "description": "Agentic Media House: a robotics news site built so that every factual sentence traces to a primary source, with a code gate that checks it and the Desk, the pipeline that will write it.",
   "engines": {
     "node": ">=22"
   },

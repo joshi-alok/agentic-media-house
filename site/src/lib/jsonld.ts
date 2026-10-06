@@ -1,4 +1,4 @@
-import { DESK_AUTHOR_NAME } from '@robywire/gate';
+import { DESK_AUTHOR_NAME, PUBLICATION_NAME } from '@robywire/gate';
 import type { DeskState } from '@robywire/gate';
 import { articlePath, cardPath } from './paths';
 
@@ -49,7 +49,7 @@ export function newsArticleJsonLd(piece: JsonLdPiece, corrections: DeskState['co
     datePublished: piece.publishedAt,
     dateModified: piece.updatedAt ?? latest ?? piece.publishedAt,
     author: { '@type': 'Organization', name: DESK_AUTHOR_NAME },
-    publisher: { '@type': 'Organization', name: 'Robywire', url: siteUrl },
+    publisher: { '@type': 'Organization', name: PUBLICATION_NAME, url: siteUrl },
     mainEntityOfPage: { '@type': 'WebPage', '@id': absolute(articlePath(piece.slug)) },
     image: absolute(cardPath(piece.slug)),
   };

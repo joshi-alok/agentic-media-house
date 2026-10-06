@@ -1,3 +1,4 @@
+import { PUBLICATION_NAME } from '@robywire/gate';
 import { LIVE } from './live';
 import type { Live } from './live';
 import { releaseNote } from './receipts';
@@ -20,8 +21,8 @@ export function siteDescription(live: Live = LIVE): string {
 /** The disclosure in the footer of every page. It names no second model, human or editor, because the method page describes those as plans. */
 export function disclosure(live: Live = LIVE): string {
   return live.publishing
-    ? 'Robywire is written by an automated pipeline, the Desk. A piece is published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece has a receipts page that shows the trace.'
-    : 'Robywire will be written by an automated pipeline, the Desk. A piece will be published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece will have a receipts page that shows the trace.';
+    ? `${PUBLICATION_NAME} is written by an automated pipeline, the Desk. A piece is published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece has a receipts page that shows the trace.`
+    : `${PUBLICATION_NAME} will be written by an automated pipeline, the Desk. A piece will be published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece will have a receipts page that shows the trace.`;
 }
 
 /** The introduction of a receipts page. */
@@ -37,8 +38,8 @@ export function receiptsIntro(live: Live = LIVE): string {
 /** The first paragraph of the method page. */
 export function deskIntro(live: Live = LIVE): string {
   return live.publishing
-    ? 'Robywire is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot trace is not published.'
-    : 'Robywire is a robotics news site, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace will be public on its receipts page. What the code cannot trace will not be published.';
+    ? `${PUBLICATION_NAME} is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot trace is not published.`
+    : `${PUBLICATION_NAME} is a robotics news site, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace will be public on its receipts page. What the code cannot trace will not be published.`;
 }
 
 /** The parts that do not run, each with the flag that says it does, in the order the method page lists them. */

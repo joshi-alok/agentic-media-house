@@ -70,7 +70,7 @@ function deskState(all: readonly FixturePiece[]): DeskState {
         at: '2026-09-30T04:38:05Z',
         categories: ['humanoids'],
         reasons: ['G4_NUMBER_UNSUPPORTED'],
-        prUrl: 'https://github.example/robywire/robywire/pull/12',
+        prUrl: 'https://github.example/agentic-media-house/agentic-media-house/pull/12',
       },
       { at: '2026-09-29T04:36:40Z', categories: ['policy-standards', 'funding'], reasons: ['TIER2_ATTRIBUTION'] },
     ],

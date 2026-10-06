@@ -202,7 +202,7 @@ describe('G1_AUTHOR_NOT_DESK', () => {
     'Agentic Media House Desk ',
     ' Agentic Media House Desk',
     'Agentic Media House Desk.',
-    'Robywire Desk',
+    'Robywire Desk', // the old name, on purpose
   ])(
     'fails for the author name %j, and says what it must be',
     (name) => {

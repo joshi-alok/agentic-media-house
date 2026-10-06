@@ -1,5 +1,6 @@
 ---
 import board from '@robywire/evals/scoreboard';
+import { PUBLICATION_NAME } from '@robywire/gate';
 import TableWrap from '../../components/TableWrap.astro';
 import Base from '../../layouts/Base.astro';
 import {
@@ -29,7 +30,7 @@ const trial = trialText();
 
 <Base
   title="Method"
-  description="How Robywire is made: the two kinds of source, the claim ledger, the nine rules of the gate and their known limits, what the Desk never does, and the scoreboard of defects the gate was tested against."
+  description={`How ${PUBLICATION_NAME} is made: the two kinds of source, the claim ledger, the nine rules of the gate and their known limits, what the Desk never does, and the scoreboard of defects the gate was tested against.`}
   canonicalPath="/method/"
 >
   <div class="container">

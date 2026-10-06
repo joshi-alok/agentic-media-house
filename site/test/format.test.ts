@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CATEGORY_VOCAB } from '@robywire/gate';
+import { CATEGORY_VOCAB, PUBLICATION_NAME } from '@robywire/gate';
 import { beatBlurb, beatLabel, documentTitle, formatDate, formatDateTime, plural } from '../src/lib/format';
 
 describe('formatDate', () => {
@@ -121,12 +121,22 @@ describe('plural', () => {
 const EM_DASH = String.fromCharCode(0x2014);
 
 describe('documentTitle', () => {
-  it('adds the site name after a dash', () => {
-    expect(documentTitle('Humanoids')).toBe(`Humanoids ${EM_DASH} Robywire`);
+  it('adds the name of the publication after a dash', () => {
+    expect(documentTitle('Humanoids')).toBe(`Humanoids ${EM_DASH} Agentic Media House`);
   });
 
-  it('leaves a title that already names the site as it is', () => {
-    expect(documentTitle('Robywire')).toBe('Robywire');
-    expect(documentTitle('Robywire: daily robotics news')).toBe('Robywire: daily robotics news');
+  it('leaves a title that already names the publication as it is', () => {
+    expect(documentTitle('Agentic Media House')).toBe('Agentic Media House');
+    expect(documentTitle('Agentic Media House: daily robotics news')).toBe('Agentic Media House: daily robotics news');
   });
+
+  it('adds nothing but a dash and the name, so the room that a page name has in a title is known', () => {
+    const page = 'x'.repeat(10);
+    expect(documentTitle(page).length).toBe(page.length + ' - '.length + PUBLICATION_NAME.length);
+  });
+
+  it('adds the name to a title that has the old one in it, because the old one is not the name', () => {
+    expect(documentTitle('Robywire')).toBe(`Robywire ${EM_DASH} Agentic Media House`); // the old name, on purpose
+  });
+
 });

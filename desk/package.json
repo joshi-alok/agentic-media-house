@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The Desk: the pipeline that will write Robywire, built and tested offline.",
+  "description": "The Desk: the pipeline that will write Agentic Media House, built and tested offline.",
   "exports": {
     ".": "./src/index.ts"
   },

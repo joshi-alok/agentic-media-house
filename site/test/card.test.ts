@@ -198,7 +198,7 @@ describe('renderCardSvg', () => {
   });
 
   it('carries the wordmark and the title, wrapped over at most three lines', () => {
-    expect(textsWithRole(svg, 'wordmark')).toEqual(['ROBYWIRE']);
+    expect(textsWithRole(svg, 'wordmark')).toEqual(['AGENTIC MEDIA HOUSE']);
     const title = textsWithRole(svg, 'title');
     expect(title.length).toBeGreaterThanOrEqual(2);
     expect(title.length).toBeLessThanOrEqual(3);
@@ -426,6 +426,15 @@ describe('the layout of the card', () => {
   it.each(cases)('keeps every text of %s inside the box, in the file and in the page', (_name, entry) => {
     expect(textsOutside(renderCardSvg(entry))).toEqual([]);
     expect(textsOutside(renderInlineCardSvg(entry))).toEqual([]);
+  });
+
+  it('keeps the wordmark in the left half of the card, so that the title and the figures stay the loudest things on it', () => {
+    for (const svg of [renderCardSvg(GOLDEN), renderInlineCardSvg(GOLDEN)]) {
+      const tag = /<text data-role="wordmark" x="(\d+)" y="\d+" font-family="[^"]*" font-size="(\d+)"[^>]*letter-spacing="(\d+)"[^>]*>([^<]*)<\/text>/.exec(svg)!;
+      const [x, size, spacing, content] = [Number(tag[1]), Number(tag[2]), Number(tag[3]), tag[4]!];
+      expect(content).toBe('AGENTIC MEDIA HOUSE');
+      expect(x + content.length * (size * 0.6 + spacing)).toBeLessThan(CARD_WIDTH / 2);
+    }
   });
 
   it('would notice a text that runs off the card', () => {

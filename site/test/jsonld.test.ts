@@ -25,9 +25,9 @@ describe('newsArticleJsonLd', () => {
     expect(data.datePublished).toBe('2026-10-03');
   });
 
-  it('names the Desk as the author and Robywire as the publisher', () => {
+  it('names the Desk as the author and Agentic Media House as the publisher', () => {
     expect(data.author).toEqual({ '@type': 'Organization', name: DESK_AUTHOR_NAME });
-    expect(data.publisher).toEqual({ '@type': 'Organization', name: 'Robywire', url: SITE });
+    expect(data.publisher).toEqual({ '@type': 'Organization', name: 'Agentic Media House', url: SITE });
   });
 
   it('points at the article page and at the card image, with full URLs', () => {

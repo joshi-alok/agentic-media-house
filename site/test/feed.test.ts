@@ -56,7 +56,7 @@ describe('the feed', () => {
     expect(xmlProblem(xml)).toBeUndefined();
     const { rss } = parse(xml);
     expect(rss['@_version']).toBe('2.0');
-    expect(rss.channel.title).toBe('Robywire');
+    expect(rss.channel.title).toBe('Agentic Media House');
     expect(rss.channel.link).toBe('https://agenticmediahouse.example/');
     expect(rss.channel.language).toBe('en');
   });
@@ -80,7 +80,7 @@ describe('the feed', () => {
     const xml = await feed([]);
     expect(xmlProblem(xml)).toBeUndefined();
     const { rss } = parse(xml);
-    expect(rss.channel.title).toBe('Robywire');
+    expect(rss.channel.title).toBe('Agentic Media House');
     expect(rss.channel.item).toBeUndefined();
   });
 

@@ -1,4 +1,5 @@
 ---
+import { PUBLICATION_NAME } from '@robywire/gate';
 import '../styles/tokens.css';
 import '../styles/global.css';
 import '../styles/layout.css';
@@ -36,9 +37,9 @@ const image = ogImage === undefined ? undefined : new URL(ogImage, Astro.site).h
     <link rel="canonical" href={canonical} />
     <!-- An empty icon, so that browsers do not ask for /favicon.ico. -->
     <link rel="icon" href="data:," />
-    <link rel="alternate" type="application/rss+xml" title="Robywire" href="/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title={PUBLICATION_NAME} href="/rss.xml" />
     {noindex && <meta name="robots" content="noindex" />}
-    <meta property="og:site_name" content="Robywire" />
+    <meta property="og:site_name" content={PUBLICATION_NAME} />
     <meta property="og:type" content={ogType} />
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />

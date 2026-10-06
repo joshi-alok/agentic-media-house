@@ -233,7 +233,7 @@ describe('fixtureFiles: the desk state', () => {
   it('records two holds, with a gate code and the tier-2 reason: the first on a day with no piece, the second released by the owner the same day', () => {
     expect(state.holds.map((hold) => hold.reasons)).toEqual([['G4_NUMBER_UNSUPPORTED'], ['TIER2_ATTRIBUTION']]);
     expect(state.holds.map((hold) => hold.at.slice(0, 10))).toEqual(['2026-09-30', '2026-09-29']);
-    expect(state.holds[0]!.prUrl).toBe('https://github.example/robywire/robywire/pull/12');
+    expect(state.holds[0]!.prUrl).toBe('https://github.example/agentic-media-house/agentic-media-house/pull/12');
     expect(state.holds[1]!.prUrl).toBeUndefined();
   });
 

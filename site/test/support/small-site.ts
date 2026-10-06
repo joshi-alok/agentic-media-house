@@ -29,7 +29,7 @@ export const SMALL_SITE: Readonly<Record<string, string>> = {
   'robots.txt': `User-agent: *\nAllow: /\n\nSitemap: ${ORIGIN}/sitemap-index.xml\n`,
   'sitemap-index.xml': `<?xml version="1.0" encoding="UTF-8"?><sitemapindex><sitemap><loc>${ORIGIN}/sitemap-0.xml</loc></sitemap></sitemapindex>`,
   'sitemap-0.xml': `<?xml version="1.0" encoding="UTF-8"?><urlset><url><loc>${ORIGIN}/</loc></url><url><loc>${ORIGIN}/status/</loc></url></urlset>`,
-  'rss.xml': '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Robywire</title></channel></rss>',
+  'rss.xml': '<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>Agentic Media House</title></channel></rss>',
 };
 
 /** The small site with `changes` applied. A value of null removes a file. */

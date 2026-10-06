@@ -1,4 +1,5 @@
 ---
+import { PUBLICATION_NAME } from '@robywire/gate';
 import BeatChips from '../components/BeatChips.astro';
 import LedgerStrip from '../components/LedgerStrip.astro';
 import PieceList from '../components/PieceList.astro';
@@ -26,7 +27,7 @@ const items = stripItems(
 );
 ---
 
-<Base title="Robywire" description={siteDescription()} canonicalPath="/">
+<Base title={PUBLICATION_NAME} description={siteDescription()} canonicalPath="/">
   <div class="container">
     <h1 class="home-title">Robotics news with a receipt for every claim.</h1>
     {

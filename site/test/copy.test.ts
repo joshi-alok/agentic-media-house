@@ -95,9 +95,9 @@ describe('receiptsIntro', () => {
 
 describe('disclosure', () => {
   const OFF =
-    'Robywire will be written by an automated pipeline, the Desk. A piece will be published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece will have a receipts page that shows the trace.';
+    'Agentic Media House will be written by an automated pipeline, the Desk. A piece will be published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece will have a receipts page that shows the trace.';
   const ON =
-    'Robywire is written by an automated pipeline, the Desk. A piece is published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece has a receipts page that shows the trace.';
+    'Agentic Media House is written by an automated pipeline, the Desk. A piece is published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece has a receipts page that shows the trace.';
 
   it.each(CASES)('is in the present tense only when the Desk publishes (%s)', (_name, live) => {
     expect(disclosure(live)).toBe(live.publishing ? ON : OFF);
@@ -133,9 +133,9 @@ describe('siteDescription', () => {
 
 describe('deskIntro', () => {
   const OFF =
-    'Robywire is a robotics news site, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace will be public on its receipts page. What the code cannot trace will not be published.';
+    'Agentic Media House is a robotics news site, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace will be public on its receipts page. What the code cannot trace will not be published.';
   const ON =
-    'Robywire is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot trace is not published.';
+    'Agentic Media House is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot trace is not published.';
 
   it.each(CASES)('is in the present tense only when the Desk publishes (%s)', (_name, live) => {
     expect(deskIntro(live)).toBe(live.publishing ? ON : OFF);
@@ -442,6 +442,6 @@ describe('the description of the repository', () => {
   it('does not call the site a running daily service while the schedule and the pipeline are off', () => {
     if (!LIVE.scheduler) expect(pkg.description).not.toMatch(/\bdaily\b/i);
     if (!LIVE.publishing) expect(pkg.description).not.toMatch(/\bwritten by\b/i);
-    expect(pkg.description).toMatch(/^Robywire: /);
+    expect(pkg.description).toMatch(/^Agentic Media House: /);
   });
 });

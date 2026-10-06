@@ -18,7 +18,7 @@ const STATE: DeskState = {
       at: '2026-09-30T04:38:05Z',
       categories: ['humanoids'],
       reasons: ['G4_NUMBER_UNSUPPORTED', 'G9_BANNED_PHRASE'],
-      prUrl: 'https://github.example/robywire/robywire/pull/12',
+      prUrl: 'https://github.example/agentic-media-house/agentic-media-house/pull/12',
     },
   ],
   corrections: [

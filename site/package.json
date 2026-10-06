@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The Robywire site: static Astro pages built from src/content, or from src/content-fixtures when ROBYWIRE_FIXTURES=1.",
+  "description": "The Agentic Media House site: static Astro pages built from src/content, or from src/content-fixtures when ROBYWIRE_FIXTURES=1.",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

@@ -1,3 +1,4 @@
+import { PUBLICATION_WORDMARK } from '@robywire/gate';
 import type { Basis, LedgerEntry } from '@robywire/gate';
 import { plural } from './format';
 
@@ -161,7 +162,7 @@ function drawCard(entry: LedgerEntry, colours: Readonly<Record<keyof typeof CARD
     ...head,
     `<rect width="${CARD_WIDTH}" height="${CARD_HEIGHT}" fill="${background}"/>`,
     `<rect x="24.5" y="24.5" width="${CARD_WIDTH - 49}" height="${CARD_HEIGHT - 49}" fill="none" stroke="${frame}" stroke-width="1"/>`,
-    text('wordmark', LEFT, 100, 26, 600, ink, 'ROBYWIRE', ' letter-spacing="6"'),
+    text('wordmark', LEFT, 100, 26, 600, ink, PUBLICATION_WORDMARK, ' letter-spacing="6"'),
   ];
 
   wrapText(entry.title, TITLE_CHARS, TITLE_LINES).forEach((line, index) => {

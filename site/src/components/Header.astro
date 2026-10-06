@@ -1,4 +1,5 @@
 ---
+import { PUBLICATION_WORDMARK } from '@robywire/gate';
 import { NAV_ITEMS, isCurrent } from '../lib/nav';
 
 const pathname = Astro.url.pathname;
@@ -6,7 +7,7 @@ const pathname = Astro.url.pathname;
 
 <header class="site-header">
   <div class="container site-header__inner">
-    <a class="wordmark" href="/">Robywire</a>
+    <a class="wordmark" href="/">{PUBLICATION_WORDMARK}</a>
     <nav aria-label="Beats">
       <ul class="nav">
         {

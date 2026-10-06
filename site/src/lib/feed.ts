@@ -1,6 +1,7 @@
 import type { RSSFeedItem, RSSOptions } from '@astrojs/rss';
+import { PUBLICATION_NAME } from '@robywire/gate';
 import { siteDescription } from './copy';
-import { SITE_NAME, beatLabel } from './format';
+import { beatLabel } from './format';
 import { articlePath } from './paths';
 
 // The RSS feed: one item for every piece, newest first, with the title, the
@@ -27,7 +28,7 @@ export function rssItems(pieces: readonly FeedPiece[]): RSSFeedItem[] {
 /** The options for `rss()` for these pieces, on the site at `site`. */
 export function feedOptions(pieces: readonly FeedPiece[], site: URL | string): RSSOptions {
   return {
-    title: SITE_NAME,
+    title: PUBLICATION_NAME,
     description: siteDescription(),
     site,
     items: rssItems(pieces),
