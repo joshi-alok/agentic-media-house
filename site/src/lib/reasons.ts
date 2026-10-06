@@ -21,6 +21,7 @@ export const REASON_LABELS: Readonly<Record<string, string>> = {
   G2_HEADING_QUESTION: 'A heading asked a question',
   G2_HEADING_TOO_LONG: 'A heading was too long',
   G2_HEADING_EMPTY: 'A section had no heading',
+  G2_HEADING_RESERVED: 'A section had a heading that the Desk writes itself',
   G2_LIMITATIONS_MISSING: 'There was no section on what could not be verified',
   G2_LIMITATION_COVERAGE: 'A claim was left out of the section on what could not be verified',
   G2_SENTENCE_START: 'A sentence did not start with a capital letter or a digit',

@@ -1,6 +1,6 @@
 {
-  "total": 60,
-  "caught": 60,
+  "total": 61,
+  "caught": 61,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -128,6 +128,13 @@
       "check": "G2",
       "code": "G2_HEADING_TOO_LONG",
       "description": "A section heading runs to more than 80 characters.",
+      "caught": true
+    },
+    {
+      "id": "reserved-heading",
+      "check": "G2",
+      "code": "G2_HEADING_RESERVED",
+      "description": "A section of the piece has the heading of the notes that the Desk writes itself, \"What we couldn't verify\".",
       "caught": true
     },
     {

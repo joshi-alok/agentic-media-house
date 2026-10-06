@@ -148,6 +148,7 @@ describe('runGate on the golden piece with one thing wrong', () => {
   const defects: [CheckId, string, (copy: GateInput) => void, ContextOverrides?][] = [
     ['G1', 'G1_TITLE_EMPTY', (g) => (g.draft.title.text = '')],
     ['G2', 'G2_HEADING_QUESTION', (g) => (g.draft.sections[0]!.heading = 'What shipped?')],
+    ['G2', 'G2_HEADING_RESERVED', (g) => (g.draft.sections[1]!.heading = "What we couldn't verify")],
     ['G3', 'G3_NO_CLAIM', (g) => (g.draft.takeaways[0]!.claimIds = [])],
     [
       'G4',

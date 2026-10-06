@@ -140,10 +140,27 @@ export interface ReviseItem {
   reasons: string[];
 }
 
-/** The line before the block of an item: what it is, where it stands, what it cites. */
-function describeReviseItem(item: ReviseItem): string {
+/** What the id of a claim looks like: the Desk numbers the claims c-1, c-2 and so on. */
+export const CLAIM_ID = /^c-\d+$/;
+
+/**
+ * The ids, of those that a model wrote for the claims a sentence cites, that may be put in a message to a model outside a block: an id that looks like the
+ * id of a claim (`CLAIM_ID`) and is the id of one of the claims in `known`. They come back once each, in order; `dropped` has the others, once each. The
+ * ids are strings that a model wrote, and the schema of its reply lets any string through, so an id that copies a page's text would be an
+ * instruction outside every block.
+ */
+export function promptClaimIds(ids: readonly string[], known: ReadonlySet<string>): { kept: string[]; dropped: string[] } {
+  const kept: string[] = [];
+  const dropped: string[] = [];
+  for (const id of new Set(ids)) (CLAIM_ID.test(id) && known.has(id) ? kept : dropped).push(id);
+  return { kept, dropped };
+}
+
+/** The line before the block of an item: what it is, where it stands, what it cites (only the ids of the claims in `known`, see `promptClaimIds`). */
+function describeReviseItem(item: ReviseItem, known: ReadonlySet<string>): string {
   if (item.kind === 'heading') return `Item ${item.id} (the heading of a section):`;
-  const cites = item.claimIds.length === 0 ? 'citing no claim' : `citing ${item.claimIds.join(', ')}`;
+  const cited = promptClaimIds(item.claimIds, known).kept;
+  const cites = cited.length === 0 ? 'citing no claim' : `citing ${cited.join(', ')}`;
   return `Item ${item.id} (${item.kind === 'analysis' ? 'an' : 'a'} ${item.kind} sentence, ${PLACE[item.section]}, ${cites}${item.attributed ? ', marked attributed' : ''}):`;
 }
 
@@ -155,9 +172,10 @@ function describeReviseItem(item: ReviseItem): string {
 export function buildReviseUser(claims: readonly Claim[], items: readonly ReviseItem[]): string {
   if (claims.length === 0) throw new Error('buildReviseUser needs at least one claim');
   if (items.length === 0) throw new Error('buildReviseUser needs at least one item: with none, the stage does not ask a model');
+  const known = new Set(claims.map((claim) => claim.id));
   const entries = items.map(
     (item) =>
-      `${describeReviseItem(item)}\n${wrapSource(item.id, item.text)}\nThe problems found in item ${item.id}:\n${wrapSource(`${item.id}-problems`, item.reasons.map((reason) => `- ${reason}`).join('\n'))}`,
+      `${describeReviseItem(item, known)}\n${wrapSource(item.id, item.text)}\nThe problems found in item ${item.id}:\n${wrapSource(`${item.id}-problems`, item.reasons.map((reason) => `- ${reason}`).join('\n'))}`,
   );
   return [`Claims (${claims.length}):`, '', claimEntries(claims), '', `Items to rewrite (${items.length}):`, '', entries.join('\n\n')].join('\n');
 }

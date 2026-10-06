@@ -38,6 +38,12 @@ describe('the README: what the Desk does not check', () => {
     expect(limits()).toContain('DNS rebinding');
   });
 
+  it('says that analysis sentences are read by code only and never by the model check, and that a model-written id is filtered before a prompt', () => {
+    expect(limits()).toContain('**Analysis sentences.**');
+    expect(limits()).toContain('the model check (G10) is never asked about them');
+    expect(limits()).toContain('**Claim ids in a prompt.**');
+  });
+
   it('says that the content of a details element is kept, on purpose', () => {
     expect(limits()).toContain('`<details>`');
     expect(limits()).toContain('on purpose');

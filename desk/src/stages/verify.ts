@@ -2,7 +2,7 @@ import { allSentences, describeLocation, normaliseQuotes, runGate } from '@robyw
 import type { Claim, Draft, Failure, GateResult } from '@robywire/gate';
 import { z } from 'zod';
 import { ComposeArtifact, VerifyArtifact, writeArtifact } from '../index';
-import { buildReviseUser, reviseSystem } from '../prompts/compose';
+import { buildReviseUser, promptClaimIds, reviseSystem } from '../prompts/compose';
 import type { ReviseItem } from '../prompts/compose';
 import { COMPOSE_MAX_OUTPUT_TOKENS, gateContextOf } from './compose';
 import type { ComposeResult } from './compose';
@@ -109,8 +109,11 @@ function placeOf(id: string): { kind: 'sentence' | 'heading'; at: number } {
   return { kind: match[1] === 's' ? 'sentence' : 'heading', at: Number(match[2]) };
 }
 
-/** What the composer is shown of the sentence or the heading `id` of `draft`. */
-function itemOf(draft: Draft, id: string, reasons: string[]): ReviseItem {
+/**
+ * What the composer is shown of the sentence or the heading `id` of `draft`. The ids of the claims that a sentence cites were written by the
+ * composer: only those of claims in `known` are kept (`promptClaimIds`), and the others are logged, shortened to 40 characters, as one line.
+ */
+function itemOf(draft: Draft, id: string, reasons: string[], known: ReadonlySet<string>, log: (line: string) => void): ReviseItem {
   const { kind, at } = placeOf(id);
   if (kind === 'heading') {
     const section = draft.sections[at];
@@ -120,7 +123,13 @@ function itemOf(draft: Draft, id: string, reasons: string[]): ReviseItem {
   const found = allSentences(draft)[at];
   if (found === undefined || found.sentence.kind === 'limitation') throw new Error(`reviseDraft: the draft has no sentence ${at} that can be rewritten`);
   const { sentence } = found;
-  return { id, kind: sentence.kind, section: found.section, text: sentence.text, claimIds: [...sentence.claimIds], attributed: sentence.kind === 'fact' && sentence.attributed === true, reasons };
+  const { kept, dropped } = promptClaimIds(sentence.claimIds, known);
+  if (dropped.length > 0) {
+    const shown = dropped.map((claimId) => JSON.stringify(claimId.length > 40 ? `${claimId.slice(0, 40)}...` : claimId)).join(', ');
+    const one = dropped.length === 1;
+    log(`verify: item ${id} cites ${shown}, which ${one ? 'is not the id of a claim' : 'are not ids of claims'}, so the composer is not told of ${one ? 'it' : 'them'}`);
+  }
+  return { id, kind: sentence.kind, section: found.section, text: sentence.text, claimIds: kept, attributed: sentence.kind === 'fact' && sentence.attributed === true, reasons };
 }
 
 /** A copy of `draft` in which each sentence in `sentences` (by its number) and each heading in `headings` (by its section) is replaced. */
@@ -150,8 +159,9 @@ export async function reviseDraft(ctx: StageContext, claims: Claim[], draft: Dra
   if (problems.length === 0) throw new Error('reviseDraft needs a problem to send back: with none, there is nothing to ask');
   const reasons = new Map<string, string[]>();
   for (const { id, reason } of problems) reasons.set(id, [...new Set([...(reasons.get(id) ?? []), reason])]);
+  const known = new Set(claims.map((claim) => claim.id));
   const items = [...reasons]
-    .map(([id, why]) => itemOf(draft, id, why))
+    .map(([id, why]) => itemOf(draft, id, why, known, ctx.log))
     .sort((a, b) => (a.kind === 'heading' ? 1 : 0) - (b.kind === 'heading' ? 1 : 0) || placeOf(a.id).at - placeOf(b.id).at);
 
   const reply = await ctx.client.json({

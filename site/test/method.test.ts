@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import board from '@robywire/evals/scoreboard';
-import { ALL_FAILURE_CODES, BASES, CHECK_IDS, LIMITATION_MAX_CLAIMS, SAFE_BASES, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
+import { ALL_FAILURE_CODES, BASES, CHECK_IDS, LIMITATIONS_HEADING, LIMITATION_MAX_CLAIMS, SAFE_BASES, TAKEAWAYS_HEADING, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
 import { LIVE } from '../src/lib/live';
 import { LIMITS_HEADING, PIPELINE_STAGES, SCOREBOARD_INTRO, gateRules, scoreboardHeadline } from '../src/lib/method';
 
@@ -112,6 +112,12 @@ describe('gateRules', () => {
     expect(startsWithCapitalOrDigit('7 investors took part.')).toBe(true);
     expect(startsWithCapitalOrDigit('"The arm," said Jane.')).toBe(true);
     expect(startsWithCapitalOrDigit('harlow logistics plans a plant.')).toBe(false);
+  });
+
+  it('says in G2 that no section has one of the two headings that the Desk writes itself, and the gate agrees', () => {
+    const g2 = rules.find((rule) => rule.id === 'G2')?.text ?? '';
+    expect(g2).toContain('is not a question and is not one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn\'t verify")');
+    expect(g2).toContain(`"${TAKEAWAYS_HEADING}" and "${LIMITATIONS_HEADING}"`);
   });
 
   it('says in G2 and G8 what a limitation sentence is and what covers a claim', () => {

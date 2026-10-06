@@ -1,7 +1,8 @@
 import type { Check, Failure } from '../gate';
 import { needsBasisLimitation, needsStatusLimitation } from '../limitations';
+import { LIMITATIONS_HEADING, TAKEAWAYS_HEADING } from '../render/body';
 import { allSentences, citedClaims, describeLocation } from '../sentences';
-import { afterOpeners, countWords, startsWithCapitalOrDigit } from '../text';
+import { afterOpeners, countWords, normaliseQuotes, startsWithCapitalOrDigit } from '../text';
 
 /** Every failure code G2 can report. */
 export const G2_CODES = [
@@ -12,6 +13,7 @@ export const G2_CODES = [
   'G2_HEADING_QUESTION',
   'G2_HEADING_TOO_LONG',
   'G2_HEADING_EMPTY',
+  'G2_HEADING_RESERVED',
   'G2_LIMITATIONS_MISSING',
   'G2_LIMITATION_COVERAGE',
   'G2_SENTENCE_START',
@@ -19,13 +21,27 @@ export const G2_CODES = [
 
 const MIN_SECTIONS = 2;
 
+/**
+ * A heading as it is compared with the two that the renderer writes itself: quotation marks and apostrophes plain, white space one space, capitals
+ * as lowercase, and no punctuation or space at either end ("What we couldn't verify." with a curly apostrophe is the heading "what we couldn't verify").
+ */
+const headingKey = (heading: string): string => normaliseQuotes(heading).toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+
+/** The headings that the renderer writes over what code writes, each with what it is over, for the message. */
+const RESERVED_HEADINGS: ReadonlyMap<string, string> = new Map([
+  [headingKey(TAKEAWAYS_HEADING), 'the key takeaways'],
+  [headingKey(LIMITATIONS_HEADING), 'the notes that code writes from the claims'],
+]);
+
 /** The longest first word a G2_SENTENCE_START message quotes. */
 const MAX_FIRST_WORD = 40;
 
 /**
  * G2, structure: the opening paragraph, the key takeaways and the whole body
  * are the right length; there are at least two sections; every heading is
- * there, is short enough (`headingMax`) and is not a question; and a piece that
+ * there, is short enough (`headingMax`) and is not a question, and is not one of the two headings that the renderer writes itself,
+ * "Key takeaways" and "What we couldn't verify" (G2_HEADING_RESERVED: a section of the composer with one of them would be written under the same
+ * heading as the real one, and the page says that what stands under "What we couldn't verify" is written by code); and a piece that
  * rests on a company's own claims has a "What we couldn't verify" section
  * that covers each claim that needs a note (G2_LIMITATION_COVERAGE).
  * What a heading may say is G4's question (G4_HEADING_*).
@@ -81,6 +97,10 @@ export const checkG2: Check = ({ draft, claims }, ctx) => {
     }
     if (heading.endsWith('?')) {
       fail('G2_HEADING_QUESTION', `the heading "${section.heading}" is a question; headings must be statements`, where);
+    }
+    const over = RESERVED_HEADINGS.get(headingKey(heading));
+    if (over !== undefined) {
+      fail('G2_HEADING_RESERVED', `the heading "${section.heading}" is one that the Desk writes itself, over ${over}: a section of the piece may not have it, because the page would show it twice`, where);
     }
   }
 

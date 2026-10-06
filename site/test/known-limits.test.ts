@@ -4,6 +4,7 @@ import {
   checkG2,
   citedClaims,
   claimWords,
+  defaultConfig,
   defaultContext,
   extractTokens,
   isSentenceStarter,
@@ -45,8 +46,8 @@ describe('KNOWN_LIMITS', () => {
     expect(unseen).toHaveLength(7);
     expect(misread).toHaveLength(2);
     expect(strict).toHaveLength(3);
-    expect(unchecked).toHaveLength(2);
-    expect(KNOWN_LIMITS).toHaveLength(14);
+    expect(unchecked).toHaveLength(3);
+    expect(KNOWN_LIMITS).toHaveLength(15);
   });
 
   it.each(KNOWN_LIMITS.map((limit) => [limit.text.slice(0, 40), limit] as const))('is written as plain sentences: %s', (_name, limit) => {
@@ -173,6 +174,18 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
     claim.text = `${limit.example} was announced.`;
     expect(route(withLimitationsRewritten(input))).toEqual({ route: 'publish', failures: [] });
     expect(extractTokens(limit.example)).toMatchObject({ numbers: [{ value: '12' }], names: ['logistics'], initialWord: 'Harlow' });
+  });
+
+  it('is true of analysis: a sentence of the Desk\'s own reading that asserts what no claim says passes, and no model check is made of it', () => {
+    const limit = withText(unchecked, 'Analysis sentences, up to a fifth of the sentences of the body');
+    expect(limit.text).toContain('and by no model');
+    expect(limit.text).toContain('the page labels it Analysis');
+    const input = cloneGolden();
+    const analysis = input.draft.sections.flatMap((section) => section.paragraphs.flat()).find((sentence) => sentence.kind === 'analysis')!;
+    analysis.text = limit.example;
+    expect(route(input)).toEqual({ route: 'publish', failures: [] });
+    // The share is the limit that the text names, at most a fifth, and it is what makes the exposure small and not nil.
+    expect(defaultConfig().analysisShareCap).toBe(0.2);
   });
 
   it('is true of a heading: one that asserts something in words and names no figure and no capitalised word passes', () => {

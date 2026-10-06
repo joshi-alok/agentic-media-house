@@ -187,6 +187,16 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'reserved-heading',
+    check: 'G2',
+    code: 'G2_HEADING_RESERVED',
+    description: 'A section of the piece has the heading of the notes that the Desk writes itself, "What we couldn\'t verify".',
+    apply: (base) => {
+      base.draft.sections[1]!.heading = "What we couldn't verify";
+      return base;
+    },
+  },
+  {
     id: 'empty-heading',
     check: 'G2',
     code: 'G2_HEADING_EMPTY',

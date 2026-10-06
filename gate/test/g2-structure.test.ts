@@ -4,7 +4,9 @@ import { checkG2 } from '../src/checks/g2-structure';
 import { checkG4 } from '../src/checks/g4-values';
 import { defaultContext } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
+import { runGate } from '../src/gate';
 import type { GateInput } from '../src/gate';
+import { LIMITATIONS_HEADING, TAKEAWAYS_HEADING, renderDraft } from '../src/render';
 import { countWords } from '../src/text';
 import { allSentences, claimById, findSentence, mutate } from './helpers';
 
@@ -619,6 +621,81 @@ describe('G2_SENTENCE_START', () => {
 
   it('does not read the headings, which are not sentences: G4 has its own rule for them', () => {
     expect(codesAfter((g) => (g.draft.sections[0]!.heading = 'what shipped'))).toEqual([]);
+  });
+});
+
+describe('G2_HEADING_RESERVED', () => {
+  // The renderer writes two headings itself: "Key takeaways" above the takeaways and "What we couldn't verify" above the notes that code
+  // writes from the claims. A section of the composer with one of those headings would be written under the same heading as the real one,
+  // and the page promises that what is under "What we couldn't verify" is written by code. The review of Plan 2 ran it: G1 to G9 passed.
+  const asHeading = (heading: string) => (g: GateInput) => (g.draft.sections[1]!.heading = heading);
+
+  it('says what the two reserved headings are', () => {
+    expect(TAKEAWAYS_HEADING).toBe('Key takeaways');
+    expect(LIMITATIONS_HEADING).toBe("What we couldn't verify");
+  });
+
+  it('fails for a section headed like the section of notes, and names the heading and where it is', () => {
+    const out = resultAfter(asHeading("What we couldn't verify"));
+    expect(out.failures).toEqual([
+      {
+        check: 'G2',
+        code: 'G2_HEADING_RESERVED',
+        message:
+          'the heading "What we couldn\'t verify" is one that the Desk writes itself, over the notes that code writes from the claims: a section of the piece may not have it, because the page would show it twice',
+        where: 'section "What we couldn\'t verify"',
+      },
+    ]);
+  });
+
+  it('fails for a section headed like the key takeaways', () => {
+    const out = resultAfter(asHeading('Key takeaways'));
+    expect(out.failures.map((failure) => [failure.code, failure.where])).toEqual([['G2_HEADING_RESERVED', 'section "Key takeaways"']]);
+    expect(out.failures[0]?.message).toContain('over the key takeaways');
+  });
+
+  it.each([
+    ['in lowercase', "what we couldn't verify"],
+    ['in capitals', "WHAT WE COULDN'T VERIFY"],
+    ['with a curly apostrophe', `What we couldn${String.fromCharCode(0x2019)}t verify`],
+    ['with other white space', "  What  we\tcouldn't   verify "],
+    ['with a full stop after it', "What we couldn't verify."],
+    ['with a colon after it', "What we couldn't verify:"],
+    ['the takeaways in capitals', 'KEY TAKEAWAYS'],
+    ['the takeaways with other white space', ' Key   takeaways '],
+    ['the takeaways with an exclamation mark', 'Key takeaways!'],
+    ['the takeaways in quotation marks', '"Key takeaways"'],
+  ])('fails for the heading %s', (_how, heading) => {
+    expect(codesAfter(asHeading(heading))).toEqual(['G2_HEADING_RESERVED']);
+  });
+
+  it.each([
+    ['one word more', "What we couldn't verify yet"],
+    ['one word less', 'What we verified'],
+    ['the takeaways of something', 'Key takeaways of the arm'],
+    ['another word for it', 'Takeaways'],
+    ['a longer sentence that has it inside', "Why what we couldn't verify matters"],
+  ])('passes a heading with %s, which is a different heading', (_how, heading) => {
+    expect(codesAfter(asHeading(heading))).toEqual([]);
+  });
+
+  it('fails once for each section that has a reserved heading', () => {
+    const change = (g: GateInput) => {
+      g.draft.sections[0]!.heading = 'Key takeaways';
+      g.draft.sections[2]!.heading = "What we couldn't verify";
+    };
+    expect(codesAfter(change)).toEqual(['G2_HEADING_RESERVED', 'G2_HEADING_RESERVED']);
+  });
+
+  it('is the only failure for a heading that is a reserved one, and not an empty, long or question heading too', () => {
+    expect(codesAfter(asHeading("What we couldn't verify"))).toEqual(['G2_HEADING_RESERVED']);
+  });
+
+  it('shows what the renderer would write if the gate let it through: the heading twice, the first over sentences that a model wrote', () => {
+    const input = mutate(cloneGolden(), asHeading("What we couldn't verify"));
+    const { mdx } = renderDraft(input.draft, input.claims, { runId: 'fixture-run-1', gate: runGate(cloneGolden(), defaultContext()) });
+    expect(mdx.split(`\n## ${LIMITATIONS_HEADING}\n`)).toHaveLength(3);
+    expect(mdx.split(`\n## ${TAKEAWAYS_HEADING}\n`)).toHaveLength(2);
   });
 });
 

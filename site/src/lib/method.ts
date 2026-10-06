@@ -35,7 +35,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G2',
       name: 'Structure',
-      text: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words in at least 2 sections, every section has a heading of at most ${headingMax} characters that is not a question, every sentence starts with a capital letter or a digit (an opening quotation mark or bracket may come first), and every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
+      text: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words in at least 2 sections, every section has a heading of at most ${headingMax} characters that is not a question and is not one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn't verify"), every sentence starts with a capital letter or a digit (an opening quotation mark or bracket may come first), and every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
     },
     {
       id: 'G3',
@@ -161,6 +161,11 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
     kind: 'unchecked',
     text: 'The page address of a piece and the text and the label of each claim are written by a model, and no rule of the gate reads them for figures or names: a label such as "Harlow Logistics 12 plants" passes the gate. The Extract stage will check the text and the label against the passage before the gate sees the claim, and the receipts page shows the label and the passage, never the text.',
     example: 'Harlow Logistics 12 plants',
+  },
+  {
+    kind: 'unchecked',
+    text: 'Analysis sentences, up to a fifth of the sentences of the body, are checked by code for where they stand, how many there are, how they open and which numbers, dates and names they bring in, and by no model: whatever else an analysis sentence says passes, and the page labels it Analysis.',
+    example: 'The arm never fails and is the safest on the market.',
   },
   {
     kind: 'unchecked',
