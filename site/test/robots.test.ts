@@ -3,7 +3,7 @@ import { robotsTxt } from '../src/lib/robots';
 
 describe('robotsTxt', () => {
   it('allows every crawler and points at the sitemap index on the site', () => {
-    expect(robotsTxt(new URL('https://robywire.example'))).toBe('User-agent: *\nAllow: /\n\nSitemap: https://robywire.example/sitemap-index.xml\n');
+    expect(robotsTxt(new URL('https://agenticmediahouse.example'))).toBe('User-agent: *\nAllow: /\n\nSitemap: https://agenticmediahouse.example/sitemap-index.xml\n');
   });
 
   it('follows the address of the site, so a build for another domain points at that domain', () => {
@@ -15,7 +15,7 @@ describe('robotsTxt', () => {
   });
 
   it('ends with exactly one newline and disallows nothing', () => {
-    const text = robotsTxt('https://robywire.example');
+    const text = robotsTxt('https://agenticmediahouse.example');
     expect(text.endsWith('xml\n')).toBe(true);
     expect(text).not.toMatch(/disallow/i);
   });

@@ -10,7 +10,7 @@ vi.mock('node:dns/promises', () => ({
   lookup: vi.fn(async (host: string) => (host.startsWith('private.') ? [{ address: '10.0.0.7', family: 4 }] : [{ address: '1.2.3.4', family: 4 }, { address: '2345:6789::1', family: 6 }])),
 }));
 
-const UA = 'RobywireDesk/0.1 (+https://robywire.example/method)';
+const UA = 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)';
 
 describe('HttpFetcher: the lookup that it uses when it is given none', () => {
   const fetcherOf = (routes: Parameters<typeof scriptedTransport>[0]) => {

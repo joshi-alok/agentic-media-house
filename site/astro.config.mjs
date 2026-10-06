@@ -7,7 +7,7 @@ import { markdownFeatures } from './markdown-features.mjs';
 // A fully static site. Every route is a folder with an index.html, and every
 // internal link ends in a slash.
 export default defineConfig({
-  site: process.env.SITE_URL ?? 'https://robywire.example',
+  site: process.env.SITE_URL ?? 'https://agenticmediahouse.example',
   output: 'static',
   trailingSlash: 'always',
   build: { format: 'directory' },

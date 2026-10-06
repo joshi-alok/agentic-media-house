@@ -40,7 +40,7 @@ const VALID_DRAFT = {
   slug: 'fixture-robotics-ships-fx-1',
   publishedAt: '2026-10-04',
   categories: ['industrial-warehouse', 'funding'],
-  author: { name: 'Robywire Desk' },
+  author: { name: 'Agentic Media House Desk' },
   title: fact('Fixture Robotics ships the FX-1 arm.', 'c-1'),
   description: fact('Fixture Robotics says the FX-1 arm is rated for 12 kg.', 'c-1'),
   opening: [fact('Fixture Robotics shipped the FX-1 arm.', 'c-1')],

@@ -1,5 +1,6 @@
 import { systemPrompt, wrapSource } from '../index';
 import type { Candidate } from '../index';
+import { PUBLICATION_NAME } from '@robywire/gate';
 import type { SourcesRegistry } from '@robywire/gate';
 
 // The words the Select stage says to a model. The system prompt begins with the paragraph that says the blocks of
@@ -10,7 +11,7 @@ import type { SourcesRegistry } from '@robywire/gate';
 
 /** What the model is told to do, and what each field of its reply means. The client adds the JSON Schema of the reply to it. */
 export const SELECT_INSTRUCTIONS = [
-  'You are the story selector of Robywire, a robotics news site whose every claim comes from a primary source.',
+  `You are the story selector of ${PUBLICATION_NAME}, a robotics news site whose every claim comes from a primary source.`,
   'Each day you choose at most one story to write about, from a list of candidates, or you choose none.',
   '',
   'You are given today\'s date, the editorial bar, and the candidates. Each candidate has an id, a tier, the outlet or company it is from, its day of publication or "undated", and a title. The title is the text of a block that starts with <source id="..."> and has the same id as the candidate. You judge from titles alone: do not guess a fact that a title does not state.',

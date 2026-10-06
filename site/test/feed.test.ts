@@ -5,7 +5,7 @@ import { xmlProblem } from '../scripts/audit/xml.mjs';
 import { siteDescription } from '../src/lib/copy';
 import { feedOptions, rssItems } from '../src/lib/feed';
 
-const SITE = 'https://robywire.example';
+const SITE = 'https://agenticmediahouse.example';
 
 const piece = (slug: string, title: string, publishedAt: string, categories: string[], description = `About ${title}.`) => ({
   slug,
@@ -57,7 +57,7 @@ describe('the feed', () => {
     const { rss } = parse(xml);
     expect(rss['@_version']).toBe('2.0');
     expect(rss.channel.title).toBe('Robywire');
-    expect(rss.channel.link).toBe('https://robywire.example/');
+    expect(rss.channel.link).toBe('https://agenticmediahouse.example/');
     expect(rss.channel.language).toBe('en');
   });
 
@@ -70,10 +70,10 @@ describe('the feed', () => {
   it('lists every piece, newest first, with an absolute link, a date and its categories', async () => {
     const { rss } = parse(await feed([FX1, FX2]));
     const items = rss.channel.item as { title: string; link: string; pubDate: string; category: string[]; guid: { '#text': string } }[];
-    expect(items.map((item) => item.link)).toEqual(['https://robywire.example/news/fx-1/', 'https://robywire.example/news/fx-2/']);
+    expect(items.map((item) => item.link)).toEqual(['https://agenticmediahouse.example/news/fx-1/', 'https://agenticmediahouse.example/news/fx-2/']);
     expect(items[0]?.pubDate).toBe('Sun, 04 Oct 2026 00:00:00 GMT');
     expect(items[0]?.category).toEqual(['Industrial & warehouse', 'Funding']);
-    expect(items[0]?.guid['#text']).toBe('https://robywire.example/news/fx-1/');
+    expect(items[0]?.guid['#text']).toBe('https://agenticmediahouse.example/news/fx-1/');
   });
 
   it('is valid, and has a channel but no items, when there are no pieces', async () => {

@@ -8,6 +8,8 @@ import {
   CROSS_TAGS,
   DESK_AUTHOR_NAME,
   DESK_BYLINE_LABEL,
+  PUBLICATION_NAME,
+  PUBLICATION_WORDMARK,
   RELEASES,
   SAFE_BASES,
   STATUSES,
@@ -79,9 +81,28 @@ describe('closed vocabularies', () => {
   });
 });
 
+describe('the name of the publication', () => {
+  it('is Agentic Media House', () => {
+    expect(PUBLICATION_NAME).toBe('Agentic Media House');
+  });
+
+  it('has a wordmark that is the same name in capitals, for the header and the fact card', () => {
+    expect(PUBLICATION_WORDMARK).toBe('AGENTIC MEDIA HOUSE');
+    expect(PUBLICATION_WORDMARK).toBe(PUBLICATION_NAME.toUpperCase());
+  });
+
+  it('is plain ASCII, and no name of it is the old one', () => {
+    for (const name of [PUBLICATION_NAME, PUBLICATION_WORDMARK, DESK_AUTHOR_NAME]) {
+      expect(name).toMatch(/^[\x20-\x7E]+$/);
+      expect(name).not.toMatch(/robywire/i);
+    }
+  });
+});
+
 describe('the byline of the Desk', () => {
-  it('names the author of every piece', () => {
-    expect(DESK_AUTHOR_NAME).toBe('Robywire Desk');
+  it('names the author of every piece: the publication and the word Desk', () => {
+    expect(DESK_AUTHOR_NAME).toBe('Agentic Media House Desk');
+    expect(DESK_AUTHOR_NAME).toBe(`${PUBLICATION_NAME} Desk`);
   });
 
   it('says in a few plain words how a piece is made, and claims no verification that does not exist yet', () => {

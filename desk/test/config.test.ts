@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
+import { PUBLICATION_NAME } from '@robywire/gate';
 import { DeskConfig, defaultConfig, loadConfig, placeholderHost } from '../src/config';
 
 // The settings of a run live in one place and are checked when they are read:
@@ -37,7 +38,7 @@ describe('defaultConfig', () => {
       shortlistMax: 15,
       minClaims: 3,
       maxRevisionRounds: 2,
-      userAgent: 'RobywireDesk/0.1 (+https://robywire.example/method)',
+      userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
       requestIntervalMs: 1000,
       maxBytes: 2_000_000,
       budget: { maxCalls: 24, maxInputTokens: 400_000, maxOutputTokens: 60_000 },
@@ -62,8 +63,26 @@ describe('defaultConfig', () => {
   });
 
   it('names the Desk and links to the /method page in the user agent, which the fetcher sends to every site', () => {
-    expect(defaultConfig().userAgent).toContain('RobywireDesk');
-    expect(defaultConfig().userAgent).toContain('https://robywire.example/method');
+    expect(defaultConfig().userAgent).toContain('AgenticMediaHouseDesk');
+    expect(defaultConfig().userAgent).toContain('https://agenticmediahouse.example/method');
+    expect(defaultConfig().userAgent).toBe('AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)');
+  });
+
+  it('starts the user agent with the name of the publication without its spaces, and a placeholder address says so to a live run', () => {
+    expect(defaultConfig().userAgent.startsWith(`${PUBLICATION_NAME.replaceAll(' ', '')}Desk/`)).toBe(true);
+    expect(placeholderHost(defaultConfig().userAgent)).toBe('agenticmediahouse.example');
+  });
+
+  it('spells the name of the publication in this one place: the prompts take it from the gate and no other file of the package writes it', () => {
+    const sources = readdirSync(new URL('../src/', import.meta.url), { recursive: true, encoding: 'utf8' }).filter(
+      (file) => file.endsWith('.ts') && file !== 'config.ts',
+    );
+    expect(sources).toContain('index.ts');
+    for (const file of sources) {
+      const text = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
+      expect(text, file).not.toMatch(/agentic\s?media\s?house/i);
+      expect(text, file).not.toMatch(/robywire(?!\/)/i);
+    }
   });
 
   it('keeps the model names in this one place: no other file of the package spells one', () => {
@@ -147,8 +166,8 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
   });
 
   it('a user agent that does not link to the /method page', () => {
-    expect(failure('userAgent: RobywireDesk\n')).toBe(
-      'desk config <file>: userAgent: must include the address of the /method page, such as https://robywire.example/method',
+    expect(failure('userAgent: AgenticMediaHouseDesk\n')).toBe(
+      'desk config <file>: userAgent: must include the address of the /method page, such as https://agenticmediahouse.example/method',
     );
   });
 
@@ -196,25 +215,25 @@ describe('the folders of a run', () => {
 
 describe('placeholderHost', () => {
   // The user agent is what the Desk calls itself to every site, with the address of the page that says who it is. The default one links to an address that
-  // does not exist, robywire.example, so a live run has to be given a real one: this says which hosts are placeholders (a name under .example is reserved for examples).
+  // does not exist, agenticmediahouse.example, so a live run has to be given a real one: this says which hosts are placeholders (a name under .example is reserved for examples).
   it.each([
-    ['the default user agent', 'RobywireDesk/0.1 (+https://robywire.example/method)', 'robywire.example'],
+    ['the default user agent', 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)', 'agenticmediahouse.example'],
     ['a host in capitals', 'Desk/1 (+https://Desk.EXAMPLE/method)', 'desk.example'],
     ['a host that is only example', 'Desk/1 (+https://example/method)', 'example'],
     ['a host with a sub-domain', 'Desk/1 (+http://www.news.example/method)', 'www.news.example'],
-    ['a host with a port', 'Desk/1 (+https://robywire.example:8443/method)', 'robywire.example'],
-    ['a host with a dot at the end', 'Desk/1 (+https://robywire.example./method)', 'robywire.example'],
-    ['an address in the middle of the text', 'Mozilla-like Desk/1 see https://robywire.example/method for more', 'robywire.example'],
+    ['a host with a port', 'Desk/1 (+https://agenticmediahouse.example:8443/method)', 'agenticmediahouse.example'],
+    ['a host with a dot at the end', 'Desk/1 (+https://agenticmediahouse.example./method)', 'agenticmediahouse.example'],
+    ['an address in the middle of the text', 'Mozilla-like Desk/1 see https://agenticmediahouse.example/method for more', 'agenticmediahouse.example'],
   ])('finds the placeholder in %s', (_what, agent, host) => {
     expect(placeholderHost(agent)).toBe(host);
   });
 
   it.each([
-    ['an address that is not a placeholder', 'Desk/1 (+https://robywire.org/method)'],
+    ['an address that is not a placeholder', 'Desk/1 (+https://agenticmediahouse.org/method)'],
     ['a host that only has example inside its name', 'Desk/1 (+https://example.com/method)'],
     ['a host that ends in example without a dot', 'Desk/1 (+https://notexample/method)'],
-    ['a name under .test', 'Desk/1 (+https://robywire.test/method)'],
-    ['a path that has example in it', 'Desk/1 (+https://robywire.org/example/method)'],
+    ['a name under .test', 'Desk/1 (+https://agenticmediahouse.test/method)'],
+    ['a path that has example in it', 'Desk/1 (+https://agenticmediahouse.org/example/method)'],
     ['no address at all', 'Desk/1'],
     ['an address that cannot be read', 'Desk/1 (+https://[bad/method)'],
   ])('finds none in %s', (_what, agent) => {
@@ -222,6 +241,6 @@ describe('placeholderHost', () => {
   });
 
   it('judges the first address of the text, the one that must be the /method page', () => {
-    expect(placeholderHost('Desk/1 (+https://robywire.org/method; https://robywire.example/other)')).toBeUndefined();
+    expect(placeholderHost('Desk/1 (+https://agenticmediahouse.org/method; https://agenticmediahouse.example/other)')).toBeUndefined();
   });
 });

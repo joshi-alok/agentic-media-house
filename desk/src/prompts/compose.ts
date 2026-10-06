@@ -1,4 +1,4 @@
-import { SENTENCE_STARTERS, defaultConfig as defaultGateConfig } from '@robywire/gate';
+import { PUBLICATION_NAME, SENTENCE_STARTERS, defaultConfig as defaultGateConfig } from '@robywire/gate';
 import type { Claim, LedgerSection } from '@robywire/gate';
 import { systemPrompt, wrapSource } from '../index';
 import { PLACE, provenance } from './words';
@@ -61,7 +61,7 @@ export const COMPOSE_RULES: readonly string[] = [
 
 /** What the model is told to do, and what each part of its reply means. The client adds the JSON Schema of the reply to it. */
 export const COMPOSE_INSTRUCTIONS = [
-  'You are the writer of Robywire, a robotics news site whose every factual sentence traces to a passage of a primary source.',
+  `You are the writer of ${PUBLICATION_NAME}, a robotics news site whose every factual sentence traces to a passage of a primary source.`,
   'You are given claims, each with an id, a text, a label, a quoted passage from its source and the values (numbers, dates and names) that it licenses. You write one news piece from them, as sentences that cite claim ids. You write nothing that the claims do not support, and you add nothing from what you know.',
   '',
   'Reply with a JSON object with these fields:',
@@ -106,7 +106,7 @@ export function buildComposeUser(claims: readonly Claim[], date: string): string
  * each, and the rules again: it cannot see the rest of the piece, so it cannot change it. The client adds the JSON Schema of the reply.
  */
 export const REVISE_INSTRUCTIONS = [
-  'You are the writer of Robywire, a robotics news site whose every factual sentence traces to a passage of a primary source.',
+  `You are the writer of ${PUBLICATION_NAME}, a robotics news site whose every factual sentence traces to a passage of a primary source.`,
   'You wrote a piece from claims, and it was checked. Some of its sentences and headings were found wanting. You are given the claims again, and only the items that failed. Each item is in a block with an id that starts with s (a sentence) or h (a heading), and the problems found in it are in the block that follows. Rewrite each item so that none of its problems remains and so that it breaks none of the rules below. Keep what was right in it. You are not given the rest of the piece, so do not try to change anything else.',
   '',
   'Reply with a JSON object with one field, "replacements", a list with one entry for each item you rewrite:',

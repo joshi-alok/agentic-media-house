@@ -31,7 +31,7 @@ describe('GOLDEN_DRAFT: frontmatter', () => {
     expect(GOLDEN_DRAFT.slug).toBe('fixture-robotics-ships-fx-1-to-second-plant');
     expect(GOLDEN_DRAFT.publishedAt).toBe('2026-10-04');
     expect(GOLDEN_DRAFT.categories).toEqual(['industrial-warehouse', 'funding']);
-    expect(GOLDEN_DRAFT.author).toEqual({ name: 'Robywire Desk' });
+    expect(GOLDEN_DRAFT.author).toEqual({ name: 'Agentic Media House Desk' });
     for (const category of GOLDEN_DRAFT.categories) {
       expect(CATEGORY_VOCAB).toContain(category);
     }

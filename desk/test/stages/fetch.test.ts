@@ -253,7 +253,7 @@ describe('runFetch: a story that has no date of its own', () => {
 });
 
 describe('runFetch: a page that cannot be had', () => {
-  const robots = new FetchError('robots', URLS.release, 'https://fixture-robotics.example/robots.txt does not allow RobywireDesk to fetch /news/fx-1-second-plant');
+  const robots = new FetchError('robots', URLS.release, 'https://fixture-robotics.example/robots.txt does not allow AgenticMediaHouseDesk to fetch /news/fx-1-second-plant');
   const tooLarge = new FetchError('too-large', URLS.mercerArticle, 'the page is larger than the limit of 2000000 bytes');
 
   it('goes on with the page of the story when the primary source is refused by its robots.txt, and records the refusal', async () => {

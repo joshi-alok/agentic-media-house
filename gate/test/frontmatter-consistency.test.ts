@@ -120,7 +120,7 @@ const REJECTED: [string, Change][] = [
   ['a blank author', (g) => (g.draft.author.name = '')],
   ['an author of spaces', (g) => (g.draft.author.name = '   ')],
   ['another author', (g) => (g.draft.author.name = 'Jane Doe')],
-  ['the Desk with a space after it', (g) => (g.draft.author.name = 'Robywire Desk ')],
+  ['the Desk with a space after it', (g) => (g.draft.author.name = 'Agentic Media House Desk ')],
 ];
 
 describe('G1 and NewsFrontmatter: a draft that G1 accepts satisfies the schema', () => {

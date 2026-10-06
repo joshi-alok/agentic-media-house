@@ -27,7 +27,7 @@ import { allElements, attr, elements, parseHtml, textOf } from './dom.mjs';
  * @property {Set<string>} paths  Every file, text or not.
  * @property {Page[]} pages  Sorted by path.
  * @property {Sheet[]} stylesheets  CSS files, <style> elements and style attributes.
- * @property {string} origin  The address the site is built for, such as "https://robywire.example".
+ * @property {string} origin  The address the site is built for, such as "https://agenticmediahouse.example".
  */
 
 /** The extensions whose files are read as text. */

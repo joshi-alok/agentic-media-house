@@ -4,17 +4,17 @@ import { isAllowed, parseRobots, productToken } from '../../src/fetch/robots';
 // robots.txt is how a site says what a program may fetch. The Desk obeys it and never works around it,
 // so the reading of the file has to be exact: the standard (RFC 9309) decides every case below.
 
-const TOKEN = 'RobywireDesk';
+const TOKEN = 'AgenticMediaHouseDesk';
 const file = (...lines: string[]): string => lines.join('\n');
 
 describe('productToken', () => {
   it('is the name at the start of the user agent, before the version and the comment', () => {
-    expect(productToken('RobywireDesk/0.1 (+https://robywire.example/method)')).toBe('RobywireDesk');
+    expect(productToken('AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)')).toBe('AgenticMediaHouseDesk');
     expect(productToken('Some_Bot-2 extra words')).toBe('Some_Bot-2');
   });
 
   it('refuses a user agent that does not start with a name', () => {
-    expect(() => productToken(' RobywireDesk/0.1')).toThrow('has no product token');
+    expect(() => productToken(' AgenticMediaHouseDesk/0.1')).toThrow('has no product token');
     expect(() => productToken('')).toThrow('has no product token');
   });
 });
@@ -74,22 +74,22 @@ describe('isAllowed: what a file allows', () => {
     ['a byte order mark at the start of the file', `${String.fromCharCode(0xfeff)}User-agent: *\nDisallow: /x`, '/x', false],
     ['a group for another agent does not apply', file('User-agent: otherbot', 'Disallow: /'), '/news', true],
     ['a group for another agent does not apply: the star group does', file('User-agent: otherbot', 'Disallow: /', '', 'User-agent: *', 'Disallow: /x'), '/news', true],
-    ['our own group applies', file('User-agent: RobywireDesk', 'Disallow: /'), '/news', false],
-    ['the name of the agent is not case-sensitive', file('User-agent: robywiredesk', 'Disallow: /'), '/news', false],
-    ['only the whole name matches: a longer name is another agent', file('User-agent: RobywireDeskPlus', 'Disallow: /'), '/news', true],
-    ['only the whole name matches: a shorter name is another agent', file('User-agent: Robywire', 'Disallow: /'), '/news', true],
-    ['a version after the name does not match, the name alone is the token', file('User-agent: RobywireDesk/0.1', 'Disallow: /'), '/news', true],
-    ['our group replaces the star group: the star group is not added to it', file('User-agent: *', 'Disallow: /', '', 'User-agent: RobywireDesk', 'Disallow: /secret'), '/news', true],
-    ['our group replaces the star group: our own rules still apply', file('User-agent: *', 'Disallow: /', '', 'User-agent: RobywireDesk', 'Disallow: /secret'), '/secret', false],
-    ['our group may allow what the star group blocks', file('User-agent: *', 'Disallow: /', '', 'User-agent: RobywireDesk', 'Allow: /'), '/news', true],
-    ['an agent line before ours shares its group with ours', file('User-agent: otherbot', 'User-agent: RobywireDesk', 'Disallow: /x'), '/x', false],
-    ['an agent line after ours shares its group with ours', file('User-agent: RobywireDesk', 'User-agent: otherbot', 'Disallow: /x'), '/x', false],
-    ['a blank line does not end a list of agents', file('User-agent: otherbot', '', 'User-agent: RobywireDesk', 'Disallow: /x'), '/x', false],
-    ['an agent line after a rule starts a new group', file('User-agent: otherbot', 'Disallow: /x', 'User-agent: RobywireDesk', 'Disallow: /y'), '/x', true],
-    ['two groups of the same agent are one group: the first', file('User-agent: RobywireDesk', 'Disallow: /a', '', 'User-agent: RobywireDesk', 'Disallow: /b'), '/a', false],
-    ['two groups of the same agent are one group: the second', file('User-agent: RobywireDesk', 'Disallow: /a', '', 'User-agent: RobywireDesk', 'Disallow: /b'), '/b', false],
+    ['our own group applies', file('User-agent: AgenticMediaHouseDesk', 'Disallow: /'), '/news', false],
+    ['the name of the agent is not case-sensitive', file('User-agent: agenticmediahousedesk', 'Disallow: /'), '/news', false],
+    ['only the whole name matches: a longer name is another agent', file('User-agent: AgenticMediaHouseDeskPlus', 'Disallow: /'), '/news', true],
+    ['only the whole name matches: a shorter name is another agent', file('User-agent: AgenticMediaHouse', 'Disallow: /'), '/news', true],
+    ['a version after the name does not match, the name alone is the token', file('User-agent: AgenticMediaHouseDesk/0.1', 'Disallow: /'), '/news', true],
+    ['our group replaces the star group: the star group is not added to it', file('User-agent: *', 'Disallow: /', '', 'User-agent: AgenticMediaHouseDesk', 'Disallow: /secret'), '/news', true],
+    ['our group replaces the star group: our own rules still apply', file('User-agent: *', 'Disallow: /', '', 'User-agent: AgenticMediaHouseDesk', 'Disallow: /secret'), '/secret', false],
+    ['our group may allow what the star group blocks', file('User-agent: *', 'Disallow: /', '', 'User-agent: AgenticMediaHouseDesk', 'Allow: /'), '/news', true],
+    ['an agent line before ours shares its group with ours', file('User-agent: otherbot', 'User-agent: AgenticMediaHouseDesk', 'Disallow: /x'), '/x', false],
+    ['an agent line after ours shares its group with ours', file('User-agent: AgenticMediaHouseDesk', 'User-agent: otherbot', 'Disallow: /x'), '/x', false],
+    ['a blank line does not end a list of agents', file('User-agent: otherbot', '', 'User-agent: AgenticMediaHouseDesk', 'Disallow: /x'), '/x', false],
+    ['an agent line after a rule starts a new group', file('User-agent: otherbot', 'Disallow: /x', 'User-agent: AgenticMediaHouseDesk', 'Disallow: /y'), '/x', true],
+    ['two groups of the same agent are one group: the first', file('User-agent: AgenticMediaHouseDesk', 'Disallow: /a', '', 'User-agent: AgenticMediaHouseDesk', 'Disallow: /b'), '/a', false],
+    ['two groups of the same agent are one group: the second', file('User-agent: AgenticMediaHouseDesk', 'Disallow: /a', '', 'User-agent: AgenticMediaHouseDesk', 'Disallow: /b'), '/b', false],
     ['a Sitemap line is not a rule', file('Sitemap: https://www.fixture-robotics.example/sitemap.xml', 'User-agent: *', 'Disallow: /x'), '/x', false],
-    ['a Sitemap line between agents does not break the list', file('User-agent: otherbot', 'Sitemap: https://www.fixture-robotics.example/s.xml', 'User-agent: RobywireDesk', 'Disallow: /x'), '/x', false],
+    ['a Sitemap line between agents does not break the list', file('User-agent: otherbot', 'Sitemap: https://www.fixture-robotics.example/s.xml', 'User-agent: AgenticMediaHouseDesk', 'Disallow: /x'), '/x', false],
     ['a Crawl-delay line is not a rule', file('User-agent: *', 'Crawl-delay: 10'), '/x', true],
     ['a rule before any User-agent line is ignored', file('Disallow: /', 'User-agent: *', 'Disallow: /x'), '/news', true],
     ['a pattern that does not start with a slash is ignored', file('User-agent: *', 'Disallow: private'), '/private', true],
@@ -109,10 +109,10 @@ describe('isAllowed: what a file allows', () => {
 
 describe('parseRobots', () => {
   it('lists the groups, with the agents in lowercase and the rules in file order', () => {
-    const parsed = parseRobots(file('User-agent: RobywireDesk', 'User-agent: OtherBot', 'Disallow: /a', 'Allow: /a/b', '', 'User-agent: *', 'Disallow: /'));
+    const parsed = parseRobots(file('User-agent: AgenticMediaHouseDesk', 'User-agent: OtherBot', 'Disallow: /a', 'Allow: /a/b', '', 'User-agent: *', 'Disallow: /'));
     expect(parsed.groups).toEqual([
       {
-        agents: ['robywiredesk', 'otherbot'],
+        agents: ['agenticmediahousedesk', 'otherbot'],
         rules: [
           { allow: false, pattern: '/a' },
           { allow: true, pattern: '/a/b' },

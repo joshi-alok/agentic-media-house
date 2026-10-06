@@ -1,5 +1,14 @@
-/** The name every piece is published under. G1 rejects any other author, and the frontmatter schema accepts no other. */
-export const DESK_AUTHOR_NAME = 'Robywire Desk';
+/**
+ * The name of the publication, spelled as every reader-facing string spells it. The site, the feed, the structured
+ * data and the prompts of the Desk take it from here and never write it out themselves.
+ */
+export const PUBLICATION_NAME = 'Agentic Media House';
+
+/** The name in capitals: the wordmark in the header of the site and on the fact card. */
+export const PUBLICATION_WORDMARK = 'AGENTIC MEDIA HOUSE';
+
+/** The name every piece is published under: the publication and the word Desk. G1 rejects any other author, and the frontmatter schema accepts no other. */
+export const DESK_AUTHOR_NAME = 'Agentic Media House Desk';
 
 /**
  * The few words after the Desk's name in the byline of an article. It says how a

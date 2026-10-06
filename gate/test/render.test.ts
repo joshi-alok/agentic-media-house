@@ -46,7 +46,7 @@ describe('renderDraft: the golden piece', () => {
       'format: news',
       'featured: false',
       'author:',
-      '  name: "Robywire Desk"',
+      '  name: "Agentic Media House Desk"',
     ]);
   });
 
@@ -61,7 +61,7 @@ describe('renderDraft: the golden piece', () => {
       'format: news',
       'featured: false',
       'author:',
-      '  name: "Robywire Desk"',
+      '  name: "Agentic Media House Desk"',
     ]);
     expect(splitMdx(updated.mdx).body).toBe(splitMdx(mdx).body);
     expect(updated.ledger).toEqual(ledger);
@@ -90,7 +90,7 @@ describe('renderDraft: the golden piece', () => {
       categories: ['industrial-warehouse', 'funding'],
       format: 'news',
       featured: false,
-      author: { name: 'Robywire Desk' },
+      author: { name: 'Agentic Media House Desk' },
     });
   });
 
@@ -558,7 +558,7 @@ describe('NewsFrontmatter', () => {
     categories: ['humanoids'],
     format: 'news',
     featured: false,
-    author: { name: 'Robywire Desk' },
+    author: { name: 'Agentic Media House Desk' },
   };
 
   it('accepts a valid block', () => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DESK_AUTHOR_NAME } from '@robywire/gate';
 import { jsonLdScript, newsArticleJsonLd } from '../src/lib/jsonld';
 
-const SITE = 'https://robywire.example';
+const SITE = 'https://agenticmediahouse.example';
 const piece = {
   slug: 'fixture-robotics-ships-fx-2-to-second-plant',
   title: 'Fixture Robotics ships its FX-2 warehouse arm to a second plant',

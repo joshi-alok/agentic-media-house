@@ -32,7 +32,7 @@ export interface JsonLdPiece {
  * The NewsArticle data for a piece. `dateModified` is the piece's `updatedAt`
  * when it has one; otherwise the time of the latest correction or retraction
  * recorded for it; otherwise the publication date. `siteUrl` is the site's
- * address, such as "https://robywire.example".
+ * address, such as "https://agenticmediahouse.example".
  */
 export function newsArticleJsonLd(piece: JsonLdPiece, corrections: DeskState['corrections'], siteUrl: string): NewsArticleJsonLd {
   const absolute = (path: string): string => new URL(path, siteUrl).href;

@@ -46,7 +46,7 @@ function mini(text: string, claims: Claim[], cited: string[] = claims.map((claim
       slug: 'a-slug',
       publishedAt: '2026-10-04',
       categories: ['humanoids'],
-      author: { name: 'Robywire Desk' },
+      author: { name: 'Agentic Media House Desk' },
       title: { kind: 'fact', text, claimIds: cited },
       description: { kind: 'fact', text: 'It is fine.', claimIds: cited },
       opening: [],

@@ -164,7 +164,7 @@ describe('runDiscover: a source that fails', () => {
   });
 
   it('skips a source that the fetcher was refused', async () => {
-    const refusal = new FetchError('robots', URLS.gantryFeed, 'https://gantry-daily.example/robots.txt does not allow RobywireDesk to fetch /atom.xml');
+    const refusal = new FetchError('robots', URLS.gantryFeed, 'https://gantry-daily.example/robots.txt does not allow AgenticMediaHouseDesk to fetch /atom.xml');
     const { ctx } = stageContext(scratch, { fetcher: withPages(new FixtureFetcher(FIXTURE_DIR, worldMap(), () => FETCHED_AT), { [URLS.gantryFeed]: refusal }) });
     expect((await runDiscover(ctx)).skipped).toEqual([{ source: 'Gantry Daily', reason: refusal.message }]);
   });
@@ -182,7 +182,7 @@ describe('runDiscover: a source that fails', () => {
     const fetcher = new HttpFetcher({ userAgent: ctx.config.userAgent, maxBytes: ctx.config.maxBytes, requestIntervalMs: 0, transport, now: () => FETCHED_AT, lookup: publicLookup });
     const artifact = await runDiscover({ ...ctx, fetcher });
     expect(artifact.skipped).toEqual([
-      { source: 'Gantry Daily', reason: `${URLS.gantryFeed}: https://gantry-daily.example/robots.txt does not allow RobywireDesk to fetch /atom.xml` },
+      { source: 'Gantry Daily', reason: `${URLS.gantryFeed}: https://gantry-daily.example/robots.txt does not allow AgenticMediaHouseDesk to fetch /atom.xml` },
     ]);
     expect(sent.map((request) => request.url)).not.toContain(URLS.gantryFeed);
     expect(artifact.candidates).toHaveLength(6);

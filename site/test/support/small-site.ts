@@ -2,7 +2,7 @@
 // reads it: files as text, keyed by their path inside dist/. The tests of the
 // runner and of the command line change it to break one thing at a time.
 
-const ORIGIN = 'https://robywire.example';
+const ORIGIN = 'https://agenticmediahouse.example';
 
 /** A page that passes the checks on pages. */
 function page(route: string, title: string, body: string, head = ''): string {

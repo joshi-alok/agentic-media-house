@@ -194,7 +194,16 @@ describe('G1_AUTHOR_MISSING', () => {
 });
 
 describe('G1_AUTHOR_NOT_DESK', () => {
-  it.each(['Jane Doe', 'Robywire', 'robywire desk', 'Robywire  Desk', 'Robywire Desk ', ' Robywire Desk', 'Robywire Desk.'])(
+  it.each([
+    'Jane Doe',
+    'Agentic Media House',
+    'agentic media house desk',
+    'Agentic Media House  Desk',
+    'Agentic Media House Desk ',
+    ' Agentic Media House Desk',
+    'Agentic Media House Desk.',
+    'Robywire Desk',
+  ])(
     'fails for the author name %j, and says what it must be',
     (name) => {
       const out = checkG1(mutate(cloneGolden(), (g) => (g.draft.author.name = name)), defaultContext());
@@ -202,7 +211,7 @@ describe('G1_AUTHOR_NOT_DESK', () => {
         {
           check: 'G1',
           code: 'G1_AUTHOR_NOT_DESK',
-          message: `the author is "${name}", but every piece is written by the Desk: the author must be "Robywire Desk"`,
+          message: `the author is "${name}", but every piece is written by the Desk: the author must be "Agentic Media House Desk"`,
           where: 'author',
         },
       ]);

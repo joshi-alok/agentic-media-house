@@ -34,7 +34,7 @@ const MAX_WARNINGS = 20;
 /** The name a program is known by in a robots.txt: the letters, digits, hyphens and underscores at the start of its user agent. */
 export function productToken(userAgent: string): string {
   const token = /^[A-Za-z0-9_-]+/.exec(userAgent)?.[0];
-  if (token === undefined) throw new Error(`the user agent ${JSON.stringify(userAgent)} has no product token: it must start with a name such as RobywireDesk`);
+  if (token === undefined) throw new Error(`the user agent ${JSON.stringify(userAgent)} has no product token: it must start with a name such as ExampleDesk`);
   return token;
 }
 

@@ -26,7 +26,7 @@ const sources = CODE_FOLDERS.flatMap((folder) => filesIn(path.join(SRC, folder))
 
 describe('the byline constants', () => {
   it('are the ones the gate publishes', () => {
-    expect(DESK_AUTHOR_NAME).toBe('Robywire Desk');
+    expect(DESK_AUTHOR_NAME).toBe('Agentic Media House Desk');
     expect(DESK_BYLINE_LABEL).toBe('automated, with sources linked');
   });
 

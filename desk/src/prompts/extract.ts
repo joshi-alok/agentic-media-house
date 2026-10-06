@@ -1,3 +1,4 @@
+import { PUBLICATION_NAME } from '@robywire/gate';
 import { systemPrompt, wrapSource } from '../index';
 import type { SourceKind } from '../index';
 import { ALLOWED_BASES, COMMON_WORDS, KIND_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH } from '../stages/claim-grounding';
@@ -13,7 +14,7 @@ export const MAX_CLAIMS = 40;
 
 /** What the model is told to do, and what each field of a claim means. The client adds the JSON Schema of the reply to it. */
 export const EXTRACT_INSTRUCTIONS = [
-  'You are the claim extractor of Robywire, a robotics news site whose every sentence traces to a passage of a primary source.',
+  `You are the claim extractor of ${PUBLICATION_NAME}, a robotics news site whose every sentence traces to a passage of a primary source.`,
   'You are given one or more sources. Each is the text of a web page, in a block that starts with <source id="N">, where N is the number of the source. You read them and list claims. A claim is one statement of fact that a source makes. You write nothing else.',
   '',
   'Reply with a JSON object with one field, "claims", a list of claims. Each claim has these fields:',

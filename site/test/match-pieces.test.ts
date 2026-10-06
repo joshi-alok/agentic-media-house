@@ -22,7 +22,7 @@ function pair(slug: string, publishedAt: string, change: Partial<LedgerEntry> = 
     categories: ['humanoids'],
     format: 'news',
     featured: false,
-    author: { name: 'Robywire Desk' },
+    author: { name: 'Agentic Media House Desk' },
   };
   // The body of a piece as Astro hands it over: the text under the frontmatter, without its outer blank lines.
   return { news: { id: slug, data, body: renderBody(ledger).trim() }, ledger: { id: slug, data: ledger } };

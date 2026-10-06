@@ -34,7 +34,7 @@ export const DeskConfig = z.strictObject({
   maxRevisionRounds: z.number().int().nonnegative(),
   /** Fetch: what the Desk calls itself to every site. It must link to the /method page, which says who the Desk is. */
   userAgent: text.refine((value) => /https?:\/\/\S+\/method\b/.test(value), {
-    message: 'must include the address of the /method page, such as https://robywire.example/method',
+    message: 'must include the address of the /method page, such as https://agenticmediahouse.example/method',
   }),
   /** Fetch: the least pause between two requests to one host. */
   requestIntervalMs: z.number().int().nonnegative(),
@@ -59,7 +59,7 @@ export function defaultConfig(): DeskConfig {
     shortlistMax: 15,
     minClaims: 3,
     maxRevisionRounds: 2,
-    userAgent: 'RobywireDesk/0.1 (+https://robywire.example/method)',
+    userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
     requestIntervalMs: 1000,
     maxBytes: 2_000_000,
     budget: { maxCalls: 24, maxInputTokens: 400_000, maxOutputTokens: 60_000 },
@@ -76,7 +76,7 @@ export function defaultConfig(): DeskConfig {
 
 /**
  * The host of the address that a user agent links to, when that host is a placeholder: `example`, or a name under `.example`, which no one owns
- * and the default user agent uses (robywire.example). `undefined` when the first address of the text is anything else, or when there is none. The
+ * and the default user agent uses (agenticmediahouse.example). `undefined` when the first address of the text is anything else, or when there is none. The
  * first address is the one that has to be the /method page (the schema of the setting requires it). A live run needs a real one: a site that
  * is asked by a user agent that points nowhere cannot find out who is asking.
  */

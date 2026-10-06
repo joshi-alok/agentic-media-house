@@ -13,7 +13,7 @@ import type { Route } from '../support/transport';
 // size of a page, a limit on redirects, and a pause before trying again. The tests give it a
 // transport that answers from a script, so no test opens a connection.
 
-const UA = 'RobywireDesk/0.1 (+https://robywire.example/method)';
+const UA = 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)';
 const NOW = new Date('2026-10-05T04:31:00.000Z');
 const HOST = 'https://www.fixture-robotics.example';
 const PAGE = `${HOST}/news/fx-1-ships`;
@@ -203,12 +203,12 @@ describe('HttpFetcher: robots.txt comes first', () => {
     const error = await failure(fetcher.get(PAGE));
     expect(error.kind).toBe('robots');
     expect(error.url).toBe(PAGE);
-    expect(error.message).toBe(`${PAGE}: ${HOST}/robots.txt does not allow RobywireDesk to fetch /news/fx-1-ships`);
+    expect(error.message).toBe(`${PAGE}: ${HOST}/robots.txt does not allow AgenticMediaHouseDesk to fetch /news/fx-1-ships`);
     expect(urlsOf(sent)).toEqual([ROBOTS]);
   });
 
   it('reads the robots.txt as the Desk: the group that names it applies, and the group for everyone does not', async () => {
-    const robots = 'User-agent: *\nDisallow: /\n\nUser-agent: RobywireDesk\nDisallow: /private';
+    const robots = 'User-agent: *\nDisallow: /\n\nUser-agent: AgenticMediaHouseDesk\nDisallow: /private';
     const { fetcher } = setup(site({ [ROBOTS]: { type: 'text/plain', body: robots }, [PAGE]: { body: 'x' }, [`${HOST}/private/a`]: { body: 'y' } }));
     expect((await fetcher.get(PAGE)).body).toBe('x');
     expect((await failure(fetcher.get(`${HOST}/private/a`))).kind).toBe('robots');
@@ -851,7 +851,7 @@ describe('FixtureFetcher', () => {
   });
 
   it('throws the error that an address is mapped to, as it is', async () => {
-    const error = new FetchError('robots', PAGE, 'robots.txt does not allow RobywireDesk to fetch /news/fx-1-ships');
+    const error = new FetchError('robots', PAGE, 'robots.txt does not allow AgenticMediaHouseDesk to fetch /news/fx-1-ships');
     const fetcher = new FixtureFetcher(scratch, { [PAGE]: error }, now);
     await expect(fetcher.get(PAGE)).rejects.toBe(error);
   });

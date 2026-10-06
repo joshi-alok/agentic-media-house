@@ -13,7 +13,7 @@ const INPUT: GateInput = {
     slug: 'a-slug',
     publishedAt: '2026-10-04',
     categories: ['humanoids'],
-    author: { name: 'Robywire Desk' },
+    author: { name: 'Agentic Media House Desk' },
     title: { kind: 'fact', text: 'A title', claimIds: [] },
     description: { kind: 'fact', text: 'A description', claimIds: [] },
     opening: [],

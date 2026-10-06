@@ -27,7 +27,7 @@ const offline: Transport = async (url) => {
 };
 
 /** The user agent of the tests: it links to an address that is not a placeholder, which a live run requires, and no site is ever asked. */
-const TEST_AGENT = 'RobywireDesk/0.1 (+https://robywire.test/method)';
+const TEST_AGENT = 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.test/method)';
 
 /**
  * A repository in a new folder, a fake git for it, and everything that `main` is given and prints. Its sources.yml is the registry of the made-up world, whose
@@ -281,7 +281,7 @@ describe('main: --config, the file of settings', () => {
     'minClaims: 99',
     'runDir: out/runs',
     'evidenceDir: out/evidence',
-    'userAgent: "RobywireDesk/0.1 (+https://robywire.test/method)"',
+    'userAgent: "AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.test/method)"',
     '',
   ].join('\n');
 
@@ -364,8 +364,8 @@ describe('main: --config, the file of settings', () => {
 
 describe('main: a live run needs a user agent that is not a placeholder', () => {
   // The user agent is what the Desk calls itself to every site, and it must say where the site that is asking can be read about. The default
-  // links to robywire.example, an address that does not exist, so a live run that has not been given a real one is refused before it asks a site.
-  const PLACEHOLDER = 'RobywireDesk/0.1 (+https://robywire.example/method)';
+  // links to agenticmediahouse.example, an address that does not exist, so a live run that has not been given a real one is refused before it asks a site.
+  const PLACEHOLDER = 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)';
 
   it('refuses a live run with the default user agent, with exit code 2 and the way out, and writes nothing and asks nobody', async () => {
     const { call, err, out, cwd, git } = setup({ config: undefined, env: { ANTHROPIC_API_KEY: 'k' } });
@@ -373,7 +373,7 @@ describe('main: a live run needs a user agent that is not a placeholder', () => 
     expect(await call('run')).toBe(2);
     expect(out).toEqual([]);
     expect(err).toEqual([
-      `desk: the user agent "${PLACEHOLDER}" links to robywire.example, which is a placeholder address: a live run needs a user agent that links to the real /method page of the Desk; set userAgent in a file of settings and pass it with --config <path>`,
+      `desk: the user agent "${PLACEHOLDER}" links to agenticmediahouse.example, which is a placeholder address: a live run needs a user agent that links to the real /method page of the Desk; set userAgent in a file of settings and pass it with --config <path>`,
     ]);
     expect(git.commits).toEqual([]);
     expect(filesBelow(cwd)).toEqual(before);
