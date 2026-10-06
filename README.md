@@ -60,6 +60,12 @@ The exit code is 0 for a run that published, held or found no story and for a re
 
 `npm run evals:verifier` measures a verifier. `desk/evals/verifier-set.json` holds sixty sentences, each with the passages that it is judged against: for each of twenty sets of passages, one sentence that they support, one that says something they do not say, and one that changes what they say in a small way. `desk/evals/run-verifier.ts` runs a model client over the set through the verifier's own prompt and the reading of its reply that the Verify stage uses, and prints precision and recall by label and overall. With no arguments it runs a scripted verifier that knows the answers, which proves the wiring and measures no model. `--client api --model <name>` asks a real model (it needs `ANTHROPIC_API_KEY`), `--batch <n>` sets how many sentences go in one call, and `--min-precision` and `--min-recall` (numbers from 0 to 1) make the command exit with 1 when a score is below them. No floor is set: what a verifier must score is decided when real models have been measured.
 
+## What the Desk does not check
+
+Models propose and code disposes, and the code has limits. These are the ones that are known, so that nobody reads the checks as more than they are.
+
+- **Text that a style sheet hides.** `extractPage` leaves out an element that hides itself in its own markup (the `hidden` attribute, `aria-hidden="true"`, an inline style of `display:none`, `visibility:hidden` or `font-size:0`) with everything in it, and it leaves out `<template>`. It does not read the style sheets of a page. Text that a class hides, that is moved off the screen, that is the colour of its background or that has an opacity of 0 is read as text of the page, and a quotation of it passes the check that the quotation is on the page. The content of `<details>` is kept on purpose: a reader sees it by opening it.
+
 ## Requirements
 
 - Node 22.19 or newer (`.nvmrc` says 22, which installs the latest 22.x; Lighthouse needs 22.19) and npm 10 or newer.

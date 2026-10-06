@@ -9,6 +9,11 @@ import { canonicalUrl } from './url';
 // dropped with its whole subtree, so script text can never be mistaken for the page; and a page that
 // nests its elements absurdly deep is refused, because the parser takes time in proportion to the
 // square of the depth and a page of 100,000 nested elements would keep the Desk busy for a minute.
+// What a reader of the page cannot see is not what the page says either: an element that is hidden
+// (the `hidden` attribute, `aria-hidden="true"`, an inline style of `display:none`, `visibility:hidden`
+// or `font-size:0`) is dropped like a script. That is judged from the markup and the inline style only.
+// The style sheets of the page are not read, so text that a style sheet hides is text of the page here,
+// and so is the content of a `<details>` element, which a reader sees by opening it.
 
 type Node = DefaultTreeAdapterTypes.Node;
 type ParentNode = DefaultTreeAdapterTypes.ParentNode;
@@ -40,8 +45,11 @@ export class ExtractError extends Error {
 /** The deepest nesting of elements that is read. Browsers stop at 512, and real pages stay far below it. */
 export const MAX_DEPTH = 512;
 
-/** What is not part of what a page says: its code, its styling, and the furniture around the text. */
-const DROPPED = new Set(['script', 'style', 'noscript', 'nav', 'header', 'footer', 'aside', 'form']);
+/**
+ * What is not part of what a page says: its code, its styling, the furniture around the text, and a template, which a browser
+ * never shows (the parser keeps its content out of the children of the element, and it is listed all the same).
+ */
+const DROPPED = new Set(['script', 'style', 'noscript', 'nav', 'header', 'footer', 'aside', 'form', 'template']);
 
 /** Elements that start a new line of text, and end one. */
 const BLOCKS = new Set([
@@ -130,14 +138,39 @@ function* descendants(parent: ParentNode, skip: (element: Element) => boolean): 
   }
 }
 
-const isDropped = (element: Element): boolean => DROPPED.has(element.tagName);
+/** A size of nothing: 0, 0.0, .0, with or without a unit or a per cent sign. */
+const ZERO_SIZE = /^[+-]?(?:0+(?:\.0*)?|\.0+)(?:[a-z]+|%)?$/;
+
+/** Does an inline style hide its element: `display:none`, `visibility:hidden` or `collapse`, or `font-size` of nothing? Comments, case, space and `!important` do not matter. */
+function styleHides(style: string): boolean {
+  for (const declaration of style.replace(/\/\*[\s\S]*?\*\//g, '').split(';')) {
+    const colon = declaration.indexOf(':');
+    if (colon < 0) continue;
+    const property = declaration.slice(0, colon).trim().toLowerCase();
+    const value = declaration.slice(colon + 1).replace(/!\s*important\s*$/i, '').trim().toLowerCase();
+    if (property === 'display' && value === 'none') return true;
+    if (property === 'visibility' && (value === 'hidden' || value === 'collapse')) return true;
+    if (property === 'font-size' && ZERO_SIZE.test(value)) return true;
+  }
+  return false;
+}
+
+/** Is the element hidden from a reader by its own attributes: `hidden` (whatever its value), `aria-hidden="true"`, or an inline style that hides it? */
+function isHidden(element: Element): boolean {
+  return element.attrs.some(
+    ({ name, value }) => name === 'hidden' || (name === 'aria-hidden' && value.trim().toLowerCase() === 'true') || (name === 'style' && styleHides(value)),
+  );
+}
+
+/** Is the element left out of the page, with everything in it: dropped by its name, or hidden? */
+const isDropped = (element: Element): boolean => DROPPED.has(element.tagName) || isHidden(element);
 
 /** The text of a node in one line, with the dropped elements left out. */
 function plainText(node: ParentNode): string {
   let text = '';
   for (const child of node.childNodes) {
     if (child.nodeName === '#text') text += (child as DefaultTreeAdapterTypes.TextNode).value;
-    else if (isElement(child) && !DROPPED.has(child.tagName)) text += plainText(child);
+    else if (isElement(child) && !isDropped(child)) text += plainText(child);
   }
   return collapse(text);
 }
@@ -154,8 +187,10 @@ function titleOf(document: ParentNode): string {
  *
  * The text is that of the page's article if it has exactly one `<article>`, otherwise of its `<main>`, otherwise
  * of its `<body>`. A page with several articles is a list of stories (a newsroom), and is read whole. Scripts,
- * styles, `noscript`, navigation, headers, footers, asides and forms are left out with everything in them;
- * block elements end a line; white space is collapsed. The links are those of the same part of the page:
+ * styles, `noscript`, navigation, headers, footers, asides, forms and templates are left out with everything in them,
+ * and so are the elements that are hidden from a reader (see `isHidden`: the `hidden` attribute, `aria-hidden="true"`,
+ * an inline style of `display:none`, `visibility:hidden` or `font-size:0`), the links in them too; an article or a main
+ * part that is hidden is not counted. The content of `<details>` is kept. Block elements end a line; white space is collapsed. The links are those of the same part of the page:
  * absolute http and https addresses (see `canonicalUrl`) with their text, each address once, and not the
  * address of the page itself. When one address has two links, the first, unless its text is empty and a later
  * link has some (an image link and a headline link to one story). The title is the page's `<title>`, or else
@@ -199,7 +234,7 @@ export function extractPage(html: string, baseUrl: string): ExtractedPage {
         line += (child as DefaultTreeAdapterTypes.TextNode).value;
         continue;
       }
-      if (!isElement(child) || DROPPED.has(child.tagName)) continue;
+      if (!isElement(child) || isDropped(child)) continue;
       const block = BLOCKS.has(child.tagName);
       const cell = CELLS.has(child.tagName);
       if (block) endLine();

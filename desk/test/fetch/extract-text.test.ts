@@ -165,6 +165,110 @@ describe('extractPage: what is left out', () => {
   });
 });
 
+describe('extractPage: text that a reader of the page cannot see', () => {
+  // A page can say a sentence that no reader sees: in an element that is hidden, or set in a size of nothing. The extractor could quote
+  // it, and the quotation would be word for word in the snapshot, and the receipt would send a reader to a page that does not show it.
+  // So the text of an element that is hidden is not read, with everything in it. What the reader cannot see is read from the markup
+  // and the inline style alone: the style sheets of a page are not read (see the README).
+  const PROBE =
+    '<p>Visible start.</p>' +
+    '<p hidden>Planted by the hidden attribute.</p>' +
+    '<div style="display:none">Planted by display none. <a href="/planted-link">planted link</a></div>' +
+    '<span aria-hidden="true">Planted by aria-hidden.</span>' +
+    '<span style="font-size:0">Planted by a font size of nothing.</span>' +
+    '<p style="visibility: hidden">Planted by visibility hidden.</p>' +
+    '<template><p>Planted in a template.</p></template>' +
+    '<details><summary>More</summary><p>Shown when opened.</p></details>' +
+    '<p>Visible end.</p>';
+
+  it('reads the probe page of the review as a reader sees it: what is hidden is gone and the rest is there', () => {
+    expect(textOf(PROBE)).toBe('Visible start.\nMore\nShown when opened.\nVisible end.');
+    expect(textOf(PROBE)).not.toContain('Planted');
+  });
+
+  it('lists no link of a hidden element', () => {
+    expect(linksOf(PROBE)).toEqual([]);
+    expect(linksOf('<a href="/shown">shown</a><a hidden href="/not-shown">not shown</a>').map((link) => link.url)).toEqual(['https://news.example/shown']);
+  });
+
+  it('keeps the content of a details element, which a reader sees by opening it: this is a choice, and it is recorded here', () => {
+    expect(textOf('<details><summary>Question</summary><p>Answer.</p></details>')).toBe('Question\nAnswer.');
+    expect(textOf('<details open><summary>Question</summary><p>Answer.</p></details>')).toBe('Question\nAnswer.');
+  });
+
+  it.each([
+    ['hidden', '<p hidden>x</p>'],
+    ['hidden with a value', '<p hidden="hidden">x</p>'],
+    ['hidden until found', '<p hidden="until-found">x</p>'],
+    ['hidden in capitals', '<p HIDDEN>x</p>'],
+    ['aria-hidden true', '<p aria-hidden="true">x</p>'],
+    ['aria-hidden true in capitals, with a space', '<p aria-hidden=" TRUE ">x</p>'],
+    ['display none', '<p style="display:none">x</p>'],
+    ['display none, with spaces and capitals', '<p style=" DISPLAY : NONE ">x</p>'],
+    ['display none, important', '<p style="display:none !important">x</p>'],
+    ['display none after another declaration', '<p style="color:red; display: none; margin:0">x</p>'],
+    ['display none after a comment', '<p style="/* hidden */ display:none">x</p>'],
+    ['display none over two lines', '<p style="color:red;\n display:\n none">x</p>'],
+    ['visibility hidden', '<p style="visibility:hidden">x</p>'],
+    ['visibility collapse', '<p style="visibility:collapse">x</p>'],
+    ['font size 0', '<p style="font-size:0">x</p>'],
+    ['font size 0px', '<p style="font-size:0px">x</p>'],
+    ['font size 0em, in capitals', '<p style="FONT-SIZE:0EM">x</p>'],
+    ['font size 0 per cent', '<p style="font-size:0%">x</p>'],
+    ['font size 0.0pt', '<p style="font-size:0.0pt">x</p>'],
+    ['font size .0', '<p style="font-size:.0">x</p>'],
+    ['font size 0 important', '<p style="font-size:0!important">x</p>'],
+    ['a template', '<template>x</template>'],
+  ])('leaves out an element with %s', (_what, markup) => {
+    expect(textOf(`<p>Kept.</p>${markup}<p>Also kept.</p>`)).toBe('Kept.\nAlso kept.');
+  });
+
+  it.each([
+    ['aria-hidden false', '<p aria-hidden="false">x</p>'],
+    ['aria-hidden with another value', '<p aria-hidden="maybe">x</p>'],
+    ['display block', '<p style="display:block">x</p>'],
+    ['display inline-block', '<p style="display:inline-block">x</p>'],
+    ['display with none in its name', '<p style="display:nonexistent">x</p>'],
+    ['another property that ends in display', '<p style="x-display:none">x</p>'],
+    ['visibility visible', '<p style="visibility:visible">x</p>'],
+    ['a small font size', '<p style="font-size:0.5em">x</p>'],
+    ['a font size of 10', '<p style="font-size:10px">x</p>'],
+    ['a font size of .05em', '<p style="font-size:.05em">x</p>'],
+    ['a font size of 0 inside another property', '<p style="line-height:0; font-size:12px">x</p>'],
+    ['no declaration', '<p style="">x</p>'],
+    ['a class named hidden, which is a style sheet and not read', '<p class="hidden">x</p>'],
+    ['an attribute that only ends in hidden', '<p data-hidden="true">x</p>'],
+  ])('keeps an element with %s', (_what, markup) => {
+    expect(textOf(`<p>Kept.</p>${markup}`)).toBe('Kept.\nx');
+  });
+
+  it('leaves out everything in a hidden element, however deep, and the visible element inside it as well', () => {
+    expect(textOf('<p>Kept.</p><div hidden><section><p>Inner <b>text</b> <span style="display:block">block</span></p></section></div>')).toBe('Kept.');
+  });
+
+  it('leaves out an element that is hidden inside a link, and keeps the rest of the text of the link', () => {
+    const [link] = linksOf('<a href="/story">Story <span hidden>secret</span>headline</a>');
+    expect(link).toEqual({ url: 'https://news.example/story', text: 'Story headline' });
+  });
+
+  it('does not count a hidden article, and reads the one that is shown', () => {
+    expect(textOf('<article hidden><p>Hidden article.</p></article><article><p>Shown article.</p></article><p>Outside.</p>')).toBe('Shown article.');
+  });
+
+  it('does not read the text of a hidden main part', () => {
+    expect(textOf('<main hidden><p>Hidden main.</p></main><p>Body text.</p>')).toBe('Body text.');
+  });
+
+  it('gives no text for a page whose body is hidden', () => {
+    expect(extractPage('<!doctype html><html><body hidden><p>x</p></body></html>', BASE).text).toBe('');
+  });
+
+  it('gives a title from a heading that is shown and not from one that is hidden', () => {
+    const page = extractPage('<!doctype html><html><body><h1 hidden>Hidden title</h1><h1>Shown title</h1></body></html>', BASE);
+    expect(page.title).toBe('Shown title');
+  });
+});
+
 describe('extractPage: which part of the page is read', () => {
   const read = (markup: string): string => extractPage(`<!doctype html><html><body>${markup}</body></html>`, BASE).text;
 
