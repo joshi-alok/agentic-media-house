@@ -20,4 +20,5 @@ export * from './fetch/extract-text';
 export * from './fetch/feeds';
 export * from './run/evidence';
 export * from './run/desk-state';
+export * from './run/git';
 export * from './sources';

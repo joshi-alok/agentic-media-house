@@ -8,6 +8,7 @@ import type {
   EvidenceStore,
   ExtractArtifact,
   ExtractedPage,
+  FakeCommit,
   FeedErrorKind,
   FeedItem,
   FetchArtifact,
@@ -17,6 +18,8 @@ import type {
   Fetcher,
   FixtureEntry,
   GateReport,
+  GitCliOptions,
+  GitTarget,
   HttpFetcherOptions,
   Hold,
   LastRun,
@@ -84,6 +87,9 @@ const VALUES = [
   'readDeskState',
   'writeDeskState',
   'updateDeskState',
+  'COMMIT_TRAILER',
+  'GitCli',
+  'FakeGit',
 ];
 
 describe('the package entry point: fetching', () => {
@@ -126,6 +132,9 @@ describe('the package entry point: fetching', () => {
       SourceKind,
       LastRun,
       Hold,
+      GitTarget,
+      GitCliOptions,
+      FakeCommit,
     ];
     const nothing: Exported | undefined = undefined;
     expect(nothing).toBeUndefined();
