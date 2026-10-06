@@ -25,3 +25,14 @@ export function canonicalUrl(address: string, base?: string): string | null {
   for (const key of tracking) url.searchParams.delete(key);
   return url.href;
 }
+
+/**
+ * The name by which a host is known when addresses are compared: the host of an address in lowercase, without a port,
+ * without the dot that can end a host name, and without one leading `www.`. So `https://www.News.example:8443/a` and
+ * `https://news.example./b` are the same host. A subdomain is another host. `null` if the text is not the address of a page.
+ */
+export function hostKey(address: string): string | null {
+  const canonical = canonicalUrl(address);
+  if (canonical === null) return null;
+  return new URL(canonical).hostname.replace(/\.$/, '').replace(/^www\./, '');
+}

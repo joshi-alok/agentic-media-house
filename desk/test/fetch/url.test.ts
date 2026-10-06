@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalUrl } from '../../src/fetch/url';
+import { canonicalUrl, hostKey } from '../../src/fetch/url';
 
 // The same page has many spellings: with a tracking parameter, with a fragment, with a capital in the
 // host. The Desk compares addresses to find a story it has already seen, so it first writes every address
@@ -56,5 +56,27 @@ describe('canonicalUrl', () => {
   it('gives the same address for the spellings of one page', () => {
     const spellings = ['https://News.example/a?utm_source=x#top', 'https://news.example:443/a', 'HTTPS://NEWS.EXAMPLE/a?utm_medium=y'];
     expect(new Set(spellings.map((address) => canonicalUrl(address))).size).toBe(1);
+  });
+});
+
+describe('hostKey', () => {
+  const CASES: [string, string, string | null][] = [
+    ['a plain host', 'https://news.example/a', 'news.example'],
+    ['the host in lowercase', 'https://News.Example/a', 'news.example'],
+    ['without a leading www.', 'https://www.news.example/a', 'news.example'],
+    ['without a port', 'https://news.example:8443/a', 'news.example'],
+    ['without the dot that can end a host name', 'https://news.example./a', 'news.example'],
+    ['without the user name and password', 'https://user:secret@news.example/a', 'news.example'],
+    ['one www. only', 'https://www.www.news.example/a', 'www.news.example'],
+    ['a name that only starts with www', 'https://wwwnews.example/a', 'wwwnews.example'],
+    ['a name that is only www', 'https://www/a', 'www'],
+    ['a subdomain as another host', 'https://blog.news.example/a', 'blog.news.example'],
+    ['http as well as https', 'http://news.example/a', 'news.example'],
+    ['not an address of a page', 'ftp://news.example/a', null],
+    ['not an address at all', 'not a url', null],
+  ];
+
+  it.each(CASES)('is %s', (_name, address, expected) => {
+    expect(hostKey(address)).toBe(expected);
   });
 });
