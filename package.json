@@ -24,8 +24,9 @@
     "audit:prod": "node site/scripts/audit.mjs --prod",
     "lighthouse": "node site/scripts/lighthouse.mjs",
     "desk": "tsx desk/src/bin.ts",
+    "desk:demo": "tsx desk/src/demo/run.ts",
     "evals:verifier": "tsx desk/evals/run-verifier.ts",
-    "verify": "npm run typecheck && npm run test && npm run evals:seeded && npm run fixtures:check && npm run build && npm run audit:prod && npm run build:fixtures && npm run audit && npm run lighthouse"
+    "verify": "npm run typecheck && npm run test && npm run evals:seeded && npm run fixtures:check && npm run desk:demo && npm run build && npm run audit:prod && npm run build:fixtures && npm run audit && npm run lighthouse"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

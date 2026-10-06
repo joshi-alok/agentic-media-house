@@ -38,6 +38,9 @@ jobs:
       - name: Fixture drift
         run: npm run fixtures:check
 
+      - name: Desk demo
+        run: npm run desk:demo
+
       - name: Production build
         run: npm run build
 

@@ -1,6 +1,6 @@
 # Robywire
 
-Robywire is a robotics news site, and the Desk is the pipeline that will write it. A piece will publish without a human only when a code-based gate verifies that every factual sentence traces to a quoted span in a primary (tier-1) source. Anything the gate cannot verify will be held for the owner. This repository holds the gate, the ledger format, the renderer and the site; the Desk itself is not built yet (see Which parts are live).
+Robywire is a robotics news site, and the Desk is the pipeline that will write it. A piece will publish without a human only when a code-based gate verifies that every factual sentence traces to a quoted span in a primary (tier-1) source. Anything the gate cannot verify will be held for the owner. This repository holds the gate, the ledger format, the renderer, the site and the Desk itself. The Desk is built and tested offline, with scripted models; it has not yet run against live sources or a live model, and nothing it writes has been published (see Which parts are live and The desk workspace).
 
 The full design is in [`docs/superpowers/specs/2026-10-04-the-desk-design.md`](docs/superpowers/specs/2026-10-04-the-desk-design.md).
 
@@ -10,7 +10,7 @@ The full design is in [`docs/superpowers/specs/2026-10-04-the-desk-design.md`](d
 |---|---|
 | `gate/` | `@robywire/gate`: pure functions implementing gate checks G1 to G9, and the renderer that turns a checked draft into a page. No network, no models. |
 | `evals/` | `@robywire/evals`: the seeded-defect harness that proves the gate catches what it should. |
-| `desk/` | `@robywire/desk`: the Desk pipeline, built and tested offline. So far it holds the configuration only. |
+| `desk/` | `@robywire/desk`: the Desk pipeline, built and tested offline: the model layer, the seven stages, the orchestrator, replay, the command line and the verifier evals. |
 | `site/` | `@robywire/site`: the Astro static site, and the scripts that audit it (`site/scripts/`). |
 | `sources.yml` | The tiered source registry: where the Desk writes from and where it discovers stories. |
 | `docs/` | Specs and plans. |
@@ -30,11 +30,19 @@ Every `status` starts as `unverified`, except the two that the original list alr
 
 ## Which parts are live
 
-`site/src/lib/live.ts` is the switchboard for the parts of the Desk that Plan 1 does not build: the evidence store, the independent model check, the daily schedule and the pipeline that writes and publishes. Its four flags are all `false`. Every sentence of the site whose tense depends on one of them (the footer, the receipts intro, the home and feed descriptions, and most of the method page) is written by a function in `site/src/lib/copy.ts` that takes the switchboard, and `site/test/copy.test.ts` says what each function writes for all sixteen settings of the flags. It also fails if a page or another file writes such a sentence itself. When a part really runs, turn its flag on and let the tests name the sentences that change.
+`site/src/lib/live.ts` is the switchboard for the parts of the Desk that do not yet run for real: the private evidence store (the Desk keeps its evidence in a folder on disk; the bucket is not built), the independent model check (built and tested with scripted models, and measured on no real model), the daily schedule (not built) and the pipeline that writes and publishes (built and tested offline, and it has never published a real piece). Its four flags are all `false`. Every sentence of the site whose tense depends on one of them (the footer, the receipts intro, the home and feed descriptions, and most of the method page) is written by a function in `site/src/lib/copy.ts` that takes the switchboard, and `site/test/copy.test.ts` says what each function writes for all sixteen settings of the flags. It also fails if a page or another file writes such a sentence itself. When a part really runs, turn its flag on and let the tests name the sentences that change.
 
 ## The desk workspace
 
-`desk/` (`@robywire/desk`) is where the pipeline is being built, and so far it is a start: it holds the configuration and nothing that reads a source, calls a model or publishes. `desk/src/config.ts` has every setting of a run: how recent a story must be, how many candidates reach the selecting model, the fewest claims a piece needs, the rounds of revision, the politeness of the fetcher, the budget of a run, the model for each role, and the folders `runs/` and `evidence/`. `loadConfig` reads an optional YAML file over the defaults and refuses a setting it does not know or a value that is not allowed. Git ignores `runs/` and `evidence/`: run artifacts and private snapshots of sources never go into the repository. The rest of this section is written when the pipeline is.
+`desk/` (`@robywire/desk`) is the pipeline that will write the site. It is built and tested with no network and no API key: every test runs on made-up pages and a scripted model, and a test fails if anything reaches for a network.
+
+- **Settings.** `desk/src/config.ts` has every setting of a run: how recent a story must be, how many candidates reach the selecting model, the fewest claims a piece needs, the rounds of revision, the politeness of the fetcher, the budget of a run, the model for each role, and the folders `runs/` and `evidence/`. `loadConfig` refuses a setting it does not know or a value that is not allowed.
+- **Models.** One interface, `ModelClient`, that cannot express a tool, so no stage can offer a model one. A client that answers from a script (`FakeClient`), one that replays recorded replies (`RecordedClient`), one for the Anthropic API (`AnthropicClient`, tested only against a stand-in for the network), and wrappers for a budget and for retries. Text from the web reaches a model only inside delimited blocks, under a system prompt that says it is data.
+- **Stages.** Discover, Select, Fetch, Extract, Compose, Verify, then Publish or Hold. Models propose and code disposes: code finds every quotation in the page and every claim's figures and names in its quotation, the gate (`gate/`) checks every sentence, an independent model check judges meaning, and only what fails goes back to the composer, at most twice. A piece that cites another outlet is never published by itself. Any error ends the run as `failed`, with nothing published.
+- **A run.** Each stage writes its artifact into `runs/<date>/`, checked against a schema: `01-discover.json` to `06-verify.json`, a held draft in `held/`, the record `run.json`, and the recorded model replies in `cassettes/`. The pages it read are kept by their hash in `evidence/`. A run takes a lock, a day is run once unless `--force-new` says otherwise, and every run that is not dry makes exactly one commit: the piece, its ledger and the desk state for a piece that is published, and the desk state alone for a hold, a day with no story or a failure. Git ignores `runs/` and `evidence/`.
+- **Replay.** `desk replay` runs Extract, Compose and Verify again from the pages in the evidence store and the recorded replies, and says whether each artifact is the one the run stored.
+
+Not built, and left for the next plan: the GitHub Actions workflow that runs the Desk every day, the Cloudflare deploy, the pull request that carries a hold to the owner, the command that records a correction or a retraction, the private evidence bucket, turning on the flags of `site/src/lib/live.ts` (and rewriting the copy that goes with them), tuning the prompts against a real model (they are written, and checked only against scripted models), measuring the verifier on a real model, and a client that uses a Claude subscription instead of an API key.
 
 ## The desk command
 
@@ -45,6 +53,8 @@ Every `status` starts as `unverified`, except the two that the original list alr
 - `npm run desk -- status` prints the last run and the number of holds, from the desk state.
 
 The exit code is 0 for a run that published, held or found no story and for a replay that came out equal, 1 for a run that failed or was refused and for a replay that differs, and 2 for a mistake in the arguments.
+
+`npm run desk:demo` runs the whole pipeline once as one command, `desk run --dry --client fake --sources fixtures`, and then replays the run. It exits 0 only if the made-up story ended published in a dry run, nothing was written to the site and git was not asked to commit, and the replay found every artifact equal. It is a step of `npm run verify`.
 
 ## The verifier evals
 
@@ -63,16 +73,19 @@ Run everything from the repository root.
 | Command | What it does |
 |---|---|
 | `npm ci` | Install exactly what `package-lock.json` pins. |
-| `npm run typecheck` | `tsc` in `gate` and `evals`, and `astro check` in `site`. |
+| `npm run typecheck` | `tsc` in `gate`, `evals` and `desk`, and `astro check` in `site`. |
 | `npm test` | Vitest in every workspace. |
 | `npm run evals:seeded` | Break the golden piece in known ways and check that the gate catches each one. Writes `evals/scoreboard/seeded.json`. |
 | `npm run fixtures:check` | Regenerate the fixture content and fail, with a diff, if it differs from the committed files. |
+| `npm run desk -- <command>` | The command line of the Desk: `run`, `replay` and `status` (see The desk command). |
+| `npm run desk:demo` | Run the made-up story through the whole pipeline in a dry run, replay it, and fail unless it was published, nothing was written and the replay is equal. |
+| `npm run evals:verifier` | Run the labelled set of sixty sentences through a verifier and print precision and recall (see The verifier evals). |
 | `npm run build` | The production build, into `site/dist`. It reads `site/src/content/`, which has no pieces yet. |
 | `npm run build:fixtures` | The fixture build, into `site/dist` (see Fixtures below). |
 | `npm run audit` | Run the checks A1 to A12 and A14 to A17 on `site/dist`: HTML, links, receipts, the fact card, CSS rules, colours, feeds. Exits 1 on any problem. |
 | `npm run audit:prod` | The same, plus A13: the build has no trace of the fixtures. Run it after `npm run build`. |
 | `npm run lighthouse` | Measure the fixture build in `site/dist` with Lighthouse (home page, lead article and its receipts page, and the first article that carries the Unconfirmed. label with its receipts page) and fail if any score is under 95. |
-| `npm run verify` | All of the above in CI order: typecheck, tests, seeded evals, fixture drift, production build, production audit, fixture build, fixture audit, Lighthouse. |
+| `npm run verify` | The checks in CI order: typecheck, tests, seeded evals, fixture drift, the Desk demo, production build, production audit, fixture build, fixture audit, Lighthouse. |
 
 `npm run build` and `npm run build:fixtures` both write `site/dist`, so the second replaces the first. `npm run verify` runs them in the order that each audit needs.
 

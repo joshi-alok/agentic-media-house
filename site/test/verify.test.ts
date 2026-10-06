@@ -25,10 +25,10 @@ function scriptsOf(commandLine: string): string[] {
   });
 }
 
-const EXPECTED_ORDER = ['typecheck', 'test', 'evals:seeded', 'fixtures:check', 'build', 'audit:prod', 'build:fixtures', 'audit', 'lighthouse'];
+const EXPECTED_ORDER = ['typecheck', 'test', 'evals:seeded', 'fixtures:check', 'desk:demo', 'build', 'audit:prod', 'build:fixtures', 'audit', 'lighthouse'];
 
 describe('the verify script', () => {
-  it('runs typecheck, tests, seeded evals, fixture drift, the production build and its audit, the fixture build and its audit, then Lighthouse', () => {
+  it('runs typecheck, tests, seeded evals, fixture drift, the Desk demo, the production build and its audit, the fixture build and its audit, then Lighthouse', () => {
     expect(scriptsOf(pkg.scripts.verify!)).toEqual(EXPECTED_ORDER);
   });
 
