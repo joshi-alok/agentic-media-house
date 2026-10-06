@@ -40,7 +40,7 @@ Snapshots of source pages go to a private Cloudflare R2 bucket through R2's S3-c
 ## 6. Workflows
 
 - **`desk.yml`**: cron 04:30, 06:30 and 08:30 UTC plus manual dispatch; a concurrency group so runs cannot overlap; checkout, Node 22, `npm ci`; `npm run desk -- run --config desk.config.yml` with `ANTHROPIC_API_KEY` and the R2 variables from secrets; a bot git identity; after the run, push the commit the run made to `main` (published pieces and the desk state), or open the hold PR; upload `runs/` as a workflow artifact for 14 days **without page text** (artifacts are readable by anyone on a public repo, so snapshots never go there); the job fails on outcome `failed` so GitHub notifies the owner.
-- **`deploy.yml`**: on every push to `main`: `npm ci`, `npm run build`, `npm run audit:prod`, then `wrangler pages deploy site/dist` with `CLOUDFLARE_API_TOKEN` and the account id from secrets. A failing build or audit stops the deploy.
+- **`deploy.yml`**: on every push to `main`: `npm ci`, `npm run build`, `npm run audit:prod`, then `wrangler deploy` with `CLOUDFLARE_API_TOKEN` and the account id from secrets. The site is a **Worker with static assets** (a committed `wrangler.jsonc` names the build folder), not a Pages project: Cloudflare's CLI recommends Workers for every new project and will not create a new Pages project without an undocumented flag. It is already live, deployed once by hand, at `https://agentic-media-house.joshi-alok.workers.dev`. A failing build or audit stops the deploy.
 - Both are validated by tests that parse the YAML and check the steps, and then proven by a real run (runbook).
 
 ## 7. The tuning harness and the first real-model trials
@@ -55,7 +55,7 @@ Snapshots of source pages go to a private Cloudflare R2 bucket through R2's S3-c
 
 - Repository `github.com/joshi-alok/agentic-media-house`, **public** (your earlier choice). A repository called `robywire` already exists in your account (the earlier Astro site) and is untouched.
 - Before the first push, the author and committer of all 138 existing commits are rewritten to GitHub's no-reply address (`185603530+joshi-alok@users.noreply.github.com`), so your Gmail address does not become public. The tags are moved to the rewritten commits. Content and history order are unchanged; only commit hashes change.
-- Cloudflare account: your **personal** account, not `denoise`. The site lives at `<project>.pages.dev` until you choose a domain.
+- Cloudflare account: your **personal** account, not `denoise`. The site lives at `agentic-media-house.joshi-alok.workers.dev` (a Worker with static assets, deployed on 2026-10-06) until you choose a domain.
 - The Desk's byline author is `Agentic Media House Desk`.
 - Live-model budget for the tuning trials: **US$10 in total**, reported after every run. Please set a monthly spend cap on the key in the Anthropic Console, and rotate the key once the trials are done (it was pasted into this conversation).
 - Secrets: I will set `ANTHROPIC_API_KEY` as a repository secret from the private key file (never on a command line) **only when you say so**. You create the `CLOUDFLARE_API_TOKEN` (permissions: Pages Edit, R2 Edit) and the R2 access keys in the Cloudflare dashboard; I cannot.
