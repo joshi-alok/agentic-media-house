@@ -1,6 +1,7 @@
 import { SENTENCE_STARTERS, defaultConfig as defaultGateConfig } from '@robywire/gate';
 import type { Claim } from '@robywire/gate';
 import { systemPrompt, wrapSource } from '../index';
+import { provenance } from './words';
 
 // The words the Compose stage says to a model. The system prompt begins with the paragraph that says the blocks are data
 // (`systemPrompt` adds it), then says the job and states the rules of the gate in plain words, with the gate's own numbers, so
@@ -67,11 +68,6 @@ export const COMPOSE_INSTRUCTIONS = [
 /** The system prompt of the Compose stage: the paragraph about untrusted text, then the instructions. */
 export function composeSystem(): string {
   return systemPrompt(COMPOSE_INSTRUCTIONS);
-}
-
-/** Where a claim is from, in words, for the line outside its block. */
-function provenance(claim: Claim): string {
-  return claim.source.tier === 2 ? `reported by ${claim.source.outlet}, another outlet` : 'from a primary source';
 }
 
 /** The text of a claim as it stands in its block: what it says, what it is called, the passage it quotes, and the values it licenses. */
