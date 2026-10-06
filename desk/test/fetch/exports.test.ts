@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as entry from '../../src/index';
 import type {
   Candidate,
+  ComposeArtifact,
   DiscoverArtifact,
   EvidenceMeta,
   EvidenceStore,
@@ -15,6 +16,7 @@ import type {
   FetchedPage,
   Fetcher,
   FixtureEntry,
+  GateReport,
   HttpFetcherOptions,
   Newsroom,
   PageLink,
@@ -28,6 +30,7 @@ import type {
   Tier2Feed,
   Transport,
   TransportRequest,
+  VerifyArtifact,
 } from '../../src/index';
 
 // The stages of the pipeline import everything below them from the package entry point, never from a file
@@ -43,6 +46,9 @@ const VALUES = [
   'FetchDocument',
   'FetchArtifact',
   'ExtractArtifact',
+  'GateReport',
+  'ComposeArtifact',
+  'VerifyArtifact',
   'runPath',
   'writeArtifact',
   'readArtifact',
@@ -87,6 +93,9 @@ describe('the package entry point: fetching', () => {
       FetchDocument,
       FetchArtifact,
       ExtractArtifact,
+      GateReport,
+      ComposeArtifact,
+      VerifyArtifact,
       ParsedRobots,
       RobotsRule,
       RobotsGroup,
@@ -119,7 +128,8 @@ describe('the package entry point: fetching', () => {
     const assembly = ['slugFromTitle', 'ComposeReply', 'ReplySentence', 'assembleDraft', 'finishDraft'];
     const composition = ['runCompose', 'gateContextOf', 'composeSystem', 'buildComposeUser', 'provenance', 'PLACE'];
     const verification = ['verifyPlanOf', 'VerifyReply', 'aggregateVerdicts', 'runVerifier', 'verifySystem', 'buildVerifyUser'];
-    for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification]) {
+    const revision = ['runVerify', 'reviseDraft', 'problemsOf', 'reviseReplySchema', 'reviseSystem', 'buildReviseUser'];
+    for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision]) {
       expect(entry).not.toHaveProperty(name);
     }
   });

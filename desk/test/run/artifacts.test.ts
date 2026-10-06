@@ -1,10 +1,11 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { GOLDEN_CLAIMS } from '@robywire/gate/fixtures';
+import { defaultContext, runGate } from '@robywire/gate';
+import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Candidate, DiscoverArtifact, ExtractArtifact, FetchArtifact, SelectArtifact, candidateId, readArtifact, runPath, writeArtifact } from '../../src/run/artifacts';
+import { Candidate, ComposeArtifact, DiscoverArtifact, ExtractArtifact, FetchArtifact, GateReport, SelectArtifact, VerifyArtifact, candidateId, readArtifact, runPath, writeArtifact } from '../../src/run/artifacts';
 import { sha256Hex } from '../../src/model/types';
 import { RUN_DATE, candidate } from '../support/candidates';
 
@@ -58,6 +59,20 @@ const extractArtifact = (): ExtractArtifact => ({
   date: RUN_DATE,
   claims: structuredClone(GOLDEN_CLAIMS.slice(0, 3)),
   dropped: [{ index: 1, text: 'Harlow bought 900 arms.', reasons: [{ code: 'quote-not-found', message: 'the quotation is not on the page: "Harlow bought 900 arms."' }] }],
+});
+
+const gateReport = (): GateReport => structuredClone(runGate({ draft: structuredClone(GOLDEN_DRAFT), claims: structuredClone(GOLDEN_CLAIMS) }, defaultContext()));
+const verifierRecord = () => ({ model: 'model-v', passed: true, notes: ['Judged 41 fact sentences and 3 headings; every one was supported.'] });
+const verifyArtifact = (): VerifyArtifact => ({
+  date: RUN_DATE,
+  outcome: 'publish',
+  rounds: 1,
+  gate: gateReport(),
+  verifier: verifierRecord(),
+  history: [
+    { round: 0, gate: { ...gateReport(), route: 'revise', failures: [{ check: 'G4', code: 'G4_NUMBER_UNSUPPORTED', message: 'the number "15 kg" is not in any claim', where: 'takeaways, sentence 2' }] }, verifier: null, verifierFailures: [], sent: ['s6'] },
+    { round: 1, gate: gateReport(), verifier: verifierRecord(), verifierFailures: [], sent: [] },
+  ],
 });
 
 /** What parsing `value` with `schema` reports, or '' if it is valid. */
@@ -263,6 +278,100 @@ describe('ExtractArtifact', () => {
 
   it('refuses a field it does not know', () => {
     expect(problem(ExtractArtifact, { ...extractArtifact(), note: 'x' })).toBe(': Unrecognized key: "note"');
+  });
+});
+
+describe('GateReport', () => {
+  it('accepts what the gate says of the golden piece', () => {
+    expect(problem(GateReport, gateReport())).toBe('');
+  });
+
+  it('accepts a failure with a place and one without', () => {
+    const report = gateReport();
+    report.failures = [
+      { check: 'G2', code: 'G2_BODY_LENGTH', message: 'the body is 500 words', where: 'body' },
+      { check: 'G6', code: 'G6_TIER2_BASIS', message: 'claim c-19 has the wrong basis' },
+    ];
+    expect(problem(GateReport, report)).toBe('');
+  });
+
+  it('refuses a route, a check or a result that the gate does not have, a failure with no code, and a result for a check that is missing', () => {
+    expect(problem(GateReport, { ...gateReport(), route: 'maybe' })).not.toBe('');
+    expect(problem(GateReport, { ...gateReport(), failures: [{ check: 'G11', code: 'X', message: 'x' }] })).not.toBe('');
+    expect(problem(GateReport, { ...gateReport(), failures: [{ check: 'G1', code: '', message: 'x' }] })).not.toBe('');
+    expect(problem(GateReport, { ...gateReport(), checks: { ...gateReport().checks, G3: 'maybe' } })).not.toBe('');
+    const { G9: _missing, ...rest } = gateReport().checks;
+    expect(problem(GateReport, { ...gateReport(), checks: rest })).not.toBe('');
+    expect(problem(GateReport, { ...gateReport(), note: 'x' })).toBe(': Unrecognized key: "note"');
+  });
+});
+
+describe('ComposeArtifact', () => {
+  it('accepts the drafts of the rounds, in order', () => {
+    expect(problem(ComposeArtifact, { date: RUN_DATE, drafts: [structuredClone(GOLDEN_DRAFT), structuredClone(GOLDEN_DRAFT)] })).toBe('');
+  });
+
+  it('refuses no draft at all, a draft that is not a draft, and a field it does not know', () => {
+    expect(problem(ComposeArtifact, { date: RUN_DATE, drafts: [] })).not.toBe('');
+    expect(problem(ComposeArtifact, { date: RUN_DATE, drafts: [{ ...structuredClone(GOLDEN_DRAFT), slug: 'Not A Slug' }] })).toBe('drafts.0.slug: slug must be lowercase kebab-case');
+    expect(problem(ComposeArtifact, { date: RUN_DATE, drafts: [structuredClone(GOLDEN_DRAFT)], note: 'x' })).toBe(': Unrecognized key: "note"');
+    expect(problem(ComposeArtifact, { date: 'yesterday', drafts: [structuredClone(GOLDEN_DRAFT)] })).not.toBe('');
+  });
+});
+
+describe('VerifyArtifact', () => {
+  it('accepts a piece that was sent back once and then cleared, and one that was held', () => {
+    expect(problem(VerifyArtifact, verifyArtifact())).toBe('');
+    const held = verifyArtifact();
+    held.outcome = 'hold';
+    held.verifier = { model: 'model-v', passed: false, notes: ['The model check was not run on this draft: the gate found failures first.'] };
+    expect(problem(VerifyArtifact, held)).toBe('');
+  });
+
+  it('accepts a piece that the gate holds for the owner once the model check has passed it', () => {
+    const artifact = verifyArtifact();
+    artifact.outcome = 'hold';
+    artifact.rounds = 0;
+    artifact.history = [{ round: 0, gate: { ...gateReport(), route: 'hold', holdReasons: ['TIER2_ATTRIBUTION'] }, verifier: verifierRecord(), verifierFailures: [], sent: [] }];
+    artifact.gate = { ...gateReport(), route: 'hold', holdReasons: ['TIER2_ATTRIBUTION'] };
+    expect(problem(VerifyArtifact, artifact)).toBe('');
+  });
+
+  it('refuses a history with more or fewer passes than the rounds say', () => {
+    const artifact = verifyArtifact();
+    artifact.rounds = 2;
+    expect(problem(VerifyArtifact, artifact)).toBe('history: there must be one pass for the draft of the composer and one for each revision round');
+    artifact.rounds = 0;
+    expect(problem(VerifyArtifact, artifact)).toBe('history: there must be one pass for the draft of the composer and one for each revision round');
+  });
+
+  it('refuses passes that are not numbered 0, 1, 2 and so on, in order', () => {
+    const artifact = verifyArtifact();
+    artifact.history.reverse();
+    expect(problem(VerifyArtifact, artifact)).toBe('history: the passes must be numbered 0, 1, 2 and so on, in order');
+  });
+
+  it('refuses a history in which only one pass is numbered wrongly', () => {
+    const artifact = verifyArtifact();
+    (artifact.history[1] as { round: number }).round = 2;
+    expect(problem(VerifyArtifact, artifact)).toBe('history: the passes must be numbered 0, 1, 2 and so on, in order');
+  });
+
+  it('refuses to publish a piece that the gate does not route to publish, or that the model check did not pass', () => {
+    const revised = verifyArtifact();
+    revised.gate = { ...gateReport(), route: 'hold' };
+    expect(problem(VerifyArtifact, revised)).toBe('outcome: a piece is published only when the gate says publish and the model check passed');
+    const failed = verifyArtifact();
+    failed.verifier = { model: 'model-v', passed: false, notes: ['x'] };
+    expect(problem(VerifyArtifact, failed)).toBe('outcome: a piece is published only when the gate says publish and the model check passed');
+  });
+
+  it('refuses an outcome that is not publish or hold, a failure of the model check with no reason, and a field it does not know', () => {
+    expect(problem(VerifyArtifact, { ...verifyArtifact(), outcome: 'held' })).not.toBe('');
+    const empty = verifyArtifact();
+    empty.history[1] = { ...(empty.history[1] as object), verifierFailures: [{ id: 's3', kind: 'sentence', code: 'not_entailed', reason: '' }] } as never;
+    expect(problem(VerifyArtifact, empty)).toBe('history.1.verifierFailures.0.reason: Too small: expected string to have >=1 characters');
+    expect(problem(VerifyArtifact, { ...verifyArtifact(), note: 'x' })).toBe(': Unrecognized key: "note"');
   });
 });
 

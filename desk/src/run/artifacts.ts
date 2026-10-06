@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { Claim } from '@robywire/gate';
+import { CHECK_IDS, CHECK_RESULTS, Claim, Draft, ROUTES } from '@robywire/gate';
 import { z } from 'zod';
 import { describeIssues } from '../issues';
 import { canonicalJson, sha256Hex } from '../model/types';
@@ -126,6 +126,66 @@ export const ExtractArtifact = z
     path: ['claims'],
   });
 export type ExtractArtifact = z.infer<typeof ExtractArtifact>;
+
+/** What the gate said of a draft, as the record keeps it: the route, every failure with its code, the reasons to hold, and the result of each check. */
+export const GateReport = z.strictObject({
+  route: z.enum(ROUTES),
+  failures: z.array(z.strictObject({ check: z.enum(CHECK_IDS), code: text, message: text, where: z.string().optional() })),
+  holdReasons: z.array(text),
+  checks: z.record(z.enum(CHECK_IDS), z.enum(CHECK_RESULTS)),
+});
+export type GateReport = z.infer<typeof GateReport>;
+
+/**
+ * Every draft of the piece, in order: what the composer wrote first, then what each revision made of it. The drafts are the gate's own
+ * `Draft`, so each can be run through the gate again, and the last is the one that was published or held.
+ */
+export const ComposeArtifact = z.strictObject({
+  date: isoDate,
+  drafts: z.array(Draft).min(1),
+});
+export type ComposeArtifact = z.infer<typeof ComposeArtifact>;
+
+/** What the model check decided, as a ledger's `verifier` field has it. */
+const VerifierRecord = z.strictObject({ model: text, passed: z.boolean(), notes: z.array(text) });
+
+/** One pass of the verification: what the gate said of the draft of that round, what the model check said (none when the gate failed first), and which items went back. */
+const VerifyRound = z.strictObject({
+  /** 0 for the draft that the composer wrote, then 1, 2 and so on for each revision. */
+  round: z.number().int().nonnegative(),
+  gate: GateReport,
+  /** Null when the gate found failures: the model is not asked about a draft that code has already sent back. */
+  verifier: VerifierRecord.nullable(),
+  verifierFailures: z.array(z.strictObject({ id: text, kind: z.enum(['sentence', 'heading', 'label']), code: z.enum(['not_entailed', 'ambiguous', 'unsupported', 'missing']), reason: text })),
+  /** The ids of the sentences and headings that were sent back to the composer after this pass; none after the last. */
+  sent: z.array(text),
+});
+
+/**
+ * What the Verify stage decided: `publish` only when the gate cleared the last draft and the model check passed, otherwise `hold`; how many
+ * revision rounds were used; the gate and the model check of the last draft; and every pass, in order.
+ */
+export const VerifyArtifact = z
+  .strictObject({
+    date: isoDate,
+    outcome: z.enum(['publish', 'hold']),
+    rounds: z.number().int().nonnegative(),
+    gate: GateReport,
+    verifier: VerifierRecord,
+    history: z.array(VerifyRound).min(1),
+  })
+  .superRefine((artifact, context) => {
+    if (artifact.history.length !== artifact.rounds + 1) {
+      context.addIssue({ code: 'custom', path: ['history'], message: 'there must be one pass for the draft of the composer and one for each revision round' });
+    }
+    if (artifact.history.some((pass, at) => pass.round !== at)) {
+      context.addIssue({ code: 'custom', path: ['history'], message: 'the passes must be numbered 0, 1, 2 and so on, in order' });
+    }
+    if (artifact.outcome === 'publish' && !(artifact.gate.route === 'publish' && artifact.verifier.passed)) {
+      context.addIssue({ code: 'custom', path: ['outcome'], message: 'a piece is published only when the gate says publish and the model check passed' });
+    }
+  });
+export type VerifyArtifact = z.infer<typeof VerifyArtifact>;
 
 /** The folder of the run of a day: `<runsDir>/<date>`. The date must be a real day, so that a date can never name a path elsewhere. */
 export function runPath(runsDir: string, date: string): string {
