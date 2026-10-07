@@ -81,6 +81,17 @@ describe('holdRows', () => {
     for (const row of holdRows(STATE)) expect(Object.keys(row).sort()).toEqual(['at', 'beats', 'reasons', 'when']);
   });
 
+  it('shows no more for a hold that remembers its story: the slug of the held piece and the address of the story are for the Desk, and the page shows the date, the beats and the reasons only', () => {
+    const remembering: DeskState = {
+      ...EMPTY,
+      holds: [{ ...STATE.holds[1]!, slug: 'a-held-piece-that-is-not-published', sourceUrl: 'https://mercer-wire.example/robotics/the-story-that-is-held' }],
+    };
+    expect(holdRows(remembering)).toEqual(holdRows({ ...EMPTY, holds: [STATE.holds[1]!] }));
+    const shown = JSON.stringify(holdRows(remembering));
+    expect(shown).not.toContain('a-held-piece-that-is-not-published');
+    expect(shown).not.toContain('the-story-that-is-held');
+  });
+
   it('orders by the moment, not by the text of the time, when the times have different offsets', () => {
     const state: DeskState = {
       ...EMPTY,

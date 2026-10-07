@@ -502,6 +502,22 @@ describe('DeskState', () => {
     expectValid(DeskState, patch(VALID_DESK_STATE, 'holds.0.prUrl', undefined));
   });
 
+  it('accepts a hold that remembers its story, with the slug of the held piece and the address of the story, and a hold from before they existed, with neither', () => {
+    const remembered = patch(patch(VALID_DESK_STATE, 'holds.0.slug', 'fixture-robotics-ships-fx-1'), 'holds.0.sourceUrl', 'https://fixture-robotics.example/news/fx-1');
+    expectValid(DeskState, remembered);
+    expect(DeskState.parse(remembered).holds[0]).toMatchObject({ slug: 'fixture-robotics-ships-fx-1', sourceUrl: 'https://fixture-robotics.example/news/fx-1' });
+    // The state that was valid before the two fields were added still is, and parses without them.
+    const old = DeskState.parse(VALID_DESK_STATE);
+    expect(old.holds[0]).not.toHaveProperty('slug');
+    expect(old.holds[0]).not.toHaveProperty('sourceUrl');
+  });
+
+  it('rejects a hold whose slug is empty or whose story address is not an http address', () => {
+    expect(failedPaths(DeskState, patch(VALID_DESK_STATE, 'holds.0.slug', ''))).toEqual(['holds.0.slug']);
+    expect(failedPaths(DeskState, patch(VALID_DESK_STATE, 'holds.0.sourceUrl', 'a story'))).toEqual(['holds.0.sourceUrl']);
+    expect(failedPaths(DeskState, patch(VALID_DESK_STATE, 'holds.0.sourceUrl', 'javascript:alert(1)'))).toEqual(['holds.0.sourceUrl']);
+  });
+
   it('rejects an unknown outcome, a bad timestamp and a bad pull request URL', () => {
     expect(failedPaths(DeskState, patch(VALID_DESK_STATE, 'lastRun.outcome', 'crashed'))).toEqual(['lastRun.outcome']);
     expect(failedPaths(DeskState, patch(VALID_DESK_STATE, 'lastRun.at', 'earlier today'))).toEqual(['lastRun.at']);

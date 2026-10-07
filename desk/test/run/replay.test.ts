@@ -22,7 +22,7 @@ const scratch = useScratch();
 async function recordedRun(options: RunSetup = {}) {
   const made = setupRun(scratch, { record: true, ...options });
   const result = await made.run();
-  const replay: ReplayOptions = { config: made.config, sources: demoRegistry(), evidence: new LocalEvidenceStore(made.config.evidenceDir), ledgerDir: made.base.ledgerDir };
+  const replay: ReplayOptions = { config: made.config, sources: demoRegistry(), evidence: new LocalEvidenceStore(made.config.evidenceDir), ledgerDir: made.base.ledgerDir, stateFile: made.base.stateFile };
   return { ...made, result, replay };
 }
 

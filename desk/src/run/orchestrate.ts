@@ -1,7 +1,7 @@
 import { mkdir, readdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Claim, RunOutcome, SourcesRegistry } from '@robywire/gate';
-import { RunRecord, RunRefused, readRunRecord, recordRun, refuseApiOnFixtures, runPath, takeRunLock, writeJsonFile } from '../index';
+import { RunRecord, RunRefused, readDeskState, readRunRecord, recordRun, refuseApiOnFixtures, runPath, takeRunLock, writeJsonFile } from '../index';
 import type { BuiltClient, ClientKind, DeskConfig, EvidenceStore, Fetcher, ForgeTarget, PublishTarget, SourcesKind } from '../index';
 import { runCompose } from '../stages/compose';
 import { loadPublishedIndex } from '../stages/context';
@@ -64,6 +64,8 @@ export interface RunDeskOptions {
   forge?: ForgeTarget;
   /** The folder of the ledgers of the published pieces, which says what has been published. */
   ledgerDir: string;
+  /** The file of the desk state, which says which stories are held in a pull request that is not yet a fortnight old (`loadPublishedIndex`): the Desk does not choose them again. */
+  stateFile: string;
   /** The clock. It is read for the time of the run and nowhere else; the stages never read it. */
   now: () => Date;
   /** Run again for a day whose run did not fail: the folder of the old run is moved aside (as `<day>.replaced-<n>`), not removed. A day whose run failed is run again without it. */
@@ -239,7 +241,7 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
         client: options.model.client,
         evidence: options.evidence,
         runDir: dir,
-        published: await loadPublishedIndex(options.ledgerDir),
+        published: await loadPublishedIndex(options.ledgerDir, undefined, { holds: (await readDeskState(options.stateFile)).holds, date }),
         log,
       };
       stage = 'discover';
@@ -266,7 +268,7 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
         return { outcome: 'published', stage: 'publish', slug: published.slug, commit: published.commit, files: published.files };
       }
       stage = 'hold';
-      const held = await stages.hold(ctx, target, claims, verified, run, options.forge);
+      const held = await stages.hold(ctx, target, claims, verified, { ...run, sourceUrl: selected.chosen.url }, options.forge);
       const where = held.pullRequest !== null ? `; draft pull request ${held.pullRequest.url}` : held.note !== null ? `; no pull request: ${held.note}` : '';
       return { outcome: 'held', stage: 'hold', slug: held.slug, reason: `held for ${held.reasons.join(', ')}${where}`, pullRequest: held.pullRequest?.url ?? null, commit: held.commit, files: held.files };
     };

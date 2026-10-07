@@ -426,6 +426,7 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
       evidence: store.evidence,
       target: args.dry ? new DryTarget(deps.cwd) : new SiteTarget(deps.cwd, deps.git),
       ledgerDir: path.join(deps.cwd, sitePaths().ledgerDir),
+      stateFile: path.join(deps.cwd, sitePaths().stateFile),
       ...(deps.forge === undefined ? {} : { forge: deps.forge }),
       ...(deps.stages === undefined ? {} : { stages: deps.stages }),
       now: deps.now,
@@ -492,6 +493,7 @@ async function replayCommand(args: Extract<Parsed, { command: 'replay' }>, deps:
       sources: sourcesOf(how.sources, deps, config).sources,
       evidence: store.evidence,
       ledgerDir: path.join(deps.cwd, sitePaths().ledgerDir),
+      stateFile: path.join(deps.cwd, sitePaths().stateFile),
       ...(args.cassettes === undefined ? {} : { cassetteDir: path.resolve(deps.cwd, args.cassettes) }),
     });
     deps.out(`run: ${report.runId}`);

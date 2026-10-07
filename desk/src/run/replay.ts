@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { SourcesRegistry } from '@robywire/gate';
-import { FetchArtifact, FetchError, RecordedClient, SelectArtifact, readArtifact, readRunRecord } from '../index';
+import { FetchArtifact, FetchError, RecordedClient, SelectArtifact, readArtifact, readDeskState, readRunRecord } from '../index';
 import type { DeskConfig, EvidenceStore, Fetcher } from '../index';
 import { runCompose } from '../stages/compose';
 import { loadPublishedIndex } from '../stages/context';
@@ -27,6 +27,8 @@ export interface ReplayOptions {
   evidence: EvidenceStore;
   /** The folder of the ledgers of the published pieces. The pieces that there were when the run began are what the replay sees. */
   ledgerDir: string;
+  /** The file of the desk state: the holds that there were when the run began are part of what the stages saw. */
+  stateFile: string;
   /** Where the replies of the model are kept. By default `cassettes` in the folder of the run. */
   cassetteDir?: string;
   /** The folder in which the replay makes its own folder for the artifacts it writes. By default the temporary directory of the machine. */
@@ -132,7 +134,11 @@ export async function replayRun(runDir: string, options: ReplayOptions): Promise
     try {
       const snapshots: Snapshot[] = [];
       for (const document of fetched.documents) snapshots.push({ ...document, text: (await options.evidence.get(document.hash)).text });
-      const published = await loadPublishedIndex(options.ledgerDir, (entry) => entry.publishedAt < record.date || (entry.publishedAt === record.date && entry.runId < record.runId));
+      const published = await loadPublishedIndex(options.ledgerDir, (entry) => entry.publishedAt < record.date || (entry.publishedAt === record.date && entry.runId < record.runId), {
+        holds: (await readDeskState(options.stateFile)).holds,
+        date: record.date,
+        before: record.startedAt,
+      });
       const ctx: StageContext = {
         date: record.date,
         config: options.config,

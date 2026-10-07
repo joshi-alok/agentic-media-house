@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { LedgerEntry } from '@robywire/gate';
-import type { SourcesRegistry } from '@robywire/gate';
+import { LedgerEntry, dayNumber, defaultConfig as defaultGateConfig } from '@robywire/gate';
+import type { DeskState, SourcesRegistry } from '@robywire/gate';
 import { ExtractError, FeedError, FetchError, canonicalUrl, describeIssues } from '../index';
 import type { DeskConfig, EvidenceStore, Fetcher, ModelClient } from '../index';
 
@@ -9,13 +9,13 @@ import type { DeskConfig, EvidenceStore, Fetcher, ModelClient } from '../index';
 // `StageContext` (and of the artifact of the stage before it); it does not read the clock, the network, the
 // disk or a model except through what the context holds, so a test can run it with fixtures and a fake model.
 
-/** What the Desk has already published: used to avoid writing the same story twice. */
+/** What the Desk has already published, and what it holds in an open pull request: used to avoid writing the same story twice. */
 export interface PublishedIndex {
-  /** The slugs of the published pieces. */
+  /** The slugs of the published pieces, and of the pieces that are held in a pull request that is not yet a fortnight old. */
   slugs: string[];
   /** Their titles, each with the day (YYYY-MM-DD) it was published. */
   titles: { title: string; publishedAt: string }[];
-  /** The canonical addresses (see `canonicalUrl`) of every source the published pieces cite. */
+  /** The canonical addresses (see `canonicalUrl`) of every source the published pieces cite, and of the stories that are held in a pull request that is not yet a fortnight old. */
   sourceUrls: string[];
 }
 
@@ -43,14 +43,38 @@ export function emptyPublished(): PublishedIndex {
   return { slugs: [], titles: [], sourceUrls: [] };
 }
 
+/** The holds of the desk state, and the day that a run is for: what a story that is held in a pull request is remembered by. */
+export interface HeldStories {
+  holds: DeskState['holds'];
+  /** The day of the run, YYYY-MM-DD. */
+  date: string;
+  /** When given, only a hold recorded before this moment (an ISO time) counts: a replay sees the holds that there were when its run began, and not the one that run made. */
+  before?: string;
+}
+
+/**
+ * Whether a hold still keeps its story out of the pipeline on the day `held.date`: it was recorded on that day or in the days before it, up to the gate's window of `titleWindowDays`
+ * (14), as a title of a published piece is compared with. A hold from yesterday counts, one from fifteen days ago does not, and a hold recorded after the day does not (a run of a
+ * day that is past does not see what was held since).
+ */
+function keepsOut(hold: DeskState['holds'][number], held: HeldStories): boolean {
+  if (held.before !== undefined && hold.at >= held.before) return false;
+  const days = (dayNumber(held.date) ?? Number.NaN) - (dayNumber(hold.at.slice(0, 10)) ?? Number.NaN);
+  return days >= 0 && days <= defaultGateConfig().titleWindowDays;
+}
+
 /**
  * What has been published, from the ledgers of the pieces: a folder of `<slug>.json` files (the site keeps them in
  * `site/src/content/ledger`; today it holds none). Other files in the folder are ignored. A folder that does not
  * exist, or a ledger that is not valid, is an error and stops the run: with a wrong list of what is published, the
  * Desk could write a story twice. With `keep`, only the ledgers for which it says true are counted, which is how a replay
  * sees the pieces that there were when its run began and not the one that run made.
+ *
+ * With `held`, the stories that are held count as covered too: the slug and the address of the story of each hold (`keepsOut`) are added to the slugs and the addresses of the
+ * published pieces, so that Discover does not offer the story again and the slug of another piece does not collide with the slug of a piece that is waiting for the owner. A hold
+ * from before the desk state remembered them has neither, and covers nothing.
  */
-export async function loadPublishedIndex(ledgerDir: string, keep: (entry: LedgerEntry) => boolean = () => true): Promise<PublishedIndex> {
+export async function loadPublishedIndex(ledgerDir: string, keep: (entry: LedgerEntry) => boolean = () => true, held?: HeldStories): Promise<PublishedIndex> {
   let names: string[];
   try {
     names = await readdir(ledgerDir);
@@ -78,6 +102,13 @@ export async function loadPublishedIndex(ledgerDir: string, keep: (entry: Ledger
       if (url !== null) urls.add(url);
     }
   }
+  const slugs = new Set(index.slugs);
+  for (const hold of held === undefined ? [] : held.holds.filter((candidate) => keepsOut(candidate, held))) {
+    if (hold.slug !== undefined) slugs.add(hold.slug);
+    const url = hold.sourceUrl === undefined ? null : canonicalUrl(hold.sourceUrl);
+    if (url !== null) urls.add(url);
+  }
+  index.slugs = [...slugs];
   index.sourceUrls = [...urls];
   return index;
 }

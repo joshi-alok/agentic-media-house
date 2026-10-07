@@ -278,6 +278,25 @@ describe('the README: the file of settings of the daily run', () => {
   });
 });
 
+describe('the README: a hold is remembered', () => {
+  const holds = (): string => section('Holds and corrections');
+
+  it('says what the desk state records with a hold, for how long it covers its story, and what that stops', () => {
+    expect(holds()).toContain('**A hold is remembered, so that a story is not held twice.**');
+    expect(holds()).toContain('the slug of the held piece and the address of the story that the Desk chose (`slug` and `sourceUrl`; a hold recorded before they existed has neither, and covers nothing)');
+    expect(holds()).toContain('A hold covers its story for 14 days after it was recorded');
+    expect(holds()).toContain('two runs in a row cannot open two pull requests for one story');
+    expect(holds()).toContain('A hold from yesterday covers its story, a hold from 15 days ago does not.');
+  });
+
+  it('says how to let a discarded story go before the 14 days are over, and what is not remembered', () => {
+    expect(holds()).toContain('A pull request that you close keeps its story out of the pipeline until the 14 days are over.');
+    expect(holds()).toContain('delete its hold from `site/src/data/desk-state.json` (the Desk never deletes a hold itself), commit that, and, if the day already has a run that held, run `npm run desk -- run --force-new`');
+    expect(holds()).toContain('the same story reported at another address is another candidate');
+    expect(holds()).toContain('The holds page of the site shows the date, the beats and the reasons of a hold, and neither the slug nor the address.');
+  });
+});
+
 describe('the README: the daily workflow', () => {
   const workflow = (): string => section('The daily workflow');
 

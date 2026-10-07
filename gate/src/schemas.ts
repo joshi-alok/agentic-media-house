@@ -207,6 +207,10 @@ export const DeskState = z.object({
       categories: z.array(z.string()),
       reasons: z.array(z.string()),
       prUrl: httpUrl.optional(),
+      // What the Desk remembers of the story that it held, so that the next run does not hold it again while its pull request is open: the slug of the held piece and the
+      // address of the story as Discover saw it. Both are optional, because a hold that was recorded before they existed has neither. The holds page of the site shows neither.
+      slug: text.optional(),
+      sourceUrl: httpUrl.optional(),
     }),
   ),
   corrections: z.array(

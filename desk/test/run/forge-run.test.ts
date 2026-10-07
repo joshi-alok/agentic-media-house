@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { demoClient } from '../../src/demo/story';
-import { DEMO_DATE } from '../../src/demo/world';
+import { DEMO_DATE, DEMO_URLS } from '../../src/demo/world';
 import { FakeClient } from '../../src/model/fake';
 import { clientFromConfig } from '../../src/model/factory';
 import { readDeskState } from '../../src/run/desk-state';
@@ -43,7 +43,7 @@ describe('a run that is held, with a forge', () => {
     expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'pushBranch', 'openDraftPullRequest']);
     expect(await readDeskState(path.join(repoDir, STATE))).toEqual({
       lastRun: { at: START.toISOString(), outcome: 'held', runId: result.runId, slug: result.slug },
-      holds: [{ at: START.toISOString(), categories: expect.any(Array), reasons: ['G10_NOT_ENTAILED'], prUrl: result.pullRequest }],
+      holds: [{ at: START.toISOString(), categories: expect.any(Array), reasons: ['G10_NOT_ENTAILED'], prUrl: result.pullRequest, slug: result.slug, sourceUrl: DEMO_URLS.mercerArticle }],
       corrections: [],
     });
     expect(branchesIn(repoDir)).toEqual([branch, 'main'].sort());

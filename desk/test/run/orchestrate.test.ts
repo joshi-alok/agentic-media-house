@@ -186,7 +186,8 @@ describe('runDesk: a piece that is held', () => {
     const result = await run();
     const state = await readDeskState(path.join(repoDir, STATE));
     expect(state.lastRun).toEqual({ at: START.toISOString(), outcome: 'held', runId: result.runId, slug: result.slug });
-    expect(state.holds).toEqual([{ at: START.toISOString(), categories: ['humanoids'], reasons: ['G10_NOT_ENTAILED'] }]);
+    // It remembers the piece and the address of the story that was chosen, so that the next run does not choose the story again while the hold is open.
+    expect(state.holds).toEqual([{ at: START.toISOString(), categories: ['humanoids'], reasons: ['G10_NOT_ENTAILED'], slug: result.slug, sourceUrl: DEMO_URLS.mercerArticle }]);
   });
 });
 

@@ -116,9 +116,18 @@ describe('runHold: a piece that cites another outlet', () => {
     expect(result.reasons).toEqual(['TIER2_ATTRIBUTION']);
     expect(await readDeskState(path.join(repoDir, STATE))).toEqual({
       lastRun: { at: RUN.at, outcome: 'held', runId: RUN.runId, slug: verified.draft.slug },
-      holds: [{ at: RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'] }],
+      holds: [{ at: RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], slug: verified.draft.slug }],
       corrections: [],
     });
+  });
+
+  it('remembers the slug of the piece and the address of the story with the hold, so that the next run does not choose the story again while the pull request is open', async () => {
+    const { ctx, claims, verified } = await tier2();
+    const { repoDir, target } = setup();
+    await runHold(ctx, target, claims, verified, { ...RUN, sourceUrl: 'https://mercer-wire.example/robotics/a-story' });
+    expect((await readDeskState(path.join(repoDir, STATE))).holds).toEqual([
+      { at: RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], slug: verified.draft.slug, sourceUrl: 'https://mercer-wire.example/robotics/a-story' },
+    ]);
   });
 
   it('keeps the holds of earlier runs, and adds this one after them', async () => {

@@ -107,7 +107,7 @@ describe('runHold with a forge: the piece is sent to the owner', () => {
     expect(result.files).toEqual([STATE]);
     expect(await readDeskState(path.join(repoDir, STATE))).toEqual({
       lastRun: { at: HOLD_RUN.at, outcome: 'held', runId: HOLD_RUN.runId, slug },
-      holds: [{ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], prUrl: result.pullRequest?.url }],
+      holds: [{ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], prUrl: result.pullRequest?.url, slug }],
       corrections: [],
     });
     expect(git(repoDir, 'diff', '--name-only', `main~1`, 'main')).toBe(STATE);
@@ -268,7 +268,7 @@ describe('runHold with a forge: what is not sent', () => {
     expect(result.note).toContain('c-99');
     expect(forge.calls).toEqual([]);
     expect(branchesIn(repoDir)).toEqual(['main']);
-    expect((await readDeskState(path.join(repoDir, STATE))).holds).toEqual([{ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'] }]);
+    expect((await readDeskState(path.join(repoDir, STATE))).holds).toEqual([{ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], slug }]);
     expect(subjectsOf(repoDir)).toEqual([`desk: hold ${slug}`, 'start']);
     expect(existsSync(result.file)).toBe(true);
   });
@@ -290,6 +290,6 @@ describe('runHold with a forge: what is not sent', () => {
     expect(result.note).toBeNull();
     expect(branchesIn(repoDir)).toEqual(['main']);
     expect(subjectsOf(repoDir)).toEqual([`desk: hold ${slug}`, 'start']);
-    expect((await readDeskState(path.join(repoDir, STATE))).holds[0]).toEqual({ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'] });
+    expect((await readDeskState(path.join(repoDir, STATE))).holds[0]).toEqual({ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], slug });
   });
 });

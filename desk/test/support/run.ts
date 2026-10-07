@@ -69,6 +69,7 @@ export function setupRun(scratch: () => string, options: RunSetup = {}) {
     evidence: new LocalEvidenceStore(config.evidenceDir),
     target: options.dry === true ? new DryTarget(repoDir) : new SiteTarget(repoDir, git),
     ledgerDir: path.join(repoDir, sitePaths().ledgerDir),
+    stateFile: path.join(repoDir, sitePaths().stateFile),
     now: clock(),
     log: (line) => void logs.push(line),
     ...(options.stages === undefined ? {} : { stages: options.stages }),

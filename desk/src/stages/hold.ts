@@ -23,6 +23,8 @@ import type { VerifierFailure } from './verify-model';
 export interface HoldRun {
   runId: string;
   at: string;
+  /** The address of the story that was chosen, as Discover found it. It is recorded with the hold, so that the next run does not choose the same story while the pull request of this hold is open. */
+  sourceUrl?: string;
 }
 
 export interface HoldResult {
@@ -104,7 +106,17 @@ export async function runHold(ctx: StageContext, target: PublishTarget, claims: 
   try {
     result = await target.apply({
       state: (state) =>
-        recordRun(addHold(state, { at: run.at, categories: draft.categories, reasons, ...(pullRequest === null ? {} : { prUrl: pullRequest.url }) }), { at: run.at, outcome: 'held', runId: run.runId, slug: draft.slug }),
+        recordRun(
+          addHold(state, {
+            at: run.at,
+            categories: draft.categories,
+            reasons,
+            ...(pullRequest === null ? {} : { prUrl: pullRequest.url }),
+            slug: draft.slug,
+            ...(run.sourceUrl === undefined ? {} : { sourceUrl: run.sourceUrl }),
+          }),
+          { at: run.at, outcome: 'held', runId: run.runId, slug: draft.slug },
+        ),
       message: `desk: hold ${draft.slug}`,
     });
   } catch (error) {

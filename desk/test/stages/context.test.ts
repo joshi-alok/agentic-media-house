@@ -112,6 +112,72 @@ describe('loadPublishedIndex', () => {
   });
 });
 
+describe('loadPublishedIndex: the stories that are held', () => {
+  const RUN_DAY = '2026-10-20';
+  const hold = (at: string, extra: Record<string, string> = {}) => ({ at, categories: ['humanoids'], reasons: ['G10_NOT_ENTAILED'], ...extra });
+  const story = { slug: 'a-held-piece', sourceUrl: 'https://mercer-wire.example/robotics/a-held-story' };
+
+  it('counts a hold from yesterday: its slug is among the slugs and the address of its story among the addresses', async () => {
+    const dir = scratch();
+    const index = await loadPublishedIndex(dir, undefined, { holds: [hold('2026-10-19T04:31:00.000Z', story)], date: RUN_DAY });
+    expect(index.slugs).toEqual(['a-held-piece']);
+    expect(index.sourceUrls).toEqual(['https://mercer-wire.example/robotics/a-held-story']);
+    expect(index.titles).toEqual([]);
+  });
+
+  it.each([
+    ['on the day of the run', '2026-10-20T01:00:00.000Z', true],
+    ['14 days before it, the last day of the window of the gate', '2026-10-06T23:59:59.000Z', true],
+    ['15 days before it', '2026-10-05T23:59:59.000Z', false],
+    ['the day after it', '2026-10-21T00:00:01.000Z', false],
+    ['a year before it', '2025-10-20T04:31:00.000Z', false],
+  ])('a hold recorded %s %s counted', async (_when, at, counted) => {
+    const index = await loadPublishedIndex(scratch(), undefined, { holds: [hold(at, story)], date: RUN_DAY });
+    expect(index.slugs).toEqual(counted ? ['a-held-piece'] : []);
+    expect(index.sourceUrls).toEqual(counted ? ['https://mercer-wire.example/robotics/a-held-story'] : []);
+  });
+
+  it('is harmless for a hold that has neither a slug nor an address (one recorded before the desk state remembered them), whatever its age', async () => {
+    const index = await loadPublishedIndex(scratch(), undefined, { holds: [hold('2026-10-19T04:31:00.000Z'), hold('2026-10-20T04:31:00.000Z')], date: RUN_DAY });
+    expect(index).toEqual(emptyPublished());
+  });
+
+  it('counts a hold that has a slug and no address, and one that has an address and no slug, for what each has', async () => {
+    const index = await loadPublishedIndex(scratch(), undefined, { holds: [hold('2026-10-19T04:31:00.000Z', { slug: 'only-a-slug' }), hold('2026-10-19T05:31:00.000Z', { sourceUrl: 'https://mercer-wire.example/only-an-address' })], date: RUN_DAY });
+    expect(index.slugs).toEqual(['only-a-slug']);
+    expect(index.sourceUrls).toEqual(['https://mercer-wire.example/only-an-address']);
+  });
+
+  it('keeps the address in its canonical form, as it keeps those of the ledgers, so that the candidate that Discover finds is recognised', async () => {
+    const index = await loadPublishedIndex(scratch(), undefined, { holds: [hold('2026-10-19T04:31:00.000Z', { sourceUrl: 'https://Mercer-Wire.example/robotics/a-held-story#comments' })], date: RUN_DAY });
+    expect(index.sourceUrls).toEqual([canonicalUrl('https://mercer-wire.example/robotics/a-held-story')]);
+  });
+
+  it('adds the holds to the published pieces and lists nothing twice, whether a hold shares its address or its slug with a piece or with another hold', async () => {
+    const published = await loadPublishedIndex(FIXTURE_LEDGERS);
+    const [slug] = published.slugs;
+    const [address] = published.sourceUrls;
+    const index = await loadPublishedIndex(FIXTURE_LEDGERS, undefined, {
+      holds: [hold('2026-10-05T04:31:00.000Z', { slug: slug as string, sourceUrl: address as string }), hold('2026-10-05T05:31:00.000Z', story), hold('2026-10-05T06:31:00.000Z', story)],
+      date: '2026-10-06',
+    });
+    expect(index.slugs).toEqual([...published.slugs, 'a-held-piece']);
+    expect(index.sourceUrls).toEqual([...published.sourceUrls, 'https://mercer-wire.example/robotics/a-held-story']);
+    expect(index.titles).toEqual(published.titles);
+  });
+
+  it('counts only the holds that were recorded before `before`, which is how a replay sees what there was when its run began and not the hold that the run made', async () => {
+    const holds = [hold('2026-10-19T04:31:00.000Z', story), hold('2026-10-20T04:31:00.000Z', { slug: 'made-by-the-run', sourceUrl: 'https://mercer-wire.example/the-run' })];
+    const index = await loadPublishedIndex(scratch(), undefined, { holds, date: RUN_DAY, before: '2026-10-20T04:31:00.000Z' });
+    expect(index.slugs).toEqual(['a-held-piece']);
+    expect(index.sourceUrls).toEqual(['https://mercer-wire.example/robotics/a-held-story']);
+  });
+
+  it('is what it was before, when it is given no holds, and when it is given none that count', async () => {
+    expect(await loadPublishedIndex(FIXTURE_LEDGERS, undefined, { holds: [], date: '2026-10-06' })).toEqual(await loadPublishedIndex(FIXTURE_LEDGERS));
+  });
+});
+
 describe('isSourceFailure and describeFailure', () => {
   const fetchError = new FetchError('status', 'https://a.example/x', 'answered 404', { status: 404 });
   const feedError = new FeedError('malformed', 'the feed is not well-formed XML: x');
