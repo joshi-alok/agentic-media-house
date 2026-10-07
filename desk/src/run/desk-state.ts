@@ -16,6 +16,9 @@ export type LastRun = NonNullable<DeskState['lastRun']>;
 /** A draft the gate held back: when, its categories, why (the codes of the failures and hold reasons), and the pull request when there is one. */
 export type Hold = DeskState['holds'][number];
 
+/** A correction or a retraction of a published piece: when it was recorded, which piece, which of the two it is, and the note that says why. */
+export type Correction = DeskState['corrections'][number];
+
 /** The state with `run` as its last run. A new state: the one given is not changed, and the two share nothing. */
 export function recordRun(state: DeskState, run: LastRun): DeskState {
   return structuredClone({ ...state, lastRun: run });
@@ -24,6 +27,11 @@ export function recordRun(state: DeskState, run: LastRun): DeskState {
 /** The state with `hold` after the holds that are there. A new state: the one given is not changed, and the two share nothing. */
 export function addHold(state: DeskState, hold: Hold): DeskState {
   return structuredClone({ ...state, holds: [...state.holds, hold] });
+}
+
+/** The state with `correction` after the corrections that are there. A new state: the one given is not changed, and the two share nothing. */
+export function addCorrection(state: DeskState, correction: Correction): DeskState {
+  return structuredClone({ ...state, corrections: [...state.corrections, correction] });
 }
 
 /**

@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { DeskState } from '@robywire/gate';
 import { describe, expect, it } from 'vitest';
-import { addHold, assertNothingLost, readDeskState, recordRun, updateDeskState, writeDeskState } from '../../src/run/desk-state';
+import { addCorrection, addHold, assertNothingLost, readDeskState, recordRun, updateDeskState, writeDeskState } from '../../src/run/desk-state';
 import type { Hold, LastRun } from '../../src/run/desk-state';
 import { useScratch } from '../support/context';
 
@@ -62,6 +62,25 @@ describe('addHold', () => {
   it('does not change the state it is given', () => {
     addHold(EMPTY, HOLD);
     expect(EMPTY.holds).toEqual([]);
+  });
+});
+
+describe('addCorrection', () => {
+  it('adds the correction after the corrections that are there, in the order they were added', () => {
+    const second = { ...CORRECTION, at: '2026-10-07T09:00:00.000Z', kind: 'retraction' as const, note: 'Withdrawn.' };
+    expect(addCorrection(addCorrection(EMPTY, CORRECTION), second).corrections).toEqual([CORRECTION, second]);
+  });
+
+  it('leaves the last run and the holds as they were', () => {
+    const state: DeskState = { lastRun: RUN, holds: [HOLD], corrections: [] };
+    expect(addCorrection(state, CORRECTION)).toEqual({ lastRun: RUN, holds: [HOLD], corrections: [CORRECTION] });
+  });
+
+  it('does not change the state it is given, nor share its arrays with the new one', () => {
+    const state: DeskState = { lastRun: null, holds: [], corrections: [CORRECTION] };
+    const next = addCorrection(state, { ...CORRECTION, note: 'Another.' });
+    next.corrections.push({ ...CORRECTION, note: 'A third.' });
+    expect(state.corrections).toEqual([CORRECTION]);
   });
 });
 

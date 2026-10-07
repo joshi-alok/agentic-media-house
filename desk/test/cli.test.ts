@@ -11,10 +11,13 @@ import type { Transport } from '../src/fetch/http';
 import { FakeForge } from '../src/run/forge';
 import { FakeGit } from '../src/run/git';
 import type { RunResult, Stages } from '../src/run/orchestrate';
+import { MAX_REASON_LENGTH } from '../src/run/retract';
 import { sitePaths } from '../src/run/target';
 import { runVerify } from '../src/stages/verify';
 import { useScratch } from './support/context';
 import { publicLookup } from './support/lookup';
+import { placePiece } from './support/pieces';
+import { PUBLISHED_SLUG, publishedPiece } from './support/published';
 import { clock } from './support/run';
 import { COMMITTED_STATE, filesBelow, makeSite } from './support/site';
 
@@ -244,8 +247,10 @@ describe('main: usage errors', () => {
     expect(USAGE).toContain('maxAttemptsPerDay');
     expect(USAGE).toContain('--client api is refused with --sources fixtures');
     expect(USAGE).toContain('desk status');
+    expect(USAGE).toContain('desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]');
     expect(USAGE).toContain('[--config <path>]');
-    expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ')).every((line) => line.includes('[--config <path>]'))).toBe(true);
+    // Every command that reads the settings says so; `retract` does not read them.
+    expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ') && !line.startsWith('  desk retract')).every((line) => line.includes('[--config <path>]'))).toBe(true);
   });
 });
 
@@ -913,6 +918,102 @@ describe('desk run: a held piece that was sent to the owner', () => {
     expect(await call(...DRY_DEMO)).toBe(0);
     expect(given).toBeUndefined();
     expect(out.some((line) => line.startsWith('pull request:'))).toBe(false);
+  });
+});
+
+describe('parseArgs: retract', () => {
+  it('reads the slug, the reason and the kind, which is a correction unless it says retraction', () => {
+    expect(parsed('retract', 'a-piece', '--reason', 'The payload was 38 kg.')).toEqual({ command: 'retract', slug: 'a-piece', reason: 'The payload was 38 kg.', kind: 'correction', dry: false });
+    expect(parsed('retract', 'a-piece', '--reason', 'Withdrawn.', '--kind', 'retraction', '--dry')).toEqual({ command: 'retract', slug: 'a-piece', reason: 'Withdrawn.', kind: 'retraction', dry: true });
+    expect(parsed('retract', '--dry', '--kind', 'correction', '--reason', 'x', 'a-piece')).toEqual({ command: 'retract', slug: 'a-piece', reason: 'x', kind: 'correction', dry: true });
+  });
+
+  it('gives the reason as it was typed: the command that records it makes it one line', () => {
+    expect(parsed('retract', 'a-piece', '--reason', '  two\nlines  ')).toMatchObject({ reason: '  two\nlines  ' });
+  });
+
+  it('refuses a mistake in the arguments, and says which', () => {
+    expect(refused('retract')).toBe('retract needs the slug of a piece');
+    expect(refused('retract', 'a', 'b', '--reason', 'x')).toBe('retract takes one slug, but was given "a" and "b"');
+    expect(refused('retract', 'A Piece', '--reason', 'x')).toBe('"A Piece" is not a plain slug (lowercase letters and digits joined by single hyphens)');
+    expect(refused('retract', '../x', '--reason', 'x')).toContain('is not a plain slug');
+    expect(refused('retract', 'a-piece')).toBe('retract needs --reason <text>: why the piece is corrected or retracted');
+    expect(refused('retract', 'a-piece', '--reason')).toBe('--reason needs a value');
+    expect(refused('retract', 'a-piece', '--reason', '   ')).toBe('the reason is empty: say why the piece is corrected or retracted');
+    expect(refused('retract', 'a-piece', '--reason', 'x'.repeat(MAX_REASON_LENGTH + 1))).toContain('the reason is 501 characters');
+    expect(parsed('retract', 'a-piece', '--reason', 'x'.repeat(MAX_REASON_LENGTH))).toMatchObject({ command: 'retract' });
+    expect(refused('retract', 'a-piece', '--reason', 'a\u0007b')).toBe('the reason has a control character in it');
+    expect(refused('retract', 'a-piece', '--reason', 'x', '--kind', 'deletion')).toBe('--kind is correction or retraction, not "deletion"');
+    expect(refused('retract', 'a-piece', '--reason', 'x', '--dry', '--dry')).toBe('--dry is given twice');
+  });
+
+  it('has the options of retract and no others', () => {
+    for (const option of ['--config', '--client', '--sources', '--date', '--force-new', '--cassettes']) expect(refused('retract', 'a-piece', '--reason', 'x', option, 'y'), option).toBe(`unknown option ${option} for retract`);
+    expect(refused('run', '--reason', 'x')).toBe('unknown option --reason for run');
+    expect(refused('status', '--kind', 'correction')).toBe('unknown option --kind for status');
+  });
+});
+
+describe('main: retract', () => {
+  /** The checkout of the site with the golden piece published in it, and what a person types to correct it. */
+  function withPiece() {
+    const made = setup();
+    placePiece(made.cwd, publishedPiece());
+    return { ...made, correct: (...more: string[]) => made.call('retract', PUBLISHED_SLUG, '--reason', 'The payload is 38 kg, not 83 kg.', ...more) };
+  }
+
+  it('records the correction, sets updatedAt of the piece and commits the two files, and says so', async () => {
+    const { correct, out, err, git, cwd } = withPiece();
+    expect(await correct()).toBe(0);
+    expect(err).toEqual([]);
+    const at = '2026-10-05T04:31:00.000Z';
+    expect(out).toEqual([`piece: ${PUBLISHED_SLUG}`, 'kind: correction', `recorded: ${at}`, 'updatedAt: 2026-10-05', `commit: ${git.commits[0]?.id}`]);
+    expect(git.commits).toEqual([{ id: git.commits[0]?.id, paths: [sitePaths().newsFile(PUBLISHED_SLUG), STATE], message: `desk: correct ${PUBLISHED_SLUG}` }]);
+    expect(readFileSync(path.join(cwd, sitePaths().newsFile(PUBLISHED_SLUG)), 'utf8')).toBe(publishedPiece('2026-10-05').mdx);
+    expect(JSON.parse(readFileSync(path.join(cwd, STATE), 'utf8')).corrections).toEqual([{ at, slug: PUBLISHED_SLUG, kind: 'correction', note: 'The payload is 38 kg, not 83 kg.' }]);
+  });
+
+  it('makes a retraction when it is asked to', async () => {
+    const { correct, git, out } = withPiece();
+    expect(await correct('--kind', 'retraction')).toBe(0);
+    expect(out[1]).toBe('kind: retraction');
+    expect(git.commits[0]?.message).toBe(`desk: retract ${PUBLISHED_SLUG}`);
+  });
+
+  it('with --dry says what it would do and writes and commits nothing', async () => {
+    const { correct, out, git, cwd } = withPiece();
+    expect(await correct('--dry')).toBe(0);
+    expect(out.at(-1)).toBe(`dry run: nothing was written or committed (${sitePaths().newsFile(PUBLISHED_SLUG)}, ${STATE} would have been)`);
+    expect(git.commits).toEqual([]);
+    expect(readFileSync(path.join(cwd, STATE), 'utf8')).toBe(COMMITTED_STATE);
+  });
+
+  it('exits 1 and says why when the correction is refused: a piece that is not on the site, a file with a change that is not committed', async () => {
+    const { call, err, git } = withPiece();
+    expect(await call('retract', 'no-such-piece', '--reason', 'x')).toBe(1);
+    expect(err).toEqual(['the correction was refused: there is no piece "no-such-piece" in site/src/content/news. A piece that was held is on its pull request until the owner merges it, and cannot be corrected before it is published']);
+    git.dirty.add(STATE);
+    err.length = 0;
+    expect(await call('retract', PUBLISHED_SLUG, '--reason', 'x')).toBe(1);
+    expect(err[0]).toContain('the correction was refused: the files that this changes have changes that are not committed');
+    expect(git.commits).toEqual([]);
+  });
+
+  it('exits 1 and puts the files back when git cannot commit', async () => {
+    const { correct, err, git, cwd } = withPiece();
+    git.failNextCommit = new Error('no space left');
+    expect(await correct()).toBe(1);
+    expect(err).toEqual(['the correction failed: no space left']);
+    expect(readFileSync(path.join(cwd, STATE), 'utf8')).toBe(COMMITTED_STATE);
+    expect(readFileSync(path.join(cwd, sitePaths().newsFile(PUBLISHED_SLUG)), 'utf8')).toBe(publishedPiece().mdx);
+  });
+
+  it('exits 2 with the usage for a mistake in the arguments, and writes nothing', async () => {
+    const { call, err, git, cwd } = withPiece();
+    expect(await call('retract', PUBLISHED_SLUG)).toBe(2);
+    expect(err).toEqual(['desk: retract needs --reason <text>: why the piece is corrected or retracted', USAGE]);
+    expect(git.commits).toEqual([]);
+    expect(readFileSync(path.join(cwd, STATE), 'utf8')).toBe(COMMITTED_STATE);
   });
 });
 

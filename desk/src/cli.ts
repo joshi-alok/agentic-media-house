@@ -1,8 +1,29 @@
 import { stat } from 'node:fs/promises';
 import path from 'node:path';
-import { loadSources } from '@robywire/gate';
-import type { SourcesRegistry } from '@robywire/gate';
-import { CLIENT_KINDS, HttpFetcher, LocalEvidenceStore, RunRefused, SOURCES_KINDS, clientFromConfig, defaultConfig, loadConfig, placeholderHost, readDeskState, readRunRecord, refuseApiOnFixtures, runPath, sitePaths, DryTarget, SiteTarget } from './index';
+import { CORRECTION_KINDS, loadSources } from '@robywire/gate';
+import type { CorrectionKind, SourcesRegistry } from '@robywire/gate';
+import {
+  CLIENT_KINDS,
+  HttpFetcher,
+  LocalEvidenceStore,
+  RetractRefused,
+  RunRefused,
+  SOURCES_KINDS,
+  clientFromConfig,
+  defaultConfig,
+  isPlainSlug,
+  loadConfig,
+  normaliseReason,
+  placeholderHost,
+  readDeskState,
+  readRunRecord,
+  refuseApiOnFixtures,
+  retractPiece,
+  runPath,
+  sitePaths,
+  DryTarget,
+  SiteTarget,
+} from './index';
 import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, Fetcher, ForgeTarget, GitTarget, Lookup, RetryOptions, SourcesKind, StoredRunRecord, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
@@ -10,11 +31,11 @@ import { runDesk } from './run/orchestrate';
 import type { RunResult, Stages } from './run/orchestrate';
 import { replayRun } from './run/replay';
 
-// The command line of the Desk: `desk run`, `desk replay <folder of a run>` and `desk status`. The arguments are read by hand, with no library, and a
+// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status` and `desk retract <slug>`. The arguments are read by hand, with no library, and a
 // mistake in them is a usage error (exit code 2) that says what is wrong and writes nothing. Everything `main` needs from the outside, the clock, the
 // environment, git, where to print, is in `deps`, so that a test calls `main` with fakes and nothing real is touched. The exit codes are 0 for a run that
-// published, held or found no story and for a replay that came out equal, 1 for a run that failed, was refused or could not start, and a replay that
-// differs, and 2 for a usage error.
+// published, held or found no story, for a replay that came out equal and for a correction that was made, 1 for a run that failed, was refused or could not start, a
+// replay that differs and a correction that was refused or failed, and 2 for a usage error.
 
 export type { ClientKind, SourcesKind };
 
@@ -22,6 +43,7 @@ export type Parsed =
   | { command: 'run'; date: string | undefined; dry: boolean; client: ClientKind; sources: SourcesKind; forceNew: boolean; cassettes: string | undefined; config: string | undefined }
   | { command: 'replay'; runDir: string; sources: SourcesKind | undefined; client: ClientKind | undefined; cassettes: string | undefined; config: string | undefined }
   | { command: 'status'; config: string | undefined }
+  | { command: 'retract'; slug: string; reason: string; kind: CorrectionKind; dry: boolean }
   | { command: 'help' };
 
 /** What the arguments mean, or why they do not. */
@@ -32,6 +54,7 @@ export const USAGE = [
   '  desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new] [--cassettes <folder>] [--config <path>]',
   '  desk replay <folder of a run> [--sources fixtures|live] [--client fake|recorded|api] [--cassettes <folder>] [--config <path>]',
   '  desk status [--config <path>]',
+  '  desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]',
   '',
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
@@ -45,14 +68,18 @@ export const USAGE = [
   '        said how a run was made needs --sources.',
   'status  print the last run (its outcome, its day and which try of the day it was), the number of holds, and the number of corrections and of retractions.',
   '        The desk state has all but the try, which is read from the record of the run in the folder of the runs, if it is there.',
+  'retract record a correction (the default) or a retraction of a piece that is on the site: the note goes into the desk state, updatedAt of the piece is set to today',
+  '        (UTC), and the two are committed in one commit. The reason is one line of at most 500 characters. Nothing is deleted: the page stays up with its notice. A piece',
+  '        that was held is on its pull request until the owner merges it, and cannot be corrected before. --dry says what would be done and writes nothing.',
   '--config says where the settings of the Desk are: a YAML file laid over the defaults (how recent a story must be, how many candidates reach the model, the folders,',
   '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
 ].join('\n');
 
-const OPTIONS: Readonly<Record<'run' | 'replay' | 'status', { flags: readonly string[]; valued: readonly string[] }>> = {
+const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract', { flags: readonly string[]; valued: readonly string[] }>> = {
   run: { flags: ['--dry', '--force-new'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
   replay: { flags: [], valued: ['--sources', '--client', '--cassettes', '--config'] },
   status: { flags: [], valued: ['--config'] },
+  retract: { flags: ['--dry'], valued: ['--reason', '--kind'] },
 };
 
 const CLIENTS: readonly string[] = CLIENT_KINDS;
@@ -78,7 +105,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   const [command, ...rest] = argv;
   if (command === undefined) return fail('no command given');
   if (command === 'help' || command === '--help' || command === '-h') return { ok: true, args: { command: 'help' } };
-  if (command !== 'run' && command !== 'replay' && command !== 'status') return fail(`unknown command "${command}"`);
+  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'retract') return fail(`unknown command "${command}"`);
 
   const given = new Map<string, string | true>();
   const positional: string[] = [];
@@ -109,6 +136,19 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   if (command === 'status') {
     if (positional.length > 0) return fail(`status takes no arguments, but was given "${positional[0]}"`);
     return { ok: true, args: { command: 'status', config: value('--config') } };
+  }
+  if (command === 'retract') {
+    if (positional.length === 0) return fail('retract needs the slug of a piece');
+    if (positional.length > 1) return fail(`retract takes one slug, but was given "${positional.join('" and "')}"`);
+    const slug = positional[0] as string;
+    if (!isPlainSlug(slug)) return fail(`"${slug}" is not a plain slug (lowercase letters and digits joined by single hyphens)`);
+    const reason = value('--reason');
+    if (reason === undefined) return fail('retract needs --reason <text>: why the piece is corrected or retracted');
+    const noted = normaliseReason(reason);
+    if (!noted.ok) return fail(noted.message);
+    const kind = value('--kind') ?? 'correction';
+    if (!(CORRECTION_KINDS as readonly string[]).includes(kind)) return fail(`--kind is correction or retraction, not "${kind}"`);
+    return { ok: true, args: { command: 'retract', slug, reason, kind: kind as CorrectionKind, dry: given.has('--dry') } };
   }
   const sourcesGiven = value('--sources');
   if (sourcesGiven !== undefined && !SOURCES.includes(sourcesGiven)) return fail(`--sources is fixtures or live, not "${sourcesGiven}"`);
@@ -329,6 +369,21 @@ async function replayCommand(args: Extract<Parsed, { command: 'replay' }>, deps:
   }
 }
 
+async function retractCommand(args: Extract<Parsed, { command: 'retract' }>, deps: CliDeps): Promise<number> {
+  try {
+    const result = await retractPiece({ repoDir: deps.cwd, git: deps.git, slug: args.slug, reason: args.reason, kind: args.kind, now: deps.now, dry: args.dry });
+    deps.out(`piece: ${result.slug}`);
+    deps.out(`kind: ${result.kind}`);
+    deps.out(`recorded: ${result.at}`);
+    deps.out(`updatedAt: ${result.updatedAt}`);
+    deps.out(result.commit === null ? `dry run: nothing was written or committed (${result.files.join(', ')} would have been)` : `commit: ${result.commit}`);
+    return 0;
+  } catch (error) {
+    deps.err(error instanceof RetractRefused ? `the correction was refused: ${error.message}` : `the correction failed: ${describeError(error)}`);
+    return 1;
+  }
+}
+
 /** The day that a run id starts with (`2026-10-05-043100` is `2026-10-05`), or undefined for an id that does not start with a day. */
 function dayOfRun(runId: string): string | undefined {
   const day = runId.slice(0, 10);
@@ -395,5 +450,7 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
       return replayCommand(parsed.args, deps);
     case 'status':
       return statusCommand(parsed.args, deps);
+    case 'retract':
+      return retractCommand(parsed.args, deps);
   }
 }
