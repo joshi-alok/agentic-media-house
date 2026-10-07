@@ -82,7 +82,7 @@ async function sequence(script: Script, options: { cancelled?: boolean } = {}): 
       writeFileSync(path.join(env.RUNNER_TEMP as string, 'audit.log'), code === 0 ? 'Passed: 18 checks.\n' : FAILING_REPORT);
       return code;
     }
-    if (run.startsWith('npm run desk -- ')) return main(wordsOf(run.slice('npm run desk -- '.length), { ...env, GITHUB_RUN_ID: '4711', GITHUB_RUN_ATTEMPT: '1' }), deps);
+    if (run.startsWith('npm run desk -- ')) return main(wordsOf(run.slice('npm run desk -- '.length).replace('$(date -u +%F)', '2026-10-05'), { ...env, GITHUB_RUN_ID: '4711', GITHUB_RUN_ATTEMPT: '1' }), deps);
     if (run.startsWith('gh workflow run')) {
       dispatched.push(run);
       return 0;

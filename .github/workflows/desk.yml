@@ -108,16 +108,19 @@ jobs:
           . .github/scripts/github-auth.sh
           npm run desk -- push --branch-only --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --audit-log "$RUNNER_TEMP/audit.log"
 
-      # The artifacts of the run are the files of runs/: hashes, the short quotations of the claims, the drafts and the record of the run. Never the text of a page
-      # (the snapshots are in the bucket, and runs/ has none), and never the trials of `desk tune`. A public repository's artifacts can be read by anyone.
+      # What is kept of the run is a pack of it, and not the folder: the artifacts of a public repository can be read by anyone, and what a run writes in its folder is what models and
+      # pages wrote (the quotations of the claims, every sentence of every draft, the reasons of the model check, the recorded replies). `desk pack-artifact` copies, field by field, the
+      # outcome, the names of the stages, counts, the codes of the checks, hashes and sizes, and nothing that is free text. A day that was done has no folder, and then there is nothing to pack.
+      - name: Pack the run, with nothing in it that a model or a page wrote
+        if: ${{ !cancelled() }}
+        run: npm run desk -- pack-artifact "runs/$(date -u +%F)" "$RUNNER_TEMP/desk-run"
+
       - name: Keep the artifacts of the run for 14 days
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: desk-runs
-          path: |
-            runs/**
-            !runs/tune/**
+          path: ${{ runner.temp }}/desk-run
           retention-days: 14
           if-no-files-found: ignore
 

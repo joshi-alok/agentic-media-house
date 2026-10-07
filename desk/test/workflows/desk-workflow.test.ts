@@ -69,6 +69,7 @@ describe('desk.yml: the steps, in order', () => {
       'Audit the production build',
       'Push what the run committed',
       'Keep what the run committed on a branch, because the site does not build with it',
+      'Pack the run, with nothing in it that a model or a page wrote',
       'Keep the artifacts of the run for 14 days',
       'Deploy the site',
     ]);
@@ -251,17 +252,26 @@ describe('desk.yml: the build and the audit, before anything reaches main', () =
 
 describe('desk.yml: the artifacts', () => {
   const keep = stepNamed(workflow, 'Keep the artifacts of the run for 14 days');
+  const pack = stepNamed(workflow, 'Pack the run, with nothing in it that a model or a page wrote');
 
-  it('are the files of runs/ for 14 days, even when the run failed (that is when they are wanted), and are not an error when there are none', () => {
+  it('are the pack of the run for 14 days, even when the run failed (that is when they are wanted), and are not an error when there is none (a day that was done has no folder of runs)', () => {
     expect(keep.uses).toBe('actions/upload-artifact@v7');
     expect(keep.if).toBe('${{ !cancelled() }}');
-    expect(keep.with).toEqual({ name: 'desk-runs', path: 'runs/**\n!runs/tune/**\n', 'retention-days': 14, 'if-no-files-found': 'ignore' });
+    expect(keep.with).toEqual({ name: 'desk-runs', path: '${{ runner.temp }}/desk-run', 'retention-days': 14, 'if-no-files-found': 'ignore' });
+  });
+
+  it('are made by `desk pack-artifact`, of the folder of the day, into the folder that is uploaded, and by nothing else: the folder of the runs is never uploaded', () => {
+    expect(pack.run).toBe('npm run desk -- pack-artifact "runs/$(date -u +%F)" "$RUNNER_TEMP/desk-run"');
+    expect(parseArgs(['pack-artifact', 'runs/2026-10-05', '/runner/temp/desk-run'])).toEqual({ ok: true, args: { command: 'pack-artifact', runDir: 'runs/2026-10-05', outDir: '/runner/temp/desk-run' } });
+    expect(pack.if).toBe('${{ !cancelled() }}');
+    expect(pack).not.toHaveProperty('env');
   });
 
   it('are the only thing that is uploaded: no step uploads anything else, and none names the folder of the evidence', () => {
     const uploads = steps.filter((step) => step.uses?.startsWith('actions/upload-artifact') === true);
     expect(uploads).toHaveLength(1);
     expect(text).not.toMatch(/evidence/i);
+    expect(String(keep.with?.path)).not.toContain('runs');
   });
 });
 

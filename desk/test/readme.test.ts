@@ -343,9 +343,9 @@ describe('the README: the daily workflow', () => {
     expect(workflow()).toContain('It never fails open');
     expect(workflow()).toContain('the commits are pushed to the branch `desk-rescue/<day>-<run>`');
     expect(workflow()).toContain('A push by the token of a workflow starts no other workflow');
-    expect(workflow()).toContain('kept as an artifact for 14 days, even when the run failed, except `runs/tune/`');
-    expect(workflow()).toContain('no page text goes there');
-    expect(workflow()).toContain('shares more than the length of a quotation (300 characters) with a page');
+    expect(workflow()).toContain('A pack of the run is kept as an artifact for 14 days, even when the run failed, and the folder of the runs is not.');
+    expect(workflow()).toContain('No reply of a model, reason of the verifier, sentence of a draft, quotation, title, address or word of a page is ever in it.');
+    expect(workflow()).toContain('a pack of more than 24 KB (or a file of it of more than 8 KB) is an error and not a pack');
   });
 
   it('says that the site is built and audited before anything reaches main, and what happens when it is not', () => {
@@ -367,6 +367,16 @@ describe('the README: the daily workflow', () => {
   it('is no longer listed as not built, and the schedule is said to have never run', () => {
     expect(section('The desk workspace')).not.toContain('the GitHub Actions workflow that runs the Desk every day');
     expect(section('Which parts are live')).toContain('`.github/workflows/desk.yml`, which tests read and which has never run on GitHub');
+  });
+});
+
+describe('the README: the pack of a run', () => {
+  it('says what goes in, what never does, that nothing that is not named gets in, and what tries to make it', () => {
+    const workflow = section('The daily workflow');
+    expect(workflow).toContain('`npm run desk -- pack-artifact` makes, of the folder of the day, `run.json` and one small file for each stage, and each is made by naming the fields that go in, one by one');
+    expect(workflow).toContain('A field that a stage adds later is not in the pack until somebody adds it to the list, a code that is not on the list is counted and not copied');
+    expect(workflow).toContain('`desk/test/run/pack.test.ts` packs a run whose every free text is a hostile string of 10,000 characters and finds none of it');
+    expect(section('The desk command')).toContain('`npm run desk -- pack-artifact <folder of a run> <folder for the pack>` makes the small files that are uploaded as the artifact of a run in place of its folder');
   });
 });
 

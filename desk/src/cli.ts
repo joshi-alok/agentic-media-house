@@ -8,6 +8,7 @@ import {
   ForgeError,
   HttpFetcher,
   MAIN_BRANCH,
+  PackError,
   PushFailed,
   RetractRefused,
   RunRefused,
@@ -22,6 +23,7 @@ import {
   makeEvidenceStore,
   normaliseReason,
   nodeExec,
+  packArtifact,
   placeholderHost,
   pushLines,
   pushRun,
@@ -45,7 +47,7 @@ import type { RunResult, Stages } from './run/orchestrate';
 import { replayRun } from './run/replay';
 import { TUNE_DEFAULT_CALLS, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRefused, parseUrlList, runTune } from './run/tune';
 
-// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status`, `desk retract <slug>`, `desk tune` and `desk push`. The arguments are read by hand, with no library, and a
+// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status`, `desk retract <slug>`, `desk tune`, `desk push` and `desk pack-artifact`. The arguments are read by hand, with no library, and a
 // mistake in them is a usage error (exit code 2) that says what is wrong and writes nothing. Everything `main` needs from the outside, the clock, the
 // environment, git, where to print, is in `deps`, so that a test calls `main` with fakes and nothing real is touched. The exit codes are 0 for a run that
 // published, held or found no story, for a replay that came out equal and for a correction that was made, 1 for a run that failed, was refused or could not start, a
@@ -60,6 +62,7 @@ export type Parsed =
   | { command: 'retract'; slug: string; reason: string; kind: CorrectionKind; dry: boolean }
   | { command: 'tune'; urls: string; trials: number; maxCalls: number; client: 'api' | 'fake'; config: string | undefined }
   | { command: 'push'; runId: string | undefined; output: string | undefined; branchOnly: boolean; auditLog: string | undefined }
+  | { command: 'pack-artifact'; runDir: string; outDir: string }
   | { command: 'help' };
 
 /** What the arguments mean, or why they do not. */
@@ -73,6 +76,7 @@ export const USAGE = [
   '  desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]',
   '  desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]',
   '  desk push [--branch-only] [--run-id <id>] [--output <file>] [--audit-log <file>]',
+  '  desk pack-artifact <folder of a run> <folder for the pack>',
   '',
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
@@ -111,17 +115,22 @@ export const USAGE = [
   '        --branch-only is for commits that must not reach main because the site does not build with them: they are pushed to the branch desk-build-failed/<day>-<id> and a draft pull request',
   '        is opened on it, whose text holds only fixed sentences, the ids of the checks of the audit that failed and their number of problems, read from --audit-log (the report that',
   '        npm run audit:prod printed; a file that is not there says that the build failed before the audit). It does not push to main and cannot be given with --output.',
+  'pack-artifact  make, of the folder of a run, the small files that are uploaded as the artifact of a workflow of a public repository: run.json (the outcome, the stage, the try, the budget, the number of files of each kind) and one file for each',
+  '        stage (counts, the codes of the checks, the counts of the verdicts of the model check, hashes, sizes), written into the second folder, which must be empty or not there. No reply of a model, reason of the verifier, sentence of a',
+  '        draft, quotation, title or word of a page is ever in it: each field that goes in is named, and nothing else is copied. A pack of more than 24 KB, or a file of it of more than 8 KB, is an error. A folder of a run that is not there',
+  '        (a day that was done has none) is not an error: nothing is packed, and the command exits 0.',
   '--config says where the settings of the Desk are: a YAML file laid over the defaults (how recent a story must be, how many candidates reach the model, the folders,',
   '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
 ].join('\n');
 
-const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract' | 'tune' | 'push', { flags: readonly string[]; valued: readonly string[] }>> = {
+const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract' | 'tune' | 'push' | 'pack-artifact', { flags: readonly string[]; valued: readonly string[] }>> = {
   run: { flags: ['--dry', '--force-new', '--skip-if-done'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
   replay: { flags: [], valued: ['--sources', '--client', '--cassettes', '--config'] },
   status: { flags: [], valued: ['--config'] },
   retract: { flags: ['--dry'], valued: ['--reason', '--kind'] },
   tune: { flags: [], valued: ['--urls', '--trials', '--max-calls', '--client', '--config'] },
   push: { flags: ['--branch-only'], valued: ['--run-id', '--output', '--audit-log'] },
+  'pack-artifact': { flags: [], valued: [] },
 };
 
 const CLIENTS: readonly string[] = CLIENT_KINDS;
@@ -147,7 +156,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   const [command, ...rest] = argv;
   if (command === undefined) return fail('no command given');
   if (command === 'help' || command === '--help' || command === '-h') return { ok: true, args: { command: 'help' } };
-  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'retract' && command !== 'tune' && command !== 'push') return fail(`unknown command "${command}"`);
+  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'retract' && command !== 'tune' && command !== 'push' && command !== 'pack-artifact') return fail(`unknown command "${command}"`);
 
   const given = new Map<string, string | true>();
   const positional: string[] = [];
@@ -191,6 +200,10 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     const kind = value('--kind') ?? 'correction';
     if (!(CORRECTION_KINDS as readonly string[]).includes(kind)) return fail(`--kind is correction or retraction, not "${kind}"`);
     return { ok: true, args: { command: 'retract', slug, reason, kind: kind as CorrectionKind, dry: given.has('--dry') } };
+  }
+  if (command === 'pack-artifact') {
+    if (positional.length !== 2) return fail(`pack-artifact needs the folder of a run and the folder for the pack, and was given ${positional.length === 0 ? 'neither' : positional.length === 1 ? 'only one' : `${positional.length} arguments`}`);
+    return { ok: true, args: { command: 'pack-artifact', runDir: positional[0] as string, outDir: positional[1] as string } };
   }
   if (command === 'push') {
     if (positional.length > 0) return fail(`push takes no arguments, but was given "${positional[0]}"`);
@@ -661,6 +674,27 @@ async function branchOnlyCommand(args: Extract<Parsed, { command: 'push' }>, dep
   }
 }
 
+/**
+ * `desk pack-artifact <folder of a run> <folder for the pack>`: the small files that are uploaded in place of the folder of the run (`packArtifact`). A folder of a run that is not there is no error,
+ * because a day that was done has none: nothing is packed, and the exit code is 0. A pack that cannot be made, or that is too big, or a folder for it that is not empty, is exit code 1 with a message
+ * that says nothing that is in the run.
+ */
+async function packCommand(args: Extract<Parsed, { command: 'pack-artifact' }>, deps: CliDeps): Promise<number> {
+  try {
+    const packed = await packArtifact(path.resolve(deps.cwd, args.runDir), path.resolve(deps.cwd, args.outDir));
+    if (packed === undefined) {
+      deps.out(`pack-artifact: ${args.runDir} is not there, so there is nothing to pack`);
+      return 0;
+    }
+    deps.out(`pack-artifact: ${packed.files.length} files, ${packed.bytes} bytes, in ${args.outDir}`);
+    for (const file of packed.files) deps.out(`pack-artifact: ${file}`);
+    return 0;
+  } catch (error) {
+    deps.err(error instanceof PackError ? `desk: ${error.message}` : `the pack could not be made: ${describeError(error)}`);
+    return 1;
+  }
+}
+
 async function retractCommand(args: Extract<Parsed, { command: 'retract' }>, deps: CliDeps): Promise<number> {
   try {
     const result = await retractPiece({ repoDir: deps.cwd, git: deps.git, slug: args.slug, reason: args.reason, kind: args.kind, now: deps.now, dry: args.dry });
@@ -742,5 +776,7 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
       return tuneCommand(parsed.args, deps);
     case 'push':
       return pushCommand(parsed.args, deps);
+    case 'pack-artifact':
+      return packCommand(parsed.args, deps);
   }
 }

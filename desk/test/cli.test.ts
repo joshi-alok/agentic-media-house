@@ -279,8 +279,8 @@ describe('main: usage errors', () => {
     expect(USAGE).toContain('"outcome: refused-already-done", exits 0 and runs nothing');
     expect(USAGE).toContain('Every other refusal is still an exit code 1, and it cannot be given with --force-new.');
     expect(USAGE).toContain('[--config <path>]');
-    // Every command that reads the settings says so; `retract` and `push` do not read them.
-    expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ') && !line.startsWith('  desk retract') && !line.startsWith('  desk push')).every((line) => line.includes('[--config <path>]'))).toBe(true);
+    // Every command that reads the settings says so; `retract`, `push` and `pack-artifact` do not read them.
+    expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ') && !line.startsWith('  desk retract') && !line.startsWith('  desk push') && !line.startsWith('  desk pack-artifact')).every((line) => line.includes('[--config <path>]'))).toBe(true);
   });
 });
 

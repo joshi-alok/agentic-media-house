@@ -522,10 +522,11 @@ describe('main: tune, what it writes', () => {
     expect(filesBelow(made.dir).some((file) => file.startsWith('evidence/'))).toBe(true);
   });
 
-  it('is in the folder that the daily workflow does not upload, whatever it holds', () => {
-    const upload = stepNamed(loadWorkflow('desk.yml'), 'Keep the artifacts of the run for 14 days').with!.path as string;
-    expect(upload.split('\n')).toContain(`!runs/${TUNE_FOLDER}/**`);
+  it('is in the folder that the daily workflow does not pack, whatever it holds: the pack is of the folder of a day, runs/<date>, and the trials are in runs/tune', () => {
+    const pack = stepNamed(loadWorkflow('desk.yml'), 'Pack the run, with nothing in it that a model or a page wrote').run as string;
+    expect(pack).toContain('pack-artifact "runs/$(date -u +%F)"');
     expect(TUNE_FOLDER).toBe('tune');
+    expect(TUNE_FOLDER).not.toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 
