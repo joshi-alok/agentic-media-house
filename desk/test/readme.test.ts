@@ -401,3 +401,32 @@ describe('the README: the tuning harness', () => {
   });
 });
 
+describe('the README: the runbook', () => {
+  const runbook = (): string => section('The runbook');
+
+  it('is in the layout, and says what it is and its seven parts', () => {
+    expect(section('Repository layout')).toContain('the runbook (`docs/runbook.md`): the operations that put the publication on the air');
+    expect(runbook()).toContain('`docs/runbook.md` is the list of operations that put the publication on the air, in seven parts');
+    expect(runbook()).toContain('rewrite the author and committer of every commit to the no-reply address of GitHub');
+    expect(runbook()).toContain('going live (freezing the floor of the verifier, turning on the flags of `site/src/lib/live.ts` in a change of its own, enabling the schedule)');
+  });
+
+  it('says that an outward step is not run without the go-ahead of the owner, and that no secret is on a command line', () => {
+    expect(runbook()).toContain('A step marked *outward* changes something outside the machine');
+    expect(runbook()).toContain('is not run without the owner\'s go-ahead for that step');
+    expect(runbook()).toContain('**No secret is on a command line.**');
+    expect(runbook()).toContain('`gh secret set NAME < file`, `gh secret set --env-file file`, or `NAME="$(cat file)" command`');
+  });
+
+  it('says what the tests check of it, and what they cannot', () => {
+    expect(runbook()).toContain('`desk/test/runbook.test.ts` fails when a step has no command or no expected result');
+    expect(runbook()).toContain('so none can be run by a test');
+  });
+
+  it('no longer says that the runbook is yet to be written, where it is named', () => {
+    expect(README).not.toContain('when it is written');
+    expect(section('The daily workflow')).toContain('the first real run (docs/runbook.md) is the proof');
+    expect(section('The tuning harness')).toContain('(docs/runbook.md, steps 16 to 20)');
+  });
+});
+
