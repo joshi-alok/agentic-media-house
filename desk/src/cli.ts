@@ -34,7 +34,8 @@ export const USAGE = [
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
   '        story for dry runs). --sources says where stories come from (live is the default; fixtures is the made-up world, for dry runs).',
-  '        A day that already has a run is refused unless --force-new is given.',
+  '        A day that already has a run that published, was held or found no story is refused unless --force-new is given; a day whose run failed is run',
+  '        again with no flag, up to maxAttemptsPerDay runs a day (3 unless the settings say otherwise), and the earlier run is kept beside the new one.',
   'replay  run Extract, Compose and Verify again from what a run kept, with no network, and say whether the artifacts are the same. The record of the run says',
   '        which client and which sources it used, so no flag is needed for them; --sources and --client are only checked against the record, and one that',
   '        contradicts it is refused. A run made with --client recorded has no replies of its own: replay it with --cassettes. A record from before records',
@@ -239,6 +240,7 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
     });
     deps.out(`outcome: ${result.outcome}`);
     deps.out(`run: ${result.runId}`);
+    deps.out(`attempt: ${result.attempt}`);
     deps.out(`folder: ${result.dir}`);
     if (result.slug !== null) deps.out(`piece: ${result.slug}`);
     if (result.reason !== null) deps.out(`reason: ${result.reason}`);

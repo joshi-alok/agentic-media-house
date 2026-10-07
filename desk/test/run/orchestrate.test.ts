@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DEMO_CLAIMS, demoClient } from '../../src/demo/story';
@@ -10,7 +10,7 @@ import { clientFromConfig } from '../../src/model/factory';
 import { VerifyArtifact, readArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
 import { LOCK_FILE, RunRefused } from '../../src/run/lock';
-import type { Stages } from '../../src/run/orchestrate';
+import type { RunDeskOptions, Stages } from '../../src/run/orchestrate';
 import { sitePaths } from '../../src/run/target';
 import { runDiscover } from '../../src/stages/discover';
 import { FETCHED_AT, useScratch, withPages } from '../support/context';
@@ -24,6 +24,30 @@ import { COMMITTED_STATE, filesBelow } from '../support/site';
 
 const scratch = useScratch();
 const setup = (options: RunSetup = {}) => setupRun(scratch, options);
+
+/** Stages in which the composer falls over, so that a run ends failed at Compose. */
+const composeFails = (): Partial<Stages> => ({
+  compose: async () => {
+    throw new Error('the composer fell over');
+  },
+});
+
+/** The run of a day that is run again: a new scripted model (the made-up story unless one is given) and a clock that starts again, with the options of the made run. */
+const again = (made: ReturnType<typeof setup>, overrides: Partial<RunDeskOptions> = {}, fake: FakeClient = demoClient()) =>
+  made.run({ model: clientFromConfig(made.config, { kind: 'fake', fake }, {}), now: clock(), ...overrides });
+
+/** The names in the folder of the runs, the lock excepted, in order. */
+const foldersOf = (config: DeskConfig): string[] => readdirSync(config.runDir).filter((name) => name !== LOCK_FILE).sort();
+
+/** The error that a run that was refused throws. */
+const refusal = async (run: Promise<unknown>): Promise<RunRefused> => {
+  const error = await run.then(
+    () => undefined,
+    (caught: unknown) => caught,
+  );
+  expect(error).toBeInstanceOf(RunRefused);
+  return error as RunRefused;
+};
 
 describe('runDesk: a clean story', () => {
   it('ends published, with the slug of the piece and the commit that holds it', async () => {
@@ -381,19 +405,19 @@ describe('runDesk: the day of the run', () => {
     expect(existsSync(path.join(made.config.runDir, LOCK_FILE))).toBe(false);
   });
 
-  it('with forceNew, moves the old run aside, keeps it whole, and runs again; the next time it moves that aside too', async () => {
+  it('with forceNew, moves the old run aside as replaced-1, keeps it whole, and runs again as the second try; the next time it moves that aside as replaced-2', async () => {
     const made = setup();
     await made.run();
     const firstRecord = readFileSync(path.join(made.dir, 'run.json'), 'utf8');
     for (const number of [1, 2]) {
-      const fake = new FakeClient().script('select', { chosenId: null, reasons: ['none'] });
-      const result = await made.run({ model: clientFromConfig(made.config, { kind: 'fake', fake }, {}), forceNew: true, now: clock() });
-      expect(result.outcome).toBe('no-story');
-      expect(existsSync(`${made.dir}.old-${number}`)).toBe(true);
+      const result = await again(made, { forceNew: true }, new FakeClient().script('select', { chosenId: null, reasons: ['none'] }));
+      expect([result.outcome, result.attempt]).toEqual(['no-story', number + 1]);
+      expect(existsSync(`${made.dir}.replaced-${number}`)).toBe(true);
     }
-    expect(readFileSync(path.join(`${made.dir}.old-1`, 'run.json'), 'utf8')).toBe(firstRecord);
+    expect(readFileSync(path.join(`${made.dir}.replaced-1`, 'run.json'), 'utf8')).toBe(firstRecord);
     expect(filesBelow(made.dir)).toEqual(['01-discover.json', '02-select.json', 'run.json']);
-    expect(recordOf(`${made.dir}.old-2`).outcome).toBe('no-story');
+    expect(recordOf(`${made.dir}.replaced-2`)).toMatchObject({ outcome: 'no-story', attempt: 2 });
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE, `${DEMO_DATE}.replaced-1`, `${DEMO_DATE}.replaced-2`]);
   });
 
   it('does not take the artifacts of an old run for the new one: the folder starts empty', async () => {
@@ -404,12 +428,12 @@ describe('runDesk: the day of the run', () => {
     expect(existsSync(path.join(made.dir, '06-verify.json'))).toBe(false);
   });
 
-  it('starts again in a folder that has artifacts but no record, which is a run that never ended, and moves that folder aside too', async () => {
+  it('starts again in a folder that has artifacts but no record, which is a run that never ended, moves that folder aside as old-1, and counts it as a try', async () => {
     const made = setup();
     mkdirSync(made.dir, { recursive: true });
     writeFileSync(path.join(made.dir, '01-discover.json'), '{}');
     const result = await made.run();
-    expect(result.outcome).toBe('published');
+    expect([result.outcome, result.attempt]).toEqual(['published', 2]);
     expect(readFileSync(path.join(`${made.dir}.old-1`, '01-discover.json'), 'utf8')).toBe('{}');
   });
 
@@ -417,6 +441,163 @@ describe('runDesk: the day of the run', () => {
     const made = setup();
     await expect(made.run({ date: '2026-02-30' })).rejects.toThrow('is not a date');
     expect(existsSync(path.join(made.config.runDir, LOCK_FILE))).toBe(false);
+  });
+});
+
+describe('runDesk: a day whose run failed is tried again', () => {
+  it('runs a failed day again with no --force-new: the failed run is kept beside the new one as failed-1, and the new run is the second try', async () => {
+    const made = setup({ stages: composeFails() });
+    const first = await made.run();
+    expect([first.outcome, first.attempt]).toEqual(['failed', 1]);
+    const failedRecord = readFileSync(path.join(made.dir, 'run.json'), 'utf8');
+    const second = await again(made, { stages: {} });
+    expect([second.outcome, second.attempt]).toEqual(['published', 2]);
+    expect(recordOf(made.dir)).toMatchObject({ outcome: 'published', attempt: 2 });
+    expect(readFileSync(path.join(`${made.dir}.failed-1`, 'run.json'), 'utf8')).toBe(failedRecord);
+    expect(recordOf(`${made.dir}.failed-1`)).toMatchObject({ outcome: 'failed', stage: 'compose', attempt: 1 });
+    expect(existsSync(path.join(`${made.dir}.failed-1`, '06-verify.json'))).toBe(false);
+    expect(existsSync(path.join(made.dir, '06-verify.json'))).toBe(true);
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE, `${DEMO_DATE}.failed-1`]);
+    expect(existsSync(path.join(made.config.runDir, LOCK_FILE))).toBe(false);
+  });
+
+  it('counts every try: two failures and then a piece is the third try, with the failed runs in failed-1 and failed-2', async () => {
+    const made = setup({ stages: composeFails() });
+    expect((await made.run()).attempt).toBe(1);
+    expect((await again(made)).attempt).toBe(2);
+    const third = await again(made, { stages: {} });
+    expect([third.outcome, third.attempt]).toEqual(['published', 3]);
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE, `${DEMO_DATE}.failed-1`, `${DEMO_DATE}.failed-2`]);
+    expect([recordOf(`${made.dir}.failed-1`).attempt, recordOf(`${made.dir}.failed-2`).attempt]).toEqual([1, 2]);
+  });
+
+  it('refuses the fourth try of a day that failed three times: nothing runs, nothing is moved, nothing is committed, and the message says what to change', async () => {
+    const made = setup({ stages: composeFails() });
+    const tries = [await made.run(), await again(made), await again(made)];
+    expect(tries.map((result) => [result.outcome, result.attempt])).toEqual([['failed', 1], ['failed', 2], ['failed', 3]]);
+    const before = readFileSync(path.join(made.dir, 'run.json'), 'utf8');
+    const fake = demoClient();
+    const error = await refusal(again(made, {}, fake));
+    expect(error.kind).toBe('attempts');
+    expect(error.message).toBe(
+      `the run of ${DEMO_DATE} has already been tried 3 times and maxAttemptsPerDay is 3: nothing was run. Raise maxAttemptsPerDay in a file of settings (--config) to allow another try`,
+    );
+    expect(fake.calls).toEqual([]);
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE, `${DEMO_DATE}.failed-1`, `${DEMO_DATE}.failed-2`]);
+    expect(readFileSync(path.join(made.dir, 'run.json'), 'utf8')).toBe(before);
+    expect(made.git.commits).toHaveLength(3);
+    expect(existsSync(path.join(made.config.runDir, LOCK_FILE))).toBe(false);
+  });
+
+  it('takes the number of tries from the settings: one try means that a failed day is not run again', async () => {
+    const made = setup({ stages: composeFails(), config: { maxAttemptsPerDay: 1 } });
+    await made.run();
+    const error = await refusal(again(made));
+    expect(error.kind).toBe('attempts');
+    expect(error.message).toContain('has already been tried 1 time and maxAttemptsPerDay is 1');
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE]);
+    const two = setup({ stages: composeFails(), config: { maxAttemptsPerDay: 2 } });
+    await two.run();
+    expect((await again(two)).attempt).toBe(2);
+    expect((await refusal(again(two))).kind).toBe('attempts');
+  });
+
+  it('applies the limit to --force-new as well: the fourth try is refused whatever the first three were', async () => {
+    const made = setup();
+    await made.run();
+    const quiet = () => new FakeClient().script('select', { chosenId: null, reasons: ['none'] });
+    expect((await again(made, { forceNew: true }, quiet())).attempt).toBe(2);
+    expect((await again(made, { forceNew: true }, quiet())).attempt).toBe(3);
+    const error = await refusal(again(made, { forceNew: true }, quiet()));
+    expect(error.kind).toBe('attempts');
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE, `${DEMO_DATE}.replaced-1`, `${DEMO_DATE}.replaced-2`]);
+  });
+
+  it('refuses a day whose tries are kept even when the folder of the day is not there', async () => {
+    const made = setup();
+    for (const number of [1, 2, 3]) mkdirSync(`${made.dir}.failed-${number}`, { recursive: true });
+    const error = await refusal(again(made));
+    expect(error.kind).toBe('attempts');
+    expect(error.message).toContain('has already been tried 3 times');
+    expect(foldersOf(made.config)).toEqual([`${DEMO_DATE}.failed-1`, `${DEMO_DATE}.failed-2`, `${DEMO_DATE}.failed-3`]);
+  });
+
+  it.each([
+    ['held', { fake: unentailed() }],
+    ['no-story', { fake: new FakeClient().script('select', { chosenId: null, reasons: ['none'] }) }],
+    ['published', {}],
+  ] as [string, RunSetup][])('does not run a day again whose run ended %s: it is refused and nothing is moved', async (outcome, options) => {
+    const made = setup(options);
+    expect((await made.run()).outcome).toBe(outcome);
+    const before = readFileSync(path.join(made.dir, 'run.json'), 'utf8');
+    const error = await refusal(again(made));
+    expect(error.kind).toBe('date-done');
+    expect(error.message).toContain('run it again with --force-new');
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE]);
+    expect(readFileSync(path.join(made.dir, 'run.json'), 'utf8')).toBe(before);
+  });
+
+  it('moves a held run aside as replaced with --force-new, and a failed run as failed whether or not --force-new is given', async () => {
+    const held = setup({ fake: unentailed() });
+    await held.run();
+    expect((await again(held, { forceNew: true })).attempt).toBe(2);
+    expect(foldersOf(held.config)).toEqual([DEMO_DATE, `${DEMO_DATE}.replaced-1`]);
+    const failed = setup({ stages: composeFails() });
+    await failed.run();
+    expect((await again(failed, { forceNew: true, stages: {} })).attempt).toBe(2);
+    expect(foldersOf(failed.config)).toEqual([DEMO_DATE, `${DEMO_DATE}.failed-1`]);
+  });
+
+  it('does not move a failed run aside when the site is not in order, so that a start that is refused costs no try', async () => {
+    const made = setup({ stages: composeFails() });
+    await made.run();
+    made.git.dirty.add(STATE);
+    const error = await refusal(again(made, { stages: {} }));
+    expect(error.kind).toBe('target');
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE]);
+    expect(recordOf(made.dir)).toMatchObject({ outcome: 'failed', attempt: 1 });
+    made.git.dirty.clear();
+    expect((await again(made, { stages: {} })).attempt).toBe(2);
+  });
+
+  it('does not take a record that cannot be read for a failed run: the day is treated as done, and --force-new moves it aside', async () => {
+    const made = setup();
+    mkdirSync(made.dir, { recursive: true });
+    writeFileSync(path.join(made.dir, 'run.json'), '{"outcome": "failed"');
+    expect((await refusal(again(made))).kind).toBe('date-done');
+    expect((await again(made, { forceNew: true })).attempt).toBe(2);
+    expect(readFileSync(path.join(`${made.dir}.replaced-1`, 'run.json'), 'utf8')).toBe('{"outcome": "failed"');
+  });
+
+  it('reads a failed record from before records said how a run was made: the day is tried again', async () => {
+    const made = setup({ stages: composeFails() });
+    await made.run();
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = recordOf(made.dir);
+    writeFileSync(path.join(made.dir, 'run.json'), `${JSON.stringify(before, null, 2)}\n`);
+    expect((await again(made, { stages: {} })).attempt).toBe(2);
+    expect(existsSync(path.join(`${made.dir}.failed-1`, 'run.json'))).toBe(true);
+  });
+
+  it('never writes over a folder that is there: the number of a moved folder is one more than the highest of any kind', async () => {
+    const made = setup({ stages: composeFails(), config: { maxAttemptsPerDay: 20 } });
+    for (const name of ['failed-1', 'replaced-5', 'old-2']) {
+      mkdirSync(`${made.dir}.${name}`, { recursive: true });
+      writeFileSync(path.join(`${made.dir}.${name}`, 'keep.txt'), name);
+    }
+    expect((await made.run()).attempt).toBe(6);
+    expect((await again(made)).attempt).toBe(7);
+    expect(foldersOf(made.config)).toEqual([DEMO_DATE, `${DEMO_DATE}.failed-1`, `${DEMO_DATE}.failed-6`, `${DEMO_DATE}.old-2`, `${DEMO_DATE}.replaced-5`]);
+    for (const name of ['failed-1', 'replaced-5', 'old-2']) expect(readFileSync(path.join(`${made.dir}.${name}`, 'keep.txt'), 'utf8')).toBe(name);
+    expect(recordOf(`${made.dir}.failed-6`).attempt).toBe(6);
+  });
+
+  it('does not count the folders of other days, or names that only look like the folders of a day', async () => {
+    const made = setup({ stages: composeFails() });
+    for (const name of ['2026-10-04.failed-1', '2026-10-04.failed-2', '2026-10-04.failed-3', `${DEMO_DATE}.failed-x`, `${DEMO_DATE}.failed-`, `${DEMO_DATE}.kept-9`, `${DEMO_DATE}x.failed-9`, `${DEMO_DATE}.failed-1.bak`, `x${DEMO_DATE}.failed-9`]) {
+      mkdirSync(path.join(made.config.runDir, name), { recursive: true });
+    }
+    expect((await made.run()).attempt).toBe(1);
+    expect((await again(made)).attempt).toBe(2);
   });
 });
 

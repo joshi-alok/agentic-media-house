@@ -50,6 +50,18 @@ describe('the README: how a replay knows how the run was made', () => {
   });
 });
 
+describe('the README: a day whose run failed', () => {
+  it('says that a failed day is run again with no flag, how many runs a day may have, where the earlier run is kept, and what --force-new is for', () => {
+    const workspace = section('The desk workspace');
+    const command = section('The desk command');
+    expect(workspace).toContain('a day whose run failed is run again with no flag, up to `maxAttemptsPerDay` runs a day (3 unless the settings say otherwise');
+    expect(workspace).toContain('`runs/<date>.failed-<n>/` or `runs/<date>.replaced-<n>/`, never removed');
+    expect(workspace).toContain('A day that published, was held or found no story is not run again unless `--force-new` says so');
+    expect(command).toContain('the run after the `maxAttemptsPerDay`th of a day is refused (exit code 1, nothing run)');
+    expect(command).toContain('how many runs one day may have (`maxAttemptsPerDay`)');
+  });
+});
+
 describe('the README: what the Desk does not check', () => {
   const limits = (): string => section('What the Desk does not check');
 

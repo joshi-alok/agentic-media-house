@@ -32,6 +32,8 @@ export const DeskConfig = z.strictObject({
   minClaims: count,
   /** Verify: how many times a draft goes back to the composer before it is held. */
   maxRevisionRounds: z.number().int().nonnegative(),
+  /** Run: how many runs one day may have, the first and every one after it (a day that failed is run again, and `--force-new` runs a day again). The run after the last is refused. */
+  maxAttemptsPerDay: count,
   /** Fetch: what the Desk calls itself to every site. It must link to the /method page, which says who the Desk is. */
   userAgent: text.refine((value) => /https?:\/\/\S+\/method\b/.test(value), {
     message: 'must include the address of the /method page, such as https://agenticmediahouse.example/method',
@@ -59,6 +61,7 @@ export function defaultConfig(): DeskConfig {
     shortlistMax: 15,
     minClaims: 3,
     maxRevisionRounds: 2,
+    maxAttemptsPerDay: 3,
     userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
     requestIntervalMs: 1000,
     maxBytes: 2_000_000,

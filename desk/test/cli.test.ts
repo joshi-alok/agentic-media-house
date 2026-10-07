@@ -217,6 +217,8 @@ describe('main: usage errors', () => {
     expect(USAGE).toContain('desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new]');
     expect(USAGE).toContain('desk replay <folder of a run> [--sources fixtures|live] [--client fake|recorded|api] [--cassettes <folder>]');
     expect(USAGE).toContain('The record of the run says');
+    expect(USAGE).toContain('a day whose run failed is run');
+    expect(USAGE).toContain('maxAttemptsPerDay');
     expect(USAGE).toContain('desk status');
     expect(USAGE).toContain('[--config <path>]');
     expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ')).every((line) => line.includes('[--config <path>]'))).toBe(true);
@@ -279,7 +281,59 @@ describe('main: run --dry --client fake --sources fixtures', () => {
     expect(err.join('\n')).toContain('--force-new');
     expect(await call(...DRY_DEMO, '--force-new')).toBe(0);
     expect(out.filter((line) => line === 'outcome: published')).toHaveLength(2);
-    expect(existsSync(path.join(cwd, 'runs', '2026-10-05.old-1'))).toBe(true);
+    expect(existsSync(path.join(cwd, 'runs', '2026-10-05.replaced-1'))).toBe(true);
+  });
+
+  it('says which try of its day the run was, on a line of its own after the run id', async () => {
+    const { call, out } = setup();
+    await call(...DRY_DEMO);
+    expect(out.slice(out.indexOf('run: 2026-10-05-043100'))).toEqual([
+      'run: 2026-10-05-043100',
+      'attempt: 1',
+      expect.stringMatching(/^folder: /),
+      expect.stringMatching(/^piece: /),
+      expect.stringMatching(/^dry run: /),
+    ]);
+    out.length = 0;
+    await call(...DRY_DEMO, '--force-new');
+    expect(out).toContain('attempt: 2');
+  });
+});
+
+describe('main: a day that failed is tried again', () => {
+  // A live run with no network fails at Discover, which makes a failed day without any stage of a test: the same command is the next try of the day.
+  it('runs a failed day again with the same command, up to three tries, and refuses the fourth with exit code 1 and nothing run', async () => {
+    const { call, out, err, cwd, git } = setup({ env: { ANTHROPIC_API_KEY: 'k' } });
+    for (const attempt of [1, 2, 3]) {
+      out.length = 0;
+      expect(await call('run', '--date', '2026-10-05'), `try ${attempt}`).toBe(1);
+      expect(out).toContain('outcome: failed');
+      expect(out).toContain(`attempt: ${attempt}`);
+    }
+    const commits = git.commits.length;
+    out.length = 0;
+    expect(await call('run', '--date', '2026-10-05')).toBe(1);
+    expect(out).toEqual([]);
+    expect(err.at(-1)).toBe(
+      'the run was refused: the run of 2026-10-05 has already been tried 3 times and maxAttemptsPerDay is 3: nothing was run. Raise maxAttemptsPerDay in a file of settings (--config) to allow another try',
+    );
+    expect(git.commits).toHaveLength(commits);
+    expect(readdirSync(path.join(cwd, 'runs')).sort()).toEqual(['2026-10-05', '2026-10-05.failed-1', '2026-10-05.failed-2']);
+  });
+
+  it('takes the number of tries from a file of settings', async () => {
+    const made = setup({ config: undefined, env: { ANTHROPIC_API_KEY: 'k' } });
+    writeFileSync(path.join(made.cwd, 'desk.yml'), 'maxAttemptsPerDay: 1\nuserAgent: "AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.test/method)"\n');
+    expect(await made.call('run', '--date', '2026-10-05', '--config', 'desk.yml')).toBe(1);
+    expect(await made.call('run', '--date', '2026-10-05', '--config', 'desk.yml')).toBe(1);
+    expect(made.err.at(-1)).toContain('has already been tried 1 time and maxAttemptsPerDay is 1');
+  });
+
+  it('still refuses a day whose run published, with the way out', async () => {
+    const { call, err } = setup();
+    await call(...DRY_DEMO);
+    expect(await call(...DRY_DEMO)).toBe(1);
+    expect(err.at(-1)).toContain('the run was refused: the run of 2026-10-05 is already done');
   });
 });
 

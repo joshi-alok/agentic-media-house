@@ -5,8 +5,8 @@ import path from 'node:path';
 // takes a lock first: a file that is made in a way that fails if it is already there. The lock is removed when the run ends, however it ends. When the
 // lock is there, the run does not start, and this is not a failure of a run: nothing was run, so nothing is recorded.
 
-/** Why a run did not start: the lock is held, the lock is old, the day has been run, or the place it writes to is not in order. */
-export type RefusalKind = 'locked' | 'stale-lock' | 'date-done' | 'target';
+/** Why a run did not start: the lock is held, the lock is old, the day has been run, the day has used all its tries, or the place it writes to is not in order. */
+export type RefusalKind = 'locked' | 'stale-lock' | 'date-done' | 'attempts' | 'target';
 
 /** The error of a run that was refused before it began. Nothing ran, nothing was written, and no record is made of it. */
 export class RunRefused extends Error {

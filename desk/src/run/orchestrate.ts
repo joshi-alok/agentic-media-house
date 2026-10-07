@@ -1,7 +1,7 @@
 import { mkdir, readdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Claim, RunOutcome, SourcesRegistry } from '@robywire/gate';
-import { RunRecord, RunRefused, recordRun, runPath, takeRunLock, writeJsonFile } from '../index';
+import { RunRecord, RunRefused, readRunRecord, recordRun, runPath, takeRunLock, writeJsonFile } from '../index';
 import type { BuiltClient, ClientKind, DeskConfig, EvidenceStore, Fetcher, PublishTarget, SourcesKind } from '../index';
 import { runCompose } from '../stages/compose';
 import { loadPublishedIndex } from '../stages/context';
@@ -17,7 +17,8 @@ import { runVerify } from '../stages/verify';
 // The orchestrator: one run of the Desk, from the stories of the day to a piece on the site, a hold, no story, or a failure. It gives every stage the same
 // context, passes each stage what the one before it made, and ends in one of four outcomes. It never lets anything half done stand: a stage that throws
 // ends the run as `failed` with the reason and the name of the stage, and nothing is published on the strength of it. Every run that is not dry ends with
-// one commit and a record, `run.json`, in the folder of its day.
+// one commit and a record, `run.json`, in the folder of its day. A day whose run failed is run again (up to `maxAttemptsPerDay` runs a day), and the folder
+// of the earlier run is kept beside the new one.
 
 /** The stages, as functions, so that a test can put one of its own in the place of a stage. The defaults are the stages of the Desk. */
 export interface Stages {
@@ -60,7 +61,7 @@ export interface RunDeskOptions {
   ledgerDir: string;
   /** The clock. It is read for the time of the run and nowhere else; the stages never read it. */
   now: () => Date;
-  /** Run again for a day that already has a run: the folder of the old run is moved aside, not removed. */
+  /** Run again for a day whose run did not fail: the folder of the old run is moved aside (as `<day>.replaced-<n>`), not removed. A day whose run failed is run again without it. */
   forceNew?: boolean;
   /** A line for the log of the run, as it happens. Every line is also kept in the record. */
   log?: (line: string) => void;
@@ -75,6 +76,8 @@ export interface RunResult {
   /** Why, for a hold, no story or a failure; null for a piece that was published. */
   reason: string | null;
   slug: string | null;
+  /** Which try of its day the run was: 1 for the first. */
+  attempt: number;
   /** The commit that the run made; null for a dry run, and for a run whose desk state could not be recorded. */
   commit: string | null;
   dry: boolean;
@@ -112,22 +115,63 @@ async function artifactsIn(dir: string): Promise<string[]> {
     .sort();
 }
 
+/** The kinds of folder that an earlier try of a day is moved to: `<day>.failed-<n>`, `<day>.replaced-<n>` and `<day>.old-<n>`. */
+const ASIDE = /^(failed|replaced|old)-(\d+)$/;
+
+/** The highest number among the folders that earlier tries of `date` were moved to in `runsDir`, whatever their kind; 0 when there are none. */
+async function highestAside(runsDir: string, date: string): Promise<number> {
+  let highest = 0;
+  for (const name of await readdir(runsDir)) {
+    if (!name.startsWith(`${date}.`)) continue;
+    const match = ASIDE.exec(name.slice(date.length + 1));
+    if (match !== null) highest = Math.max(highest, Number(match[2]));
+  }
+  return highest;
+}
+
+/** What the folder of a day that is there holds: a run that never ended (no record), a run that failed, or a run that ended any other way (a record that cannot be read counts as that, so that it is never run over). */
+async function whatIsIn(dir: string): Promise<'unended' | 'failed' | 'done'> {
+  const record = path.join(dir, 'run.json');
+  if (!(await exists(record))) return 'unended';
+  try {
+    return (await readRunRecord(record)).outcome === 'failed' ? 'failed' : 'done';
+  } catch {
+    return 'done';
+  }
+}
+
+/** The day of a run, as `planDay` decides it: which try the run is, and how to put the folder of an earlier try away (nothing to do when the day has none). */
+interface DayPlan {
+  attempt: number;
+  moveAside(): Promise<void>;
+}
+
 /**
- * Make the folder of the run ready. A folder that holds a record of a run that ended is refused, unless `forceNew` says to run again. A folder that is
- * there for any other reason (a run that never ended, or `forceNew`) is moved aside to `<folder>.old-1`, or the first number that is free, so that the
- * folder of a run never holds the artifacts of two runs, and nothing is removed.
+ * Decide whether the day may be run, and which try the run is, without changing anything.
+ *
+ * The folders of earlier tries are `<day>.failed-<n>`, `<day>.replaced-<n>` and `<day>.old-<n>`, and `n` counts the tries of the day, whatever became of them, so the folder
+ * of the day, when it is there, is the try after the highest `n` that is kept. A day whose folder holds a record of a run that ended any way but `failed` is refused
+ * (`date-done`) unless `forceNew` says to run it again. A day that has had `maxAttemptsPerDay` tries is refused (`attempts`), `forceNew` or not. Otherwise the run is
+ * the next try, and `moveAside` puts the folder of the day that is there to the name `<day>.failed-<n>` for a run that failed, `<day>.replaced-<n>` for one that ended
+ * and is run again with `forceNew`, and `<day>.old-<n>` for one that never ended, so that the folder of a run never holds the artifacts of two runs and nothing is removed.
+ * The number is one more than the highest that is kept, so a folder that is there is never written over.
  */
-async function prepareFolder(dir: string, date: string, forceNew: boolean): Promise<void> {
-  if (!(await exists(dir))) return;
-  if (!forceNew && (await exists(path.join(dir, 'run.json')))) {
+async function planDay(config: DeskConfig, date: string, forceNew: boolean): Promise<DayPlan> {
+  const dir = runPath(config.runDir, date);
+  const kept = await highestAside(config.runDir, date);
+  const here = (await exists(dir)) ? await whatIsIn(dir) : undefined;
+  if (here === 'done' && !forceNew) {
     throw new RunRefused('date-done', `the run of ${date} is already done (${path.join(dir, 'run.json')} is there): run it again with --force-new, which keeps the old run beside the new one`);
   }
-  for (let number = 1; ; number++) {
-    const aside = `${dir}.old-${number}`;
-    if (await exists(aside)) continue;
-    await rename(dir, aside);
-    return;
+  const tried = kept + (here === undefined ? 0 : 1);
+  if (tried >= config.maxAttemptsPerDay) {
+    throw new RunRefused(
+      'attempts',
+      `the run of ${date} has already been tried ${tried} ${tried === 1 ? 'time' : 'times'} and maxAttemptsPerDay is ${config.maxAttemptsPerDay}: nothing was run. Raise maxAttemptsPerDay in a file of settings (--config) to allow another try`,
+    );
   }
+  const kind = here === 'failed' ? 'failed' : here === 'done' ? 'replaced' : 'old';
+  return { attempt: tried + 1, moveAside: here === undefined ? async () => undefined : () => rename(dir, `${dir}.${kind}-${kept + 1}`) };
 }
 
 /** How the pipeline ended, before the run is recorded. */
@@ -141,8 +185,9 @@ type Ending =
  * Run the Desk for one day.
  *
  * Before anything else the run takes the lock (`<runs folder>/.lock`, made so that it fails if it is there, and removed when the run ends however it ends),
- * and is refused when the lock is held, when the day already has a run (unless `forceNew`), or when the site has changes that are not committed where
- * the Desk writes. A refusal is a `RunRefused` error: nothing ran, so nothing is recorded.
+ * and is refused when the lock is held, when the day already has a run that did not fail (unless `forceNew`), when the day has had `maxAttemptsPerDay` tries
+ * (see `planDay`), or when the site has changes that are not committed where the Desk writes. A refusal is a `RunRefused` error: nothing ran, nothing was
+ * moved and nothing is recorded.
  *
  * Then Discover, Select, Fetch, Extract, Compose and Verify in turn, each given what the one before it made. A story that is not there (Select chooses none,
  * Fetch gets no page, Extract keeps too few claims) ends the run as `no-story`. Verify's verdict ends it as `published` (the Publish stage) or `held` (the
@@ -158,12 +203,13 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
 
   const release = await takeRunLock(config.runDir, startedAt, runId);
   try {
-    await prepareFolder(dir, date, options.forceNew === true);
+    const day = await planDay(config, date, options.forceNew === true);
     try {
       await target.preflight();
     } catch (error) {
       throw new RunRefused('target', describeError(error));
     }
+    await day.moveAside();
     await mkdir(dir, { recursive: true });
 
     const lines: string[] = [];
@@ -252,14 +298,14 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
       dry: target.dry,
       client: options.clientKind,
       sources: options.sourcesKind,
-      attempt: 1,
+      attempt: day.attempt,
       models: { ...config.models },
       budget: { limit: { ...config.budget }, spent: options.model.spent() },
       artifacts: await artifactsIn(dir),
       log: lines,
     };
     await writeJsonFile(path.join(dir, 'run.json'), 'the run record run.json', record, RunRecord);
-    return { outcome: ending.outcome, runId, stage: ending.stage, reason, slug, commit, dry: target.dry, dir, files };
+    return { outcome: ending.outcome, runId, stage: ending.stage, reason, slug, attempt: day.attempt, commit, dry: target.dry, dir, files };
   } finally {
     await release();
   }

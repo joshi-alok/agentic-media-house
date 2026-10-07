@@ -38,6 +38,7 @@ describe('defaultConfig', () => {
       shortlistMax: 15,
       minClaims: 3,
       maxRevisionRounds: 2,
+      maxAttemptsPerDay: 3,
       userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
       requestIntervalMs: 1000,
       maxBytes: 2_000_000,
@@ -122,8 +123,12 @@ describe('loadConfig with a file', () => {
   });
 
   it('accepts a setting at the edge of what is allowed', () => {
-    const config = loadConfig(configFile('maxRevisionRounds: 0\nrequestIntervalMs: 0\nminClaims: 1\nrunDir: r\n'));
-    expect([config.maxRevisionRounds, config.requestIntervalMs, config.minClaims, config.runDir]).toEqual([0, 0, 1, 'r']);
+    const config = loadConfig(configFile('maxRevisionRounds: 0\nrequestIntervalMs: 0\nminClaims: 1\nmaxAttemptsPerDay: 1\nrunDir: r\n'));
+    expect([config.maxRevisionRounds, config.requestIntervalMs, config.minClaims, config.maxAttemptsPerDay, config.runDir]).toEqual([0, 0, 1, 1, 'r']);
+  });
+
+  it('takes the number of tries that a day may have from the file', () => {
+    expect(loadConfig(configFile('maxAttemptsPerDay: 5\n')).maxAttemptsPerDay).toBe(5);
   });
 
   it('accepts another user agent that still links to a /method page', () => {
@@ -156,8 +161,13 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
     expect(failure('recencyHours: soon\n')).toBe('desk config <file>: recencyHours: Invalid input: expected number, received string');
   });
 
-  it.each(['recencyHours', 'shortlistMax', 'minClaims', 'maxBytes', 'budget:\n  maxInputTokens', 'budget:\n  maxOutputTokens'])('%s of zero', (key) => {
+  it.each(['recencyHours', 'shortlistMax', 'minClaims', 'maxAttemptsPerDay', 'maxBytes', 'budget:\n  maxInputTokens', 'budget:\n  maxOutputTokens'])('%s of zero', (key) => {
     expect(failure(`${key}: 0\n`)).toContain('Too small: expected number to be >0');
+  });
+
+  it('a number of tries a day that is not a whole number of at least 1', () => {
+    expect(failure('maxAttemptsPerDay: -1\n')).toBe('desk config <file>: maxAttemptsPerDay: Too small: expected number to be >0');
+    expect(failure('maxAttemptsPerDay: 2.5\n')).toBe('desk config <file>: maxAttemptsPerDay: Invalid input: expected int, received number');
   });
 
   it('a negative number of revision rounds, or a negative pause between requests', () => {
