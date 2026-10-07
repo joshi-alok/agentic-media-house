@@ -83,7 +83,7 @@ describe('what each outcome commits, and where', () => {
       main: [`desk: hold ${SLUG}`],
       mainFiles: [STATE],
       branches: { [BRANCH]: { subjects: [`desk: held piece ${SLUG}, for the owner to release`], files: [LEDGER, NEWS] } },
-      forge: ['hasRemote', 'pushBranch', 'openDraftPullRequest'],
+      forge: ['hasRemote', 'branchExists', 'pushBranch', 'openDraftPullRequest'],
     });
   });
 
@@ -133,14 +133,14 @@ describe('what each outcome commits, and where', () => {
     const { result, left } = await ranWith({ fake: unentailed() }, (forge) => forge.fail('pushBranch', new ForgeError('failed', 'could not resolve host')));
     expect(result.outcome).toBe('failed');
     expect(result.stage).toBe('hold');
-    expect(left).toEqual({ main: FAILED, mainFiles: [STATE], branches: {}, forge: ['hasRemote', 'pushBranch'] });
+    expect(left).toEqual({ main: FAILED, mainFiles: [STATE], branches: {}, forge: ['hasRemote', 'branchExists', 'pushBranch'] });
   });
 
   it('failed at the hold because the pull request cannot be opened: the same, and the forge was asked to open it', async () => {
     const { result, left } = await ranWith({ fake: unentailed() }, (forge) => forge.fail('openDraftPullRequest', new ForgeError('failed', 'GitHub said no')));
     expect(result.outcome).toBe('failed');
     expect(result.stage).toBe('hold');
-    expect(left).toEqual({ main: FAILED, mainFiles: [STATE], branches: {}, forge: ['hasRemote', 'pushBranch', 'openDraftPullRequest'] });
+    expect(left).toEqual({ main: FAILED, mainFiles: [STATE], branches: {}, forge: ['hasRemote', 'branchExists', 'pushBranch', 'openDraftPullRequest'] });
   });
 
   it('a correction of a published piece: one commit on main, with the article (updatedAt) and the desk state; no branch; the forge is not asked', async () => {

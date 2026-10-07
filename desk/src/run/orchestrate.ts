@@ -268,7 +268,7 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
         return { outcome: 'published', stage: 'publish', slug: published.slug, commit: published.commit, files: published.files };
       }
       stage = 'hold';
-      const held = await stages.hold(ctx, target, claims, verified, { ...run, sourceUrl: selected.chosen.url }, options.forge);
+      const held = await stages.hold(ctx, target, claims, verified, { ...run, sourceUrl: selected.chosen.url, attempt: day.attempt }, options.forge);
       const where = held.pullRequest !== null ? `; draft pull request ${held.pullRequest.url}` : held.note !== null ? `; no pull request: ${held.note}` : '';
       return { outcome: 'held', stage: 'hold', slug: held.slug, reason: `held for ${held.reasons.join(', ')}${where}`, pullRequest: held.pullRequest?.url ?? null, commit: held.commit, files: held.files };
     };

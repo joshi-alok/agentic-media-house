@@ -153,6 +153,27 @@ export function holdPrBody(held: HeldArtifact): string {
   return lines.join('\n');
 }
 
+/** How many names of tries are looked at for a branch that is not on the remote already, before the Desk gives up: the day has at most `maxAttemptsPerDay` tries, and a few more are left by tries on other machines. */
+const MOST_BRANCH_TRIES = 10;
+
+/**
+ * The name for the branch of the held piece on the `attempt`-th try of its day: `hold/<day>-<slug>` for the first and `hold/<day>-<slug>-t<n>` for a later one, and the first of these,
+ * from that try on, that is not on the remote already. The number of the try comes from the record of the run, which is only on the machine that made the earlier tries: a scheduled job
+ * starts from a fresh checkout every time, with no record, and is the first try as far as it knows. The remote is what remembers, so the branch that an earlier try left there, when it
+ * pushed the branch and could not open the pull request, is found there, and the name of the next try is used. A branch that is on the remote is never pushed to again, so that
+ * the push cannot be rejected as one that is not a fast-forward.
+ */
+async function freeBranchName(forge: ForgeTarget, date: string, slug: string, attempt: number): Promise<string> {
+  const first = Math.max(1, attempt);
+  const taken: string[] = [];
+  for (let n = first; n < first + MOST_BRANCH_TRIES; n++) {
+    const name = holdBranchName(date, slug, n);
+    if (!(await forge.branchExists(name))) return name;
+    taken.push(name);
+  }
+  throw new ForgeError('branch-exists', `${MOST_BRANCH_TRIES} names of branches for the held piece ${slug}, from ${taken[0]} to ${taken.at(-1)}, are all on the remote already: delete the branches that earlier tries left, or open the pull request from one of them by hand`);
+}
+
 /** A pull request that was opened for a held piece: where it is, which branch it is from, and the commit that the branch has. */
 export interface HoldPullRequest {
   url: string;
@@ -173,13 +194,14 @@ const describeError = (error: unknown): string => (error instanceof Error ? erro
  *    is nothing to merge, so nothing is sent, and the answer says why.
  * 2. Check that the places that the Desk writes to are in order (`target.preflight`): the desk state can be read and nothing there has a change that is not committed.
  * 3. Check that the repository has a remote (`forge.hasRemote`).
- * 4. Commit the two files to the branch `hold/<day>-<slug>`, made from `main` beside the checkout (`target.commitPieceToBranch`).
+ * 4. Choose the name of the branch: `hold/<day>-<slug>`, or `hold/<day>-<slug>-t<n>` on the n-th try of the day, and the first of the names, from the try that this is, that the remote
+ *    does not have (`freeBranchName`). Commit the two files to it, made from `main` beside the checkout (`target.commitPieceToBranch`).
  * 5. Push the branch, and open the draft pull request into `main`. When either fails the branch is removed again, and when the branch had been pushed the error says so, because
  *    it is then on the remote and the owner can open the pull request from it by hand.
  *
  * Nothing in the checkout changes at any step: the branch is made beside it. Throws what the step threw (a `ForgeError` for a step of the forge).
  */
-export async function sendToOwner(ctx: Pick<StageContext, 'log'>, target: PublishTarget, forge: ForgeTarget, held: HeldArtifact): Promise<SentToOwner> {
+export async function sendToOwner(ctx: Pick<StageContext, 'log'>, target: PublishTarget, forge: ForgeTarget, held: HeldArtifact, attempt = 1): Promise<SentToOwner> {
   let piece: PieceFiles;
   try {
     piece = heldPieceFiles(held);
@@ -189,7 +211,7 @@ export async function sendToOwner(ctx: Pick<StageContext, 'log'>, target: Publis
   await target.preflight();
   if (!(await forge.hasRemote())) throw new ForgeError('no-remote', 'the repository has no remote called origin, so the held piece cannot be sent to the owner as a pull request');
 
-  const branch = holdBranchName(held.date, piece.slug);
+  const branch = await freeBranchName(forge, held.date, piece.slug, attempt);
   const { commit } = await target.commitPieceToBranch({ branch, piece, message: `desk: held piece ${piece.slug}, for the owner to release` });
   let pushed = false;
   try {
@@ -201,6 +223,6 @@ export async function sendToOwner(ctx: Pick<StageContext, 'log'>, target: Publis
   } catch (error) {
     await target.dropBranch(branch).catch(() => undefined);
     const kind = error instanceof ForgeError ? error.kind : 'failed';
-    throw new ForgeError(kind, `${describeError(error)}${pushed ? ` (the branch ${branch} was pushed and no pull request was opened: open one from it by hand, or delete the branch)` : ''}`);
+    throw new ForgeError(kind, `${describeError(error)}${pushed ? ` (the branch ${branch} was pushed and no pull request was opened, so it is left on the remote: open a pull request from it by hand, or delete it with git push origin --delete ${branch}; the next try of the day uses another name)` : ''}`);
   }
 }

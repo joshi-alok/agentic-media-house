@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { sha256Hex } from '../model/types';
+import { isHoldBranch } from './branches';
 
 // How the Desk commits. The Publish stage and the runs that end in a hold write a few files and commit exactly those, and the rest of the
 // repository is none of their business: they name each file, they refuse to start when something else of the Desk's is in the way, and they
@@ -54,14 +55,13 @@ export interface GitCliOptions {
   tempDir?: string;
 }
 
-/** The names of branches that `GitCli` makes and removes: lowercase letters and digits, joined by single hyphens or slashes. No name can start like an option or make a path that goes up. */
-const BRANCH_NAME = /^[a-z0-9]+(?:[/-][a-z0-9]+)*$/;
+/** The names of branches that `GitCli` makes and removes are the names of the branches that `GhForge` pushes (`isHoldBranch`, in `branches.ts`): one pattern for both. No name can start like an option or make a path that goes up. */
 
 /** The id that stands for a reference that is not there yet: `update-ref` with it makes a branch only if there is none. */
 const NOT_THERE = '0'.repeat(40);
 
 function assertBranchName(branch: string): void {
-  if (!BRANCH_NAME.test(branch)) throw new Error(`${JSON.stringify(branch)} is not a branch name that the Desk makes (lowercase letters and digits joined by single hyphens or slashes)`);
+  if (!isHoldBranch(branch)) throw new Error(`${JSON.stringify(branch)} is not a branch name that the Desk makes (hold/<day>-<slug>: lowercase letters and digits joined by single hyphens)`);
 }
 
 /**

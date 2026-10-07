@@ -348,8 +348,9 @@ describe('GitCli.deleteBranch', () => {
 
   it('does not remove the branch that the checkout is on, and says so', async () => {
     const dir = makeRepo();
-    await expect(cliFor(dir).deleteBranch('main')).rejects.toThrow('git branch failed');
-    expect(git(dir, 'branch', '--format=%(refname:short)')).toBe('main');
+    git(dir, 'checkout', '--quiet', '-b', BRANCH);
+    await expect(cliFor(dir).deleteBranch(BRANCH)).rejects.toThrow('git branch failed');
+    expect(git(dir, 'branch', '--format=%(refname:short)')).toBe(`${BRANCH}\nmain`);
   });
 
   it('fails for a branch that is not there, and for a name that the Desk does not make', async () => {
@@ -433,7 +434,9 @@ describe('FakeGit', () => {
     await fake.commitToNewBranch(BRANCH, [{ path: NEWS, text: 'a' }], 'held');
     await fake.deleteBranch(BRANCH);
     expect([...fake.branches]).toEqual(['main']);
-    await expect(fake.deleteBranch('main')).rejects.toThrow('the checkout is on');
+    fake.branch = BRANCH;
+    await expect(fake.deleteBranch(BRANCH)).rejects.toThrow('the checkout is on');
+    fake.branch = 'main';
     await expect(fake.deleteBranch(BRANCH)).rejects.toThrow('is not there');
   });
 });

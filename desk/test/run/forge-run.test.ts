@@ -40,7 +40,7 @@ describe('a run that is held, with a forge', () => {
     expect(result.reason).toBe(`held for G10_NOT_ENTAILED; draft pull request ${result.pullRequest}`);
     expect(recordOf(dir).reason).toBe(result.reason);
     const branch = `hold/${DEMO_DATE}-${result.slug}`;
-    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'pushBranch', 'openDraftPullRequest']);
+    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'branchExists', 'pushBranch', 'openDraftPullRequest']);
     expect(await readDeskState(path.join(repoDir, STATE))).toEqual({
       lastRun: { at: START.toISOString(), outcome: 'held', runId: result.runId, slug: result.slug },
       holds: [{ at: START.toISOString(), categories: expect.any(Array), reasons: ['G10_NOT_ENTAILED'], prUrl: result.pullRequest, slug: result.slug, sourceUrl: DEMO_URLS.mercerArticle }],
@@ -78,7 +78,7 @@ describe('a run that is held, with a forge', () => {
     expect(readFileSync(path.join(repoDir, 'site/src/content/news/.gitkeep'), 'utf8')).toBe('');
   });
 
-  it('is tried again the same day when the forge has failed, and the second try sends the piece: the branch of the first try was removed, so the name is free', async () => {
+  it('is tried again the same day when the forge has failed, and the second try sends the piece under the name of its own try: the first try pushed its branch, which is left on the remote', async () => {
     const made = setup();
     made.forge.fail('openDraftPullRequest', new ForgeError('failed', 'GraphQL: Something went wrong'));
     const first = await made.run();
@@ -90,8 +90,9 @@ describe('a run that is held, with a forge', () => {
     expect(second.outcome).toBe('held');
     expect(second.attempt).toBe(2);
     expect(second.pullRequest).toBe('https://github.example/agentic-media-house/pull/1');
-    expect(branchesIn(made.repoDir)).toEqual([`hold/${DEMO_DATE}-${second.slug}`, 'main'].sort());
-    expect(made.forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'pushBranch', 'openDraftPullRequest', 'hasRemote', 'pushBranch', 'openDraftPullRequest']);
+    expect(branchesIn(made.repoDir)).toEqual([`hold/${DEMO_DATE}-${second.slug}-t2`, 'main'].sort());
+    expect([...made.forge.remoteBranches]).toEqual([`hold/${DEMO_DATE}-${second.slug}`, `hold/${DEMO_DATE}-${second.slug}-t2`]);
+    expect(made.forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'branchExists', 'pushBranch', 'openDraftPullRequest', 'hasRemote', 'branchExists', 'pushBranch', 'openDraftPullRequest']);
   });
 
   it('ends failed at the stage hold when the repository has no remote, and sends nothing', async () => {

@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { matchPieces } from '../../../site/src/lib/match-pieces';
 import { HeldArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
-import { FakeForge, ForgeError, HOLD_BRANCH, holdBranchName } from '../../src/run/forge';
+import { HOLD_BRANCH, holdBranchName } from '../../src/run/branches';
+import { FakeForge, ForgeError } from '../../src/run/forge';
 import type { PullRequestRequest } from '../../src/run/forge';
 import { DryTarget, SiteTarget, sitePaths } from '../../src/run/target';
 import { runHold } from '../../src/stages/hold';
@@ -57,7 +58,7 @@ describe('runHold with a forge: the piece is sent to the owner', () => {
     expect(result.pullRequest).toEqual({ url: 'https://github.example/agentic-media-house/pull/1', number: 1, branch, commit: git(repoDir, 'rev-parse', branch) });
     expect(result.note).toBeNull();
     const request: PullRequestRequest = { branch, title: holdPrTitle(held), body: holdPrBody(held), base: 'main' };
-    expect(forge.calls).toEqual([{ method: 'hasRemote' }, { method: 'pushBranch', branch }, { method: 'openDraftPullRequest', request }]);
+    expect(forge.calls).toEqual([{ method: 'hasRemote' }, { method: 'branchExists', branch }, { method: 'pushBranch', branch }, { method: 'openDraftPullRequest', request }]);
   });
 
   it('puts the two files of the piece on the branch, as one commit on top of main, with the message and the trailer of the project', async () => {
@@ -140,14 +141,56 @@ describe('runHold with a forge: the piece is sent to the owner', () => {
 
   it('names the branch from the day and the slug, and cuts a long slug so that the branch is still one that the Desk pushes', async () => {
     const verdict = await made.tier2();
-    const long = `long-${'x'.repeat(120)}`;
+    const long = `long-${'x'.repeat(30)}-${'y'.repeat(30)}-${'z'.repeat(30)}`;
     verdict.verified.draft.slug = long;
     const { ctx, claims, verified, repoDir, forge, target, branch } = await setup(verdict);
-    expect(branch).toBe(`hold/2026-10-05-${long.slice(0, 80)}`);
+    // Cut at the last hyphen that fits in 80 characters, and not in the middle of a word.
+    expect(branch).toBe(`hold/2026-10-05-long-${'x'.repeat(30)}-${'y'.repeat(30)}`);
     expect(HOLD_BRANCH.test(branch)).toBe(true);
     const result = await runHold(ctx, target, claims, verified, HOLD_RUN, forge);
     expect(result.pullRequest?.branch).toBe(branch);
     expect(branchesIn(repoDir)).toEqual([branch, 'main'].sort());
+  });
+});
+
+describe('runHold with a forge: the name of the branch of each try', () => {
+  it('is hold/<day>-<slug> for the first try, and hold/<day>-<slug>-t<n> for the n-th, which is the try that the record of the run says', async () => {
+    const { ctx, claims, verified, forge, target, branch } = await setup();
+    const result = await runHold(ctx, target, claims, verified, { ...HOLD_RUN, attempt: 3 }, forge);
+    expect(result.pullRequest?.branch).toBe(`${branch}-t3`);
+    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'branchExists', 'pushBranch', 'openDraftPullRequest']);
+  });
+
+  it('is the first name, from the try that this is, that the remote does not have: a try that has no record of the earlier ones (a fresh checkout) finds their branches there', async () => {
+    const { ctx, claims, verified, repoDir, forge, target, branch } = await setup();
+    forge.remoteBranches.add(branch);
+    forge.remoteBranches.add(`${branch}-t2`);
+    const result = await runHold(ctx, target, claims, verified, HOLD_RUN, forge);
+    expect(result.pullRequest?.branch).toBe(`${branch}-t3`);
+    expect(forge.calls.filter((call) => call.method === 'branchExists')).toEqual([
+      { method: 'branchExists', branch },
+      { method: 'branchExists', branch: `${branch}-t2` },
+      { method: 'branchExists', branch: `${branch}-t3` },
+    ]);
+    expect(branchesIn(repoDir)).toEqual([`${branch}-t3`, 'main'].sort());
+  });
+
+  it('gives up, makes no branch and pushes nothing, when ten names from this try on are on the remote, and names the first and the last of them', async () => {
+    const { ctx, claims, verified, repoDir, forge, target, branch } = await setup();
+    for (const mark of ['', ...Array.from({ length: 12 }, (_, at) => `-t${at + 2}`)]) forge.remoteBranches.add(`${branch}${mark}`);
+    const error = (await runHold(ctx, target, claims, verified, HOLD_RUN, forge).catch((caught: unknown) => caught)) as ForgeError;
+    expect(error).toMatchObject({ name: 'ForgeError', kind: 'branch-exists' });
+    expect(error.message).toContain(`from ${branch} to ${branch}-t10, are all on the remote already`);
+    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', ...Array.from({ length: 10 }, () => 'branchExists')]);
+    expectUntouched(repoDir);
+  });
+
+  it('is asked of the remote after the check that there is a remote and before anything is made in the checkout, so that a failure of the question leaves nothing behind', async () => {
+    const { ctx, claims, verified, repoDir, forge, target } = await setup();
+    forge.fail('branchExists', new ForgeError('failed', 'git ls-remote failed'));
+    await expect(runHold(ctx, target, claims, verified, HOLD_RUN, forge)).rejects.toMatchObject({ message: 'git ls-remote failed' });
+    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'branchExists']);
+    expectUntouched(repoDir);
   });
 });
 
@@ -157,7 +200,7 @@ describe('runHold with a forge: when a step fails, the run fails and the checkou
     forge.fail('pushBranch', new ForgeError('auth', 'GitHub did not take the credentials'));
     const error = await runHold(ctx, target, claims, verified, HOLD_RUN, forge).catch((caught: unknown) => caught);
     expect(error).toMatchObject({ name: 'ForgeError', kind: 'auth', message: 'GitHub did not take the credentials' });
-    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'pushBranch']);
+    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'branchExists', 'pushBranch']);
     expectUntouched(repoDir);
     expect(existsSync(path.join(ctx.runDir, 'held', `${slug}.json`))).toBe(true);
   });
@@ -168,8 +211,11 @@ describe('runHold with a forge: when a step fails, the run fails and the checkou
     const error = (await runHold(ctx, target, claims, verified, HOLD_RUN, forge).catch((caught: unknown) => caught)) as ForgeError;
     expect(error).toBeInstanceOf(ForgeError);
     expect(error.kind).toBe('failed');
-    expect(error.message).toBe(`GraphQL: Something went wrong (the branch ${branch} was pushed and no pull request was opened: open one from it by hand, or delete the branch)`);
-    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'pushBranch', 'openDraftPullRequest']);
+    expect(error.message).toBe(
+      `GraphQL: Something went wrong (the branch ${branch} was pushed and no pull request was opened, so it is left on the remote: open a pull request from it by hand, or delete it with git push origin --delete ${branch}; the next try of the day uses another name)`,
+    );
+    expect([...forge.remoteBranches]).toEqual([branch]);
+    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'branchExists', 'pushBranch', 'openDraftPullRequest']);
     expectUntouched(repoDir);
   });
 
@@ -194,7 +240,7 @@ describe('runHold with a forge: when a step fails, the run fails and the checkou
     const tip = git(repoDir, 'rev-parse', branch);
     await expect(runHold(ctx, target, claims, verified, HOLD_RUN, forge)).rejects.toThrow(`the branch ${branch} already exists`);
     expect(git(repoDir, 'rev-parse', branch)).toBe(tip);
-    expect(forge.calls).toEqual([{ method: 'hasRemote' }]);
+    expect(forge.calls).toEqual([{ method: 'hasRemote' }, { method: 'branchExists', branch }]);
     expect(branchesIn(repoDir)).toEqual([branch, 'main'].sort());
     expect(subjectsOf(repoDir)).toEqual(['start']);
   });
@@ -217,11 +263,11 @@ describe('runHold with a forge: when a step fails, the run fails and the checkou
   });
 
   it('refuses when the checkout is not on main, because the branch would carry the commits of the other branch', async () => {
-    const { ctx, claims, verified, repoDir, forge, target } = await setup();
+    const { ctx, claims, verified, repoDir, forge, target, branch } = await setup();
     git(repoDir, 'switch', '--quiet', '-c', 'other');
     await expect(runHold(ctx, target, claims, verified, HOLD_RUN, forge)).rejects.toThrow('but the checkout is on other');
     expect(branchesIn(repoDir)).toEqual(['main', 'other']);
-    expect(forge.calls).toEqual([{ method: 'hasRemote' }]);
+    expect(forge.calls).toEqual([{ method: 'hasRemote' }, { method: 'branchExists', branch }]);
   });
 
   it('refuses when the checkout is on no branch', async () => {
@@ -232,13 +278,13 @@ describe('runHold with a forge: when a step fails, the run fails and the checkou
   });
 
   it('refuses when the slug is taken by a piece that is already on the site', async () => {
-    const { ctx, claims, verified, repoDir, forge, target, slug } = await setup();
+    const { ctx, claims, verified, repoDir, forge, target, slug, branch } = await setup();
     writeFileSync(path.join(repoDir, `site/src/content/news/${slug}.mdx`), 'a piece\n');
     git(repoDir, 'add', '.');
     git(repoDir, 'commit', '--quiet', '-m', 'a piece with the same slug');
     await expect(runHold(ctx, target, claims, verified, HOLD_RUN, forge)).rejects.toThrow('so the slug');
     expect(branchesIn(repoDir)).toEqual(['main']);
-    expect(forge.calls).toEqual([{ method: 'hasRemote' }]);
+    expect(forge.calls).toEqual([{ method: 'hasRemote' }, { method: 'branchExists', branch }]);
   });
 
   it('tells where the pull request is when the hold cannot be recorded after it was opened, and keeps the branch, which the pull request is from', async () => {
@@ -250,7 +296,7 @@ describe('runHold with a forge: when a step fails, the run fails and the checkou
     const error = (await runHold(ctx, target, claims, verified, HOLD_RUN, forge).catch((caught: unknown) => caught)) as Error;
     expect(error.message).toContain('git commit failed');
     expect(error.message).toContain('the draft pull request https://github.example/agentic-media-house/pull/1 was opened and the hold is not recorded in the desk state');
-    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'pushBranch', 'openDraftPullRequest']);
+    expect(forge.calls.map((call) => call.method)).toEqual(['hasRemote', 'branchExists', 'pushBranch', 'openDraftPullRequest']);
     expect(branchesIn(repoDir)).toEqual([branch, 'main'].sort());
     expect(readFileSync(path.join(repoDir, STATE), 'utf8')).toBe(COMMITTED_STATE);
     expect(changesIn(repoDir)).toEqual([]);

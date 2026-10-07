@@ -278,6 +278,23 @@ describe('the README: the file of settings of the daily run', () => {
   });
 });
 
+describe('the README: the name of the branch of a hold', () => {
+  const holds = (): string => section('Holds and corrections');
+
+  it('says that each try has a name, how the next try finds a name that is free, and how a long slug is cut', () => {
+    expect(holds()).toContain('**The name of the branch is a name for each try.**');
+    expect(holds()).toContain('`hold/<day>-<slug>` for the first try of a day and `hold/<day>-<slug>-t<n>` for the n-th');
+    expect(holds()).toContain('asks the remote which of the names from its own try on it already has (`git ls-remote`), and uses the first that it does not have');
+    expect(holds()).toContain('cut at the last hyphen that fits in 80 characters, never in the middle of a word and never leaving a hyphen at the end');
+    expect(holds()).toContain('accept exactly the same names');
+  });
+
+  it('says what a half-done hold leaves, and that the next try is not rejected', () => {
+    expect(section('What the Desk does not check')).toContain('The error says its name and how to delete it (`git push origin --delete <branch>`)');
+    expect(section('What the Desk does not check')).toContain('so it is never refused as a push that is not a fast-forward');
+  });
+});
+
 describe('the README: a hold is remembered', () => {
   const holds = (): string => section('Holds and corrections');
 

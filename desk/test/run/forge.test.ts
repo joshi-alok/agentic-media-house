@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FakeForge, ForgeError, GhForge, HOLD_BRANCH, holdBranchName, nodeExec } from '../../src/run/forge';
+import { HOLD_BRANCH, holdBranchName } from '../../src/run/branches';
+import { FakeForge, ForgeError, GhForge, nodeExec } from '../../src/run/forge';
 import type { ForgeTarget } from '../../src/run/forge';
 import { useScratch } from '../support/context';
 import { scriptedExec } from '../support/exec';
@@ -39,12 +40,11 @@ describe('the branch of a hold', () => {
   it('is hold/<day>-<slug>: the only kind of branch the Desk pushes', () => {
     expect(holdBranchName('2026-10-05', 'fixture-robotics-second-plant')).toBe(BRANCH);
     expect(HOLD_BRANCH.test(BRANCH)).toBe(true);
-    expect(HOLD_BRANCH.source).toBe('^hold\\/\\d{4}-\\d{2}-\\d{2}-[a-z0-9-]{1,80}$');
   });
 
-  it('is cut at 80 characters of the slug, so that a long title still has a branch', () => {
+  it('is cut at the last hyphen that fits in 80 characters of the slug, so that a long title still has a branch (test/run/branches.test.ts has the rest of the rules)', () => {
     const branch = holdBranchName('2026-10-05', `${'a'.repeat(60)}-${'b'.repeat(60)}`);
-    expect(branch).toBe(`hold/2026-10-05-${'a'.repeat(60)}-${'b'.repeat(19)}`);
+    expect(branch).toBe(`hold/2026-10-05-${'a'.repeat(60)}`);
     expect(HOLD_BRANCH.test(branch)).toBe(true);
   });
 
@@ -59,6 +59,8 @@ describe('the branch of a hold', () => {
   it.each([
     'main',
     'hold/2026-10-05-',
+    'hold/2026-10-05-a-',
+    'hold/2026-10-05-a--b',
     'hold/2026-10-05-UPPER',
     'hold/2026-10-05-a b',
     'hold/2026-10-05-a;b',
@@ -91,6 +93,37 @@ describe('GhForge.hasRemote', () => {
     const missing = Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' });
     await expect(new GhForge(scriptedExec(missing).exec).hasRemote()).rejects.toMatchObject({ name: 'ForgeError', kind: 'tool-missing' });
     await expect(new GhForge(scriptedExec({ code: 128, stderr: 'fatal: not a git repository (or any of the parent directories): .git\n' }).exec).hasRemote()).rejects.toMatchObject({ kind: 'failed' });
+  });
+});
+
+describe('GhForge.branchExists', () => {
+  it('asks the remote with `git ls-remote --exit-code --heads origin refs/heads/<branch>`, and an exit code of 0 is a branch that is there', async () => {
+    const { exec, calls } = scriptedExec({ code: 0, stdout: `0123456789abcdef0123456789abcdef01234567\trefs/heads/${BRANCH}\n` });
+    expect(await new GhForge(exec, { cwd: CWD }).branchExists(BRANCH)).toBe(true);
+    expect(calls).toEqual([{ file: 'git', args: ['ls-remote', '--exit-code', '--heads', 'origin', `refs/heads/${BRANCH}`], cwd: CWD }]);
+  });
+
+  it('says that the branch is not there for the exit code 2 that --exit-code gives when the remote has no such branch', async () => {
+    expect(await new GhForge(scriptedExec({ code: 2 }).exec).branchExists(BRANCH)).toBe(false);
+  });
+
+  it.each([
+    ['a remote that cannot be read', { code: 128, stderr: GIT_NO_REMOTE }, 'no-remote'],
+    ['a login that is not taken', { code: 128, stderr: 'fatal: Authentication failed for the remote\n' }, 'auth'],
+    ['any other failure', { code: 128, stderr: 'fatal: the disk is full\n' }, 'failed'],
+    ['a complaint that is the one of a push that was rejected, which is not a thing that a question can be', { code: 128, stderr: ' ! [rejected] main -> main (fetch first)\n' }, 'failed'],
+  ] as const)('is an error for %s, never an answer', async (_what, reply, kind) => {
+    const error = await new GhForge(scriptedExec(reply).exec).branchExists(BRANCH).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ name: 'ForgeError', kind });
+    expect((error as ForgeError).message).toContain(`git ls-remote of ${BRANCH} failed (exit code 128)`);
+  });
+
+  it('is an error when git cannot be started, and runs nothing for a name that is not the name of a hold branch', async () => {
+    const missing = Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' });
+    await expect(new GhForge(scriptedExec(missing).exec).branchExists(BRANCH)).rejects.toMatchObject({ kind: 'tool-missing' });
+    const { exec, calls } = scriptedExec({ code: 0 });
+    await expect(new GhForge(exec).branchExists('main')).rejects.toMatchObject({ kind: 'bad-input' });
+    expect(calls).toEqual([]);
   });
 });
 
@@ -381,6 +414,19 @@ describe('FakeForge', () => {
     const second = await forge.openDraftPullRequest({ branch: 'hold/2026-10-06-another', title: 'a', body: 'b', base: 'main' });
     expect([first.number, second.number]).toEqual([1, 2]);
     expect(second.url).toBe('https://github.example/agentic-media-house/pull/2');
+  });
+
+  it('remembers the branches that it was asked to push, as the remote would, and answers for them, and for those that a test puts there', async () => {
+    const forge = new FakeForge();
+    expect(await forge.branchExists(BRANCH)).toBe(false);
+    await forge.pushBranch(BRANCH);
+    expect(await forge.branchExists(BRANCH)).toBe(true);
+    forge.remoteBranches.add('hold/2026-10-05-another');
+    expect(await forge.branchExists('hold/2026-10-05-another')).toBe(true);
+    expect(forge.calls.map((call) => call.method)).toEqual(['branchExists', 'pushBranch', 'branchExists', 'branchExists']);
+    forge.fail('branchExists', new ForgeError('failed', 'the remote cannot be asked'));
+    await expect(forge.branchExists(BRANCH)).rejects.toThrow('the remote cannot be asked');
+    await expect(forge.branchExists('main')).rejects.toMatchObject({ kind: 'bad-input' });
   });
 
   it('can have no remote', async () => {

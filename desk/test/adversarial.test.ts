@@ -14,7 +14,8 @@ import { ExtractArtifact, FetchArtifact, VerifyArtifact, candidateId, readArtifa
 import { readDeskState } from '../src/run/desk-state';
 import { LocalEvidenceStore } from '../src/run/evidence';
 import type { EvidenceStore } from '../src/run/evidence';
-import { GhForge, HOLD_BRANCH } from '../src/run/forge';
+import { HOLD_BRANCH } from '../src/run/branches';
+import { GhForge } from '../src/run/forge';
 import type { RunResult } from '../src/run/orchestrate';
 import { R2EvidenceStore } from '../src/run/r2-evidence';
 import { SiteTarget } from '../src/run/target';
@@ -727,6 +728,7 @@ describe('the adversarial matrix: a headline with shell characters reaches GhFor
     const made = await sentRun(
       told({ piece: reply((copy) => { copy.title = fact(SHELL_TITLE, 'c-1'); }) }),
       { code: 0, stdout: 'https://github.com/example/agentic-media-house.git\n' },
+      { code: 2 },
       { code: 0 },
       (call) => {
         bodyFile = call.args[call.args.indexOf('--body-file') + 1] as string;
@@ -741,20 +743,21 @@ describe('the adversarial matrix: a headline with shell characters reaches GhFor
     const { result, calls } = await got();
     expect(result.outcome).toBe('held');
     expect(result.pullRequest).toBe(PULL_REQUEST);
-    expect(calls.map((call) => call.file)).toEqual(['git', 'git', 'gh']);
+    expect(calls.map((call) => call.file)).toEqual(['git', 'git', 'git', 'gh']);
     expect(calls[0]?.args).toEqual(['remote', 'get-url', 'origin']);
     const branch = `hold/${DEMO_DATE}-${result.slug}`;
     expect(HOLD_BRANCH.test(branch)).toBe(true);
-    expect(calls[1]?.args).toEqual(['push', '-u', 'origin', branch]);
-    expect(calls[2]?.args.slice(0, 8)).toEqual(['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title']);
-    expect(calls[2]?.args[8]).toBe(`Held: ${SHELL_TITLE}`);
-    expect(calls[2]?.args[9]).toBe('--body-file');
-    expect(calls[2]?.args).toHaveLength(11);
+    expect(calls[1]?.args).toEqual(['ls-remote', '--exit-code', '--heads', 'origin', `refs/heads/${branch}`]);
+    expect(calls[2]?.args).toEqual(['push', '-u', 'origin', branch]);
+    expect(calls[3]?.args.slice(0, 8)).toEqual(['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title']);
+    expect(calls[3]?.args[8]).toBe(`Held: ${SHELL_TITLE}`);
+    expect(calls[3]?.args[9]).toBe('--body-file');
+    expect(calls[3]?.args).toHaveLength(11);
   });
 
   it('puts the characters in one argument alone: every other argument of every program has none of them', async () => {
     const { calls } = await got();
-    const others = calls.flatMap((call, at) => call.args.filter((argument, place) => !(at === 2 && place === 8)));
+    const others = calls.flatMap((call, at) => call.args.filter((argument, place) => !(at === 3 && place === 8)));
     for (const argument of others) {
       for (const character of ['$(', '`', '"', ';', ' ', '@', '#']) expect(argument, `${argument} has ${character}`).not.toContain(character);
     }
@@ -785,18 +788,24 @@ describe('the adversarial matrix: a headline with shell characters reaches GhFor
 const FORGE_DOWN: { name: string; replies: ScriptedReply[]; started: number; reason: string }[] = [
   {
     name: 'the network is down when the branch is pushed',
-    replies: [{ code: 0 }, { code: 128, stderr: "fatal: unable to access 'https://github.com/example/agentic-media-house.git/': Could not resolve host: github.com\n" }],
-    started: 2,
+    replies: [{ code: 0 }, { code: 2 }, { code: 128, stderr: "fatal: unable to access 'https://github.com/example/agentic-media-house.git/': Could not resolve host: github.com\n" }],
+    started: 3,
     reason: 'failed (exit code 128): fatal: unable to access',
   },
   {
     name: 'GitHub refuses the pull request after the branch was pushed',
-    replies: [{ code: 0 }, { code: 0 }, { code: 1, stderr: 'GraphQL: Resource not accessible by integration (createPullRequest)\n' }],
-    started: 3,
+    replies: [{ code: 0 }, { code: 2 }, { code: 0 }, { code: 1, stderr: 'GraphQL: Resource not accessible by integration (createPullRequest)\n' }],
+    started: 4,
     reason: 'was pushed and no pull request was opened',
   },
-  { name: 'gh is not logged in', replies: [{ code: 0 }, { code: 0 }, { code: 4, stderr: NO_LOGIN }], started: 3, reason: 'GitHub did not take the credentials' },
-  { name: 'the credentials are refused at the push', replies: [{ code: 0 }, { code: 128, stderr: "remote: Permission to example/agentic-media-house.git denied to someone.\nfatal: unable to access 'https://github.com/example/agentic-media-house.git/': The requested URL returned error: 403\n" }], started: 2, reason: 'GitHub did not take the credentials' },
+  {
+    name: 'the remote cannot be asked which branches it has',
+    replies: [{ code: 0 }, { code: 128, stderr: "fatal: unable to access 'https://github.com/example/agentic-media-house.git/': Could not resolve host: github.com\n" }],
+    started: 2,
+    reason: 'git ls-remote of',
+  },
+  { name: 'gh is not logged in', replies: [{ code: 0 }, { code: 2 }, { code: 0 }, { code: 4, stderr: NO_LOGIN }], started: 4, reason: 'GitHub did not take the credentials' },
+  { name: 'the credentials are refused at the push', replies: [{ code: 0 }, { code: 2 }, { code: 128, stderr: "remote: Permission to example/agentic-media-house.git denied to someone.\nfatal: unable to access 'https://github.com/example/agentic-media-house.git/': The requested URL returned error: 403\n" }], started: 3, reason: 'GitHub did not take the credentials' },
   { name: 'the repository has no remote', replies: [{ code: 2, stderr: "error: No such remote 'origin'\n" }], started: 1, reason: 'has no remote called origin' },
   { name: 'git is not installed', replies: [Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })], started: 1, reason: 'git cannot be started' },
 ];

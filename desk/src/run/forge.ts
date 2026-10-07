@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { isHoldBranch } from './branches';
 
 // The forge is where a piece that the Desk held is sent to the owner: a branch is pushed and a draft pull request is opened on GitHub. Everything that goes
 // outward goes through `ForgeTarget`, so that the stages can be tested with `FakeForge` and nothing is pushed. `GhForge` is the real one, and it runs `git` and `gh`
@@ -9,24 +10,8 @@ import path from 'node:path';
 // a model wrote: they are the one place where the words of a model could become a command, and they are never joined into a string. The title is one
 // argument, the body is a file, and the branch is held to a shape (`HOLD_BRANCH`) before any program is started.
 
-/** A branch that the Desk pushes: `hold/<day>-<slug>`. Nothing else is ever pushed or named in a pull request. */
-export const HOLD_BRANCH = /^hold\/\d{4}-\d{2}-\d{2}-[a-z0-9-]{1,80}$/;
-
 /** A branch of commits whose build failed: `desk-build-failed/<day>-<run id>`, and `-2` or `-3` after it when the name was taken (`desk push --branch-only` pushes it, and a draft pull request is opened on it). */
 export const BUILD_FAILED_BRANCH = /^desk-build-failed\/\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-/** The most characters of a slug that the name of a branch has. */
-const SLUG_IN_BRANCH = 80;
-
-/** The name of the branch for the piece `slug` that was held on `date` (YYYY-MM-DD). A slug longer than 80 characters is cut. */
-export function holdBranchName(date: string, slug: string): string {
-  const moment = new Date(`${date}T00:00:00.000Z`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(moment.getTime()) || moment.toISOString().slice(0, 10) !== date) {
-    throw new Error(`holdBranchName: "${date}" is not a day written YYYY-MM-DD`);
-  }
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error(`holdBranchName: "${slug}" is not a plain slug (lowercase letters and digits joined by single hyphens)`);
-  return `hold/${date}-${slug.slice(0, SLUG_IN_BRANCH)}`;
-}
 
 /** Why the forge could not do what it was asked. */
 export type ForgeFailure =
@@ -68,6 +53,8 @@ export interface PullRequest {
 export interface ForgeTarget {
   /** True when the repository has a remote called `origin`: the branch can be pushed there. */
   hasRemote(): Promise<boolean>;
+  /** True when `origin` has the hold branch `branch`: an earlier try left it there, and a name of another try is needed. Asks the remote, and says nothing of the local branches. */
+  branchExists(branch: string): Promise<boolean>;
   /** Push the branch to `origin` and make it follow the remote one. Never forces: a branch that is there with other commits is an error. */
   pushBranch(branch: string): Promise<void>;
   /** Open a draft pull request, and say where it is. Never marks it ready: that is the owner's to do. */
@@ -104,12 +91,12 @@ export function checkPullRequest(request: PullRequestRequest): { title: string }
 
 /** Refuse a branch that is not a hold branch, before any program is run for it. */
 export function assertHoldBranch(branch: string): void {
-  if (!HOLD_BRANCH.test(branch)) throw new ForgeError('bad-input', `${JSON.stringify(branch)} is not a hold branch (hold/<day>-<slug>), and the Desk pushes nothing else`);
+  if (!isHoldBranch(branch)) throw new ForgeError('bad-input', `${JSON.stringify(branch)} is not a hold branch (hold/<day>-<slug>), and the Desk pushes nothing else`);
 }
 
 /** Refuse a branch that a pull request is not opened on: a hold branch, or a branch of commits whose build failed, and nothing else. */
 export function assertPullRequestBranch(branch: string): void {
-  if (!HOLD_BRANCH.test(branch) && !BUILD_FAILED_BRANCH.test(branch)) {
+  if (!isHoldBranch(branch) && !BUILD_FAILED_BRANCH.test(branch)) {
     throw new ForgeError('bad-input', `${JSON.stringify(branch)} is not a hold branch (hold/<day>-<slug>) or a branch of commits whose build failed (desk-build-failed/<day>-<run>), and the Desk opens a pull request on nothing else`);
   }
 }
@@ -117,6 +104,7 @@ export function assertPullRequestBranch(branch: string): void {
 /** A stand-in for the forge that tests use. */
 export type ForgeCall =
   | { method: 'hasRemote' }
+  | { method: 'branchExists'; branch: string }
   | { method: 'pushBranch'; branch: string }
   | { method: 'openDraftPullRequest'; request: PullRequestRequest };
 
@@ -129,6 +117,8 @@ export class FakeForge implements ForgeTarget {
   readonly calls: ForgeCall[] = [];
   /** What `hasRemote` answers. */
   remote = true;
+  /** The branches that are on the remote: those that were pushed, and any that a test puts there to stand for what an earlier try left. */
+  readonly remoteBranches = new Set<string>();
   private readonly failures = new Map<ForgeCall['method'], Error>();
   private opened = 0;
 
@@ -150,10 +140,18 @@ export class FakeForge implements ForgeTarget {
     return this.remote;
   }
 
+  async branchExists(branch: string): Promise<boolean> {
+    assertHoldBranch(branch);
+    this.calls.push({ method: 'branchExists', branch });
+    this.maybeFail('branchExists');
+    return this.remoteBranches.has(branch);
+  }
+
   async pushBranch(branch: string): Promise<void> {
     assertHoldBranch(branch);
     this.calls.push({ method: 'pushBranch', branch });
     this.maybeFail('pushBranch');
+    this.remoteBranches.add(branch);
   }
 
   async openDraftPullRequest(request: PullRequestRequest): Promise<PullRequest> {
@@ -277,6 +275,16 @@ export class GhForge implements ForgeTarget {
     // `git remote get-url` ends with 2 for a remote that does not exist. Any other failure (not a repository, a broken configuration) is not an answer.
     if (result.code === 2) return false;
     throw new ForgeError('failed', `git remote get-url origin failed (exit code ${result.code}): ${said(result.stderr)}`);
+  }
+
+  async branchExists(branch: string): Promise<boolean> {
+    assertHoldBranch(branch);
+    // With --exit-code, `git ls-remote` ends with 2 when the remote has no ref of that name, and with 0 when it has one.
+    const result = await this.run('git', ['ls-remote', '--exit-code', '--heads', 'origin', `refs/heads/${branch}`]);
+    if (result.code === 0) return true;
+    if (result.code === 2) return false;
+    const kind = classifyPush(result.stderr);
+    throw new ForgeError(kind === 'branch-exists' ? 'failed' : kind, `git ls-remote of ${branch} failed (exit code ${result.code}): ${said(result.stderr)}`);
   }
 
   async pushBranch(branch: string): Promise<void> {

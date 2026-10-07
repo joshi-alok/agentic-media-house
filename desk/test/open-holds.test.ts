@@ -78,6 +78,21 @@ describe('an open hold is remembered', () => {
     expect(opened(forge)).toBe(2);
   });
 
+  it('chooses it again on the same day, with --force-new, when the owner has deleted the hold and committed that: the second try has a branch of its own, and the first try\'s branch does not stand in its way', async () => {
+    const { run, again, forge, repoDir } = setup();
+    const first = await run();
+    expect(first.outcome).toBe('held');
+    const file = path.join(repoDir, STATE);
+    const state = await readDeskState(file);
+    writeFileSync(file, `${JSON.stringify({ ...state, holds: [] }, null, 2)}\n`);
+    git(repoDir, 'commit', '--quiet', '-am', 'let go of the hold that was discarded');
+    const second = await again({ forceNew: true }, unentailed());
+    expect(second.outcome).toBe('held');
+    expect(second.attempt).toBe(2);
+    expect(forge.calls.filter((call) => call.method === 'pushBranch').map((call) => (call as { branch: string }).branch)).toEqual([`hold/2026-10-05-${first.slug}`, `hold/2026-10-05-${first.slug}-t2`]);
+    expect(opened(forge)).toBe(2);
+  });
+
   it('chooses it again when the owner has deleted the hold from the desk state and committed that: how a discarded pull request is let go of before the fortnight is over', async () => {
     const { run, again, forge, repoDir } = setup();
     expect((await run()).outcome).toBe('held');
