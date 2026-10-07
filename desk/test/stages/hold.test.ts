@@ -2,19 +2,18 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { ALL_FAILURE_CODES, HOLD_REASONS, VERIFIER_REASONS, citedClaims } from '@robywire/gate';
 import type { Claim } from '@robywire/gate';
-import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
+import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
 import { REASON_LABELS } from '../../../site/src/lib/reasons';
 import { HeldArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
 import { FakeGit } from '../../src/run/git';
 import { DryTarget, SiteTarget, sitePaths } from '../../src/run/target';
-import { runCompose } from '../../src/stages/compose';
 import { holdReasonsOf, runHold } from '../../src/stages/hold';
-import { runVerify } from '../../src/stages/verify';
 import type { VerifyResult } from '../../src/stages/verify';
 import { verifyPlanOf } from '../../src/stages/verify-model';
 import { stageContext, useScratch } from '../support/context';
+import { INVENTED, verdicts } from '../support/held';
 import { replyFromDraft } from '../support/script';
 import { COMMITTED_STATE, filesBelow, makeSite } from '../support/site';
 import { verifierReply } from '../support/verifier';
@@ -27,23 +26,7 @@ const scratch = useScratch();
 const RUN = { runId: '2026-10-05-043100', at: '2026-10-05T04:31:00.000Z' };
 const STATE = sitePaths().stateFile;
 
-const INVENTED = (kilograms: number) => ({ kind: 'fact' as const, text: `The datasheet lists a ${kilograms} kg rated payload and a 1.4 m maximum reach.`, claimIds: ['c-8', 'c-9'] });
-
-type Reply = ReturnType<typeof replyFromDraft>;
-
-/**
- * The verdict of Verify on a piece, made by the stages: the composer says `reply` first and then each of `revisions`, and the verifier gives the replies
- * that `verifier` makes from the plan of the first draft (one for each pass that the gate clears; the draft does not change in the tests that script more than one).
- */
-async function verdictOn(options: { reply?: Reply; claims?: Claim[]; revisions?: unknown[]; verifier?: (plan: ReturnType<typeof verifyPlanOf>) => unknown[] }) {
-  const made = stageContext(scratch);
-  const claims = options.claims ?? GOLDEN_CLAIMS;
-  made.fake.script('compose', options.reply ?? replyFromDraft(), ...(options.revisions ?? []));
-  const composed = await runCompose(made.ctx, claims);
-  for (const reply of options.verifier?.(verifyPlanOf(composed.draft, claims)) ?? []) made.fake.script('verify', reply);
-  const verified = await runVerify(made.ctx, claims, composed);
-  return { ...made, claims, verified };
-}
+const { verdictOn, tier2 } = verdicts(scratch);
 
 function setup() {
   const made = stageContext(scratch);
@@ -53,12 +36,6 @@ function setup() {
 }
 
 const heldFile = (runDir: string, slug: string): string => path.join(runDir, 'held', `${slug}.json`);
-
-/** A piece that cites another outlet: the gate holds it for the owner, and the verifier clears it. */
-async function tier2() {
-  const variant = makeTier2Variant(cloneGolden());
-  return verdictOn({ reply: replyFromDraft(variant.draft), claims: variant.claims, verifier: (plan) => [verifierReply(plan)] });
-}
 
 describe('holdReasonsOf', () => {
   it('is the codes of the gate failures, then the hold reasons of the gate, then the reasons of the model check, each once and in order', async () => {
