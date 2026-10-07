@@ -334,6 +334,7 @@ describe('runFetch: what ends the run', () => {
       },
       get: async () => Promise.reject(new Error('unreachable')),
       has: async () => false,
+      keep: async () => undefined,
     };
     const { ctx } = stageContext(scratch, { evidence });
     await expect(runFetch(ctx, selected(ARTICLE, URLS.release))).rejects.toThrow('the evidence store is unreachable');
