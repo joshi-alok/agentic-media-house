@@ -527,6 +527,21 @@ describe('main: the evidence store', () => {
     expect(bucket.calls).toEqual([]);
   });
 
+  it('keeps the pages that a published piece cites in published/, for a run that is not dry: the made-up story, replayed from the replies that a dry run recorded, over the made-up sites', async () => {
+    const { call, out, err, cwd, bucket, git } = withBucket();
+    expect(await call('run', '--dry', '--client', 'fake', '--date', DEMO_DATE, '--config', 'desk.yml')).toBe(0);
+    mkdirSync(path.join(cwd, 'cassettes-kept'));
+    for (const name of readdirSync(path.join(cwd, 'runs', DEMO_DATE, 'cassettes'))) copyFileSync(path.join(cwd, 'runs', DEMO_DATE, 'cassettes', name), path.join(cwd, 'cassettes-kept', name));
+    expect([...bucket.objects.keys()].filter((key) => key.startsWith('published/'))).toEqual([]);
+    expect(await call('run', '--client', 'recorded', '--cassettes', 'cassettes-kept', '--date', DEMO_DATE, '--force-new', '--config', 'desk.yml')).toBe(0);
+    expect(out.filter((line) => line === 'outcome: published')).toHaveLength(2);
+    expect(git.commits).toHaveLength(1);
+    const ledger = JSON.parse(readFileSync(path.join(cwd, sitePaths().ledgerFile(out.find((line) => line.startsWith('piece: '))?.slice(7) as string)), 'utf8')) as { sources: { snapshotHash: string }[] };
+    expect([...bucket.objects.keys()].filter((key) => key.startsWith('published/')).sort()).toEqual(ledger.sources.map((source) => `published/${source.snapshotHash}`).sort());
+    expect([...bucket.objects.keys()].filter((key) => key.startsWith('pending/'))).toHaveLength(2);
+    expect([...out, ...err].join('\n')).not.toContain(FAKE_SECRET);
+  });
+
   it('keeps the pages of a run in the bucket that the environment describes, and not in the folder: two objects in pending/, nothing in published/ for a dry run, and no key anywhere that is printed', async () => {
     const { call, out, err, cwd, bucket, sites } = withBucket();
     expect(await call('run', '--dry', '--client', 'fake', '--date', DEMO_DATE, '--config', 'desk.yml')).toBe(0);

@@ -246,7 +246,7 @@ describe('the package entry point: fetching', () => {
   });
 
   it('does not export the stages or their prompts', () => {
-    const stages = ['runDiscover', 'runSelect', 'runFetch', 'shortlistOf', 'loadPublishedIndex', 'emptyPublished', 'selectSystem', 'buildSelectUser'];
+    const stages = ['runDiscover', 'runSelect', 'runFetch', 'confirmSnapshots', 'shortlistOf', 'loadPublishedIndex', 'emptyPublished', 'selectSystem', 'buildSelectUser'];
     const extraction = ['locateQuote', 'claimProblems', 'runExtract', 'extractReplySchema', 'kindOfSnapshot', 'extractSystem', 'buildExtractUser'];
     const assembly = ['slugFromTitle', 'ComposeReply', 'ReplySentence', 'assembleDraft', 'finishDraft'];
     const composition = ['runCompose', 'gateContextOf', 'composeSystem', 'buildComposeUser', 'provenance', 'PLACE'];

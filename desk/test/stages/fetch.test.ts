@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/config';
@@ -7,13 +7,15 @@ import { FetchError, FixtureFetcher } from '../../src/fetch/http';
 import { sha256Hex } from '../../src/model/types';
 import { FetchArtifact, readArtifact } from '../../src/run/artifacts';
 import type { SelectArtifact } from '../../src/run/artifacts';
+import { EvidenceError } from '../../src/run/evidence';
 import type { EvidenceStore } from '../../src/run/evidence';
 import { fixtureText } from '../support/fixtures';
 import { MAX_TITLE_LENGTH } from '../../src/stages/discover';
-import { runFetch } from '../../src/stages/fetch';
+import { confirmSnapshots, runFetch } from '../../src/stages/fetch';
 import { RUN_DATE, candidate } from '../support/candidates';
 import { FETCHED_AT, URLS, stageContext, useScratch, withPages, worldMap } from '../support/context';
 import { FIXTURE_DIR } from '../support/fixtures';
+import { watched } from '../support/store';
 
 // Fetch gets the pages that the story will be written from and keeps their text as evidence. These tests run it on
 // the made-up world of Task 20, with a FixtureFetcher that serves files and errors; no page is ever fetched for real.
@@ -349,5 +351,70 @@ describe('runFetch: what ends the run', () => {
     };
     const { ctx } = stageContext(scratch, { fetcher });
     await expect(runFetch(ctx, selected(ARTICLE, URLS.release))).rejects.toThrow(new TypeError('a bug in the fetcher'));
+  });
+});
+
+describe('confirmSnapshots: what Fetch stored is read back before anything is taken from it', () => {
+  /** A context whose store is watched, and the snapshots that Fetch made in it. */
+  async function fetched() {
+    const made = stageContext(scratch);
+    const store = watched(made.ctx.evidence);
+    const ctx = { ...made.ctx, evidence: store };
+    const result = await runFetch(ctx, selected(ARTICLE, URLS.release));
+    if (!result.ok) throw new Error('the fetch failed');
+    store.calls.length = 0;
+    made.logs.length = 0;
+    return { ...made, ctx, store, snapshots: result.snapshots };
+  }
+
+  it('asks the store for every snapshot by its hash, in order, and says how many it read back', async () => {
+    const { ctx, store, snapshots, logs } = await fetched();
+    await confirmSnapshots(ctx, snapshots);
+    expect(store.calls).toEqual([
+      { method: 'get', hash: sha256Hex(releaseText) },
+      { method: 'get', hash: sha256Hex(articleText) },
+    ]);
+    expect(logs).toEqual(['evidence: read back 2 snapshots from the evidence store, each as it was fetched']);
+  });
+
+  it('says snapshot for one, and asks for nothing and says so for none', async () => {
+    const { ctx, store, snapshots, logs } = await fetched();
+    await confirmSnapshots(ctx, snapshots.slice(0, 1));
+    expect(logs).toEqual(['evidence: read back 1 snapshot from the evidence store, each as it was fetched']);
+    expect(store.calls).toHaveLength(1);
+    await confirmSnapshots(ctx, []);
+    expect(logs.at(-1)).toBe('evidence: read back 0 snapshots from the evidence store, each as it was fetched');
+    expect(store.calls).toHaveLength(1);
+  });
+
+  it('stops with the error of the store when the store cannot give a snapshot back, and does not ask for the next', async () => {
+    const { ctx, store, snapshots, logs } = await fetched();
+    const down = new EvidenceError('unreachable', 'the evidence store could not be reached (GET pending/abc): connect ECONNREFUSED');
+    store.fail('get', down);
+    await expect(confirmSnapshots(ctx, snapshots)).rejects.toBe(down);
+    expect(store.calls).toHaveLength(1);
+    expect(logs).toEqual([]);
+  });
+
+  it('stops when the text of a snapshot has been changed in the store, as the store itself says', async () => {
+    const { ctx, snapshots, evidenceDir } = await fetched();
+    writeFileSync(path.join(evidenceDir, `${sha256Hex(articleText)}.txt`), `${articleText} changed`);
+    await expect(confirmSnapshots(ctx, snapshots)).rejects.toMatchObject({ kind: 'tampered', message: `the evidence ${sha256Hex(articleText)} has been changed: its text no longer matches its hash` });
+  });
+
+  it('stops when the store does not have a snapshot that was fetched, as missing', async () => {
+    const { ctx, snapshots } = await fetched();
+    const lost = { ...(snapshots[0] as (typeof snapshots)[number]), hash: sha256Hex('a page that was never put') };
+    await expect(confirmSnapshots(ctx, [lost])).rejects.toMatchObject({ kind: 'missing' });
+  });
+
+  it('stops when a store that does not check what it holds gives back another text than the one that was fetched, as tampered', async () => {
+    const { ctx, store, snapshots, logs } = await fetched();
+    store.lie('the text of another page');
+    await expect(confirmSnapshots(ctx, snapshots)).rejects.toMatchObject({
+      kind: 'tampered',
+      message: `the evidence ${sha256Hex(releaseText)} is not the text that was fetched: the store gave back another text`,
+    });
+    expect(logs).toEqual([]);
   });
 });

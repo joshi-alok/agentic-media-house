@@ -1,4 +1,4 @@
-import { FetchArtifact, extractPage, writeArtifact } from '../index';
+import { EvidenceError, FetchArtifact, extractPage, writeArtifact } from '../index';
 import type { FetchDocument, SelectArtifact } from '../index';
 import { describeFailure, isSourceFailure } from './context';
 import type { StageContext } from './context';
@@ -9,7 +9,9 @@ import { recencyWindow } from './select';
 // Select chose these are the page of its primary source (if Select found one) and the page of the story itself. Each
 // is fetched politely (the fetcher's job), reduced to its text, and put in the evidence store, which names it by the
 // SHA-256 of the text. The artifact records where each page came from and its hash, never the text: the text is
-// handed to the next stage in memory, and the evidence store is where anyone can read it again.
+// handed to the next stage in memory, and the evidence store is where anyone can read it again. Before the next stage takes a
+// word of it, the run reads every snapshot back from the store (`confirmSnapshots`): the claims of a piece are taken from text that the store
+// gave back, which it has checked against its hash.
 
 /** A page that was fetched and stored: what the artifact says about it, and its text. */
 export interface Snapshot extends FetchDocument {
@@ -109,4 +111,20 @@ export async function runFetch(ctx: StageContext, selected: SelectArtifact): Pro
     return { ok: false, outcome: 'no-story', reason: `none of the pages of the story could be fetched: ${why}`, artifact };
   }
   return { ok: true, artifact, snapshots };
+}
+
+/**
+ * Read back what Fetch stored, before anything is taken from it: every snapshot is asked of the evidence store by its hash, and what the store gives must be the text that was fetched.
+ * A store checks the text that it reads against its hash (`get` of both stores of the Desk does), so a snapshot that the store lost, changed or never kept stops the run here with the
+ * error of the store; a store that gives back another text without noticing is stopped here too, as `tampered`. Nothing is returned: the text that Extract works from is the text
+ * that was fetched, which is now known to be the text that the store holds.
+ */
+export async function confirmSnapshots(ctx: Pick<StageContext, 'evidence' | 'log'>, snapshots: readonly Snapshot[]): Promise<void> {
+  for (const snapshot of snapshots) {
+    const stored = await ctx.evidence.get(snapshot.hash);
+    if (stored.text !== snapshot.text) {
+      throw new EvidenceError('tampered', `the evidence ${snapshot.hash} is not the text that was fetched: the store gave back another text`);
+    }
+  }
+  ctx.log(`evidence: read back ${snapshots.length} ${snapshots.length === 1 ? 'snapshot' : 'snapshots'} from the evidence store, each as it was fetched`);
 }

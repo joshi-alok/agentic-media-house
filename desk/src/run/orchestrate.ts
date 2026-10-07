@@ -8,7 +8,7 @@ import { loadPublishedIndex } from '../stages/context';
 import type { StageContext } from '../stages/context';
 import { runDiscover } from '../stages/discover';
 import { runExtract } from '../stages/extract';
-import { runFetch } from '../stages/fetch';
+import { confirmSnapshots, runFetch } from '../stages/fetch';
 import { runHold } from '../stages/hold';
 import { runPublish } from '../stages/publish';
 import { runSelect } from '../stages/select';
@@ -196,9 +196,10 @@ type Ending =
  * (see `planDay`), or when the site has changes that are not committed where the Desk writes. A refusal is a `RunRefused` error: nothing ran, nothing was
  * moved and nothing is recorded.
  *
- * Then Discover, Select, Fetch, Extract, Compose and Verify in turn, each given what the one before it made. A story that is not there (Select chooses none,
- * Fetch gets no page, Extract keeps too few claims) ends the run as `no-story`. Verify's verdict ends it as `published` (the Publish stage) or `held` (the
- * Hold stage; with a `forge` the held piece is first sent to the owner as a draft pull request). Anything a stage throws, a model error and a spent budget included, ends it as `failed`, with the message and the name of the stage. The
+ * Then Discover, Select, Fetch, Extract, Compose and Verify in turn, each given what the one before it made; between Fetch and Extract every snapshot that Fetch stored is read
+ * back from the evidence store (the stage `evidence`), and a store that has lost or changed one ends the run. A story that is not there (Select chooses none,
+ * Fetch gets no page, Extract keeps too few claims) ends the run as `no-story`. Verify's verdict ends it as `published` (the Publish stage, which keeps the snapshots that the piece cites before it writes the piece) or `held` (the
+ * Hold stage; with a `forge` the held piece is first sent to the owner as a draft pull request). Anything a stage throws, a model error, a spent budget and a failure of the evidence store included, ends it as `failed`, with the message and the name of the stage. The
  * desk state is updated for every outcome: by Publish and by Hold for those two, here for the other two. The record of the run, `run.json`, is written last.
  */
 export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
@@ -249,6 +250,8 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
       stage = 'fetch';
       const fetched = await stages.fetch(ctx, selected);
       if (!fetched.ok) return { outcome: 'no-story', stage, reason: fetched.reason };
+      stage = 'evidence';
+      await confirmSnapshots(ctx, fetched.snapshots);
       stage = 'extract';
       const extracted = await stages.extract(ctx, fetched.snapshots, selected);
       if (!extracted.ok) return { outcome: 'no-story', stage, reason: extracted.reason };

@@ -7,12 +7,15 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { readDeskState } from '../../src/run/desk-state';
 import { FakeGit } from '../../src/run/git';
+import { EvidenceError } from '../../src/run/evidence';
+import type { EvidenceStore } from '../../src/run/evidence';
 import { DryTarget, SiteTarget, sitePaths } from '../../src/run/target';
 import { runPublish } from '../../src/stages/publish';
 import type { VerifyResult } from '../../src/stages/verify';
 import { matchPieces } from '../../../site/src/lib/match-pieces';
 import { stageContext, useScratch } from '../support/context';
 import { COMMITTED_STATE, filesBelow, makeSite } from '../support/site';
+import { acceptingStore } from '../support/store';
 
 // Publish is the last step of a piece that the gate and the verifier cleared. It writes what the renderer gives and nothing else: the
 // two files of the piece, written byte for byte, the record of the run in the desk state, and one commit. These tests start from the golden
@@ -34,12 +37,16 @@ function cleared(): VerifyResult {
   return { outcome: 'publish', draft: GOLDEN_DRAFT, gate, verifier: VERIFIER, rounds: 0, history: [] };
 }
 
-function setup() {
-  const made = stageContext(scratch);
+/** A context whose evidence store keeps whatever it is asked to keep: the hashes of the golden piece are not those of any page that a store holds. */
+function setup(evidence: EvidenceStore & { kept: string[] } = acceptingStore()) {
+  const made = stageContext(scratch, { evidence });
   const repoDir = makeSite(scratch());
   const git = new FakeGit();
-  return { ...made, repoDir, git, target: new SiteTarget(repoDir, git) };
+  return { ...made, repoDir, git, store: evidence, target: new SiteTarget(repoDir, git) };
 }
+
+/** The snapshots that the golden piece cites, each once, as its ledger lists them: five pages, with five hashes. */
+const CITED = (): string[] => [...new Set(rendered().ledger.sources.map((source) => source.snapshotHash))];
 
 const read = (repoDir: string, file: string): string => readFileSync(path.join(repoDir, file), 'utf8');
 
@@ -101,7 +108,7 @@ describe('runPublish', () => {
   it('logs what it did', async () => {
     const { ctx, logs, target } = setup();
     const result = await runPublish(ctx, target, GOLDEN_CLAIMS, cleared(), RUN);
-    expect(logs).toEqual([`publish: ${SLUG} written and committed as ${(result.commit as string).slice(0, 7)}`]);
+    expect(logs).toEqual(['publish: kept 5 snapshots that the piece cites', `publish: ${SLUG} written and committed as ${(result.commit as string).slice(0, 7)}`]);
   });
 
   it('refuses a slug that is taken, and changes nothing', async () => {
@@ -140,6 +147,13 @@ describe('runPublish', () => {
     expect(result.files).toEqual([NEWS, LEDGER, STATE]);
     expect(result.mdx).toBe(rendered().mdx);
     expect(logs).toEqual([`publish: ${SLUG} would be written (dry run: nothing was written)`]);
+  });
+
+  it('keeps nothing for a dry run: the snapshots that a piece would cite are not kept by a piece that is not written', async () => {
+    const { ctx, repoDir, store } = setup();
+    const result = await runPublish(ctx, new DryTarget(repoDir), GOLDEN_CLAIMS, cleared(), RUN);
+    expect(store.kept).toEqual([]);
+    expect(result.kept).toEqual([]);
   });
 
   it('a dry run is refused for the reasons a real run is: the slug is taken', async () => {
@@ -182,5 +196,94 @@ describe('runPublish', () => {
     await expect(runPublish(ctx, target, claims, cleared(), RUN)).rejects.toThrow('a sentence cites c-1, but no claim has that id');
     expect(filesBelow(repoDir)).toHaveLength(3);
     expect(git.commits).toEqual([]);
+  });
+});
+
+describe('runPublish: the evidence that the piece cites is kept before the piece is written', () => {
+  it('keeps the snapshots of the sources of the ledger, each once, in the order of the ledger, and says which', async () => {
+    const { ctx, target, store } = setup();
+    const result = await runPublish(ctx, target, GOLDEN_CLAIMS, cleared(), RUN);
+    expect(CITED()).toHaveLength(5);
+    expect(store.kept).toEqual(CITED());
+    expect(result.kept).toEqual(CITED());
+    expect(store.kept).toEqual(rendered().ledger.sources.map((source) => source.snapshotHash));
+  });
+
+  it('keeps a snapshot once when two sources of the ledger have the same text', async () => {
+    const { ctx, target, store } = setup();
+    const same = 'a'.repeat(64);
+    const claims = GOLDEN_CLAIMS.map((claim) => ({ ...claim, source: { ...claim.source, snapshotHash: same } }));
+    await runPublish(ctx, target, claims, cleared(), RUN);
+    expect(store.kept).toEqual([same]);
+  });
+
+  it('says snapshot, and not snapshots, when it kept one', async () => {
+    const { ctx, target, logs } = setup();
+    const claims = GOLDEN_CLAIMS.map((claim) => ({ ...claim, source: { ...claim.source, snapshotHash: 'b'.repeat(64) } }));
+    await runPublish(ctx, target, claims, cleared(), RUN);
+    expect(logs[0]).toBe('publish: kept 1 snapshot that the piece cites');
+  });
+
+  it('keeps them before anything is written or committed: when the store is asked, the ledger is not on the site and git has no commit', async () => {
+    const made = setup();
+    const seen: { ledger: boolean; commits: number }[] = [];
+    const store: EvidenceStore & { kept: string[] } = {
+      ...made.store,
+      keep: async (hash) => {
+        seen.push({ ledger: existsSync(path.join(made.repoDir, LEDGER)), commits: made.git.commits.length });
+        made.store.kept.push(hash);
+      },
+    };
+    await runPublish({ ...made.ctx, evidence: store }, made.target, GOLDEN_CLAIMS, cleared(), RUN);
+    expect(seen).toHaveLength(5);
+    expect(seen.every((at) => !at.ledger && at.commits === 0)).toBe(true);
+    expect(made.git.commits).toHaveLength(1);
+  });
+
+  it('does not publish when a snapshot cannot be kept: nothing is written, nothing is committed, and the error says that it is the store', async () => {
+    const made = setup();
+    const down = new EvidenceError('unreachable', 'the evidence store could not be reached (HEAD published/abc): connect ECONNREFUSED');
+    const store: EvidenceStore & { kept: string[] } = {
+      ...made.store,
+      keep: async (hash) => {
+        if (made.store.kept.length === 2) throw down;
+        made.store.kept.push(hash);
+      },
+    };
+    await expect(runPublish({ ...made.ctx, evidence: store }, made.target, GOLDEN_CLAIMS, cleared(), RUN)).rejects.toThrow(
+      'the snapshots that the piece cites could not be kept, so the piece is not published: the evidence store could not be reached (HEAD published/abc): connect ECONNREFUSED',
+    );
+    expect(made.store.kept).toEqual(CITED().slice(0, 2));
+    expect(filesBelow(made.repoDir)).toEqual(['site/src/content/ledger/.gitkeep', 'site/src/content/news/.gitkeep', STATE]);
+    expect(read(made.repoDir, STATE)).toBe(COMMITTED_STATE);
+    expect(made.git.commits).toEqual([]);
+    expect(made.logs).toEqual([]);
+  });
+
+  it('says the same of a store that fails with what is not an error', async () => {
+    const made = setup();
+    const store: EvidenceStore & { kept: string[] } = { ...made.store, keep: () => Promise.reject('a string, thrown') };
+    await expect(runPublish({ ...made.ctx, evidence: store }, made.target, GOLDEN_CLAIMS, cleared(), RUN)).rejects.toThrow('could not be kept, so the piece is not published: a string, thrown');
+  });
+
+  it('keeps nothing for a piece that is not cleared: not for a verdict of hold, not for a gate that did not clear it, not for a model check that did not pass', async () => {
+    const { ctx, target, store } = setup();
+    const gate = runGate({ draft: GOLDEN_DRAFT, claims: GOLDEN_CLAIMS }, defaultContext());
+    await expect(runPublish(ctx, target, GOLDEN_CLAIMS, { ...cleared(), outcome: 'hold' }, RUN)).rejects.toThrow('needs a piece that Verify cleared');
+    await expect(runPublish(ctx, target, GOLDEN_CLAIMS, { ...cleared(), gate: { ...gate, route: 'revise' } }, RUN)).rejects.toThrow('needs a piece that Verify cleared');
+    await expect(runPublish(ctx, target, GOLDEN_CLAIMS, { ...cleared(), verifier: { ...VERIFIER, passed: false } }, RUN)).rejects.toThrow('needs a piece that Verify cleared');
+    expect(store.kept).toEqual([]);
+  });
+
+  it('keeps nothing for a piece that cannot be rendered', async () => {
+    const { ctx, target, store } = setup();
+    await expect(runPublish(ctx, target, GOLDEN_CLAIMS.filter((claim) => claim.id !== 'c-1'), cleared(), RUN)).rejects.toThrow('a sentence cites c-1');
+    expect(store.kept).toEqual([]);
+  });
+
+  it('does not publish a piece whose snapshot the store does not hold, and the error is the one of the store', async () => {
+    const { ctx, target } = setup(acceptingStore());
+    const refusing: EvidenceStore = { ...acceptingStore(), keep: async (hash) => Promise.reject(new EvidenceError('missing', `no evidence is stored for ${hash}`)) };
+    await expect(runPublish({ ...ctx, evidence: refusing }, target, GOLDEN_CLAIMS, cleared(), RUN)).rejects.toThrow(`so the piece is not published: no evidence is stored for ${CITED()[0]}`);
   });
 });

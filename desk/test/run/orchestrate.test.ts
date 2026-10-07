@@ -9,15 +9,20 @@ import { FakeClient } from '../../src/model/fake';
 import { clientFromConfig } from '../../src/model/factory';
 import { VerifyArtifact, readArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
+import { EvidenceError, LocalEvidenceStore } from '../../src/run/evidence';
 import { LOCK_FILE, RunRefused } from '../../src/run/lock';
+import { R2EvidenceStore } from '../../src/run/r2-evidence';
 import type { RunDeskOptions, Stages } from '../../src/run/orchestrate';
 import { refuseApiOnFixtures } from '../../src/run/spending';
 import { sitePaths } from '../../src/run/target';
 import { runDiscover } from '../../src/stages/discover';
+import { runFetch } from '../../src/stages/fetch';
 import { FETCHED_AT, useScratch, withPages } from '../support/context';
 import { EMPTY_CONTENT, SELECT, START, STATE, clock, contentOf, recordOf, setupRun, unentailed } from '../support/run';
 import type { RunSetup } from '../support/run';
 import { COMMITTED_STATE, filesBelow } from '../support/site';
+import { watched } from '../support/store';
+import { FAKE_R2, makeBucket } from '../support/bucket';
 
 // One run of the Desk, from end to end. Most of these tests run the real stages in the made-up world with a scripted model, so that the whole
 // pipeline is under test; a few put a stage of their own in the place of a stage, to make it throw. Every run is in new folders under the temporary
@@ -659,5 +664,209 @@ describe('runDesk: one run, one commit', () => {
       expect(result.dry).toBe(name === 'dry');
     }
     expect([...outcomes]).toEqual([['published', 1], ['held', 1], ['no-story', 1], ['failed', 1], ['dry', 0]]);
+  });
+});
+
+describe('runDesk: the evidence store', () => {
+  // A run puts the pages that it fetched in the evidence store, reads each back before it takes a word from it, and, for a piece that it publishes, keeps the snapshots that the piece cites
+  // before the piece is written. A store that cannot do any of the three ends the run as failed, at the stage where it happened, with nothing published. These runs are given a store
+  // that watches the folder, so that they say what was asked of it, and a store that fails when it is told to.
+  const down = (what: string) => new EvidenceError('unreachable', `the evidence store could not be reached (${what}): connect ECONNREFUSED`);
+
+  function watchedRun(options: RunSetup = {}) {
+    const made = setup(options);
+    const store = watched(new LocalEvidenceStore(made.config.evidenceDir));
+    return { ...made, store, run: (overrides: Partial<RunDeskOptions> = {}) => made.run({ evidence: store, ...overrides }) };
+  }
+  const methods = (store: ReturnType<typeof watched>): string[] => store.calls.map((call) => call.method);
+
+  it('puts both pages, reads both back, and keeps the snapshots that the piece cites, in that order, for a piece that it publishes', async () => {
+    const made = watchedRun();
+    const result = await made.run();
+    expect(result.outcome).toBe('published');
+    const ledger = JSON.parse(readFileSync(path.join(made.repoDir, sitePaths().ledgerFile(result.slug as string)), 'utf8')) as { sources: { snapshotHash: string }[] };
+    const fetched = made.store.calls.filter((call) => call.method === 'put').map((call) => call.hash);
+    expect(fetched).toHaveLength(2);
+    expect(methods(made.store)).toEqual(['put', 'put', 'get', 'get', ...ledger.sources.map(() => 'keep')]);
+    expect(made.store.calls.filter((call) => call.method === 'get').map((call) => call.hash)).toEqual(fetched);
+    const kept = made.store.calls.filter((call) => call.method === 'keep').map((call) => call.hash);
+    expect(kept).toEqual(ledger.sources.map((source) => source.snapshotHash));
+    expect(kept.length).toBeGreaterThanOrEqual(1);
+    for (const hash of kept) expect(fetched).toContain(hash);
+    expect(existsSync(path.join(made.config.evidenceDir, 'published', `${kept[0]}.txt`))).toBe(true);
+  });
+
+  it('keeps the snapshots before the piece is committed, and reads them back before Extract is asked anything', async () => {
+    const made = watchedRun();
+    const seen: string[] = [];
+    made.store.onCall = (call) => void seen.push(`${call.method} with ${made.git.commits.length} commits and ${made.fake.calls.map((request) => request.role).join(',')}`);
+    await made.run();
+    expect(seen.filter((line) => line.startsWith('keep'))).toEqual(seen.filter((line) => line.startsWith('keep')).map(() => 'keep with 0 commits and select,extract,compose,verify'));
+    expect(seen.filter((line) => line.startsWith('get'))).toEqual(['get with 0 commits and select', 'get with 0 commits and select']);
+  });
+
+  it('says in the log of the run what it read back and what it kept', async () => {
+    const made = watchedRun();
+    await made.run();
+    expect(made.logs).toContain('evidence: read back 2 snapshots from the evidence store, each as it was fetched');
+    expect(made.logs.some((line) => /^publish: kept \d+ snapshots? that the piece cites$/.test(line))).toBe(true);
+  });
+
+  it('does not keep anything for a piece that is held: its snapshots stay as they were put', async () => {
+    const made = watchedRun({ fake: unentailed() });
+    expect((await made.run()).outcome).toBe('held');
+    expect(methods(made.store)).toEqual(['put', 'put', 'get', 'get']);
+    expect(existsSync(path.join(made.config.evidenceDir, 'published'))).toBe(false);
+  });
+
+  it('does not keep anything for a day with no story: not when Select chooses none, which asks the store nothing, and not when Extract keeps too few claims', async () => {
+    const none = watchedRun({ fake: new FakeClient().script('select', { chosenId: null, reasons: ['none'] }) });
+    expect((await none.run()).outcome).toBe('no-story');
+    expect(none.store.calls).toEqual([]);
+    const few = watchedRun({ config: { minClaims: 99 } });
+    const result = await few.run();
+    expect([result.outcome, result.stage]).toEqual(['no-story', 'extract']);
+    expect(methods(few.store)).toEqual(['put', 'put', 'get', 'get']);
+  });
+
+  it('does not keep anything for a run that fails after Fetch', async () => {
+    const made = watchedRun({ stages: composeFails() });
+    expect((await made.run()).outcome).toBe('failed');
+    expect(methods(made.store)).toEqual(['put', 'put', 'get', 'get']);
+  });
+
+  it('puts and reads back in a dry run, so that the run can be replayed, and never keeps: nothing is published', async () => {
+    const made = watchedRun({ dry: true });
+    const result = await made.run();
+    expect([result.outcome, result.dry]).toEqual(['published', true]);
+    expect(methods(made.store)).toEqual(['put', 'put', 'get', 'get']);
+  });
+
+  it('ends failed at the stage fetch when the store cannot take the first page, with nothing asked of the model after Select and nothing published', async () => {
+    const made = watchedRun();
+    made.store.fail('put', down('PUT pending/abc'));
+    const result = await made.run();
+    expect([result.outcome, result.stage, result.slug]).toEqual(['failed', 'fetch', null]);
+    expect(result.reason).toBe('the evidence store could not be reached (PUT pending/abc): connect ECONNREFUSED');
+    expect(made.fake.calls.map((request) => request.role)).toEqual(['select']);
+    expect(methods(made.store)).toEqual(['put']);
+    expect(contentOf(made.repoDir)).toEqual(EMPTY_CONTENT);
+    expect(made.git.commits.map((commit) => commit.paths)).toEqual([[STATE]]);
+    expect((await readDeskState(path.join(made.repoDir, STATE))).lastRun).toMatchObject({ outcome: 'failed', slug: null });
+  });
+
+  it('ends failed at the stage evidence when the store cannot give a page back, before Extract is asked anything', async () => {
+    const made = watchedRun();
+    made.store.fail('get', down('GET pending/abc'));
+    const result = await made.run();
+    expect([result.outcome, result.stage]).toEqual(['failed', 'evidence']);
+    expect(result.reason).toBe('the evidence store could not be reached (GET pending/abc): connect ECONNREFUSED');
+    expect(made.fake.calls.map((request) => request.role)).toEqual(['select']);
+    expect(methods(made.store)).toEqual(['put', 'put', 'get']);
+    expect(contentOf(made.repoDir)).toEqual(EMPTY_CONTENT);
+    expect(made.git.commits.map((commit) => commit.paths)).toEqual([[STATE]]);
+    expect(recordOf(made.dir)).toMatchObject({ outcome: 'failed', stage: 'evidence' });
+  });
+
+  it('ends failed at the stage evidence when the store gives back another text than the one that was fetched, even if it does not notice', async () => {
+    const made = watchedRun();
+    made.store.lie('the text of another page');
+    const result = await made.run();
+    expect([result.outcome, result.stage]).toEqual(['failed', 'evidence']);
+    expect(result.reason).toContain('is not the text that was fetched: the store gave back another text');
+    expect(made.fake.calls.map((request) => request.role)).toEqual(['select']);
+    expect(contentOf(made.repoDir)).toEqual(EMPTY_CONTENT);
+  });
+
+  it('ends failed at the stage publish when the store cannot keep a snapshot, and publishes nothing: no piece, no ledger, one commit that says that the run failed', async () => {
+    const made = watchedRun();
+    made.store.fail('keep', down('HEAD published/abc'));
+    const result = await made.run();
+    expect([result.outcome, result.stage, result.slug]).toEqual(['failed', 'publish', null]);
+    expect(result.reason).toBe('the snapshots that the piece cites could not be kept, so the piece is not published: the evidence store could not be reached (HEAD published/abc): connect ECONNREFUSED');
+    expect(contentOf(made.repoDir)).toEqual(EMPTY_CONTENT);
+    expect(made.git.commits.map((commit) => commit.paths)).toEqual([[STATE]]);
+    expect(made.git.commits[0]?.message).toBe(`desk: the run of ${DEMO_DATE} failed`);
+    const state = await readDeskState(path.join(made.repoDir, STATE));
+    expect(state.lastRun).toMatchObject({ outcome: 'failed', slug: null });
+    expect(recordOf(made.dir)).toMatchObject({ outcome: 'failed', stage: 'publish', slug: null, commit: result.commit });
+  });
+
+  it('is tried again the next time, and publishes when the store is well: a day that failed because of the store is not lost', async () => {
+    const made = watchedRun();
+    made.store.fail('keep', down('HEAD published/abc'));
+    expect((await made.run()).outcome).toBe('failed');
+    const second = await again(made, { evidence: made.store });
+    expect([second.outcome, second.attempt]).toEqual(['published', 2]);
+    expect(contentOf(made.repoDir)).toHaveLength(4);
+  });
+
+  it('ends failed at the first call when the store is down all along, and asks it no more than it must', async () => {
+    const made = watchedRun();
+    made.store.fail('put', down('PUT pending/abc'), 100);
+    const result = await made.run();
+    expect([result.outcome, result.stage]).toEqual(['failed', 'fetch']);
+    expect(made.store.calls).toHaveLength(1);
+  });
+
+  describe('with a bucket', () => {
+    // The same runs with the store of the bucket, over a bucket made of memory that checks the signature of every request.
+    function bucketRun(options: RunSetup = {}) {
+      const made = setup(options);
+      const bucket = makeBucket(() => START);
+      const store = new R2EvidenceStore({ ...FAKE_R2, transport: bucket.transport, now: () => START });
+      return { ...made, bucket, store, run: (overrides: Partial<RunDeskOptions> = {}) => made.run({ evidence: store, ...overrides }) };
+    }
+    const keysOf = (bucket: ReturnType<typeof makeBucket>, prefix: string): string[] => [...bucket.objects.keys()].filter((key) => key.startsWith(prefix)).sort();
+
+    it('keeps both pages in pending/ and the pages that the piece cites in published/, for a piece that is published', async () => {
+      const made = bucketRun();
+      const result = await made.run();
+      expect(result.outcome).toBe('published');
+      const ledger = JSON.parse(readFileSync(path.join(made.repoDir, sitePaths().ledgerFile(result.slug as string)), 'utf8')) as { sources: { snapshotHash: string }[] };
+      expect(keysOf(made.bucket, 'pending/')).toHaveLength(2);
+      expect(keysOf(made.bucket, 'published/')).toEqual(ledger.sources.map((source) => `published/${source.snapshotHash}`).sort());
+      expect(made.bucket.calls.every((call) => call.status === 200 || call.status === 404)).toBe(true);
+      expect(existsSync(made.config.evidenceDir)).toBe(false);
+    });
+
+    it('keeps only what was put in pending/ for a piece that is held, and keeps nothing for a dry run', async () => {
+      const held = bucketRun({ fake: unentailed() });
+      expect((await held.run()).outcome).toBe('held');
+      expect(keysOf(held.bucket, 'pending/')).toHaveLength(2);
+      expect(keysOf(held.bucket, 'published/')).toEqual([]);
+      const dry = bucketRun({ dry: true });
+      expect((await dry.run()).outcome).toBe('published');
+      expect(keysOf(dry.bucket, 'pending/')).toHaveLength(2);
+      expect(keysOf(dry.bucket, 'published/')).toEqual([]);
+    });
+
+    it('ends failed at the stage fetch, naming the bucket as unreachable, when the bucket is down, and at the stage publish when it goes down after the pages were read back', async () => {
+      const first = bucketRun();
+      first.bucket.fail({ status: 503, body: '<Error><Code>ServiceUnavailable</Code></Error>' }, { method: 'PUT' });
+      const result = await first.run();
+      expect([result.outcome, result.stage]).toEqual(['failed', 'fetch']);
+      expect(result.reason).toMatch(/^the evidence store answered PUT pending\/[0-9a-f]{64} with 503: <Error><Code>ServiceUnavailable<\/Code><\/Error>$/);
+      const later = bucketRun();
+      later.bucket.fail({ status: 503 }, { method: 'PUT', key: 'published/' });
+      const kept = await later.run();
+      expect([kept.outcome, kept.stage]).toEqual(['failed', 'publish']);
+      expect(kept.reason).toContain('could not be kept, so the piece is not published: the evidence store answered PUT published/');
+      expect(keysOf(later.bucket, 'published/')).toEqual([]);
+      expect(contentOf(later.repoDir)).toEqual(EMPTY_CONTENT);
+    });
+
+    it('ends failed at the stage evidence when the bucket changes a page that was put: the text no longer matches its hash', async () => {
+      const made = bucketRun({ stages: {} });
+      const fetchThenChange: Stages['fetch'] = async (ctx, selected) => {
+        const fetched = await runFetch(ctx, selected);
+        for (const key of keysOf(made.bucket, 'pending/')) (made.bucket.objects.get(key) as { body: string }).body += ' ';
+        return fetched;
+      };
+      const result = await made.run({ stages: { fetch: fetchThenChange } });
+      expect([result.outcome, result.stage]).toEqual(['failed', 'evidence']);
+      expect(result.reason).toMatch(/^the evidence [0-9a-f]{64} has been changed: its text no longer matches its hash$/);
+      expect(contentOf(made.repoDir)).toEqual(EMPTY_CONTENT);
+    });
   });
 });
