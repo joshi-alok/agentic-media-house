@@ -11,6 +11,8 @@ const SHAPES: readonly { name: string; pattern: RegExp }[] = [
   { name: 'an access key id', pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
   { name: 'a token of GitHub', pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/ },
   { name: 'a private key', pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  // The id of a Cloudflare account is 32 hexadecimal digits. It is not a secret by itself, but nothing that is committed needs it: it comes from a secret of the repository.
+  { name: 'an account id', pattern: /\b[0-9a-f]{32}\b/ },
 ];
 
 /** What kind of long token `token` is, if it is shaped like a secret: capitals, small letters and digits all together, or forty hexadecimal digits with letters among them. */

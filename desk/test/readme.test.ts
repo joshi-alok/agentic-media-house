@@ -323,3 +323,34 @@ describe('the README: a day that is done, for a schedule', () => {
   });
 });
 
+describe('the README: the deploy workflow', () => {
+  const deploy = (): string => section('The deploy workflow');
+
+  it('says what it is: a Worker with static assets, started by a push to main and by hand, and why by hand', () => {
+    expect(deploy()).toContain('as a Worker that serves static assets, not as a Pages project');
+    expect(deploy()).toContain('It starts on every push to `main` and by hand');
+    expect(deploy()).toContain('a push by the token of a workflow starts no other workflow');
+  });
+
+  it('says the steps, and that a step that fails stops the deploy', () => {
+    expect(deploy()).toContain('`npm ci`, `npm run build`, `npm run audit:prod` and `npx wrangler deploy`');
+    expect(deploy()).toContain('so a site that does not build or whose audit fails is never deployed');
+  });
+
+  it('says where the address of the site comes from, and what the settings file of Cloudflare holds', () => {
+    expect(deploy()).toContain('`https://agentic-media-house.joshi-alok.workers.dev`');
+    expect(deploy()).toContain('`assets.directory`, which is `./site/dist`');
+    expect(deploy()).toContain('refuses to run at the root of an npm workspace');
+  });
+
+  it('says where the two secrets go, that the account id is in no committed file, and that no deploy has been made by the workflow', () => {
+    expect(deploy()).toContain('`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` are secrets of the repository, given to the one step that deploys');
+    expect(deploy()).toContain('The account id is in no committed file.');
+    expect(deploy()).toContain('no deploy has been made by this workflow: the one deploy that exists was made by hand');
+  });
+
+  it('is no longer listed as not built', () => {
+    expect(section('The desk workspace')).not.toContain('the Cloudflare deploy');
+  });
+});
+

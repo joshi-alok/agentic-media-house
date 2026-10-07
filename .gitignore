@@ -10,3 +10,7 @@ evals/out/
 # Run artifacts and snapshots of sources (desk/src/config.ts names both folders) are never committed.
 /runs/
 /evidence/
+# Wrangler (Cloudflare's program) keeps its local state in .wrangler/, and a file of secrets for `wrangler dev` in .dev.vars. Neither is ever committed.
+.wrangler/
+.dev.vars
+.dev.vars.*

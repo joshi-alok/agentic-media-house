@@ -35,3 +35,16 @@ describe('.gitignore', () => {
     expect(ignored('docs/evidence/notes.md')).toBe(false);
   });
 });
+
+describe('.gitignore: what the Cloudflare program keeps', () => {
+  it('ignores the state of wrangler and the file of secrets of wrangler dev, anywhere', () => {
+    expect(ignored('.wrangler/tmp/bundle.js')).toBe(true);
+    expect(ignored('.dev.vars')).toBe(true);
+    expect(ignored('.dev.vars.production')).toBe(true);
+  });
+
+  it('does not ignore the settings that wrangler reads, which are committed', () => {
+    expect(ignored('wrangler.jsonc')).toBe(false);
+  });
+});
+

@@ -30,6 +30,13 @@ describe('secretsIn', () => {
     expect(secretsIn(piece('-----', 'BEGIN ', 'PRIVATE KEY', '-----'))).toEqual(['a private key (line 1)']);
   });
 
+  it('finds the id of a Cloudflare account, which is thirty-two hexadecimal digits, and not a longer or a shorter run', () => {
+    expect(secretsIn(`account_id: ${'0123456789abcdef'.repeat(2)}`)).toEqual(['an account id (line 1)']);
+    expect(secretsIn(`account_id: "${'0123456789abcdef'.repeat(2)}"`)).toEqual(['an account id (line 1)']);
+    expect(secretsIn(`account_id: ${'0123456789abcdef'.repeat(2).slice(0, 31)}`)).toEqual([]);
+    expect(secretsIn(`hash: ${'0123456789abcdef'.repeat(2)}0`)).toEqual([]);
+  });
+
   it('finds a secret of forty characters or more that mixes capitals, small letters and digits, which is how the secret of an access key and a token of Cloudflare look', () => {
     expect(secretsIn(`secret: ${MIXED}`)).toEqual(['a long mixed token (line 1)']);
     expect(secretsIn(`secret: "${MIXED}"`)).toEqual(['a long mixed token (line 1)']);
