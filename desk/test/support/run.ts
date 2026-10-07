@@ -63,6 +63,8 @@ export function setupRun(scratch: () => string, options: RunSetup = {}) {
     config,
     sources: demoRegistry(),
     fetcher: options.fetcher ?? demoFetcher(() => FETCHED_AT),
+    clientKind: 'fake',
+    sourcesKind: 'fixtures',
     model: clientFromConfig(config, { kind: 'fake', fake }, {}, {}, options.record === true ? path.join(dir, 'cassettes') : undefined),
     evidence: new LocalEvidenceStore(config.evidenceDir),
     target: options.dry === true ? new DryTarget(repoDir) : new SiteTarget(repoDir, git),

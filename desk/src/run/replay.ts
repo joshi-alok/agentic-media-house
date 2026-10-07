@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { SourcesRegistry } from '@robywire/gate';
-import { FetchArtifact, FetchError, RecordedClient, RunRecord, SelectArtifact, readArtifact, readJsonFile } from '../index';
+import { FetchArtifact, FetchError, RecordedClient, SelectArtifact, readArtifact, readRunRecord } from '../index';
 import type { DeskConfig, EvidenceStore, Fetcher } from '../index';
 import { runCompose } from '../stages/compose';
 import { loadPublishedIndex } from '../stages/context';
@@ -121,7 +121,7 @@ function compare(name: string, stored: string | null, replayed: string | null): 
  * the piece, which depends on what is published, comes out as it did. The replay uses no network (`fetcher` refuses every request) and writes nothing into the folder of the run.
  */
 export async function replayRun(runDir: string, options: ReplayOptions): Promise<ReplayReport> {
-  const record = await readJsonFile(path.join(runDir, 'run.json'), 'the run record run.json', RunRecord);
+  const record = await readRunRecord(path.join(runDir, 'run.json'));
   const selected = await readArtifact(runDir, '02-select', SelectArtifact);
   const fetched = await readArtifact(runDir, '03-fetch', FetchArtifact);
 

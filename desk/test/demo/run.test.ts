@@ -187,7 +187,7 @@ describe('runDemo', () => {
     });
     expect(seen[0]).toEqual(['run', '--dry', '--client', 'fake', '--sources', 'fixtures']);
     expect(seen[1]?.[0]).toBe('replay');
-    expect(seen[1]?.slice(2)).toEqual(['--sources', 'fixtures']);
+    expect(seen[1]?.slice(2)).toEqual([]);
   });
 });
 

@@ -40,6 +40,16 @@ describe('the README: what the Desk is tested with', () => {
   });
 });
 
+describe('the README: how a replay knows how the run was made', () => {
+  it('says that the record of a run says how it was made, that a replay needs no flag for it, and that a flag that contradicts the record is refused', () => {
+    const command = section('The desk command');
+    expect(section('The desk workspace')).toContain('which client answered the model, where the stories came from, and which try of its day it was');
+    expect(command).toContain('The record of the run says which client and which sources it used, so a replay needs no flag for them');
+    expect(command).toContain('one that contradicts the record is refused with exit code 2');
+    expect(command).toContain('A record from before records said how a run was made has no such information and needs `--sources`');
+  });
+});
+
 describe('the README: what the Desk does not check', () => {
   const limits = (): string => section('What the Desk does not check');
 

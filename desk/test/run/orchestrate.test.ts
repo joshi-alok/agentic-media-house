@@ -71,6 +71,9 @@ describe('runDesk: a clean story', () => {
       slug: result.slug,
       commit: result.commit,
       dry: false,
+      client: 'fake',
+      sources: 'fixtures',
+      attempt: 1,
       models: config.models,
       budget: { limit: config.budget, spent: record.budget.spent },
       artifacts: ['01-discover.json', '02-select.json', '03-fetch.json', '04-extract.json', '05-compose.json', '06-verify.json'],
@@ -89,6 +92,27 @@ describe('runDesk: a clean story', () => {
     expect(second.outcome).toBe('no-story');
     expect(fake.calls[0]?.user).not.toContain('FX-1 deliveries to Brindle');
     expect(fake.calls[0]?.user).toContain('Northwind Handling');
+  });
+});
+
+describe('runDesk: how the run was made', () => {
+  it('records the client and the sources that it is told it was made with, whichever the outcome, and that it is the first try of the day', async () => {
+    for (const [client, sources] of [['fake', 'fixtures'], ['recorded', 'fixtures'], ['api', 'live']] as const) {
+      const made = setup();
+      await made.run({ clientKind: client, sourcesKind: sources });
+      expect(recordOf(made.dir)).toMatchObject({ outcome: 'published', client, sources, attempt: 1 });
+    }
+    for (const options of [{ fake: unentailed() }, { fake: new FakeClient().script('select', { chosenId: null, reasons: ['none'] }) }, { stages: { compose: async () => { throw new Error('x'); } } }] as RunSetup[]) {
+      const made = setup(options);
+      await made.run({ clientKind: 'api', sourcesKind: 'live' });
+      expect(recordOf(made.dir)).toMatchObject({ client: 'api', sources: 'live', attempt: 1 });
+    }
+  });
+
+  it('records them for a dry run as well', async () => {
+    const made = setup({ dry: true });
+    await made.run();
+    expect(recordOf(made.dir)).toMatchObject({ dry: true, client: 'fake', sources: 'fixtures', attempt: 1 });
   });
 });
 

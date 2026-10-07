@@ -142,9 +142,15 @@ describe('parseArgs: run', () => {
 
 describe('parseArgs: replay, status and the rest', () => {
   it('reads replay with the folder of a run, and the options of replay', () => {
-    expect(parsed('replay', 'runs/2026-10-05')).toEqual({ command: 'replay', runDir: 'runs/2026-10-05', sources: 'live', cassettes: undefined, config: undefined });
-    expect(parsed('replay', 'runs/2026-10-05', '--sources', 'fixtures', '--cassettes', 'elsewhere')).toEqual({ command: 'replay', runDir: 'runs/2026-10-05', sources: 'fixtures', cassettes: 'elsewhere', config: undefined });
+    expect(parsed('replay', 'runs/2026-10-05')).toEqual({ command: 'replay', runDir: 'runs/2026-10-05', sources: undefined, client: undefined, cassettes: undefined, config: undefined });
+    expect(parsed('replay', 'runs/2026-10-05', '--sources', 'fixtures', '--cassettes', 'elsewhere')).toEqual({ command: 'replay', runDir: 'runs/2026-10-05', sources: 'fixtures', client: undefined, cassettes: 'elsewhere', config: undefined });
     expect(parsed('replay', '--sources', 'fixtures', 'runs/x')).toMatchObject({ runDir: 'runs/x', sources: 'fixtures' });
+  });
+
+  it('reads --client for replay, which says how the run was made and is only checked against the record of the run', () => {
+    expect(parsed('replay', 'runs/x', '--client', 'recorded')).toMatchObject({ command: 'replay', client: 'recorded' });
+    expect(refused('replay', 'runs/x', '--client', 'gpt')).toBe('--client is fake, recorded or api, not "gpt"');
+    expect(refused('replay', 'runs/x', '--client')).toBe('--client needs a value');
   });
 
   it('refuses replay with no folder, with two, with an option of run, and with a value that is wrong', () => {
@@ -209,7 +215,8 @@ describe('main: usage errors', () => {
     expect(out).toEqual([USAGE]);
     expect(err).toEqual([]);
     expect(USAGE).toContain('desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new]');
-    expect(USAGE).toContain('desk replay');
+    expect(USAGE).toContain('desk replay <folder of a run> [--sources fixtures|live] [--client fake|recorded|api] [--cassettes <folder>]');
+    expect(USAGE).toContain('The record of the run says');
     expect(USAGE).toContain('desk status');
     expect(USAGE).toContain('[--config <path>]');
     expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ')).every((line) => line.includes('[--config <path>]'))).toBe(true);
@@ -486,6 +493,106 @@ describe('main: the other clients and sources', () => {
     expect(out).toContain('outcome: failed');
     expect(out).toContain('stage: select');
     expect(out.some((line) => line.startsWith('reason: no recorded response for this select request'))).toBe(true);
+  });
+});
+
+describe('main: the record says how the run was made', () => {
+  /** The record of the run of the made-up day, as the file has it. */
+  const recordIn = (cwd: string, ...below: string[]): Record<string, unknown> => JSON.parse(readFileSync(path.join(cwd, ...below, 'runs', DEMO_DATE, 'run.json'), 'utf8')) as Record<string, unknown>;
+  const writeRecord = (cwd: string, record: Record<string, unknown>): void => writeFileSync(path.join(cwd, 'runs', DEMO_DATE, 'run.json'), `${JSON.stringify(record, null, 2)}\n`);
+  const RUN_DIR = path.join('runs', DEMO_DATE);
+
+  it('writes the client and the sources of a run into its record, and that it was the first try', async () => {
+    const { call, cwd } = setup();
+    await call(...DRY_DEMO);
+    expect(recordIn(cwd)).toMatchObject({ client: 'fake', sources: 'fixtures', attempt: 1 });
+  });
+
+  it('writes the api client and the live sources for a run that asks for them, which fails here because there is no network', async () => {
+    const { call, cwd } = setup({ env: { ANTHROPIC_API_KEY: 'k' } });
+    await call('run', '--dry', '--date', '2026-10-05');
+    expect(recordIn(cwd)).toMatchObject({ outcome: 'failed', client: 'api', sources: 'live', attempt: 1 });
+  });
+
+  it('writes the recorded client for a run that replays recorded replies', async () => {
+    const first = setup();
+    await first.call(...DRY_DEMO);
+    mkdirSync(path.join(first.cwd, 'kept'));
+    for (const name of readdirSync(path.join(first.cwd, RUN_DIR, 'cassettes'))) copyFileSync(path.join(first.cwd, RUN_DIR, 'cassettes', name), path.join(first.cwd, 'kept', name));
+    await first.call('run', '--dry', '--client', 'recorded', '--sources', 'fixtures', '--cassettes', 'kept', '--force-new');
+    expect(recordIn(first.cwd)).toMatchObject({ client: 'recorded', sources: 'fixtures' });
+  });
+
+  it('replays a run with no flags at all, reading from the record that it was made in the made-up world', async () => {
+    const { call, out, err } = setup();
+    await call(...DRY_DEMO);
+    out.length = 0;
+    expect(await call('replay', RUN_DIR)).toBe(0);
+    expect(err).toEqual([]);
+    expect(out).toEqual(['run: 2026-10-05-043100', '04-extract: equal', '05-compose: equal', '06-verify: equal', 'replay: equal']);
+  });
+
+  it('takes the flags that agree with the record', async () => {
+    const { call, out } = setup();
+    await call(...DRY_DEMO);
+    expect(await call('replay', RUN_DIR, '--sources', 'fixtures', '--client', 'fake')).toBe(0);
+    expect(out.at(-1)).toBe('replay: equal');
+  });
+
+  it('refuses --sources or --client that contradict the record, with exit code 2, the two values in the message, and nothing replayed', async () => {
+    const { call, out, err } = setup();
+    await call(...DRY_DEMO);
+    out.length = 0;
+    expect(await call('replay', RUN_DIR, '--sources', 'live')).toBe(2);
+    expect(err).toEqual(['desk: the run 2026-10-05-043100 was made with --sources fixtures, so it cannot be replayed with --sources live: the pages and the registry of a replay must be the ones the run had, and the record of the run says which']);
+    err.length = 0;
+    expect(await call('replay', RUN_DIR, '--client', 'api')).toBe(2);
+    expect(err).toEqual(['desk: the run 2026-10-05-043100 was made with --client fake, so it cannot be replayed with --client api: the replies of a replay are the ones the run recorded, and the record of the run says who gave them']);
+    expect(out).toEqual([]);
+  });
+
+  it('reads a record from before records said how a run was made, and says that the replay needs the flags, with exit code 2', async () => {
+    const { call, out, err, cwd } = setup();
+    await call(...DRY_DEMO);
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = recordIn(cwd);
+    writeRecord(cwd, before);
+    out.length = 0;
+    expect(await call('replay', RUN_DIR)).toBe(2);
+    expect(err).toEqual(['desk: the record of the run 2026-10-05-043100 does not say how it was made (it was written before records did), so the replay needs the flags: --sources fixtures|live, and --cassettes <folder> if the run used --client recorded']);
+    expect(out).toEqual([]);
+  });
+
+  it('replays a record from before with the flag, as replay always did', async () => {
+    const { call, out, cwd } = setup();
+    await call(...DRY_DEMO);
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = recordIn(cwd);
+    writeRecord(cwd, before);
+    out.length = 0;
+    expect(await call('replay', RUN_DIR, '--sources', 'fixtures')).toBe(0);
+    expect(out.at(-1)).toBe('replay: equal');
+  });
+
+  it('takes the flags for a record from before as they come: there is nothing in it to contradict, and --client only matters when it says recorded', async () => {
+    const { call, out, cwd } = setup();
+    await call(...DRY_DEMO);
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = recordIn(cwd);
+    writeRecord(cwd, before);
+    out.length = 0;
+    expect(await call('replay', RUN_DIR, '--sources', 'fixtures', '--client', 'fake')).toBe(0);
+    expect(out.at(-1)).toBe('replay: equal');
+  });
+
+  it('needs --cassettes for a run made with the recorded client, whose replies are not in its own folder, and says so with exit code 2', async () => {
+    const first = setup();
+    await first.call(...DRY_DEMO);
+    mkdirSync(path.join(first.cwd, 'kept'));
+    for (const name of readdirSync(path.join(first.cwd, RUN_DIR, 'cassettes'))) copyFileSync(path.join(first.cwd, RUN_DIR, 'cassettes', name), path.join(first.cwd, 'kept', name));
+    await first.call('run', '--dry', '--client', 'recorded', '--sources', 'fixtures', '--cassettes', 'kept', '--force-new');
+    first.out.length = 0;
+    expect(await first.call('replay', RUN_DIR)).toBe(2);
+    expect(first.err.at(-1)).toMatch(/^desk: the run 2026-10-05-\d{6} was made with --client recorded, so its replies are not in its own folder: replay it with --cassettes <the folder of the recorded replies>$/);
+    expect(await first.call('replay', RUN_DIR, '--cassettes', 'kept')).toBe(0);
+    expect(first.out.at(-1)).toBe('replay: equal');
   });
 });
 

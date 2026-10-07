@@ -10,7 +10,8 @@ import { DEMO_DATE } from './world';
 
 // The demo: `npm run desk:demo`. It runs the command `desk run --dry --client fake --sources fixtures`, the whole pipeline from Discover to the end, in the
 // made-up world with a scripted model, and then replays the run from what it kept. It succeeds, with exit code 0, only if the run ended published, in a dry run,
-// with nothing written: the site is exactly as it was and git was not asked to commit, and only if the replay finds every artifact equal. It is part of
+// with nothing written: the site is exactly as it was and git was not asked to commit, and only if the replay finds every artifact equal. The replay is given no flag:
+// it reads from the record of the run that the run was made in the made-up world, which is also what the demo shows. It is part of
 // `npm run verify`, so that a change that breaks the pipeline as a whole, and not any one test of it, stops the check.
 
 export interface DemoDeps {
@@ -64,7 +65,7 @@ export async function runDemo(deps: DemoDeps, cli: (argv: readonly string[], dep
     };
     const code = await cli(['run', '--dry', '--client', 'fake', '--sources', 'fixtures'], cliDeps);
     const run = out.length;
-    const replayCode = code === 0 ? await cli(['replay', path.join(work, 'runs', DEMO_DATE), '--sources', 'fixtures'], cliDeps) : 1;
+    const replayCode = code === 0 ? await cli(['replay', path.join(work, 'runs', DEMO_DATE)], cliDeps) : 1;
     for (const line of out) deps.out(line);
 
     const problems: string[] = [];

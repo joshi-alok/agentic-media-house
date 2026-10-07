@@ -5,7 +5,7 @@ import { defaultContext, runGate } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { Candidate, ComposeArtifact, DiscoverArtifact, ExtractArtifact, FetchArtifact, GateReport, HeldArtifact, RunRecord, SelectArtifact, VerifyArtifact, candidateId, readArtifact, readJsonFile, runPath, writeArtifact, writeJsonFile } from '../../src/run/artifacts';
+import { CLIENT_KINDS, Candidate, ComposeArtifact, DiscoverArtifact, ExtractArtifact, FetchArtifact, GateReport, HeldArtifact, LegacyRunRecord, RunRecord, SOURCES_KINDS, SelectArtifact, VerifyArtifact, candidateId, readArtifact, readJsonFile, readRunRecord, runPath, writeArtifact, writeJsonFile } from '../../src/run/artifacts';
 import { sha256Hex } from '../../src/model/types';
 import { defaultConfig } from '../../src/config';
 import { RUN_DATE, candidate } from '../support/candidates';
@@ -93,6 +93,9 @@ const runRecord = (): RunRecord => ({
   slug: 'fixture-robotics-ships-fx-1',
   commit: COMMIT,
   dry: false,
+  client: 'fake',
+  sources: 'fixtures',
+  attempt: 1,
   models: defaultConfig().models,
   budget: { limit: defaultConfig().budget, spent: { calls: 4, inputTokens: 21_000, outputTokens: 3_200 } },
   artifacts: ['01-discover.json', '02-select.json', '03-fetch.json', '04-extract.json', '05-compose.json', '06-verify.json'],
@@ -492,6 +495,71 @@ describe('RunRecord', () => {
     expect(problem(RunRecord, { ...runRecord(), runId: '' })).toContain('runId:');
     expect(problem(RunRecord, { ...runRecord(), stage: '' })).toContain('stage:');
     expect(problem(RunRecord, { ...runRecord(), outcome: 'done' })).toContain('outcome:');
+  });
+});
+
+describe('RunRecord: how the run was made', () => {
+  it('names the client and the sources of the run, and which try of the day it was', () => {
+    expect(CLIENT_KINDS).toEqual(['fake', 'recorded', 'api']);
+    expect(SOURCES_KINDS).toEqual(['fixtures', 'live']);
+    for (const client of CLIENT_KINDS) expect(problem(RunRecord, { ...runRecord(), client })).toBe('');
+    for (const sources of SOURCES_KINDS) expect(problem(RunRecord, { ...runRecord(), sources })).toBe('');
+    expect(problem(RunRecord, { ...runRecord(), attempt: 3 })).toBe('');
+  });
+
+  it('refuses a client or sources that are not one of the choices, and an attempt that is not a whole number from 1', () => {
+    expect(problem(RunRecord, { ...runRecord(), client: 'gpt' })).toContain('client:');
+    expect(problem(RunRecord, { ...runRecord(), sources: 'files' })).toContain('sources:');
+    for (const attempt of [0, -1, 1.5, '1', null]) expect(problem(RunRecord, { ...runRecord(), attempt }), String(attempt)).toContain('attempt:');
+  });
+
+  it('refuses a record that does not say how the run was made: the three fields are required of every record that is written', () => {
+    for (const key of ['client', 'sources', 'attempt'] as const) {
+      const { [key]: _left, ...rest } = runRecord();
+      expect(problem(RunRecord, rest), key).toContain(`${key}:`);
+    }
+  });
+});
+
+describe('readRunRecord', () => {
+  const written = (record: unknown): string => {
+    const dir = freshDir();
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'run.json'), JSON.stringify(record));
+    return path.join(dir, 'run.json');
+  };
+  const { client: _client, sources: _sources, attempt: _attempt, ...BEFORE } = runRecord();
+
+  it('reads a record that says how the run was made, with those fields', async () => {
+    expect(await readRunRecord(written(runRecord()))).toEqual(runRecord());
+  });
+
+  it('reads a record from before runs said how they were made, which has none of the three fields, and gives it none', async () => {
+    const record = await readRunRecord(written(BEFORE));
+    expect(record).toEqual(BEFORE);
+    expect(record.client).toBeUndefined();
+    expect(record.sources).toBeUndefined();
+    expect(record.attempt).toBeUndefined();
+    expect(problem(LegacyRunRecord, BEFORE)).toBe('');
+  });
+
+  it('does not take a record that has only some of the three fields, for either kind of record', async () => {
+    await expect(readRunRecord(written({ ...BEFORE, client: 'fake' }))).rejects.toThrow('the run record run.json does not match its schema: sources:');
+    await expect(readRunRecord(written({ ...BEFORE, attempt: 1, sources: 'live' }))).rejects.toThrow('does not match its schema: client:');
+  });
+
+  it('still refuses what is wrong with the rest of the record, naming the fields of the new kind of record', async () => {
+    await expect(readRunRecord(written({ ...runRecord(), date: 'yesterday' }))).rejects.toThrow('the run record run.json does not match its schema: date:');
+    await expect(readRunRecord(written({ ...BEFORE, date: 'yesterday' }))).rejects.toThrow('does not match its schema: date:');
+    await expect(readRunRecord(written({ ...runRecord(), note: 'x' }))).rejects.toThrow('Unrecognized key: "note"');
+  });
+
+  it('says what is missing and what is not JSON, as every reader of a run file does', async () => {
+    const dir = freshDir();
+    mkdirSync(dir, { recursive: true });
+    await expect(readRunRecord(path.join(dir, 'run.json'))).rejects.toThrow(`the run record run.json is not in ${dir}`);
+    writeFileSync(path.join(dir, 'run.json'), '{"runId": ');
+    await expect(readRunRecord(path.join(dir, 'run.json'))).rejects.toThrow('the run record run.json is not valid JSON');
   });
 });
 

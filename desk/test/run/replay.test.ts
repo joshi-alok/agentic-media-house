@@ -108,6 +108,15 @@ describe('replayRun: a run that is replayed as it was', () => {
     await expect(refusingFetcher.get('https://fixture-robotics.example/news')).rejects.toThrow('https://fixture-robotics.example/news: a replay does not use the network');
   });
 
+  it('replays a run whose record is from before records said how a run was made, which has no client, sources or attempt', async () => {
+    const { dir, replay } = await recordedRun();
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = read(path.join(dir, 'run.json')) as Record<string, unknown>;
+    write(path.join(dir, 'run.json'), before);
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.equal).toBe(true);
+  });
+
   it('takes the cassettes from the folder it is given, when that is not the one in the run', async () => {
     const { dir, replay } = await recordedRun();
     const elsewhere = scratch();

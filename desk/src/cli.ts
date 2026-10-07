@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { loadSources } from '@robywire/gate';
 import type { SourcesRegistry } from '@robywire/gate';
-import { HttpFetcher, LocalEvidenceStore, RunRefused, clientFromConfig, defaultConfig, loadConfig, placeholderHost, readDeskState, runPath, sitePaths, DryTarget, SiteTarget } from './index';
-import type { BuiltClient, ClientChoice, DeskConfig, Environment, Fetcher, GitTarget, Lookup, RetryOptions, Transport } from './index';
+import { CLIENT_KINDS, HttpFetcher, LocalEvidenceStore, RunRefused, SOURCES_KINDS, clientFromConfig, defaultConfig, loadConfig, placeholderHost, readDeskState, readRunRecord, runPath, sitePaths, DryTarget, SiteTarget } from './index';
+import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, Fetcher, GitTarget, Lookup, RetryOptions, SourcesKind, StoredRunRecord, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
 import { runDesk } from './run/orchestrate';
@@ -14,12 +14,11 @@ import { replayRun } from './run/replay';
 // published, held or found no story and for a replay that came out equal, 1 for a run that failed, was refused or could not start, and a replay that
 // differs, and 2 for a usage error.
 
-export type ClientKind = 'fake' | 'recorded' | 'api';
-export type SourcesKind = 'fixtures' | 'live';
+export type { ClientKind, SourcesKind };
 
 export type Parsed =
   | { command: 'run'; date: string | undefined; dry: boolean; client: ClientKind; sources: SourcesKind; forceNew: boolean; cassettes: string | undefined; config: string | undefined }
-  | { command: 'replay'; runDir: string; sources: SourcesKind; cassettes: string | undefined; config: string | undefined }
+  | { command: 'replay'; runDir: string; sources: SourcesKind | undefined; client: ClientKind | undefined; cassettes: string | undefined; config: string | undefined }
   | { command: 'status'; config: string | undefined }
   | { command: 'help' };
 
@@ -29,14 +28,17 @@ export type ParseResult = { ok: true; args: Parsed } | { ok: false; message: str
 export const USAGE = [
   'Usage:',
   '  desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new] [--cassettes <folder>] [--config <path>]',
-  '  desk replay <folder of a run> [--sources fixtures|live] [--cassettes <folder>] [--config <path>]',
+  '  desk replay <folder of a run> [--sources fixtures|live] [--client fake|recorded|api] [--cassettes <folder>] [--config <path>]',
   '  desk status [--config <path>]',
   '',
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
   '        story for dry runs). --sources says where stories come from (live is the default; fixtures is the made-up world, for dry runs).',
   '        A day that already has a run is refused unless --force-new is given.',
-  'replay  run Extract, Compose and Verify again from what a run kept, with no network, and say whether the artifacts are the same.',
+  'replay  run Extract, Compose and Verify again from what a run kept, with no network, and say whether the artifacts are the same. The record of the run says',
+  '        which client and which sources it used, so no flag is needed for them; --sources and --client are only checked against the record, and one that',
+  '        contradicts it is refused. A run made with --client recorded has no replies of its own: replay it with --cassettes. A record from before records',
+  '        said how a run was made needs --sources.',
   'status  print the last run and the number of holds, from the desk state.',
   '--config says where the settings of the Desk are: a YAML file laid over the defaults (how recent a story must be, how many candidates reach the model, the folders,',
   '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
@@ -44,12 +46,12 @@ export const USAGE = [
 
 const OPTIONS: Readonly<Record<'run' | 'replay' | 'status', { flags: readonly string[]; valued: readonly string[] }>> = {
   run: { flags: ['--dry', '--force-new'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
-  replay: { flags: [], valued: ['--sources', '--cassettes', '--config'] },
+  replay: { flags: [], valued: ['--sources', '--client', '--cassettes', '--config'] },
   status: { flags: [], valued: ['--config'] },
 };
 
-const CLIENTS: readonly string[] = ['fake', 'recorded', 'api'];
-const SOURCES: readonly string[] = ['fixtures', 'live'];
+const CLIENTS: readonly string[] = CLIENT_KINDS;
+const SOURCES: readonly string[] = SOURCES_KINDS;
 
 /** Is `text` a day, YYYY-MM-DD, that exists? */
 function isDay(text: string): boolean {
@@ -103,18 +105,23 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     if (positional.length > 0) return fail(`status takes no arguments, but was given "${positional[0]}"`);
     return { ok: true, args: { command: 'status', config: value('--config') } };
   }
-  const sources = value('--sources') ?? 'live';
-  if (!SOURCES.includes(sources)) return fail(`--sources is fixtures or live, not "${sources}"`);
+  const sourcesGiven = value('--sources');
+  if (sourcesGiven !== undefined && !SOURCES.includes(sourcesGiven)) return fail(`--sources is fixtures or live, not "${sourcesGiven}"`);
+  const clientGiven = value('--client');
+  if (clientGiven !== undefined && !CLIENTS.includes(clientGiven)) return fail(`--client is fake, recorded or api, not "${clientGiven}"`);
 
   if (command === 'replay') {
     if (positional.length === 0) return fail('replay needs the folder of a run');
     if (positional.length > 1) return fail(`replay takes one folder, but was given "${positional.join('" and "')}"`);
-    return { ok: true, args: { command: 'replay', runDir: positional[0] as string, sources: sources as SourcesKind, cassettes: value('--cassettes'), config: value('--config') } };
+    return {
+      ok: true,
+      args: { command: 'replay', runDir: positional[0] as string, sources: sourcesGiven as SourcesKind | undefined, client: clientGiven as ClientKind | undefined, cassettes: value('--cassettes'), config: value('--config') },
+    };
   }
 
   if (positional.length > 0) return fail(`run takes no arguments, but was given "${positional[0]}"`);
-  const client = value('--client') ?? 'api';
-  if (!CLIENTS.includes(client)) return fail(`--client is fake, recorded or api, not "${client}"`);
+  const sources = sourcesGiven ?? 'live';
+  const client = clientGiven ?? 'api';
   const date = value('--date');
   if (date !== undefined && !isDay(date)) return fail(`--date is a day written YYYY-MM-DD, not "${date}"`);
   const dry = given.has('--dry');
@@ -221,6 +228,8 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
       sources: world.sources,
       fetcher: world.fetcher,
       model,
+      clientKind: args.client,
+      sourcesKind: args.sources,
       evidence: new LocalEvidenceStore(config.evidenceDir),
       target: args.dry ? new DryTarget(deps.cwd) : new SiteTarget(deps.cwd, deps.git),
       ledgerDir: path.join(deps.cwd, sitePaths().ledgerDir),
@@ -243,14 +252,50 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
   }
 }
 
+/**
+ * What a replay takes from the record of the run and from its flags: the sources to read the registry from, or why the run cannot be replayed with what it was given.
+ * The record says which client and which sources the run used. A flag is only a check on it: one that says the other thing is refused, because a replay with another
+ * registry, or from another run's replies, would differ for that reason alone and look like a change of code, and no flag overrides the record. A record from before
+ * records said how a run was made has nothing to check against, so it needs `--sources`. A run made with the recorded client read its replies from a folder that the
+ * record does not name, so a replay of it needs `--cassettes`.
+ */
+function howToReplay(record: StoredRunRecord, args: Extract<Parsed, { command: 'replay' }>): { sources: SourcesKind } | { message: string } {
+  if (record.sources !== undefined && args.sources !== undefined && args.sources !== record.sources) {
+    return {
+      message: `the run ${record.runId} was made with --sources ${record.sources}, so it cannot be replayed with --sources ${args.sources}: the pages and the registry of a replay must be the ones the run had, and the record of the run says which`,
+    };
+  }
+  if (record.client !== undefined && args.client !== undefined && args.client !== record.client) {
+    return {
+      message: `the run ${record.runId} was made with --client ${record.client}, so it cannot be replayed with --client ${args.client}: the replies of a replay are the ones the run recorded, and the record of the run says who gave them`,
+    };
+  }
+  const sources = record.sources ?? args.sources;
+  if (sources === undefined) {
+    return {
+      message: `the record of the run ${record.runId} does not say how it was made (it was written before records did), so the replay needs the flags: --sources fixtures|live, and --cassettes <folder> if the run used --client recorded`,
+    };
+  }
+  if ((record.client ?? args.client) === 'recorded' && args.cassettes === undefined) {
+    return { message: `the run ${record.runId} was made with --client recorded, so its replies are not in its own folder: replay it with --cassettes <the folder of the recorded replies>` };
+  }
+  return { sources };
+}
+
 async function replayCommand(args: Extract<Parsed, { command: 'replay' }>, deps: CliDeps): Promise<number> {
   const settings = settingsOf(deps, args.config);
   if ('code' in settings) return settings.code;
   const { config } = settings;
+  const runDir = path.resolve(deps.cwd, args.runDir);
   try {
-    const report = await replayRun(path.resolve(deps.cwd, args.runDir), {
+    const how = howToReplay(await readRunRecord(path.join(runDir, 'run.json')), args);
+    if ('message' in how) {
+      deps.err(`desk: ${how.message}`);
+      return 2;
+    }
+    const report = await replayRun(runDir, {
       config,
-      sources: sourcesOf(args.sources, deps, config).sources,
+      sources: sourcesOf(how.sources, deps, config).sources,
       evidence: new LocalEvidenceStore(config.evidenceDir),
       ledgerDir: path.join(deps.cwd, sitePaths().ledgerDir),
       ...(args.cassettes === undefined ? {} : { cassetteDir: path.resolve(deps.cwd, args.cassettes) }),

@@ -2,7 +2,7 @@ import { mkdir, readdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Claim, RunOutcome, SourcesRegistry } from '@robywire/gate';
 import { RunRecord, RunRefused, recordRun, runPath, takeRunLock, writeJsonFile } from '../index';
-import type { BuiltClient, DeskConfig, EvidenceStore, Fetcher, PublishTarget } from '../index';
+import type { BuiltClient, ClientKind, DeskConfig, EvidenceStore, Fetcher, PublishTarget, SourcesKind } from '../index';
 import { runCompose } from '../stages/compose';
 import { loadPublishedIndex } from '../stages/context';
 import type { StageContext } from '../stages/context';
@@ -50,6 +50,9 @@ export interface RunDeskOptions {
   fetcher: Fetcher;
   /** The model client of the run, inside its budget, and what it has spent: what `clientFromConfig` makes. */
   model: BuiltClient;
+  /** Which client `model` is, and where the stories of the run come from. The record of the run says both, so that `desk replay` needs no flag for them. */
+  clientKind: ClientKind;
+  sourcesKind: SourcesKind;
   evidence: EvidenceStore;
   /** Where a piece, a hold and the record of the run are put: the site, or a target that writes nothing. */
   target: PublishTarget;
@@ -247,6 +250,9 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
       slug,
       commit,
       dry: target.dry,
+      client: options.clientKind,
+      sources: options.sourcesKind,
+      attempt: 1,
       models: { ...config.models },
       budget: { limit: { ...config.budget }, spent: options.model.spent() },
       artifacts: await artifactsIn(dir),

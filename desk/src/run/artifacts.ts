@@ -216,48 +216,79 @@ export type HeldArtifact = z.infer<typeof HeldArtifact>;
 
 const count = z.number().int().nonnegative();
 
+/** Who answers the model calls of a run: a script (`fake`), recorded replies (`recorded`) or the Anthropic API (`api`). */
+export const CLIENT_KINDS = ['fake', 'recorded', 'api'] as const;
+export type ClientKind = (typeof CLIENT_KINDS)[number];
+
+/** Where the stories of a run come from: the made-up world (`fixtures`) or the sources of `sources.yml` on the web (`live`). */
+export const SOURCES_KINDS = ['fixtures', 'live'] as const;
+export type SourcesKind = (typeof SOURCES_KINDS)[number];
+
+/** The fields that every record has, whatever version of the Desk wrote it. */
+const RECORD_FIELDS = {
+  runId: text,
+  date: isoDate,
+  startedAt: isoDateTime,
+  finishedAt: isoDateTime,
+  outcome: z.enum(RUN_OUTCOMES),
+  /** The stage that ended the run: the last that ran (`publish` or `hold` for a run that got to the end, the one that found no story or failed otherwise). */
+  stage: text,
+  reason: text.nullable(),
+  slug: text.nullable(),
+  /** The id of the commit that the run made (one commit for each run that is not dry), or null when it made none. */
+  commit: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/, 'commit must be 40 lowercase hex characters')
+    .nullable(),
+  dry: z.boolean(),
+  models: DeskConfig.shape.models,
+  budget: z.strictObject({
+    limit: DeskConfig.shape.budget,
+    spent: z.strictObject({ calls: count, inputTokens: count, outputTokens: count }),
+  }),
+  /** The files the run left in its folder, as paths below it, in order: the artifacts of the stages and the held drafts, not the record itself. */
+  artifacts: z.array(text),
+  log: z.array(z.string()),
+};
+
+/** The rules of how a run can end, which hold for every record. */
+function checkRunRecord(record: { outcome: string; startedAt: string; finishedAt: string; slug: string | null; reason: string | null; dry: boolean; commit: string | null }, context: z.RefinementCtx): void {
+  const problem = (path: string, message: string): void => context.addIssue({ code: 'custom', path: [path], message });
+  if (Date.parse(record.finishedAt) < Date.parse(record.startedAt)) problem('finishedAt', 'a run cannot end before it starts');
+  if (record.outcome === 'published' && (record.slug === null || record.reason !== null)) problem('outcome', 'a published run has a slug and no reason');
+  if (record.outcome === 'held' && (record.slug === null || record.reason === null)) problem('outcome', 'a held run has a slug and a reason');
+  if ((record.outcome === 'no-story' || record.outcome === 'failed') && (record.slug !== null || record.reason === null)) {
+    problem('outcome', `a run that ended in ${record.outcome} has a reason and no slug`);
+  }
+  if (record.dry && record.commit !== null) problem('commit', 'a dry run makes no commit');
+  if (record.outcome === 'published' && !record.dry && record.commit === null) problem('commit', 'a run that published for real made a commit');
+}
+
 /**
  * The record of one run, written when it ends (`run.json` in the folder of the run; a folder that has none is a run that did not end). It says how
- * the run ended and why, which stage ended it, when, whether it was a dry run, which piece and which commit it made, which models it used, what it
+ * the run ended and why, which stage ended it, when, whether it was a dry run, how it was made (which client answered the model calls, where the stories
+ * came from, and which try of its day it was: 1 for the first, 2 for the second, and so on), which piece and which commit it made, which models it used, what it
  * spent against its budget, which artifacts it left, and what the stages logged. The rules of how a run can end are in the schema, so that a record
  * that says otherwise cannot be written: a published piece has a slug and no reason; a hold has a slug and a reason; a run with no story or a failure
- * has a reason and no slug; a dry run has no commit, and a run that published for real has one.
+ * has a reason and no slug; a dry run has no commit, and a run that published for real has one. Every record that is written has the three fields that say
+ * how the run was made; `readRunRecord` also reads a record from before they existed.
  */
 export const RunRecord = z
   .strictObject({
-    runId: text,
-    date: isoDate,
-    startedAt: isoDateTime,
-    finishedAt: isoDateTime,
-    outcome: z.enum(RUN_OUTCOMES),
-    /** The stage that ended the run: the last that ran (`publish` or `hold` for a run that got to the end, the one that found no story or failed otherwise). */
-    stage: text,
-    reason: text.nullable(),
-    slug: text.nullable(),
-    /** The id of the commit that the run made (one commit for each run that is not dry), or null when it made none. */
-    commit: z.string().regex(/^[0-9a-f]{40}$/, 'commit must be 40 lowercase hex characters').nullable(),
-    dry: z.boolean(),
-    models: DeskConfig.shape.models,
-    budget: z.strictObject({
-      limit: DeskConfig.shape.budget,
-      spent: z.strictObject({ calls: count, inputTokens: count, outputTokens: count }),
-    }),
-    /** The files the run left in its folder, as paths below it, in order: the artifacts of the stages and the held drafts, not the record itself. */
-    artifacts: z.array(text),
-    log: z.array(z.string()),
+    ...RECORD_FIELDS,
+    client: z.enum(CLIENT_KINDS),
+    sources: z.enum(SOURCES_KINDS),
+    attempt: z.number().int().positive(),
   })
-  .superRefine((record, context) => {
-    const problem = (path: string, message: string): void => context.addIssue({ code: 'custom', path: [path], message });
-    if (Date.parse(record.finishedAt) < Date.parse(record.startedAt)) problem('finishedAt', 'a run cannot end before it starts');
-    if (record.outcome === 'published' && (record.slug === null || record.reason !== null)) problem('outcome', 'a published run has a slug and no reason');
-    if (record.outcome === 'held' && (record.slug === null || record.reason === null)) problem('outcome', 'a held run has a slug and a reason');
-    if ((record.outcome === 'no-story' || record.outcome === 'failed') && (record.slug !== null || record.reason === null)) {
-      problem('outcome', `a run that ended in ${record.outcome} has a reason and no slug`);
-    }
-    if (record.dry && record.commit !== null) problem('commit', 'a dry run makes no commit');
-    if (record.outcome === 'published' && !record.dry && record.commit === null) problem('commit', 'a run that published for real made a commit');
-  });
+  .superRefine(checkRunRecord);
 export type RunRecord = z.infer<typeof RunRecord>;
+
+/** A record as it was written before records said how the run was made: the same fields without `client`, `sources` and `attempt`. It is never written, only read. */
+export const LegacyRunRecord = z.strictObject(RECORD_FIELDS).superRefine(checkRunRecord);
+export type LegacyRunRecord = z.infer<typeof LegacyRunRecord>;
+
+/** A record as `readRunRecord` gives it: the fields of every record, and the three that say how the run was made when the record has them. */
+export type StoredRunRecord = LegacyRunRecord & Partial<Pick<RunRecord, 'client' | 'sources' | 'attempt'>>;
 
 /** The folder of the run of a day: `<runsDir>/<date>`. The date must be a real day, so that a date can never name a path elsewhere. */
 export function runPath(runsDir: string, date: string): string {
@@ -322,4 +353,19 @@ export async function readJsonFile<T>(file: string, label: string, schema: z.Zod
 /** Read `<dir>/<name>.json` and check it against `schema` (see `readJsonFile`). */
 export async function readArtifact<T>(dir: string, name: string, schema: z.ZodType<T>): Promise<T> {
   return readJsonFile(fileOf(dir, name), `the artifact ${name}.json`, schema);
+}
+
+/**
+ * Read the record of a run, `run.json` at `file`. A record that says how the run was made is read as `RunRecord`; one from before that (none of the three fields) is
+ * read as `LegacyRunRecord`, and has no `client`, `sources` or `attempt`. A record that fits neither is an error that names the fields of the new kind of record, as
+ * every file of a run is checked, and so is a file that is missing or is not JSON.
+ */
+export async function readRunRecord(file: string): Promise<StoredRunRecord> {
+  const label = 'the run record run.json';
+  const data = await readJsonFile(file, label, z.unknown());
+  const current = RunRecord.safeParse(data);
+  if (current.success) return current.data;
+  const legacy = LegacyRunRecord.safeParse(data);
+  if (legacy.success) return legacy.data;
+  throw new Error(`${label} does not match its schema: ${describeIssues(current.error)}`);
 }
