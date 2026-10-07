@@ -1,0 +1,24 @@
+# The settings of the daily run of the Desk: .github/workflows/desk.yml passes this file to `npm run desk -- run --config desk.config.yml`.
+# It is committed, so it is public, and it holds no secret. The key of the model and the four variables that describe the private bucket (R2_ENDPOINT, R2_BUCKET,
+# R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY) come from the secrets of the repository, through the environment of the run; a file of settings that carried one
+# would be refused. Every setting that is not written here has its default, from desk/src/config.ts, and so do the models: they are named there and nowhere else.
+
+# What the Desk calls itself to every site it fetches from. It must link to the /method page, which says who the Desk is. When the site gets a domain of its own,
+# change the address here and the default of SITE_URL in .github/workflows/deploy.yml together.
+userAgent: AgenticMediaHouseDesk/0.1 (+https://agentic-media-house.joshi-alok.workers.dev/method)
+
+# The snapshots of the pages that a run reads are kept in the private bucket, so that a run that starts from a fresh checkout every day does not lose them.
+evidence:
+  kind: r2
+
+# Where a run writes its artifacts. The workflow uploads this folder (without the evidence, which is in the bucket) and keeps it for 14 days.
+runDir: runs
+
+# How many runs a day may have. The workflow starts at 04:30, 06:30 and 08:30 UTC, and a day that already has a run that did not fail is not run again.
+maxAttemptsPerDay: 3
+
+# What one run may spend. A run that goes over any of these stops and fails.
+budget:
+  maxCalls: 24
+  maxInputTokens: 400000
+  maxOutputTokens: 60000

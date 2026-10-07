@@ -267,3 +267,13 @@ describe('the README: what the Desk does not check', () => {
     expect(limits()).toContain('on purpose');
   });
 });
+
+describe('the README: the file of settings of the daily run', () => {
+  it('says that desk.config.yml is the file of the daily run, what it holds, and that it holds no secret and names no model', () => {
+    const command = section('The desk command');
+    expect(command).toContain('`desk.config.yml` at the root of the repository is the file of settings of the daily run');
+    expect(command).toContain('`evidence: { kind: r2 }`');
+    expect(command).toContain('it holds no secret, and it names no model');
+    expect(command).toContain('come from the environment, never from this file');
+  });
+});
