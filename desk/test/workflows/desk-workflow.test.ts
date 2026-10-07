@@ -20,6 +20,9 @@ const text = workflowText('desk.yml');
 const steps = stepsOf(workflow);
 const names = steps.map((step) => step.name);
 
+/** The command of a step that has a line that gives git its credential in front of it: the last line of its `run:`. */
+const commandOf = (step: { run?: string }): string => step.run!.trim().split('\n').at(-1)!;
+
 /** Run the commands of a step the way GitHub runs `run:` on Linux (bash, stopping at the first error), in `cwd`. */
 function runScript(script: string, cwd: string, env: Record<string, string> = {}): string {
   return execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', script], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...ISOLATED, ...env } });
@@ -75,10 +78,10 @@ describe('desk.yml: the steps, in order', () => {
     for (const step of steps) expect(step.name, JSON.stringify(step)).toBeTruthy();
   });
 
-  it('checks out the whole history with the token of the workflow, which is what a push needs: no other token and no switch that forgets it', () => {
+  it('checks out the whole history and leaves no credential behind: persist-credentials is false, so the token is in the steps that push and in no other', () => {
     const checkout = stepNamed(workflow, 'Check out the repository, with its history');
     expect(checkout.uses).toBe('actions/checkout@v7');
-    expect(checkout.with).toEqual({ 'fetch-depth': 0 });
+    expect(checkout.with).toEqual({ 'fetch-depth': 0, 'persist-credentials': false });
   });
 
   it('uses the Node of .nvmrc and the cache of npm, and installs exactly what the lock file says', () => {
@@ -111,8 +114,8 @@ describe('desk.yml: the run', () => {
   const run = stepNamed(workflow, 'Run the Desk');
 
   it('is the command of the daily run: the file of settings of the repository, a day that is done left alone, and the defaults that make it real (the api, live sources, not dry)', () => {
-    expect(run.run).toBe('npm run desk -- run --config desk.config.yml --skip-if-done');
-    const parsed = parseArgs(run.run!.replace('npm run desk -- ', '').split(' '));
+    expect(run.run).toBe('. .github/scripts/github-auth.sh\nnpm run desk -- run --config desk.config.yml --skip-if-done\n');
+    const parsed = parseArgs(commandOf(run).replace('npm run desk -- ', '').split(' '));
     expect(parsed).toEqual({
       ok: true,
       args: { command: 'run', date: undefined, dry: false, client: 'api', sources: 'live', forceNew: false, skipIfDone: true, cassettes: undefined, config: 'desk.config.yml' },
@@ -173,14 +176,14 @@ describe('desk.yml: pushing what the run committed', () => {
   const push = stepNamed(workflow, 'Push what the run committed');
 
   it('is the command `desk push`, which counts after a fetch, tries again when it is rejected and never fails open (test/run/push.test.ts says how), with the number of the run for the name of a rescue branch', () => {
-    expect(push.run).toBe('npm run desk -- push --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output "$GITHUB_OUTPUT"');
+    expect(push.run).toBe('. .github/scripts/github-auth.sh\nnpm run desk -- push --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output "$GITHUB_OUTPUT"\n');
     // What the shell makes of it, for the made-up run 4711, attempt 2.
-    const words = push.run!.replace('npm run desk -- ', '').replace('"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"', '4711-2').replace('"$GITHUB_OUTPUT"', '/runner/output').split(' ');
+    const words = commandOf(push).replace('npm run desk -- ', '').replace('"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"', '4711-2').replace('"$GITHUB_OUTPUT"', '/runner/output').split(' ');
     expect(parseArgs(words)).toEqual({ ok: true, args: { command: 'push', runId: '4711-2', output: '/runner/output', branchOnly: false, auditLog: undefined } });
   });
 
   it('has no script of its own that could swallow an error: no `if`, no `||`, no `;` and no `git` in the command', () => {
-    expect(push.run).not.toMatch(/\bif\b|\|\||;|\bgit\b/);
+    expect(commandOf(push)).not.toMatch(/\bif\b|\|\||;|\bgit\b/);
   });
 
   it('is asked after the run whatever way the run ended, but only when the site was built with what the run committed and its audit passed: nothing reaches main before that', () => {
@@ -220,8 +223,8 @@ describe('desk.yml: the build and the audit, before anything reaches main', () =
   it('are followed, when either fails, by a step that keeps the commits on a branch and opens a draft pull request, with the report of the audit, and by nothing that pushes to main', () => {
     expect(branch.id).toBe('branch');
     expect(branch.if).toBe("${{ !cancelled() && steps.desk.conclusion != 'skipped' && (steps.build.outcome == 'failure' || steps.audit.outcome == 'failure') }}");
-    expect(branch.run).toBe('npm run desk -- push --branch-only --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --audit-log "$RUNNER_TEMP/audit.log"');
-    const words = branch.run!.replace('npm run desk -- ', '').replace('"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"', '4711-2').replace('"$RUNNER_TEMP/audit.log"', '/runner/audit.log').split(' ');
+    expect(branch.run).toBe('. .github/scripts/github-auth.sh\nnpm run desk -- push --branch-only --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --audit-log "$RUNNER_TEMP/audit.log"\n');
+    const words = commandOf(branch).replace('npm run desk -- ', '').replace('"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"', '4711-2').replace('"$RUNNER_TEMP/audit.log"', '/runner/audit.log').split(' ');
     expect(parseArgs(words)).toEqual({ ok: true, args: { command: 'push', runId: '4711-2', output: undefined, branchOnly: true, auditLog: '/runner/audit.log' } });
     // The step opens a pull request, so it has the token of the workflow for gh, and no other step of the two has anything but what it needs.
     expect(branch.env).toEqual({ GH_TOKEN: '${{ github.token }}' });

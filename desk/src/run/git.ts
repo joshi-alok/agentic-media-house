@@ -5,6 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import { sha256Hex } from '../model/types';
 import { isHoldBranch } from './branches';
+import { childEnvironment } from './environment';
 
 // How the Desk commits. The Publish stage and the runs that end in a hold write a few files and commit exactly those, and the rest of the
 // repository is none of their business: they name each file, they refuse to start when something else of the Desk's is in the way, and they
@@ -49,7 +50,7 @@ export interface GitTarget {
 const run = promisify(execFile);
 
 export interface GitCliOptions {
-  /** Variables of the environment for git, laid over those of this process. A test uses it to keep the settings of the machine out. */
+  /** Variables of the environment for git, laid over the few that git is given from this process (`childEnvironment`). A test uses it to keep the settings of the machine out. */
   env?: Readonly<Record<string, string>>;
   /** Where the index file for a commit on a new branch is made, for the time the commit takes. The system's folder for temporary files by default. */
   tempDir?: string;
@@ -76,8 +77,9 @@ export class GitCli implements GitTarget {
     private readonly dir: string,
     options: GitCliOptions = {},
   ) {
-    // A path is a path and never a pattern; nothing may ask for a password; the messages of git are in the same language everywhere.
-    this.env = { ...process.env, ...options.env, GIT_LITERAL_PATHSPECS: '1', GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' };
+    // A path is a path and never a pattern; nothing may ask for a password; the messages of git are in the same language everywhere. Git is given the variables that it needs and not
+    // the whole environment of this process, which has the key of the model and the keys of the bucket in it (see `childEnvironment`).
+    this.env = { ...childEnvironment(process.env), ...options.env, GIT_LITERAL_PATHSPECS: '1', GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' };
     this.tempDir = options.tempDir;
   }
 

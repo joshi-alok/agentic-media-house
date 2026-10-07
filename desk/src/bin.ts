@@ -12,5 +12,6 @@ process.exitCode = await main(process.argv.slice(2), {
   cwd,
   now: () => new Date(),
   git: new GitCli(cwd),
-  forge: new GhForge(nodeExec(), { cwd }),
+  // `gh` needs the token of GitHub in its environment; `git` is given its credential by GIT_CONFIG_*, and neither is given the key of the model or those of the bucket.
+  forge: new GhForge(nodeExec({}, { tokens: true }), { cwd }),
 });

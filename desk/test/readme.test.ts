@@ -370,6 +370,17 @@ describe('the README: the daily workflow', () => {
   });
 });
 
+describe('the README: what each step of a workflow can reach', () => {
+  it('says that the checkout leaves no credential, who has the token and how git is given it, and what a child of the Desk is given', () => {
+    const workflow = section('The daily workflow');
+    expect(workflow).toContain('**What each step can reach.** The checkout is made with `persist-credentials: false`');
+    expect(workflow).toContain('`npm ci`, which runs the install scripts of every package in the tree, runs with no token in reach');
+    expect(workflow).toContain('given to the four steps that need it');
+    expect(workflow).toContain('Git is given the token for github.com alone, by the environment, in one place (`.github/scripts/github-auth.sh`');
+    expect(workflow).toContain('an allow-list of the environment (`PATH`, `HOME`, `LANG`, `TMPDIR`, the variables of git, and the token of GitHub for `gh` alone)');
+  });
+});
+
 describe('the README: a day that is done, for a schedule', () => {
   it('says what --skip-if-done does, what it needs and does not need, and what it does not change', () => {
     const command = section('The desk command');

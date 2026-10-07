@@ -3,9 +3,10 @@ name: Desk
 # The daily run of the Desk. It starts three times a day, so that a day whose run fails (a model that is down, a bucket that cannot be reached) is tried again;
 # `--skip-if-done` makes the second and the third start do nothing when the day already has a run that did not fail. It starts by hand too (Actions > Desk > Run workflow).
 #
-# The secrets of the repository reach the run only through the `env` of the step that runs the Desk, and nothing here prints them. A workflow cannot be run on a
-# machine other than GitHub's, so what this file says is checked by desk/test/workflows/desk-workflow.test.ts, which parses it, and proved by the first real run
-# (docs/runbook.md).
+# The secrets of the repository reach the run only through the `env` of the step that runs the Desk, and nothing here prints them. The token of the workflow is given, in the `env`,
+# only to the steps that push, that open a pull request or that start the deploy, and git is given it for github.com through .github/scripts/github-auth.sh (the checkout leaves no
+# credential behind: persist-credentials is false, so `npm ci` and every other step run with no token in reach). A workflow cannot be run on a machine other than GitHub's, so what this
+# file says is checked by desk/test/workflows/desk-workflow.test.ts, which parses it, and proved by the first real run (docs/runbook.md).
 on:
   schedule:
     - cron: '30 4 * * *'
@@ -34,6 +35,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@v7
@@ -49,6 +51,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
+      # The Desk pushes the branch of a held piece with git and opens its pull request with gh, so this step has the token, for both: GH_TOKEN for gh, and the credential for git.
       # The outcome of the run decides how this step ends: published, held and no story are exit code 0, failed is 1, and a day that is done is 0 and runs nothing.
       - name: Run the Desk
         id: desk
@@ -59,7 +62,9 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           GH_TOKEN: ${{ github.token }}
-        run: npm run desk -- run --config desk.config.yml --skip-if-done
+        run: |
+          . .github/scripts/github-auth.sh
+          npm run desk -- run --config desk.config.yml --skip-if-done
 
       # What the run committed does not reach main before the site has been built with it and audited. The Desk checks a piece against the gate, which knows nothing of Astro or of the
       # audit of the build, so a piece that clears the gate can still break the build, and a broken build on main would stop every later deploy, a retraction included. The build and the audit
@@ -86,7 +91,11 @@ jobs:
       - name: Push what the run committed
         id: push
         if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' && steps.build.outcome == 'success' && steps.audit.outcome == 'success' }}
-        run: npm run desk -- push --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . .github/scripts/github-auth.sh
+          npm run desk -- push --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output "$GITHUB_OUTPUT"
 
       # When the build or the audit failed, the commits do not go to main: they go to the branch desk-build-failed/<day>-<run>, and a draft pull request is opened on it, whose text is
       # fixed sentences and the ids of the checks that failed, never what the report says. This step does not fail; the step that did has already failed the job.
@@ -95,7 +104,9 @@ jobs:
         if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' && (steps.build.outcome == 'failure' || steps.audit.outcome == 'failure') }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: npm run desk -- push --branch-only --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --audit-log "$RUNNER_TEMP/audit.log"
+        run: |
+          . .github/scripts/github-auth.sh
+          npm run desk -- push --branch-only --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --audit-log "$RUNNER_TEMP/audit.log"
 
       # The artifacts of the run are the files of runs/: hashes, the short quotations of the claims, the drafts and the record of the run. Never the text of a page
       # (the snapshots are in the bucket, and runs/ has none), and never the trials of `desk tune`. A public repository's artifacts can be read by anyone.

@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { isHoldBranch } from './branches';
+import { childEnvironment } from './environment';
 
 // The forge is where a piece that the Desk held is sent to the owner: a branch is pushed and a draft pull request is opened on GitHub. Everything that goes
 // outward goes through `ForgeTarget`, so that the stages can be tested with `FakeForge` and nothing is pushed. `GhForge` is the real one, and it runs `git` and `gh`
@@ -188,10 +189,12 @@ const EXEC_MAX_BUFFER = 16 * 1024 * 1024;
 /**
  * The real `Exec`: `execFile`, which starts the program itself with the arguments as they are and never goes through a shell. The program is kept from asking
  * anything of a person (`git` for a password, `gh` for a choice), from colouring its output and from translating it, so that a run in a workflow cannot wait
- * for an answer and what it prints can be read. `environment` is laid over the environment of this process.
+ * for an answer and what it prints can be read. The program is given a few variables of the environment of this process (`childEnvironment`: `PATH`, `HOME`, `LANG`, `TMPDIR` and the
+ * variables of git, and the token of GitHub when `options.tokens` is true, which `gh` needs and `git` does not) and not the rest, so that the key of the model and the keys of the bucket
+ * are never in the environment of a `git` or a `gh`. `environment` is laid over them.
  */
-export function nodeExec(environment: Readonly<Record<string, string>> = {}): Exec {
-  const env: NodeJS.ProcessEnv = { ...process.env, ...environment, GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', NO_COLOR: '1', LC_ALL: 'C' };
+export function nodeExec(environment: Readonly<Record<string, string>> = {}, options: { tokens?: boolean } = {}): Exec {
+  const env: NodeJS.ProcessEnv = { ...childEnvironment(process.env, options), ...environment, GIT_TERMINAL_PROMPT: '0', GH_PROMPT_DISABLED: '1', GH_NO_UPDATE_NOTIFIER: '1', NO_COLOR: '1', LC_ALL: 'C' };
   return (file, args, options) =>
     new Promise((resolve, reject) => {
       execFile(file, [...args], { cwd: options.cwd, env, maxBuffer: EXEC_MAX_BUFFER, timeout: EXEC_TIMEOUT_MS }, (error, stdout, stderr) => {

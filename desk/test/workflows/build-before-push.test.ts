@@ -69,7 +69,8 @@ async function sequence(script: Script, options: { cancelled?: boolean } = {}): 
   const deps: CliDeps = { out: (line) => void out.push(line), err: (line) => void err.push(line), env: {}, cwd, now: clock(), git: new FakeGit(), config: defaultConfig(), pushGit, forge };
   const execute: Executor = async (step: Step, env) => {
     if (step.uses !== undefined) return 0;
-    const run = step.run ?? '';
+    // A step that pushes starts by giving git its credential (a line of the same words in each of them); what it does is what follows.
+    const run = (step.run ?? '').trim().split('\n').filter((line) => line !== '. .github/scripts/github-auth.sh').join('\n');
     if (run === 'npm ci' || run.startsWith('git config')) return 0;
     if (run.startsWith('npm run desk -- run')) {
       if (script.desk !== 'nothing') origin.commit(origin.work, 'desk-state.json', '{"holds": 1}\n', script.desk === 'fails' ? 'desk: the run failed' : 'desk: published a piece');
