@@ -22,6 +22,7 @@ export * from './fetch/feeds';
 export * from './run/evidence';
 export * from './run/desk-state';
 export * from './run/git';
+export * from './run/forge';
 export * from './run/target';
 export * from './run/lock';
 export * from './run/spending';
