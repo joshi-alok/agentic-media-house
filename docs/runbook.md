@@ -28,7 +28,7 @@ git grep -nI -E 'sk-a[n]t-|A[K]IA[0-9A-Z]{16}|gh[p]_[A-Za-z0-9]{20,}|-----BEGIN 
 
 ### 2. Rewrite the author and committer of every commit (once)
 
-Every commit is by the address that `git config user.email` prints, and a public repository would show it. Before the first push the author and the committer of every commit are changed to the address that GitHub keeps for the account, `185603530+joshi-alok@users.noreply.github.com`. The content and the order of the history do not change, only the hashes; the tags are moved to the new commits. This cannot be undone once the history is pushed, so look at the result first, and keep the old history until you have.
+Every commit is by the address that you commit with, and a public repository would show it (`git log -1 --format=%ae` prints it, on your machine; it is not written in this file, because this file is public too). Before the first push the author and the committer of every commit are changed to the address that GitHub keeps for the account, `185603530+joshi-alok@users.noreply.github.com`. The content and the order of the history do not change, only the hashes; the tags are moved to the new commits. This cannot be undone once the history is pushed, so look at the result first, and keep the old history until you have.
 
 ```bash
 git branch backup-before-rewrite

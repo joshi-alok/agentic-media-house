@@ -278,6 +278,16 @@ describe('the README: the file of settings of the daily run', () => {
   });
 });
 
+describe('the README: what a message of the store says', () => {
+  it('says what a message has, what it never has, with what each is replaced, and why', () => {
+    const store = section('The evidence store');
+    expect(store).toContain('**What a message of the store says, and does not.**');
+    expect(store).toContain('It never has the address of the endpoint, which has the id of the Cloudflare account in it, the name of the bucket, or either key');
+    expect(store).toContain('they are replaced by `<r2-endpoint>`, `<bucket>` and `<key>`');
+    expect(store).toContain('GitHub hides only a whole secret and not an address that has an account id in it');
+  });
+});
+
 describe('the README: the name of the branch of a hold', () => {
   const holds = (): string => section('Holds and corrections');
 

@@ -12,7 +12,9 @@ import { signRequest } from './sigv4';
 //
 // What is read back is checked: the text of an object must hash to its name, as with the folder on disk. A store that cannot be reached, that refuses, that has been changed or
 // that has nothing under the name says so as an `EvidenceError` of the kind that it is, and never goes on: the Desk does not publish what it cannot keep the evidence of.
-// A message has the status and the start of what the bucket said, cut at 200 characters, and no key: the secret is only ever in the signing, and every message is made with both keys taken out.
+// A message has the status and the start of what the bucket said, cut at 200 characters, and nothing that says whose bucket it is: the secret is only ever in the signing, and every message is made with
+// both keys, the address of the endpoint (which has the id of the Cloudflare account in it) and the name of the bucket taken out. A message goes into the record of a run, into its log, and, for a run
+// that fails, into the output of a workflow of a public repository, where GitHub hides a whole secret and nothing that only has a secret in it.
 
 /** A request that the store makes: what `fetch` is given besides the address. */
 export interface StoreRequest {
@@ -62,6 +64,14 @@ export interface R2Options {
   timeoutMs?: number;
 }
 
+/** What stands where a part of the address of the bucket was, in what the bucket or the network said. */
+const ENDPOINT_MARK = '<r2-endpoint>';
+const BUCKET_MARK = '<bucket>';
+const KEY_MARK = '<key>';
+
+/** A text as a pattern that matches it, in any case, and nothing else. */
+const literally = (text: string): RegExp => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+
 /** How an error is said: its message, and the message of its cause when it has one (`fetch failed` of node says nothing without it). */
 function describeError(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
@@ -103,6 +113,10 @@ export class R2EvidenceStore implements EvidenceStore {
   private readonly base: string;
   private readonly accessKeyId: string;
   private readonly secretAccessKey: string;
+  /** What is taken out of every message, longest first, so that no part of what is taken out is left by what is taken out before it. */
+  private readonly secrets: readonly (readonly [RegExp, string])[];
+  /** The name of the bucket, which is taken out of what the bucket or the network said and not out of what the store itself says. */
+  private readonly bucketName: RegExp;
   private readonly transport: StoreTransport;
   private readonly now: () => Date;
   private readonly timeoutMs: number;
@@ -122,6 +136,18 @@ export class R2EvidenceStore implements EvidenceStore {
     this.base = `${endpoint.origin}/${options.bucket}/`;
     this.accessKeyId = options.accessKeyId;
     this.secretAccessKey = options.secretAccessKey;
+    // The account id is the first label of an address such as <account>.r2.cloudflarestorage.com; a label that short is a word and not an id, and the whole address is taken out anyway.
+    const account = endpoint.hostname.split('.')[0] as string;
+    const forms = (text: string): string[] => [...new Set([text, encodeURIComponent(text)])];
+    this.secrets = [
+      ...forms(options.secretAccessKey).map((text) => [literally(text), KEY_MARK] as const),
+      ...forms(options.accessKeyId).map((text) => [literally(text), KEY_MARK] as const),
+      [literally(endpoint.origin), ENDPOINT_MARK] as const,
+      [literally(endpoint.host), ENDPOINT_MARK] as const,
+      [literally(endpoint.hostname), ENDPOINT_MARK] as const,
+      ...(endpoint.hostname.includes('.') && account.length >= 8 ? ([[literally(account), ENDPOINT_MARK]] as const) : []),
+    ];
+    this.bucketName = literally(options.bucket);
     this.transport = options.transport ?? ((url, init) => fetch(url, init));
     this.now = options.now ?? (() => new Date());
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -144,14 +170,19 @@ export class R2EvidenceStore implements EvidenceStore {
     });
   }
 
-  /** A text with both keys taken out of it. */
+  /** A text with both keys, the address of the endpoint and the id of the account in it taken out of it. */
   private redact(text: string): string {
-    return text.split(this.secretAccessKey).join('***').split(this.accessKeyId).join('***');
+    return this.secrets.reduce((left, [pattern, mark]) => left.replace(pattern, mark), text);
   }
 
-  /** What a bucket said, on one line of printable characters, with both keys taken out first (so that a key cut in two by the end of the excerpt is not half there), and cut at 200 characters. */
+  /** What the bucket or the network said: the same, with the name of the bucket taken out as well. The name is not taken out of what the store says itself, where a bucket with a name that is a word would spoil the sentence. */
+  private scrub(text: string): string {
+    return this.redact(text).replace(this.bucketName, BUCKET_MARK);
+  }
+
+  /** What a bucket said, on one line of printable characters, with both keys, the endpoint, the account and the bucket taken out first (so that a key cut in two by the end of the excerpt is not half there), and cut at 200 characters. */
   private excerpt(text: string): string {
-    const clean = this.redact(text)
+    const clean = this.scrub(text)
       .replace(/[^\x20-\x7e]+/g, ' ')
       .replace(/ {2,}/g, ' ')
       .trim();

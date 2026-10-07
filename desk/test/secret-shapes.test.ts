@@ -52,6 +52,25 @@ describe('secretsIn', () => {
     expect(secretsIn(`secret: ${'0123456789abcdef'.repeat(3).slice(0, 40)}`)).toEqual(['a long hexadecimal token (line 1)']);
   });
 
+  it('finds an e-mail address of a person or a company, and leaves alone the placeholders, the address that GitHub gives an account, and the one of the trailer of every commit', () => {
+    expect(secretsIn('contact: jane.doe@acme-robotics.io')).toEqual(['an e-mail address (line 1)']);
+    expect(secretsIn('Every commit is by "jane.doe+tag@mail.acme-robotics.co.uk", and')).toEqual(['an e-mail address (line 1)']);
+    for (const fine of [
+      'someone@mail.example',
+      'a@b.test',
+      'a@example.com',
+      'a@EXAMPLE.ORG',
+      '185603530+someone@users.noreply.github.com',
+      'Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>',
+      'git config user.email 41898282+github-actions[bot]@users.noreply.github.com',
+      'uses: actions/checkout@v7',
+      'npm install wrangler@4.148.0',
+      'a handle @someone and a mention at the end @',
+    ]) {
+      expect(secretsIn(fine), fine).toEqual([]);
+    }
+  });
+
   it('says the line, counting from 1, and never what it found', () => {
     const found = secretsIn(`one\ntwo\nkey: ${piece('sk', '-ant-', 'api03-', 'abc')}\nfour`);
     expect(found).toEqual(['an Anthropic key (line 3)']);

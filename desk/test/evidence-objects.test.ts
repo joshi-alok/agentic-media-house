@@ -161,3 +161,15 @@ describe('what each outcome leaves in the bucket', () => {
     }
   });
 });
+
+describe('what a run says of a bucket that cannot be reached', () => {
+  it('has nothing of the address of the endpoint, the account, the name of the bucket or the keys in its reason, in the record of the run or in its log: they go into a public repository and its workflow log', async () => {
+    const host = new URL(FAKE_R2.endpoint).host;
+    const { made, result } = await ranInBucket({}, (bucket) => bucket.fail(new TypeError('fetch failed', { cause: new Error(`getaddrinfo ENOTFOUND ${host} (${FAKE_R2.bucket}, ${FAKE_R2.accessKeyId})`) }), { times: 99 }));
+    expect(result.outcome).toBe('failed');
+    expect(result.stage).toBe('fetch');
+    expect(result.reason).toContain('fetch failed (getaddrinfo ENOTFOUND <r2-endpoint> (<bucket>, <key>))');
+    const everything = [result.reason ?? '', readFileSync(path.join(result.dir, 'run.json'), 'utf8'), made.logs.join('\n')].join('\n');
+    for (const secret of [host, 'fake-account', FAKE_R2.bucket, FAKE_R2.accessKeyId, FAKE_R2.secretAccessKey]) expect(everything).not.toContain(secret);
+  });
+});

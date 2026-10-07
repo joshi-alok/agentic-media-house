@@ -475,7 +475,7 @@ describe('R2EvidenceStore: what the bucket can answer', () => {
       expect(message).not.toContain('fake-secret');
       expect(message).not.toContain(FAKE_KEY_ID);
       expect(message).not.toContain('AKIAFAKE');
-      expect(message).toContain('***');
+      expect(message).toContain('<key>');
     }
   });
 
@@ -494,7 +494,11 @@ describe('R2EvidenceStore: what the bucket can answer', () => {
   it('says what the cause of a failed fetch was, as the fetch of node reports it', async () => {
     const { store, bucket } = bucketStore();
     bucket.fail(new TypeError('fetch failed', { cause: new Error('getaddrinfo ENOTFOUND fake-account.r2.example') }), { method: 'GET' });
-    expect(await messageOf(store.get(HASH))).toContain('fetch failed (getaddrinfo ENOTFOUND fake-account.r2.example)');
+    // The host of the bucket has the id of the account in it, and a message goes into the record of a run and into a log that a public repository shows to anyone.
+    const message = await messageOf(store.get(HASH));
+    expect(message).toContain('fetch failed (getaddrinfo ENOTFOUND <r2-endpoint>)');
+    expect(message).not.toContain('fake-account');
+    expect(message).not.toContain('r2.example');
   });
 
   it('turns a transport that throws what is not an error into unreachable as well', async () => {
@@ -599,5 +603,100 @@ describe('R2EvidenceStore: how it is made', () => {
     const sent = seen[0] as string;
     const at = Date.parse(`${sent.slice(0, 4)}-${sent.slice(4, 6)}-${sent.slice(6, 8)}T${sent.slice(9, 11)}:${sent.slice(11, 13)}:${sent.slice(13, 15)}Z`);
     expect(Math.abs(at - before)).toBeLessThan(5000);
+  });
+});
+
+// A message of the store goes into the record of a run, into its log, and, when the run fails, into the output of a workflow of a public repository, where GitHub hides a whole secret and
+// not a part of one. The address of the bucket has the id of the Cloudflare account in it, and the name of the bucket says whose it is. So a message never has the address of the endpoint, the
+// id of the account, the name of the bucket or either key, whatever the network or the bucket said: they are replaced by `<r2-endpoint>`, `<bucket>` and `<key>`.
+describe('R2EvidenceStore: what no message says', () => {
+  const ACCOUNT = '0123456789abcdef0123456789abcdef';
+  const HOST = `${ACCOUNT}.r2.cloudflarestorage.com`;
+  const NAME = 'agentic-media-house-evidence';
+  const KEY_ID = 'AKIAMADEUPKEYID12345';
+  const SECRET = 'made-up-secret-access-key-0123456789abcdefghij';
+  const REAL_SHAPED = { endpoint: `https://${HOST}`, bucket: NAME, accessKeyId: KEY_ID, secretAccessKey: SECRET } as const;
+
+  /** What the network or the bucket might say, with the address, the account, the bucket and the keys in it, in the ways that they are written. */
+  const ECHO = `<Error><Code>SignatureDoesNotMatch</Code><Endpoint>${HOST}</Endpoint><BucketName>${NAME}</BucketName><Key>pending/${HASH}</Key><AWSAccessKeyId>${KEY_ID}</AWSAccessKeyId><CanonicalRequest>GET\n/${NAME}/pending/${HASH}\n\nhost:${HOST}\n</CanonicalRequest><Authorization>AWS4-HMAC-SHA256 Credential=${KEY_ID}/20261006/auto/s3/aws4_request, SignedHeaders=host, Signature=${'0'.repeat(64)}</Authorization></Error>`;
+
+  const FAULTS: [string, Error | { status: number; body: string }][] = [
+    ['a DNS failure', new TypeError('fetch failed', { cause: new Error(`getaddrinfo ENOTFOUND ${HOST}`) })],
+    ['a DNS failure, in capitals', new Error(`GETADDRINFO ENOTFOUND ${HOST.toUpperCase()}`)],
+    ['a failure to connect, with the port', new Error(`connect ECONNREFUSED ${HOST}:443`)],
+    ['a TLS error', new Error(`Hostname/IP does not match certificate's altnames: Host: ${HOST}. is not in the cert's altnames: DNS:*.other.example`)],
+    ['a timeout that names the address', new Error(`Request to https://${HOST}/${NAME}/pending/${HASH} timed out after 20000 ms`)],
+    ['an error that names the address and the key that was tried, as the name of a path and as a header', new Error(`403 for https://${HOST}/${NAME}/published/${HASH} with ${KEY_ID}:${SECRET}`)],
+    ['an error that has the address and the name written as a url does', new Error(`failed ${encodeURIComponent(`https://${HOST}/${NAME}`)} ${encodeURIComponent(SECRET)}`)],
+    ['an answer whose body echoes the whole request', { status: 403, body: ECHO }],
+    ['an answer whose body is the address and nothing else', { status: 502, body: `https://${HOST}` }],
+    ['an answer with the secret key in the middle of a long body', { status: 400, body: `${'x'.repeat(150)} ${SECRET} ${HOST} ${'y'.repeat(150)}` }],
+  ];
+
+  function clean(message: string): void {
+    for (const secret of [HOST, ACCOUNT, NAME, KEY_ID, SECRET]) expect(message.toLowerCase(), message).not.toContain(secret.toLowerCase());
+    expect(message, message).not.toContain('r2.cloudflarestorage.com');
+    expect(message, message).not.toMatch(/\b[0-9a-f]{32}\b/);
+    expect(message, message).not.toContain(encodeURIComponent(SECRET));
+    expect(message, message).not.toContain('made-up-secret');
+  }
+
+  it.each(FAULTS)('is clean for %s', async (_what, fault) => {
+    const bucket = makeBucket();
+    bucket.fail(fault instanceof Error ? fault : { status: fault.status, body: fault.body }, { method: 'GET' });
+    const store = new R2EvidenceStore({ ...REAL_SHAPED, transport: bucket.transport, now: () => BUCKET_TIME });
+    const message = await messageOf(store.get(HASH));
+    clean(message);
+    expect(message).toContain('the evidence store');
+  });
+
+  it('puts the marks where the address, the bucket and the keys were, so that what the message says can still be read', async () => {
+    const { store, bucket } = bucketStore();
+    bucket.fail(new Error(`getaddrinfo ENOTFOUND fake-account.r2.example while asking ${FAKE_BUCKET} with ${FAKE_KEY_ID} and ${FAKE_SECRET}`), { method: 'GET' });
+    expect(await messageOf(store.get(HASH))).toBe(`the evidence store could not be reached (GET pending/${HASH}): getaddrinfo ENOTFOUND <r2-endpoint> while asking <bucket> with <key> and <key>`);
+  });
+
+  it('takes out the whole address with its scheme as one mark, and a bare host, with or without the port, as one mark, and does not leave half of either', async () => {
+    const { store, bucket } = bucketStore();
+    bucket.fail(new Error(`${FAKE_ENDPOINT}/${FAKE_BUCKET}/pending/x and fake-account.r2.example:443 and https://FAKE-ACCOUNT.R2.EXAMPLE`), { method: 'GET' });
+    const message = await messageOf(store.get(HASH));
+    // The port is not a secret and stays; a host and a port that is not the usual one are taken out together.
+    expect(message).toContain('<r2-endpoint>/<bucket>/pending/x and <r2-endpoint>:443 and <r2-endpoint>');
+    expect(message).not.toContain('fake-account');
+  });
+
+  it('does not take the name of the bucket out of its own sentences, where a bucket named like a word would spoil them: only out of what the network or the bucket said', async () => {
+    const bucket = makeBucket();
+    const store = new R2EvidenceStore({ ...FAKE_R2, bucket: 'evidence', transport: bucket.transport, now: () => BUCKET_TIME });
+    bucket.fail({ status: 503, body: 'the bucket evidence is busy' }, { method: 'GET' });
+    expect(await messageOf(store.get(HASH))).toBe(`the evidence store answered GET pending/${HASH} with 503: the bucket <bucket> is busy`);
+  });
+
+  it('leaves a short first label of the address alone, which is a word and not an account id, and takes the address out all the same', async () => {
+    const bucket = makeBucket();
+    const store = new R2EvidenceStore({ ...FAKE_R2, endpoint: 'https://r2.example', transport: bucket.transport, now: () => BUCKET_TIME });
+    bucket.fail(new Error('r2 is down; ask r2.example, or R2'), { method: 'GET' });
+    expect(await messageOf(store.get(HASH))).toBe(`the evidence store could not be reached (GET pending/${HASH}): r2 is down; ask <r2-endpoint>, or R2`);
+  });
+
+  it('takes the first label of the address out by itself when it is long enough to be an account id (eight characters), and not the second label of an address, which is a word', async () => {
+    const bucket = makeBucket();
+    const store = new R2EvidenceStore({ ...FAKE_R2, endpoint: 'https://abcd1234.longword-label.example', transport: bucket.transport, now: () => BUCKET_TIME });
+    bucket.fail(new Error('account abcd1234 is not allowed; longword-label is a word'), { method: 'GET' });
+    expect(await messageOf(store.get(HASH))).toBe(`the evidence store could not be reached (GET pending/${HASH}): account <r2-endpoint> is not allowed; longword-label is a word`);
+  });
+
+  it('is clean in every kind of message that the store makes: a refusal, an unreachable bucket, a body that cannot be read, a text that was changed, and a record that is not valid', async () => {
+    const bucket = makeBucket();
+    const store = new R2EvidenceStore({ ...REAL_SHAPED, transport: bucket.transport, now: () => BUCKET_TIME });
+    const messages: string[] = [];
+    bucket.fail({ status: 403, body: ECHO }, { method: 'HEAD' });
+    messages.push(await messageOf(store.has(HASH)));
+    bucket.fail({ status: 500, body: ECHO }, { method: 'PUT' });
+    messages.push(await messageOf(store.put(TEXT, META)));
+    bucket.fail(new Error(`reset by ${HOST}`), { method: 'HEAD' });
+    messages.push(await messageOf(store.keep(HASH)));
+    expect(messages).toHaveLength(3);
+    for (const message of messages) clean(message);
   });
 });

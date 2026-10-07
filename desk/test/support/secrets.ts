@@ -15,6 +15,14 @@ const SHAPES: readonly { name: string; pattern: RegExp }[] = [
   { name: 'an account id', pattern: /\b[0-9a-f]{32}\b/ },
 ];
 
+/**
+ * An e-mail address of a person or a company. A repository that is public must not have the address that its owner commits with, or any other that nothing needs. The addresses that
+ * are no one's are left alone: the placeholders (`example`, `test`, `invalid` and `localhost` as the last label, and `example.com`, `example.org`, `example.net`), the address that GitHub keeps
+ * for an account and the one that every commit of this project ends with (`noreply@anthropic.com`).
+ */
+const EMAIL = /\b[A-Za-z0-9._%+-]+@((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,})\b/g;
+const NOBODYS = /(?:^|\.)(?:example|test|invalid|localhost)$|^(?:example\.(?:com|org|net)|users\.noreply\.github\.com|anthropic\.com)$/i;
+
 /** What kind of long token `token` is, if it is shaped like a secret: capitals, small letters and digits all together, or forty hexadecimal digits with letters among them. */
 function kindOfToken(token: string): string | undefined {
   if (/^[0-9a-f]+$/.test(token) && /[0-9]/.test(token) && /[a-f]/.test(token)) return 'a long hexadecimal token';
@@ -35,6 +43,7 @@ export function secretsIn(text: string): string[] {
       const kind = kindOfToken(match[0]);
       if (kind !== undefined) kinds.add(kind);
     }
+    for (const match of line.matchAll(EMAIL)) if (!NOBODYS.test(match[1] as string)) kinds.add('an e-mail address');
     for (const kind of kinds) found.push(`${kind} (line ${at + 1})`);
   });
   return found;
