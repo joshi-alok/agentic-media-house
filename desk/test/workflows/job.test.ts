@@ -10,16 +10,17 @@ import type { Step, Workflow } from '../support/workflow';
 
 const scratch = useScratch();
 
-const jobOf = (steps: Step[]): Workflow => ({ name: 'made up', on: {}, jobs: { only: { 'runs-on': 'ubuntu-latest', steps } } });
+const jobOf = (steps: Step[], condition?: string): Workflow => ({ name: 'made up', on: {}, jobs: { only: { 'runs-on': 'ubuntu-latest', ...(condition === undefined ? {} : { if: condition }), steps } } });
 
 /** Run a job whose steps end as `codes` says (by id), and say which steps ran and how. */
-async function ran(steps: Step[], codes: Record<string, number>, options: { cancelled?: boolean; inputs?: Record<string, string | boolean>; write?: Record<string, string> } = {}) {
+async function ran(steps: Step[], codes: Record<string, number>, options: { cancelled?: boolean; inputs?: Record<string, string | boolean>; write?: Record<string, string>; event?: string; vars?: Record<string, string>; jobIf?: string; seen?: Record<string, string>[] } = {}) {
   const execute: Executor = async (step, env) => {
+    options.seen?.push(env);
     const line = options.write?.[step.id ?? ''];
     if (line !== undefined) appendFileSync(env.GITHUB_OUTPUT as string, line);
     return codes[step.id ?? ''] ?? 0;
   };
-  const job = await runJob(jobOf(steps), execute, { dir: scratch(), ...options });
+  const job = await runJob(jobOf(steps, options.jobIf), execute, { dir: scratch(), ...options });
   return { job, outcomes: Object.fromEntries(job.steps.map((step) => [step.id ?? step.name, step.outcome])) };
 }
 
@@ -95,13 +96,71 @@ describe('runJob: the conditions of the steps', () => {
 
   it.each([
     ['a function that it does not know', '${{ hashFiles() == 1 }}'],
-    ['a context that it does not know', "${{ github.event_name == 'push' }}"],
+    ['a context that it does not know', "${{ github.actor == 'someone' }}"],
     ['something that is not a condition', '${{ steps.a.outcome === 1 }}'],
     ['a bracket that is not closed', '${{ (steps.a.outcome }}'],
     ['a condition that stops short', '${{ steps.a.outcome == }}'],
     ['a word after the end of the condition', "${{ true 'x' }}"],
   ])('is an error for %s, so that a workflow that outgrows it fails loudly', async (_what, condition) => {
     await expect(ran([{ id: 'a', name: 'a' }, { id: 'b', name: 'b', if: condition }], {})).rejects.toThrow();
+  });
+});
+
+describe('runJob: what started the workflow, the variables, the condition of the job and the env of a step', () => {
+  it('reads github.event_name and vars.<name>, and a variable that is not there is the empty string', async () => {
+    const steps: Step[] = [
+      { id: 'a', name: 'a', if: "${{ github.event_name == 'schedule' }}" },
+      { id: 'b', name: 'b', if: "${{ vars.SWITCH == 'on' }}" },
+      { id: 'c', name: 'c', if: '${{ vars.NOT_SET == \'\' }}' },
+    ];
+    expect((await ran(steps, {}, { event: 'schedule', vars: { SWITCH: 'on' } })).outcomes).toEqual({ a: 'success', b: 'success', c: 'success' });
+    expect((await ran(steps, {}, { event: 'push', vars: { SWITCH: 'off' } })).outcomes).toEqual({ a: 'skipped', b: 'skipped', c: 'success' });
+  });
+
+  it('skips every step, and says that the job was skipped, when the condition of the job is false, and runs them when it is true', async () => {
+    const steps: Step[] = [{ id: 'a', name: 'a', if: 'always()' }, { id: 'b', name: 'b' }];
+    const condition = "${{ github.event_name != 'schedule' || vars.SWITCH == 'on' }}";
+    const off = await ran(steps, {}, { event: 'schedule', jobIf: condition });
+    expect(off.outcomes).toEqual({ a: 'skipped', b: 'skipped' });
+    expect(off.job.conclusion).toBe('skipped');
+    expect((await ran(steps, {}, { event: 'schedule', vars: { SWITCH: 'on' }, jobIf: condition })).job.conclusion).toBe('success');
+    expect((await ran(steps, {}, { event: 'workflow_dispatch', jobIf: condition })).job.conclusion).toBe('success');
+  });
+
+  it('works out the expressions of the env of a step: an input chooses between two words, a secret and the token are made-up values, a plain value is as it is', async () => {
+    const seen: Record<string, string>[] = [];
+    const steps: Step[] = [{ id: 'a', name: 'a', env: { FLAGS: "${{ inputs.dry && '--dry' || '--skip-if-done' }}", KEY: '${{ secrets.THE_KEY }}', TOKEN: '${{ github.token }}', PLAIN: 'as it is', TEMP: '${{ runner.temp }}/x' } }];
+    await ran(steps, {}, { inputs: { dry: true }, seen });
+    await ran(steps, {}, { inputs: { dry: false }, seen });
+    await ran(steps, {}, { seen });
+    expect(seen.map((env) => env.FLAGS)).toEqual(['--dry', '--skip-if-done', '--skip-if-done']);
+    expect(seen[0]).toMatchObject({ KEY: 'made-up-secret-THE_KEY', TOKEN: 'made-up-token-of-the-workflow', PLAIN: 'as it is' });
+    expect(seen[0]?.TEMP).toMatch(/\/x$/);
+  });
+
+  it('takes 0 and the empty string for false and 1 for true in an expression, trims the space around the whole expression of an env, and gives the empty string for what is not there', async () => {
+    const seen: Record<string, string>[] = [];
+    const steps: Step[] = [{ id: 'a', name: 'a', env: { ZERO: "${{ 0 || 'fallback' }}", ONE: "${{ 1 && 'yes' }}", PADDED: "  ${{ inputs.dry && '--dry' || '--no' }}  ", UNSET: '${{ inputs.nothing }}' } }];
+    await ran(steps, {}, { inputs: { dry: true }, seen });
+    expect(seen[0]).toMatchObject({ ZERO: 'fallback', ONE: 'yes', PADDED: '--dry', UNSET: '' });
+  });
+
+  it('is a start by hand when it is not told what started it', async () => {
+    expect((await ran([{ id: 'a', name: 'a', if: "${{ github.event_name == 'workflow_dispatch' }}" }], {})).outcomes).toEqual({ a: 'success' });
+  });
+
+  it('is an error, and not an empty value, for a name that it does not know, a part of a step that is not one, and a condition that stops in the middle or goes on after the end', async () => {
+    for (const condition of ['steps.a.nothing', 'steps.a.outputs', 'steps.a', 'steps.a.outputs.x.y', 'inputs.a.b', 'github.sha', 'needs.x.result', 'matrix.x']) {
+      await expect(ran([{ id: 'a', name: 'a' }, { id: 'b', name: 'b', if: `\${{ ${condition} }}` }], {}), condition).rejects.toThrow('does not know');
+    }
+    await expect(ran([{ id: 'a', name: 'a', if: '${{ always() && inputs.a && }}' }], {})).rejects.toThrow('ends too soon');
+    await expect(ran([{ id: 'a', name: 'a', if: '${{ always() && inputs.a inputs.b }}' }], {})).rejects.toThrow('has more after');
+  });
+
+  it('gives the step the file for its outputs, and the folder for temporary files', async () => {
+    const seen: Record<string, string>[] = [];
+    await ran([{ id: 'a', name: 'a' }], {}, { seen });
+    expect(Object.keys(seen[0] as object).sort()).toEqual(['GITHUB_OUTPUT', 'RUNNER_TEMP']);
   });
 });
 

@@ -13,6 +13,11 @@ on:
     - cron: '30 6 * * *'
     - cron: '30 8 * * *'
   workflow_dispatch:
+    inputs:
+      dry:
+        description: 'A rehearsal: the Desk runs with its real sources, model and bucket and writes its artifacts, and publishes nothing, commits nothing, pushes nothing and starts no deploy'
+        type: boolean
+        default: false
 
 # Two runs of the Desk must never overlap, and a run that has started is never cancelled: it would leave a half-done day.
 concurrency:
@@ -28,6 +33,10 @@ permissions:
 
 jobs:
   desk:
+    # The schedule is switched on by the variable DESK_SCHEDULE of the repository (Settings > Secrets and variables > Actions > Variables), and by nothing else: a start by the schedule while
+    # the variable is not `on` does nothing, and a start by hand always runs. So the workflow can be on the repository, and be started by hand for a rehearsal (`dry`), long before the
+    # day that the Desk is let go, and the first push of the repository cannot start a Desk that publishes. To stop the daily run, set the variable to anything but `on`.
+    if: ${{ github.event_name != 'schedule' || vars.DESK_SCHEDULE == 'on' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -62,9 +71,11 @@ jobs:
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           GH_TOKEN: ${{ github.token }}
+          # A rehearsal (the input `dry` of a start by hand) is `desk run --dry`; every other start leaves a day that is done alone.
+          DESK_FLAGS: ${{ inputs.dry && '--dry' || '--skip-if-done' }}
         run: |
           . .github/scripts/github-auth.sh
-          npm run desk -- run --config desk.config.yml --skip-if-done
+          npm run desk -- run --config desk.config.yml $DESK_FLAGS
 
       # What the run committed does not reach main before the site has been built with it and audited. The Desk checks a piece against the gate, which knows nothing of Astro or of the
       # audit of the build, so a piece that clears the gate can still break the build, and a broken build on main would stop every later deploy, a retraction included. The build and the audit
@@ -90,7 +101,7 @@ jobs:
       # It runs only when the site was built and its audit passed.
       - name: Push what the run committed
         id: push
-        if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' && steps.build.outcome == 'success' && steps.audit.outcome == 'success' }}
+        if: ${{ !cancelled() && !inputs.dry && steps.desk.conclusion != 'skipped' && steps.build.outcome == 'success' && steps.audit.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -101,7 +112,7 @@ jobs:
       # fixed sentences and the ids of the checks that failed, never what the report says. This step does not fail; the step that did has already failed the job.
       - name: Keep what the run committed on a branch, because the site does not build with it
         id: branch
-        if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' && (steps.build.outcome == 'failure' || steps.audit.outcome == 'failure') }}
+        if: ${{ !cancelled() && !inputs.dry && steps.desk.conclusion != 'skipped' && (steps.build.outcome == 'failure' || steps.audit.outcome == 'failure') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -125,7 +136,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Deploy the site
-        if: ${{ !cancelled() && steps.push.outputs.pushed == 'true' }}
+        if: ${{ !cancelled() && !inputs.dry && steps.push.outputs.pushed == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run deploy.yml --ref main

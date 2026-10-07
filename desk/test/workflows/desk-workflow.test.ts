@@ -34,6 +34,17 @@ describe('desk.yml: when it starts', () => {
     expect(workflow.on.schedule).toEqual([{ cron: '30 4 * * *' }, { cron: '30 6 * * *' }, { cron: '30 8 * * *' }]);
   });
 
+  it('can be started by hand with one input, `dry`, a boolean that is false unless it is said: a rehearsal', () => {
+    expect(workflow.on.workflow_dispatch).toMatchObject({ inputs: { dry: { type: 'boolean', default: false } } });
+    expect(Object.keys((workflow.on.workflow_dispatch as { inputs: object }).inputs)).toEqual(['dry']);
+    expect(JSON.stringify(workflow.on.workflow_dispatch)).toContain('publishes nothing, commits nothing, pushes nothing and starts no deploy');
+  });
+
+  it('starts by the schedule only when the variable DESK_SCHEDULE of the repository is on, and by hand always: the condition is on the job, so that nothing of it runs otherwise', () => {
+    const job = Object.values(workflow.jobs)[0]!;
+    expect(job.if).toBe("${{ github.event_name != 'schedule' || vars.DESK_SCHEDULE == 'on' }}");
+  });
+
   it('never runs two at once and never cancels one that has started', () => {
     expect(workflow.concurrency).toEqual({ group: 'desk', 'cancel-in-progress': false });
   });
@@ -115,8 +126,9 @@ describe('desk.yml: the run', () => {
   const run = stepNamed(workflow, 'Run the Desk');
 
   it('is the command of the daily run: the file of settings of the repository, a day that is done left alone, and the defaults that make it real (the api, live sources, not dry)', () => {
-    expect(run.run).toBe('. .github/scripts/github-auth.sh\nnpm run desk -- run --config desk.config.yml --skip-if-done\n');
-    const parsed = parseArgs(commandOf(run).replace('npm run desk -- ', '').split(' '));
+    expect(run.run).toBe('. .github/scripts/github-auth.sh\nnpm run desk -- run --config desk.config.yml $DESK_FLAGS\n');
+    // A start that is not a rehearsal gives the flag that leaves a day that is done alone (the whole of what a rehearsal does is in dry-run.test.ts).
+    const parsed = parseArgs(commandOf(run).replace('npm run desk -- ', '').replace('$DESK_FLAGS', '--skip-if-done').split(' '));
     expect(parsed).toEqual({
       ok: true,
       args: { command: 'run', date: undefined, dry: false, client: 'api', sources: 'live', forceNew: false, skipIfDone: true, cassettes: undefined, config: 'desk.config.yml' },
@@ -132,6 +144,7 @@ describe('desk.yml: the run', () => {
       R2_ACCESS_KEY_ID: '${{ secrets.R2_ACCESS_KEY_ID }}',
       R2_SECRET_ACCESS_KEY: '${{ secrets.R2_SECRET_ACCESS_KEY }}',
       GH_TOKEN: '${{ github.token }}',
+      DESK_FLAGS: "${{ inputs.dry && '--dry' || '--skip-if-done' }}",
     });
     // The four names are the ones that the Desk reads (makeEvidenceStore), so a variable that is renamed there fails here.
     for (const name of R2_VARIABLES) expect(run.env).toHaveProperty(name);
@@ -188,7 +201,7 @@ describe('desk.yml: pushing what the run committed', () => {
   });
 
   it('is asked after the run whatever way the run ended, but only when the site was built with what the run committed and its audit passed: nothing reaches main before that', () => {
-    expect(push.if).toBe("${{ !cancelled() && steps.desk.conclusion != 'skipped' && steps.build.outcome == 'success' && steps.audit.outcome == 'success' }}");
+    expect(push.if).toBe("${{ !cancelled() && !inputs.dry && steps.desk.conclusion != 'skipped' && steps.build.outcome == 'success' && steps.audit.outcome == 'success' }}");
     expect(push.id).toBe('push');
   });
 });
@@ -223,7 +236,7 @@ describe('desk.yml: the build and the audit, before anything reaches main', () =
 
   it('are followed, when either fails, by a step that keeps the commits on a branch and opens a draft pull request, with the report of the audit, and by nothing that pushes to main', () => {
     expect(branch.id).toBe('branch');
-    expect(branch.if).toBe("${{ !cancelled() && steps.desk.conclusion != 'skipped' && (steps.build.outcome == 'failure' || steps.audit.outcome == 'failure') }}");
+    expect(branch.if).toBe("${{ !cancelled() && !inputs.dry && steps.desk.conclusion != 'skipped' && (steps.build.outcome == 'failure' || steps.audit.outcome == 'failure') }}");
     expect(branch.run).toBe('. .github/scripts/github-auth.sh\nnpm run desk -- push --branch-only --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --audit-log "$RUNNER_TEMP/audit.log"\n');
     const words = commandOf(branch).replace('npm run desk -- ', '').replace('"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"', '4711-2').replace('"$RUNNER_TEMP/audit.log"', '/runner/audit.log').split(' ');
     expect(parseArgs(words)).toEqual({ ok: true, args: { command: 'push', runId: '4711-2', output: undefined, branchOnly: true, auditLog: '/runner/audit.log' } });
@@ -280,7 +293,7 @@ describe('desk.yml: the deploy', () => {
 
   it('is started by hand when something was pushed, because a push by the token of a workflow starts no workflow, and by nothing else', () => {
     expect(deploy.run).toBe('gh workflow run deploy.yml --ref main');
-    expect(deploy.if).toBe("${{ !cancelled() && steps.push.outputs.pushed == 'true' }}");
+    expect(deploy.if).toBe("${{ !cancelled() && !inputs.dry && steps.push.outputs.pushed == 'true' }}");
     expect(deploy.env).toEqual({ GH_TOKEN: '${{ github.token }}' });
   });
 });

@@ -25,6 +25,7 @@ export interface Step {
 export interface Job {
   'runs-on': string;
   'timeout-minutes'?: number;
+  if?: string;
   steps: Step[];
   [key: string]: unknown;
 }

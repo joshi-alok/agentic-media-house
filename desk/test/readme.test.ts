@@ -370,6 +370,17 @@ describe('the README: the daily workflow', () => {
   });
 });
 
+describe('the README: a rehearsal, and the switch of the schedule', () => {
+  it('says what the input dry does and does not do, and that the schedule runs only when the variable is on', () => {
+    const workflow = section('The daily workflow');
+    expect(workflow).toContain('**A rehearsal, and the switch of the schedule.** A start by hand has one input, `dry`');
+    expect(workflow).toContain('It runs `desk run --dry` and not `--skip-if-done`');
+    expect(workflow).toContain('the push, the branch of a build that failed and the deploy are skipped: they are conditions of the steps');
+    expect(workflow).toContain('The job runs when the schedule starts it only if the variable `DESK_SCHEDULE` of the repository is `on`');
+    expect(workflow).toContain('the first push of the repository cannot start a Desk that publishes');
+  });
+});
+
 describe('the README: the pack of a run', () => {
   it('says what goes in, what never does, that nothing that is not named gets in, and what tries to make it', () => {
     const workflow = section('The daily workflow');
