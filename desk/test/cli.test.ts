@@ -5,6 +5,7 @@ import { USAGE, main, parseArgs } from '../src/cli';
 import type { CliDeps, Parsed } from '../src/cli';
 import { defaultConfig } from '../src/config';
 import { DEMO_DATE, DEMO_REGISTRY_YAML } from '../src/demo/world';
+import { refuseApiOnFixtures } from '../src/run/spending';
 import { FetchError } from '../src/fetch/http';
 import type { Transport } from '../src/fetch/http';
 import { FakeGit } from '../src/run/git';
@@ -76,7 +77,7 @@ describe('parseArgs: run', () => {
     expect(parsed('run', '--dry', '--client', 'fake')).toMatchObject({ client: 'fake' });
     expect(parsed('run', '--client', 'api')).toMatchObject({ client: 'api' });
     expect(parsed('run', '--client', 'recorded', '--cassettes', 'runs/x/cassettes')).toMatchObject({ client: 'recorded', cassettes: 'runs/x/cassettes' });
-    expect(parsed('run', '--dry', '--sources', 'fixtures')).toMatchObject({ sources: 'fixtures' });
+    expect(parsed('run', '--dry', '--client', 'fake', '--sources', 'fixtures')).toMatchObject({ sources: 'fixtures' });
     expect(parsed('run', '--sources', 'live')).toMatchObject({ sources: 'live' });
   });
 
@@ -129,8 +130,27 @@ describe('parseArgs: run', () => {
 
   it('refuses the scripted client and the made-up world unless the run is dry, because nothing in them may be published', () => {
     expect(refused('run', '--client', 'fake')).toBe('--client fake is a scripted story for dry runs: add --dry');
-    expect(refused('run', '--sources', 'fixtures')).toContain('add --dry, because nothing in it may be published');
+    expect(refused('run', '--client', 'recorded', '--cassettes', 'x', '--sources', 'fixtures')).toContain('add --dry, because nothing in it may be published');
     expect(refused('run', '--client', 'fake', '--sources', 'fixtures')).toContain('--client fake');
+  });
+
+  it('refuses the api client on the made-up world, dry or not, and whether the client is given or is the default, because it would spend money on made-up pages', () => {
+    const message = refuseApiOnFixtures('api', 'fixtures') as string;
+    expect(message).toContain('would spend money');
+    for (const argv of [
+      ['run', '--client', 'api', '--sources', 'fixtures'],
+      ['run', '--dry', '--client', 'api', '--sources', 'fixtures'],
+      ['run', '--sources', 'fixtures'],
+      ['run', '--dry', '--sources', 'fixtures'],
+    ]) {
+      expect(refused(...argv), argv.join(' ')).toBe(message);
+    }
+  });
+
+  it('still takes the api client on live sources, and every other client on the made-up world in a dry run', () => {
+    expect(parsed('run', '--client', 'api', '--sources', 'live')).toMatchObject({ client: 'api', sources: 'live' });
+    expect(parsed('run', '--dry', '--client', 'fake', '--sources', 'fixtures')).toMatchObject({ client: 'fake', sources: 'fixtures' });
+    expect(parsed('run', '--dry', '--client', 'recorded', '--cassettes', 'x', '--sources', 'fixtures')).toMatchObject({ client: 'recorded', sources: 'fixtures' });
   });
 
   it('refuses the recorded client without its cassettes, and cassettes for any other client', () => {
@@ -219,6 +239,7 @@ describe('main: usage errors', () => {
     expect(USAGE).toContain('The record of the run says');
     expect(USAGE).toContain('a day whose run failed is run');
     expect(USAGE).toContain('maxAttemptsPerDay');
+    expect(USAGE).toContain('--client api is refused with --sources fixtures');
     expect(USAGE).toContain('desk status');
     expect(USAGE).toContain('[--config <path>]');
     expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ')).every((line) => line.includes('[--config <path>]'))).toBe(true);
@@ -474,10 +495,23 @@ describe('main: the other clients and sources', () => {
     expect(existsSync(path.join(cwd, 'runs'))).toBe(false);
   });
 
+  it('refuses --client api on the made-up world with exit code 2 and the reason, before it reads the key or writes anything, even when there is a key', async () => {
+    const { call, out, err, cwd, git } = setup({ env: { ANTHROPIC_API_KEY: 'a-key-for-the-test-only' } });
+    for (const argv of [['run', '--dry', '--client', 'api', '--sources', 'fixtures'], ['run', '--dry', '--sources', 'fixtures'], ['run', '--client', 'api', '--sources', 'fixtures']]) {
+      err.length = 0;
+      expect(await call(...argv), argv.join(' ')).toBe(2);
+      expect(err).toEqual([`desk: ${refuseApiOnFixtures('api', 'fixtures')}`, USAGE]);
+    }
+    expect(out).toEqual([]);
+    expect(existsSync(path.join(cwd, 'runs'))).toBe(false);
+    expect(existsSync(path.join(cwd, 'evidence'))).toBe(false);
+    expect(git.commits).toEqual([]);
+  });
+
   it('refuses --client api when there is no key in the environment it was given, exits with 2, and writes nothing', async () => {
     for (const env of [{}, { ANTHROPIC_API_KEY: '' }, { ANTHROPIC_API_KEY: '   ' }]) {
       const { call, err, cwd, git } = setup({ env });
-      expect(await call('run', '--dry', '--sources', 'fixtures', '--client', 'api')).toBe(2);
+      expect(await call('run', '--dry', '--client', 'api')).toBe(2);
       expect(err).toEqual(['ANTHROPIC_API_KEY is not set: the api client needs it in the environment']);
       expect(existsSync(path.join(cwd, 'runs'))).toBe(false);
       expect(git.commits).toEqual([]);

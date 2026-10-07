@@ -24,4 +24,5 @@ export * from './run/desk-state';
 export * from './run/git';
 export * from './run/target';
 export * from './run/lock';
+export * from './run/spending';
 export * from './sources';

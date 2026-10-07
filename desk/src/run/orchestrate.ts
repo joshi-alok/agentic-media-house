@@ -1,7 +1,7 @@
 import { mkdir, readdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Claim, RunOutcome, SourcesRegistry } from '@robywire/gate';
-import { RunRecord, RunRefused, readRunRecord, recordRun, runPath, takeRunLock, writeJsonFile } from '../index';
+import { RunRecord, RunRefused, readRunRecord, recordRun, refuseApiOnFixtures, runPath, takeRunLock, writeJsonFile } from '../index';
 import type { BuiltClient, ClientKind, DeskConfig, EvidenceStore, Fetcher, PublishTarget, SourcesKind } from '../index';
 import { runCompose } from '../stages/compose';
 import { loadPublishedIndex } from '../stages/context';
@@ -184,8 +184,8 @@ type Ending =
 /**
  * Run the Desk for one day.
  *
- * Before anything else the run takes the lock (`<runs folder>/.lock`, made so that it fails if it is there, and removed when the run ends however it ends),
- * and is refused when the lock is held, when the day already has a run that did not fail (unless `forceNew`), when the day has had `maxAttemptsPerDay` tries
+ * Before anything else the run is refused when it would spend money on a made-up world (`refuseApiOnFixtures`), then it takes the lock
+ * (`<runs folder>/.lock`, made so that it fails if it is there, and removed when the run ends however it ends), and is refused when the lock is held, when the day already has a run that did not fail (unless `forceNew`), when the day has had `maxAttemptsPerDay` tries
  * (see `planDay`), or when the site has changes that are not committed where the Desk writes. A refusal is a `RunRefused` error: nothing ran, nothing was
  * moved and nothing is recorded.
  *
@@ -196,6 +196,8 @@ type Ending =
  */
 export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
   const { date, config, target } = options;
+  const spending = refuseApiOnFixtures(options.clientKind, options.sourcesKind);
+  if (spending !== undefined) throw new RunRefused('spending', spending);
   const dir = runPath(config.runDir, date);
   const startedAt = options.now();
   const runId = runIdOf(date, startedAt);

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { loadSources } from '@robywire/gate';
 import type { SourcesRegistry } from '@robywire/gate';
-import { CLIENT_KINDS, HttpFetcher, LocalEvidenceStore, RunRefused, SOURCES_KINDS, clientFromConfig, defaultConfig, loadConfig, placeholderHost, readDeskState, readRunRecord, runPath, sitePaths, DryTarget, SiteTarget } from './index';
+import { CLIENT_KINDS, HttpFetcher, LocalEvidenceStore, RunRefused, SOURCES_KINDS, clientFromConfig, defaultConfig, loadConfig, placeholderHost, readDeskState, readRunRecord, refuseApiOnFixtures, runPath, sitePaths, DryTarget, SiteTarget } from './index';
 import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, Fetcher, GitTarget, Lookup, RetryOptions, SourcesKind, StoredRunRecord, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
@@ -34,6 +34,7 @@ export const USAGE = [
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
   '        story for dry runs). --sources says where stories come from (live is the default; fixtures is the made-up world, for dry runs).',
+  '        --client api is refused with --sources fixtures, dry or not: it would spend money on made-up pages (use --client fake or --client recorded).',
   '        A day that already has a run that published, was held or found no story is refused unless --force-new is given; a day whose run failed is run',
   '        again with no flag, up to maxAttemptsPerDay runs a day (3 unless the settings say otherwise), and the earlier run is kept beside the new one.',
   'replay  run Extract, Compose and Verify again from what a run kept, with no network, and say whether the artifacts are the same. The record of the run says',
@@ -65,9 +66,9 @@ function isDay(text: string): boolean {
 /**
  * Read the arguments (without the program and the script). A command, then its options in any order. A flag is given once, a valued option has
  * a value that does not start with `--`, and every value is checked; an option of another command, an unknown option, an argument the command does not take
- * and a missing one are refused, each with a message that names it. Two combinations are refused because they would put made-up content, or an unrecorded
- * model, where it does not belong: `--client fake` and `--sources fixtures` only with `--dry`, and `--client recorded` only with `--cassettes` (which is
- * for `recorded` alone when running).
+ * and a missing one are refused, each with a message that names it. Some combinations are refused because they would spend money on made-up pages (`--client api`
+ * with `--sources fixtures`, whether or not the run is dry, see `refuseApiOnFixtures`) or put made-up content, or an unrecorded model, where it does not belong:
+ * `--client fake` and `--sources fixtures` only with `--dry`, and `--client recorded` only with `--cassettes` (which is for `recorded` alone when running).
  */
 export function parseArgs(argv: readonly string[]): ParseResult {
   const fail = (message: string): ParseResult => ({ ok: false, message });
@@ -126,6 +127,8 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   const date = value('--date');
   if (date !== undefined && !isDay(date)) return fail(`--date is a day written YYYY-MM-DD, not "${date}"`);
   const dry = given.has('--dry');
+  const spending = refuseApiOnFixtures(client as ClientKind, sources as SourcesKind);
+  if (spending !== undefined) return fail(spending);
   if (client === 'fake' && !dry) return fail('--client fake is a scripted story for dry runs: add --dry');
   if (sources === 'fixtures' && !dry) return fail('--sources fixtures is a made-up world for dry runs: add --dry, because nothing in it may be published');
   const cassettes = value('--cassettes');

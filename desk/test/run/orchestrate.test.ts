@@ -11,6 +11,7 @@ import { VerifyArtifact, readArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
 import { LOCK_FILE, RunRefused } from '../../src/run/lock';
 import type { RunDeskOptions, Stages } from '../../src/run/orchestrate';
+import { refuseApiOnFixtures } from '../../src/run/spending';
 import { sitePaths } from '../../src/run/target';
 import { runDiscover } from '../../src/stages/discover';
 import { FETCHED_AT, useScratch, withPages } from '../support/context';
@@ -598,6 +599,25 @@ describe('runDesk: a day whose run failed is tried again', () => {
     }
     expect((await made.run()).attempt).toBe(1);
     expect((await again(made)).attempt).toBe(2);
+  });
+});
+
+describe('runDesk: money is not spent on a made-up world', () => {
+  it('refuses the api client on the sources of the fixtures before it takes the lock, with nothing run, nothing written and no model called', async () => {
+    const made = setup();
+    const fake = demoClient();
+    const error = await refusal(made.run({ clientKind: 'api', sourcesKind: 'fixtures', model: clientFromConfig(made.config, { kind: 'fake', fake }, {}) }));
+    expect(error.kind).toBe('spending');
+    expect(error.message).toBe(refuseApiOnFixtures('api', 'fixtures'));
+    expect(fake.calls).toEqual([]);
+    expect(existsSync(made.config.runDir)).toBe(false);
+    expect(made.git.commits).toEqual([]);
+  });
+
+  it('runs the api client on live sources, and the scripted and the recorded client on the fixtures', async () => {
+    for (const [client, sources] of [['api', 'live'], ['fake', 'fixtures'], ['recorded', 'fixtures']] as const) {
+      expect((await setup().run({ clientKind: client, sourcesKind: sources })).outcome, `${client} on ${sources}`).toBe('published');
+    }
   });
 });
 

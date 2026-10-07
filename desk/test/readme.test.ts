@@ -62,6 +62,14 @@ describe('the README: a day whose run failed', () => {
   });
 });
 
+describe('the README: money is not spent on a made-up world', () => {
+  it('says that --client api with --sources fixtures is refused, and why', () => {
+    const command = section('The desk command');
+    expect(command).toContain('`--client api` with `--sources fixtures` is refused with exit code 2');
+    expect(command).toContain('it would spend money on the answers of a model about pages that are made up');
+  });
+});
+
 describe('the README: what the Desk does not check', () => {
   const limits = (): string => section('What the Desk does not check');
 

@@ -5,8 +5,8 @@ import { FixtureFetcher } from '../index';
 import type { FixtureEntry } from '../index';
 
 // The made-up world that the Desk can be shown in with no network: a few sources on `.example` addresses, whose pages are the files of
-// `desk/test/fixtures/`. The tests of the pipeline run in it, and so does `desk run --sources fixtures` (a dry run: nothing in it is real, and
-// nothing in it may ever be published). Every company, outlet and address in it is invented.
+// `desk/test/fixtures/`. The tests of the pipeline run in it, and so does `desk run --dry --client fake --sources fixtures` (a dry run: nothing in it is real, and
+// nothing in it may ever be published, and no paid model is asked about it). Every company, outlet and address in it is invented.
 
 /** The day on which the made-up world is current: its feed items are dated the days before it. */
 export const DEMO_DATE = '2026-10-05';
