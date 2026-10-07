@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { USAGE, main, parseArgs, resultLines } from '../src/cli';
+import { USAGE, main, parseArgs, resultLines, skippedLines } from '../src/cli';
 import type { CliDeps, Parsed } from '../src/cli';
 import { defaultConfig } from '../src/config';
 import { DEMO_DATE, DEMO_REGISTRY_YAML } from '../src/demo/world';
@@ -68,7 +68,7 @@ const refused = (...argv: string[]): string => {
 
 describe('parseArgs: run', () => {
   it('has the defaults of a real run: the api, the live sources, today, not dry', () => {
-    expect(parsed('run')).toEqual({ command: 'run', date: undefined, dry: false, client: 'api', sources: 'live', forceNew: false, cassettes: undefined, config: undefined });
+    expect(parsed('run')).toEqual({ command: 'run', date: undefined, dry: false, client: 'api', sources: 'live', forceNew: false, skipIfDone: false, cassettes: undefined, config: undefined });
   });
 
   it('reads --date', () => {
@@ -80,6 +80,25 @@ describe('parseArgs: run', () => {
     expect(parsed('run', '--force-new', '--dry')).toMatchObject({ dry: true, forceNew: true });
     expect(parsed('run', '--dry')).toMatchObject({ dry: true, forceNew: false });
     expect(parsed('run', '--force-new')).toMatchObject({ dry: false, forceNew: true });
+  });
+
+  it('reads --skip-if-done, which takes no value, in any order with the other options, and is off unless it is given', () => {
+    expect(parsed('run', '--skip-if-done')).toMatchObject({ skipIfDone: true, forceNew: false, dry: false });
+    expect(parsed('run', '--dry', '--skip-if-done', '--config', 'desk.config.yml')).toMatchObject({ skipIfDone: true, dry: true, config: 'desk.config.yml' });
+    expect(parsed('run', '--config', 'desk.config.yml', '--skip-if-done')).toMatchObject({ skipIfDone: true });
+    expect(parsed('run', '--dry')).toMatchObject({ skipIfDone: false });
+  });
+
+  it('refuses --skip-if-done together with --force-new, which say opposite things about a day that is done, and --skip-if-done given twice', () => {
+    expect(refused('run', '--skip-if-done', '--force-new')).toBe('--skip-if-done and --force-new contradict each other: the first leaves a day that is done alone and the second runs it again');
+    expect(refused('run', '--force-new', '--skip-if-done')).toContain('contradict each other');
+    expect(refused('run', '--skip-if-done', '--skip-if-done')).toBe('--skip-if-done is given twice');
+  });
+
+  it('does not give --skip-if-done to the other commands', () => {
+    expect(refused('replay', 'runs/2026-10-05', '--skip-if-done')).toBe('unknown option --skip-if-done for replay');
+    expect(refused('status', '--skip-if-done')).toBe('unknown option --skip-if-done for status');
+    expect(refused('retract', 'a-piece', '--reason', 'x', '--skip-if-done')).toBe('unknown option --skip-if-done for retract');
   });
 
   it('reads --client and --sources', () => {
@@ -98,6 +117,7 @@ describe('parseArgs: run', () => {
       client: 'fake',
       sources: 'fixtures',
       forceNew: true,
+      skipIfDone: false,
       cassettes: undefined,
     });
   });
@@ -254,6 +274,10 @@ describe('main: usage errors', () => {
     expect(USAGE).toContain('A piece that is held is sent to the owner as a draft pull request when the run is not dry');
     expect(USAGE).toContain('if that fails the run ends failed at the stage hold');
     expect(USAGE).toContain('(the branch hold/<day>-<slug> is pushed with git and gh, and the');
+    expect(USAGE).toContain('[--force-new] [--skip-if-done] [--cassettes <folder>] [--config <path>]');
+    expect(USAGE).toContain('--skip-if-done is for a schedule that starts the command more than once a day');
+    expect(USAGE).toContain('"outcome: refused-already-done", exits 0 and runs nothing');
+    expect(USAGE).toContain('Every other refusal is still an exit code 1, and it cannot be given with --force-new.');
     expect(USAGE).toContain('[--config <path>]');
     // Every command that reads the settings says so; `retract` does not read them.
     expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ') && !line.startsWith('  desk retract')).every((line) => line.includes('[--config <path>]'))).toBe(true);
@@ -332,6 +356,110 @@ describe('main: run --dry --client fake --sources fixtures', () => {
     out.length = 0;
     await call(...DRY_DEMO, '--force-new');
     expect(out).toContain('attempt: 2');
+  });
+});
+
+describe('main: --skip-if-done, a day that is done is left alone', () => {
+  const DAY = '2026-10-05';
+  const run = (outcome: string, runId = `${DAY}-043100`) => ({ at: `${DAY}T04:31:20.000Z`, outcome, runId, slug: outcome === 'published' ? 'a-piece' : null });
+  const stateOf = (cwd: string, lastRun: unknown): void => writeFileSync(path.join(cwd, STATE), JSON.stringify({ lastRun, holds: [], corrections: [] }));
+  const SKIPPED = (why: string): string[] => ['outcome: refused-already-done', `day: ${DAY}`, `reason: ${why}`, 'nothing was run: no model was asked, no page was fetched and nothing was written'];
+
+  it.each(['published', 'held', 'no-story'])('says so, exits 0 and does nothing when the desk state says that the last run was of the day and ended %s, with no key and no bucket in the environment', async (outcome) => {
+    const { call, out, err, cwd, git } = setup();
+    stateOf(cwd, run(outcome));
+    const before = filesBelow(cwd);
+    // The client is the api, which needs a key, and the settings may ask for a bucket: neither is looked at for a day that is done.
+    expect(await call('run', '--date', DAY, '--skip-if-done')).toBe(0);
+    expect(out).toEqual(SKIPPED(`the desk state says that the run ${DAY}-043100 ended ${outcome} at ${DAY}T04:31:20.000Z`));
+    expect(err).toEqual([]);
+    expect(filesBelow(cwd)).toEqual(before);
+    expect(git.commits).toEqual([]);
+  });
+
+  it('does not ask the evidence store or the model, even when the settings say r2 and there is no variable for it', async () => {
+    const { call, out, cwd } = setup({ config: { ...defaultConfig(), runDir: 'runs', evidence: { kind: 'r2' }, userAgent: TEST_AGENT } });
+    stateOf(cwd, run('published'));
+    expect(await call('run', '--date', DAY, '--skip-if-done')).toBe(0);
+    expect(out[0]).toBe('outcome: refused-already-done');
+  });
+
+  it('takes the day from the clock when it is not told one, as a run does', async () => {
+    const { call, out, cwd } = setup();
+    stateOf(cwd, run('published'));
+    expect(await call('run', '--skip-if-done')).toBe(0);
+    expect(out[0]).toBe('outcome: refused-already-done');
+    expect(out[1]).toBe(`day: ${DAY}`);
+  });
+
+  it('runs the day when the last run of the desk state failed, or was of another day, or the state has no run at all', async () => {
+    for (const lastRun of [run('failed'), run('published', '2026-10-04-043100'), null]) {
+      const { call, out, cwd } = setup();
+      stateOf(cwd, lastRun);
+      expect(await call(...DRY_DEMO, '--skip-if-done'), JSON.stringify(lastRun)).toBe(0);
+      expect(out).toContain('outcome: published');
+      expect(out).not.toContain('outcome: refused-already-done');
+      expect(existsSync(path.join(cwd, 'runs', DAY))).toBe(true);
+    }
+  });
+
+  it('reads the run id and not the time of the record: a run id that does not start with a day is not a run of the day', async () => {
+    const { call, out, cwd } = setup();
+    stateOf(cwd, run('published', 'r'));
+    expect(await call(...DRY_DEMO, '--skip-if-done')).toBe(0);
+    expect(out).toContain('outcome: published');
+  });
+
+  it('says so when the folder of the runs has a record of a run of the day that did not fail, which is what a dry run leaves, and writes nothing', async () => {
+    const { call, out, cwd } = setup();
+    await call(...DRY_DEMO);
+    out.length = 0;
+    const before = filesBelow(cwd);
+    expect(await call(...DRY_DEMO, '--skip-if-done')).toBe(0);
+    expect(out).toEqual(SKIPPED(`the run of ${DAY} is already done: runs/${DAY}/run.json is there`));
+    expect(filesBelow(cwd)).toEqual(before);
+  });
+
+  it('runs a day that the folder of the runs says failed, as it does with no flag', async () => {
+    const { call, out, cwd } = setup({ env: { ANTHROPIC_API_KEY: 'k' } });
+    expect(await call('run', '--date', DAY)).toBe(1);
+    out.length = 0;
+    // The record of the failed run is there, and the state says failed: the next try is made.
+    expect(await call('run', '--date', DAY, '--skip-if-done')).toBe(1);
+    expect(out).toContain('outcome: failed');
+    expect(out).toContain('attempt: 2');
+    expect(existsSync(path.join(cwd, 'runs', `${DAY}.failed-1`))).toBe(true);
+  });
+
+  it('is not a way past a settings mistake: a placeholder user agent is refused first, with exit code 2, and so is a file of settings that cannot be read', async () => {
+    const placeholder = setup({ config: undefined });
+    stateOf(placeholder.cwd, run('published'));
+    expect(await placeholder.call('run', '--date', DAY, '--skip-if-done')).toBe(2);
+    expect(placeholder.err.join('\n')).toContain('placeholder address');
+    expect(placeholder.out).toEqual([]);
+    const missing = setup();
+    stateOf(missing.cwd, run('published'));
+    expect(await missing.call('run', '--date', DAY, '--skip-if-done', '--config', 'nope.yml')).toBe(2);
+    expect(missing.err.join('\n')).toContain('cannot read the file');
+  });
+
+  it('leaves a desk state that cannot be read to the run, which says so', async () => {
+    const { call, out, err, cwd } = setup();
+    writeFileSync(path.join(cwd, STATE), '{ not json');
+    expect(await call(...DRY_DEMO, '--skip-if-done')).not.toBe(0);
+    expect(out).not.toContain('outcome: refused-already-done');
+    expect([...out, ...err].join('\n')).toContain('desk-state.json');
+  });
+});
+
+describe('skippedLines', () => {
+  it('says the outcome, the day, why, and that nothing was run, one to a line', () => {
+    expect(skippedLines('2026-10-05', 'the desk state says so')).toEqual([
+      'outcome: refused-already-done',
+      'day: 2026-10-05',
+      'reason: the desk state says so',
+      'nothing was run: no model was asked, no page was fetched and nothing was written',
+    ]);
   });
 });
 

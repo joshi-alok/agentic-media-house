@@ -277,3 +277,49 @@ describe('the README: the file of settings of the daily run', () => {
     expect(command).toContain('come from the environment, never from this file');
   });
 });
+
+describe('the README: the daily workflow', () => {
+  const workflow = (): string => section('The daily workflow');
+
+  it('says when it starts, that it runs one at a time, and the command that it runs', () => {
+    expect(workflow()).toContain('04:30, 06:30 and 08:30 UTC every day and by hand');
+    expect(workflow()).toContain('the concurrency group `desk`, which never cancels a run that has started');
+    expect(workflow()).toContain('`npm run desk -- run --config desk.config.yml --skip-if-done`');
+  });
+
+  it('says where the secrets go and that a test fails if that stops being true', () => {
+    expect(workflow()).toContain('given to the one step that runs the Desk, in its `env`, and nowhere else');
+    expect(workflow()).toContain('A test fails if that stops being true.');
+  });
+
+  it('says what is pushed, why the last step starts the deploy by hand, and what is kept as an artifact and why no page text is in it', () => {
+    expect(workflow()).toContain('`git rev-list @{u}..HEAD`');
+    expect(workflow()).toContain('A push by the token of a workflow starts no other workflow');
+    expect(workflow()).toContain('kept as an artifact for 14 days, even when the run failed, except `runs/tune/`');
+    expect(workflow()).toContain('no page text goes there');
+    expect(workflow()).toContain('shares more than the length of a quotation (300 characters) with a page');
+  });
+
+  it('says that nothing could run it, that the versions of the actions were not checked, and what it assumes of the repository', () => {
+    expect(workflow()).toContain('A workflow cannot be run anywhere but on GitHub');
+    expect(workflow()).toContain('were not checked against GitHub');
+    expect(workflow()).toContain('no branch protection that forbids it');
+  });
+
+  it('is no longer listed as not built, and the schedule is said to have never run', () => {
+    expect(section('The desk workspace')).not.toContain('the GitHub Actions workflow that runs the Desk every day');
+    expect(section('Which parts are live')).toContain('`.github/workflows/desk.yml`, which tests read and which has never run on GitHub');
+  });
+});
+
+describe('the README: a day that is done, for a schedule', () => {
+  it('says what --skip-if-done does, what it needs and does not need, and what it does not change', () => {
+    const command = section('The desk command');
+    expect(command).toContain('[--force-new] [--skip-if-done] [--cassettes <folder>] [--config <path>]');
+    expect(command).toContain('The command prints `outcome: refused-already-done` and exits 0, and runs nothing (asks no model, fetches nothing, writes nothing, and needs no key and no bucket)');
+    expect(command).toContain('The desk state is the record that a scheduled job has, because it starts from a fresh checkout and has no folder of runs.');
+    expect(command).toContain('Every other refusal is still exit code 1, and `--skip-if-done` cannot be given with `--force-new`.');
+    expect(command).toContain('and for a day that `--skip-if-done` left alone');
+  });
+});
+

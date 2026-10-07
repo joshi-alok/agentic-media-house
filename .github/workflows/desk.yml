@@ -1,0 +1,93 @@
+name: Desk
+
+# The daily run of the Desk. It starts three times a day, so that a day whose run fails (a model that is down, a bucket that cannot be reached) is tried again;
+# `--skip-if-done` makes the second and the third start do nothing when the day already has a run that did not fail. It starts by hand too (Actions > Desk > Run workflow).
+#
+# The secrets of the repository reach the run only through the `env` of the step that runs the Desk, and nothing here prints them. A workflow cannot be run on a
+# machine other than GitHub's, so what this file says is checked by desk/test/workflows/desk-workflow.test.ts, which parses it, and proved by the first real run
+# (docs/runbook.md).
+on:
+  schedule:
+    - cron: '30 4 * * *'
+    - cron: '30 6 * * *'
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+
+# Two runs of the Desk must never overlap, and a run that has started is never cancelled: it would leave a half-done day.
+concurrency:
+  group: desk
+  cancel-in-progress: false
+
+# contents: the run pushes the piece and the desk state to main. pull-requests: a held piece is sent to the owner as a draft pull request.
+# actions: the push of a workflow does not start the workflows that listen for a push, so the last step starts the deploy itself.
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  desk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository, with its history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Give the commits of the Desk a name
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      # The outcome of the run decides how this step ends: published, held and no story are exit code 0, failed is 1, and a day that is done is 0 and runs nothing.
+      - name: Run the Desk
+        id: desk
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: npm run desk -- run --config desk.config.yml --skip-if-done
+
+      # A run that is not dry makes one commit, whatever way it ends (the piece and the desk state, or the desk state alone). Push it, and only when there is one.
+      - name: Push what the run committed
+        id: push
+        if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' }}
+        run: |
+          if [ -n "$(git rev-list '@{u}..HEAD')" ]; then
+            git push
+            echo 'pushed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'The run made no commit, so there is nothing to push.'
+          fi
+
+      # The artifacts of the run are the files of runs/: hashes, the short quotations of the claims, the drafts and the record of the run. Never the text of a page
+      # (the snapshots are in the bucket, and runs/ has none), and never the trials of `desk tune`. A public repository's artifacts can be read by anyone.
+      - name: Keep the artifacts of the run for 14 days
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: desk-runs
+          path: |
+            runs/**
+            !runs/tune/**
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Deploy the site
+        if: ${{ !cancelled() && steps.push.outputs.pushed == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main

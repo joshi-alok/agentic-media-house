@@ -40,7 +40,7 @@ import { replayRun } from './run/replay';
 export type { ClientKind, SourcesKind };
 
 export type Parsed =
-  | { command: 'run'; date: string | undefined; dry: boolean; client: ClientKind; sources: SourcesKind; forceNew: boolean; cassettes: string | undefined; config: string | undefined }
+  | { command: 'run'; date: string | undefined; dry: boolean; client: ClientKind; sources: SourcesKind; forceNew: boolean; skipIfDone: boolean; cassettes: string | undefined; config: string | undefined }
   | { command: 'replay'; runDir: string; sources: SourcesKind | undefined; client: ClientKind | undefined; cassettes: string | undefined; config: string | undefined }
   | { command: 'status'; config: string | undefined }
   | { command: 'retract'; slug: string; reason: string; kind: CorrectionKind; dry: boolean }
@@ -51,7 +51,7 @@ export type ParseResult = { ok: true; args: Parsed } | { ok: false; message: str
 
 export const USAGE = [
   'Usage:',
-  '  desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new] [--cassettes <folder>] [--config <path>]',
+  '  desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new] [--skip-if-done] [--cassettes <folder>] [--config <path>]',
   '  desk replay <folder of a run> [--sources fixtures|live] [--client fake|recorded|api] [--cassettes <folder>] [--config <path>]',
   '  desk status [--config <path>]',
   '  desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]',
@@ -62,6 +62,9 @@ export const USAGE = [
   '        --client api is refused with --sources fixtures, dry or not: it would spend money on made-up pages (use --client fake or --client recorded).',
   '        A day that already has a run that published, was held or found no story is refused unless --force-new is given; a day whose run failed is run',
   '        again with no flag, up to maxAttemptsPerDay runs a day (3 unless the settings say otherwise), and the earlier run is kept beside the new one.',
+  '        --skip-if-done is for a schedule that starts the command more than once a day: a day that is done is not an error but a day to leave alone. The command says',
+  '        "outcome: refused-already-done", exits 0 and runs nothing (asks no model, fetches nothing, writes nothing) when the desk state says that the last run was of this day and',
+  '        did not fail, or when the folder of the runs has a record of a run of this day that did not fail. Every other refusal is still an exit code 1, and it cannot be given with --force-new.',
   '        A piece that is held is sent to the owner as a draft pull request when the run is not dry (the branch hold/<day>-<slug> is pushed with git and gh, and the',
   '        address of the pull request is recorded in the desk state); if that fails the run ends failed at the stage hold and nothing is left on main but that record.',
   '        The snapshots of the pages that a run reads are kept in the evidence store that the setting evidence.kind of a file of settings (--config) chooses: local, a folder',
@@ -81,7 +84,7 @@ export const USAGE = [
 ].join('\n');
 
 const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract', { flags: readonly string[]; valued: readonly string[] }>> = {
-  run: { flags: ['--dry', '--force-new'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
+  run: { flags: ['--dry', '--force-new', '--skip-if-done'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
   replay: { flags: [], valued: ['--sources', '--client', '--cassettes', '--config'] },
   status: { flags: [], valued: ['--config'] },
   retract: { flags: ['--dry'], valued: ['--reason', '--kind'] },
@@ -179,10 +182,13 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   if (spending !== undefined) return fail(spending);
   if (client === 'fake' && !dry) return fail('--client fake is a scripted story for dry runs: add --dry');
   if (sources === 'fixtures' && !dry) return fail('--sources fixtures is a made-up world for dry runs: add --dry, because nothing in it may be published');
+  if (given.has('--skip-if-done') && given.has('--force-new')) {
+    return fail('--skip-if-done and --force-new contradict each other: the first leaves a day that is done alone and the second runs it again');
+  }
   const cassettes = value('--cassettes');
   if (client === 'recorded' && cassettes === undefined) return fail('--client recorded needs --cassettes, the folder of the recorded replies');
   if (client !== 'recorded' && cassettes !== undefined) return fail('--cassettes is for --client recorded: the other clients record their replies in the folder of the run');
-  return { ok: true, args: { command: 'run', date, dry, client: client as ClientKind, sources: sources as SourcesKind, forceNew: given.has('--force-new'), cassettes, config: value('--config') } };
+  return { ok: true, args: { command: 'run', date, dry, client: client as ClientKind, sources: sources as SourcesKind, forceNew: given.has('--force-new'), skipIfDone: given.has('--skip-if-done'), cassettes, config: value('--config') } };
 }
 
 /** What `main` needs from outside. */
@@ -275,6 +281,33 @@ export function resultLines(result: RunResult): string[] {
   return lines;
 }
 
+/** A path as it is shown to a person: relative to the folder the command was started in, with forward slashes. */
+const shownPath = (cwd: string, file: string): string => path.relative(cwd, file).split(path.sep).join('/');
+
+/** The day that a run id starts with (`2026-10-05-043100` is `2026-10-05`), or undefined for an id that does not start with a day. */
+function dayOfRun(runId: string): string | undefined {
+  const day = runId.slice(0, 10);
+  return runId.charAt(10) === '-' && isDay(day) ? day : undefined;
+}
+
+/**
+ * What a day that is done looks like in a checkout that has no folder of runs, which is every checkout of a scheduled job: the last run of the desk state, when it is a run of
+ * `date` that did not fail. The state is committed, so it is the one record of a run that the next job has. A state that cannot be read is not an answer: it is left for the run to report.
+ */
+async function doneInState(deps: CliDeps, date: string): Promise<{ runId: string; outcome: string; at: string } | undefined> {
+  try {
+    const { lastRun } = await readDeskState(path.join(deps.cwd, sitePaths().stateFile));
+    return lastRun !== null && lastRun.outcome !== 'failed' && dayOfRun(lastRun.runId) === date ? lastRun : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** What `desk run --skip-if-done` prints when the day is done: the outcome that says so, the day, why, and that nothing was run. */
+export function skippedLines(date: string, why: string): string[] {
+  return ['outcome: refused-already-done', `day: ${date}`, `reason: ${why}`, 'nothing was run: no model was asked, no page was fetched and nothing was written'];
+}
+
 async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDeps): Promise<number> {
   const settings = settingsOf(deps, args.config);
   if ('code' in settings) return settings.code;
@@ -287,6 +320,14 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
     return 2;
   }
   const date = args.date ?? (args.sources === 'fixtures' ? DEMO_DATE : deps.now().toISOString().slice(0, 10));
+  if (args.skipIfDone) {
+    // Before the sources, the evidence store and the client are built, so that a day that is done needs no key and no bucket.
+    const done = await doneInState(deps, date);
+    if (done !== undefined) {
+      for (const line of skippedLines(date, `the desk state says that the run ${done.runId} ended ${done.outcome} at ${done.at}`)) deps.out(line);
+      return 0;
+    }
+  }
   let world: ReturnType<typeof sourcesOf>;
   try {
     world = sourcesOf(args.sources, deps, config);
@@ -332,6 +373,10 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
     for (const line of resultLines(result)) deps.out(line);
     return result.outcome === 'failed' ? 1 : 0;
   } catch (error) {
+    if (args.skipIfDone && error instanceof RunRefused && error.kind === 'date-done') {
+      for (const line of skippedLines(date, `the run of ${date} is already done: ${shownPath(deps.cwd, path.join(runPath(config.runDir, date), 'run.json'))} is there`)) deps.out(line);
+      return 0;
+    }
     deps.err(error instanceof RunRefused ? `the run was refused: ${error.message}` : `the run could not start: ${describeError(error)}`);
     return 1;
   }
@@ -413,12 +458,6 @@ async function retractCommand(args: Extract<Parsed, { command: 'retract' }>, dep
   }
 }
 
-/** The day that a run id starts with (`2026-10-05-043100` is `2026-10-05`), or undefined for an id that does not start with a day. */
-function dayOfRun(runId: string): string | undefined {
-  const day = runId.slice(0, 10);
-  return runId.charAt(10) === '-' && isDay(day) ? day : undefined;
-}
-
 /**
  * Which try of its day the run `runId` was, as the words that say it: from `run.json` in the folder of its day, which is there only on the machine that made the run (the
  * desk state does not hold it). When the record is not there, is of another run (a later run of the day has taken the folder), is from before records said which try
@@ -426,7 +465,7 @@ function dayOfRun(runId: string): string | undefined {
  */
 async function describeAttempt(config: DeskConfig, cwd: string, day: string, runId: string): Promise<string> {
   const file = path.join(config.runDir, day, 'run.json');
-  const shown = path.relative(cwd, file).split(path.sep).join('/');
+  const shown = shownPath(cwd, file);
   if (!(await stat(file).then(() => true, () => false))) return `attempt not known (${shown} is not here)`;
   let record: StoredRunRecord;
   try {

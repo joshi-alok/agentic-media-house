@@ -73,6 +73,8 @@ interface Row {
   folders: string[];
   /** The try that the new run was, when it ran. */
   attempt?: number;
+  /** The command ran nothing and said so, with exit code 0 (`--skip-if-done` on a day that is done). */
+  skipped?: true;
 }
 
 const ROWS: Row[] = [
@@ -126,6 +128,68 @@ const ROWS: Row[] = [
     says: `the run was refused: the run of ${DEMO_DATE} is already done`,
     folders: kept(),
   },
+  { state: 'nothing has run on the day, and --skip-if-done is given', make: async () => aDay(), extra: ['--skip-if-done'], exit: 0, says: 'outcome: published', folders: kept(), attempt: 1 },
+  { state: 'the day published and --skip-if-done is given', make: () => endedDay({}), extra: ['--skip-if-done'], exit: 0, says: 'outcome: refused-already-done', folders: kept(), skipped: true },
+  { state: 'the day was held and --skip-if-done is given', make: () => endedDay({ fake: unentailed() }), extra: ['--skip-if-done'], exit: 0, says: 'outcome: refused-already-done', folders: kept(), skipped: true },
+  {
+    state: 'the day had no story and --skip-if-done is given',
+    make: () => endedDay({ fake: new FakeClient().script('select', { chosenId: null, reasons: ['none'] }) }),
+    extra: ['--skip-if-done'],
+    exit: 0,
+    says: 'outcome: refused-already-done',
+    folders: kept(),
+    skipped: true,
+  },
+  { state: 'the day failed once and --skip-if-done is given', make: () => failedDay(1), extra: ['--skip-if-done'], exit: 0, says: 'outcome: published', folders: kept('failed-1'), attempt: 2 },
+  {
+    state: 'the day failed three times and --skip-if-done is given',
+    make: () => failedDay(3),
+    extra: ['--skip-if-done'],
+    exit: 1,
+    says: `the run was refused: the run of ${DEMO_DATE} has already been tried 3 times and maxAttemptsPerDay is 3: nothing was run`,
+    folders: kept('failed-1', 'failed-2'),
+  },
+  {
+    state: 'the record of the day cannot be read and --skip-if-done is given',
+    make: async () => {
+      const day = aDay();
+      mkdirSync(path.join(day.made.config.runDir, DEMO_DATE), { recursive: true });
+      writeFileSync(path.join(day.made.config.runDir, DEMO_DATE, 'run.json'), '{"outcome": "failed"');
+      return day;
+    },
+    extra: ['--skip-if-done'],
+    exit: 0,
+    says: 'outcome: refused-already-done',
+    folders: kept(),
+    skipped: true,
+  },
+  {
+    state: 'the folder of the day has artifacts and no record, and --skip-if-done is given',
+    make: async () => {
+      const day = aDay();
+      mkdirSync(path.join(day.made.config.runDir, DEMO_DATE), { recursive: true });
+      writeFileSync(path.join(day.made.config.runDir, DEMO_DATE, '01-discover.json'), '{}');
+      return day;
+    },
+    extra: ['--skip-if-done'],
+    exit: 0,
+    says: 'outcome: published',
+    folders: kept('old-1'),
+    attempt: 2,
+  },
+  {
+    state: 'another run holds the lock and --skip-if-done is given',
+    make: async () => {
+      const day = aDay();
+      mkdirSync(day.made.config.runDir, { recursive: true });
+      writeFileSync(path.join(day.made.config.runDir, LOCK_FILE), `${JSON.stringify({ pid: 1, runId: 'other', startedAt: START.toISOString() })}\n`);
+      return day;
+    },
+    extra: ['--skip-if-done'],
+    exit: 1,
+    says: 'the run was refused: another run holds the lock',
+    folders: [],
+  },
   {
     state: 'another run holds the lock',
     make: async () => {
@@ -156,11 +220,16 @@ describe('the states of a day, and what `desk run` does in each', () => {
   it.each(ROWS)('$state', async (row) => {
     const day = await row.make();
     const { runDir } = day.made.config;
-    const before = row.exit === 0 ? [] : filesBelow(runDir);
+    const before = row.exit === 0 && row.skipped !== true ? [] : filesBelow(runDir);
     expect(await day.command(...(row.extra ?? []))).toBe(row.exit);
     // What it says: the line of its output that tells the outcome when it ran, and the last line of its error output when it did not.
     expect((row.exit === 0 ? day.out : day.err).some((line) => line.includes(row.says)), row.says).toBe(true);
     if (row.attempt !== undefined) expect(day.out).toContain(`attempt: ${row.attempt}`);
+    if (row.skipped === true) {
+      // A day that is left alone is not a run: no try, no folder, no file, and nothing is committed.
+      expect(day.out.some((line) => line.startsWith('attempt:'))).toBe(false);
+      expect(filesBelow(runDir)).toEqual(before);
+    }
     expect(day.folders()).toEqual(row.folders);
     if (row.exit !== 0) {
       // A run that is refused prints nothing but the reason, and changes nothing: not a file of the runs, and not the lock that refused it.
