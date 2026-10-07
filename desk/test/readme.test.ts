@@ -86,6 +86,64 @@ describe('the README: what status says', () => {
   });
 });
 
+describe('the README: holds and corrections', () => {
+  const holds = (): string => section('Holds and corrections');
+
+  it('no longer says that the pull request of a hold or the command for a correction is not built', () => {
+    expect(section('The desk workspace')).not.toContain('the pull request that carries a hold to the owner');
+    expect(section('The desk workspace')).not.toContain('the command that records a correction or a retraction');
+  });
+
+  it('says that a held piece goes to the owner as a draft pull request from a branch made beside the checkout, in the order that it is done, and that the hold has the address', () => {
+    expect(holds()).toContain('A held piece goes to the owner as a draft pull request.');
+    expect(holds()).toContain('`hold/<day>-<slug>`');
+    expect(holds()).toContain('The branch is made beside the checkout, from the commit that `main` is on, so the checkout is never changed');
+    expect(holds()).toContain('`release: owner`');
+    expect(holds()).toContain('Only then does it record the hold in the desk state, with the address of the pull request as `prUrl`');
+    expect(holds()).toContain('A dry run never touches GitHub.');
+    expect(holds()).toContain('it has never been run against GitHub itself');
+  });
+
+  it('says how the owner publishes the piece and how the owner discards it', () => {
+    expect(holds()).toContain('marking the pull request ready for review and merging it');
+    expect(holds()).toContain('You discard it by closing the pull request.');
+  });
+
+  it('says what the program needs, and that nothing is run through a shell', () => {
+    expect(holds()).toContain('`git` and `gh`');
+    expect(holds()).toContain('a remote called `origin`');
+    expect(holds()).toContain('the checkout on `main`');
+    expect(holds()).toContain('never through a shell');
+    expect(holds()).toContain('the body of the pull request is passed as a file');
+  });
+
+  it('says that a step that fails fails the run at the stage hold, what is left, and the one case that is not a failure', () => {
+    expect(holds()).toContain('It ends `failed` at the stage `hold`');
+    expect(holds()).toContain('`main` gains only the record that the run failed');
+    expect(holds()).toContain('| The pull request, after the push |');
+    expect(holds()).toContain('open the pull request from it by hand, or delete the branch');
+    expect(holds()).toContain('the hold is recorded without an address');
+  });
+
+  it('says what a correction does and does not do: it never deletes, the reason goes nowhere but the desk state, and it does not push or deploy', () => {
+    expect(holds()).toContain('`npm run desk -- retract <slug> --reason <text>`');
+    expect(holds()).toContain('sets `updatedAt` in the frontmatter of the piece to the UTC day of the record');
+    expect(holds()).toContain('at most 500 characters');
+    expect(holds()).toContain('it goes into the desk state as the note and nowhere else');
+    expect(holds()).toContain('The rest of the piece is the same, byte for byte');
+    expect(holds()).toContain('It does not push or deploy');
+    expect(holds()).toContain('a piece that was held is on its pull request until you merge it');
+  });
+
+  it('lists retract among the commands, and in the exit codes', () => {
+    const command = section('The desk command');
+    expect(command).toContain('`npm run desk -- retract <slug> --reason <text> [--kind correction|retraction] [--dry]`');
+    expect(command).toContain('for a correction that was made');
+    expect(command).toContain('for a correction that was refused or failed');
+    expect(README).toContain('`run`, `replay`, `status` and `retract`');
+  });
+});
+
 describe('the README: what the Desk does not check', () => {
   const limits = (): string => section('What the Desk does not check');
 
@@ -113,6 +171,13 @@ describe('the README: what the Desk does not check', () => {
     expect(limits()).toContain('**Analysis sentences.**');
     expect(limits()).toContain('the model check (G10) is never asked about them');
     expect(limits()).toContain('**Claim ids in a prompt.**');
+  });
+
+  it('says that the headline is in the title of a pull request and not in a fenced block, and that a pushed branch can be left without a pull request', () => {
+    expect(limits()).toContain('**The headline in a pull request.**');
+    expect(limits()).toContain('the title is the one place where it is not');
+    expect(limits()).toContain('**A branch with no pull request.**');
+    expect(limits()).toContain('stays on the remote');
   });
 
   it('says that the content of a details element is kept, on purpose', () => {

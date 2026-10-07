@@ -7,6 +7,7 @@ import type { HeldArtifact } from '../../src/run/artifacts';
 import { heldPieceFiles, holdPrBody, holdPrTitle, renderHeldPiece } from '../../src/stages/hold-pr';
 import { useScratch } from '../support/context';
 import { heldOf, verdicts } from '../support/held';
+import { outsideFences } from '../support/markdown';
 import { placePiece, readPieces, splitPiece } from '../support/pieces';
 import { makeSite } from '../support/site';
 
@@ -24,28 +25,6 @@ const KINDS = {
   'fails the model check, which the gate cleared': () => made.modelCheck(),
 } as const;
 const heldBy = async (kind: keyof typeof KINDS): Promise<HeldArtifact> => heldOf(scratch, await KINDS[kind]());
-
-/** The lines of markdown that are not inside a fenced block, and how many fenced blocks there are (CommonMark: a fence is closed by a fence of the same character that is at least as long). */
-function outsideFences(markdown: string): { outside: string[]; blocks: number; closed: boolean } {
-  const outside: string[] = [];
-  let open: { char: string; length: number } | undefined;
-  let blocks = 0;
-  for (const line of markdown.split('\n')) {
-    if (open === undefined) {
-      const start = /^ {0,3}(`{3,}|~{3,})([^`]*)$/.exec(line);
-      if (start === null) {
-        outside.push(line);
-        continue;
-      }
-      open = { char: (start[1] as string)[0] as string, length: (start[1] as string).length };
-      blocks += 1;
-      continue;
-    }
-    const end = /^ {0,3}(`+|~+)\s*$/.exec(line);
-    if (end !== null && (end[1] as string)[0] === open.char && (end[1] as string).length >= open.length) open = undefined;
-  }
-  return { outside, blocks, closed: open === undefined };
-}
 
 describe('outsideFences (the check that the tests below rely on)', () => {
   it('leaves out what is in a fenced block, and a block is closed only by a fence that is as long as the one that opened it', () => {

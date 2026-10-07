@@ -248,6 +248,9 @@ describe('main: usage errors', () => {
     expect(USAGE).toContain('--client api is refused with --sources fixtures');
     expect(USAGE).toContain('desk status');
     expect(USAGE).toContain('desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]');
+    expect(USAGE).toContain('A piece that is held is sent to the owner as a draft pull request when the run is not dry');
+    expect(USAGE).toContain('if that fails the run ends failed at the stage hold');
+    expect(USAGE).toContain('(the branch hold/<day>-<slug> is pushed with git and gh, and the');
     expect(USAGE).toContain('[--config <path>]');
     // Every command that reads the settings says so; `retract` does not read them.
     expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ') && !line.startsWith('  desk retract')).every((line) => line.includes('[--config <path>]'))).toBe(true);

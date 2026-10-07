@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { allSentences } from '@robywire/gate';
 import { GOLDEN_CLAIMS } from '@robywire/gate/fixtures';
@@ -12,14 +12,20 @@ import { FakeClient } from '../src/model/fake';
 import { UNTRUSTED_PREAMBLE } from '../src/prompts/untrusted';
 import { ExtractArtifact, FetchArtifact, VerifyArtifact, candidateId, readArtifact } from '../src/run/artifacts';
 import { readDeskState } from '../src/run/desk-state';
+import { GhForge, HOLD_BRANCH } from '../src/run/forge';
 import type { RunResult } from '../src/run/orchestrate';
+import { SiteTarget } from '../src/run/target';
 import { assembleDraft } from '../src/stages/draft-assembly';
 import type { ComposeReply } from '../src/stages/draft-assembly';
 import { FETCHED_AT, useScratch, withPages } from './support/context';
+import { scriptedExec } from './support/exec';
+import type { ScriptedReply } from './support/exec';
 import { fixtureText } from './support/fixtures';
 import { publicLookup, tableLookup } from './support/lookup';
+import { outsideFences } from './support/markdown';
 import { outsideBlocks } from './support/prompts';
-import { EMPTY_CONTENT, SELECT, STATE, contentOf, setupRun } from './support/run';
+import { branchesIn, changesIn, git, initRepo, subjectsOf } from './support/repo';
+import { EMPTY_CONTENT, SELECT, STATE, contentOf, setupRun, unentailed } from './support/run';
 import { fileReply, scriptedTransport } from './support/transport';
 import type { Route, Sent } from './support/transport';
 
@@ -689,3 +695,147 @@ describe('the adversarial matrix: the ways to end that are not bad', () => {
     expect(made.fake.calls.map((call) => call.role)).toEqual(['select']);
   });
 });
+
+// The runs that are held and sent to the owner. The programs that send a piece, `git` and `gh`, are not run: `GhForge` is given a script of what they answer, and keeps what it
+// was asked to run, so that these say exactly which programs the Desk would have started, with which arguments. The checkout is a real repository with no remote.
+
+const PULL_REQUEST = 'https://github.com/example/agentic-media-house/pull/9';
+const NO_LOGIN = 'To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable with a GitHub API authentication token.\n';
+
+/** A headline that a model wrote with everything in it that a shell, a markdown reader or a command line would take for something else. */
+const SHELL_TITLE = 'Fixture Robotics ships $(touch /tmp/pwned) "FX-1" `id` arms; rm -rf / @everyone #1';
+
+/** A held run in a repository of its own, whose pieces are sent with `GhForge` over `replies`. */
+async function sentRun(fake: FakeClient, ...replies: ScriptedReply[]) {
+  const made = setupRun(scratch, { fake });
+  const cli = initRepo(made.repoDir);
+  const { exec, calls } = scriptedExec(...replies);
+  const result = await made.run({ target: new SiteTarget(made.repoDir, cli), forge: new GhForge(exec, { cwd: made.repoDir, tempDir: scratch() }) });
+  return { ...made, calls, result };
+}
+
+describe('the adversarial matrix: a headline with shell characters reaches GhForge', () => {
+  const got = async () => {
+    let body = '';
+    let bodyFile = '';
+    const made = await sentRun(
+      told({ piece: reply((copy) => { copy.title = fact(SHELL_TITLE, 'c-1'); }) }),
+      { code: 0, stdout: 'https://github.com/example/agentic-media-house.git\n' },
+      { code: 0 },
+      (call) => {
+        bodyFile = call.args[call.args.indexOf('--body-file') + 1] as string;
+        body = readFileSync(bodyFile, 'utf8');
+        return { code: 0, stdout: `${PULL_REQUEST}\n` };
+      },
+    );
+    return { ...made, body, bodyFile };
+  };
+
+  it('is held and sent as a pull request, the title with the characters in it as one argument and nothing run through a shell', async () => {
+    const { result, calls } = await got();
+    expect(result.outcome).toBe('held');
+    expect(result.pullRequest).toBe(PULL_REQUEST);
+    expect(calls.map((call) => call.file)).toEqual(['git', 'git', 'gh']);
+    expect(calls[0]?.args).toEqual(['remote', 'get-url', 'origin']);
+    const branch = `hold/${DEMO_DATE}-${result.slug}`;
+    expect(HOLD_BRANCH.test(branch)).toBe(true);
+    expect(calls[1]?.args).toEqual(['push', '-u', 'origin', branch]);
+    expect(calls[2]?.args.slice(0, 8)).toEqual(['pr', 'create', '--draft', '--base', 'main', '--head', branch, '--title']);
+    expect(calls[2]?.args[8]).toBe(`Held: ${SHELL_TITLE}`);
+    expect(calls[2]?.args[9]).toBe('--body-file');
+    expect(calls[2]?.args).toHaveLength(11);
+  });
+
+  it('puts the characters in one argument alone: every other argument of every program has none of them', async () => {
+    const { calls } = await got();
+    const others = calls.flatMap((call, at) => call.args.filter((argument, place) => !(at === 2 && place === 8)));
+    for (const argument of others) {
+      for (const character of ['$(', '`', '"', ';', ' ', '@', '#']) expect(argument, `${argument} has ${character}`).not.toContain(character);
+    }
+  });
+
+  it('puts the headline in the body only inside a fenced block, in a file that is gone when gh has read it', async () => {
+    const { body, bodyFile } = await got();
+    expect(body).toContain(SHELL_TITLE);
+    const { outside, blocks, closed } = outsideFences(body);
+    expect(closed).toBe(true);
+    expect(blocks).toBeGreaterThanOrEqual(1);
+    expect(outside.join('\n')).not.toContain('$(');
+    expect(outside.join('\n')).not.toContain('@everyone');
+    expect(outside.join('\n')).not.toContain('`id`');
+    expect(existsSync(bodyFile)).toBe(false);
+  });
+
+  it('ends with the piece on its branch and the hold on main with the address, and nothing else changed', async () => {
+    const { result, repoDir } = await got();
+    expect(branchesIn(repoDir)).toEqual([`hold/${DEMO_DATE}-${result.slug}`, 'main'].sort());
+    expect(subjectsOf(repoDir)).toEqual([`desk: hold ${result.slug}`, 'start']);
+    expect((await readDeskState(path.join(repoDir, STATE))).holds[0]?.prUrl).toBe(PULL_REQUEST);
+    expect(contentOf(repoDir)).toEqual(EMPTY_CONTENT);
+    expect(changesIn(repoDir)).toEqual([]);
+  });
+});
+
+const FORGE_DOWN: { name: string; replies: ScriptedReply[]; started: number; reason: string }[] = [
+  {
+    name: 'the network is down when the branch is pushed',
+    replies: [{ code: 0 }, { code: 128, stderr: "fatal: unable to access 'https://github.com/example/agentic-media-house.git/': Could not resolve host: github.com\n" }],
+    started: 2,
+    reason: 'failed (exit code 128): fatal: unable to access',
+  },
+  {
+    name: 'GitHub refuses the pull request after the branch was pushed',
+    replies: [{ code: 0 }, { code: 0 }, { code: 1, stderr: 'GraphQL: Resource not accessible by integration (createPullRequest)\n' }],
+    started: 3,
+    reason: 'was pushed and no pull request was opened',
+  },
+  { name: 'gh is not logged in', replies: [{ code: 0 }, { code: 0 }, { code: 4, stderr: NO_LOGIN }], started: 3, reason: 'GitHub did not take the credentials' },
+  { name: 'the credentials are refused at the push', replies: [{ code: 0 }, { code: 128, stderr: "remote: Permission to example/agentic-media-house.git denied to someone.\nfatal: unable to access 'https://github.com/example/agentic-media-house.git/': The requested URL returned error: 403\n" }], started: 2, reason: 'GitHub did not take the credentials' },
+  { name: 'the repository has no remote', replies: [{ code: 2, stderr: "error: No such remote 'origin'\n" }], started: 1, reason: 'has no remote called origin' },
+  { name: 'git is not installed', replies: [Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' })], started: 1, reason: 'git cannot be started' },
+];
+
+describe.each(FORGE_DOWN.map((scenario) => [scenario.name, scenario] as const))('the adversarial matrix: a held run when the forge is down: %s', (_name, scenario) => {
+  const run = () => sentRun(unentailed(), ...scenario.replies);
+
+  it('ends failed at the stage hold, with the reason, and not published', async () => {
+    const { result } = await run();
+    expect(result.outcome).toBe('failed');
+    expect(result.stage).toBe('hold');
+    expect(result.reason).toContain(scenario.reason);
+    expect(result.pullRequest).toBeNull();
+  });
+
+  it('started no more programs than it should, and no shell', async () => {
+    const { calls } = await run();
+    expect(calls).toHaveLength(scenario.started);
+    expect(calls.every((call) => call.file === 'git' || call.file === 'gh')).toBe(true);
+  });
+
+  it('leaves main as it was but for the record that the run failed: no piece, no hold, no branch, no change that is not committed', async () => {
+    const { result, repoDir } = await run();
+    expect(subjectsOf(repoDir)).toEqual([`desk: the run of ${DEMO_DATE} failed`, 'start']);
+    expect(git(repoDir, 'diff', '--name-only', 'main~1', 'main')).toBe(STATE);
+    expect(branchesIn(repoDir)).toEqual(['main']);
+    expect(git(repoDir, 'branch', '--show-current')).toBe('main');
+    expect(changesIn(repoDir)).toEqual([]);
+    expect(contentOf(repoDir)).toEqual(EMPTY_CONTENT);
+    const state = await readDeskState(path.join(repoDir, STATE));
+    expect(state.holds).toEqual([]);
+    expect(state.lastRun).toMatchObject({ outcome: 'failed', slug: null });
+    expect(result.slug).toBeNull();
+  });
+
+  it('keeps the held draft in the folder of the run, so that nothing is lost and the next try has it to read', async () => {
+    const { result } = await run();
+    expect(existsSync(path.join(result.dir, 'held'))).toBe(true);
+  });
+});
+
+describe('the adversarial matrix: the runs that are sent to the owner', () => {
+  it('has a scenario for a headline with shell characters and one for each way that the forge can be down, each with its own name', () => {
+    expect(new Set(FORGE_DOWN.map((scenario) => scenario.name)).size).toBe(FORGE_DOWN.length);
+    expect(FORGE_DOWN.length).toBeGreaterThanOrEqual(5);
+  });
+});
+
