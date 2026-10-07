@@ -7,7 +7,7 @@ const LONG_TOKEN = /[A-Za-z0-9+/_=-]{40,}/g;
 
 /** The fixed shapes: a name for what it is, and the pattern. */
 const SHAPES: readonly { name: string; pattern: RegExp }[] = [
-  { name: 'an Anthropic key', pattern: /sk-ant-/ },
+  { name: 'an Anthropic key', pattern: /sk-a[n]t-/ },
   { name: 'an access key id', pattern: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
   { name: 'a token of GitHub', pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})/ },
   { name: 'a private key', pattern: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },

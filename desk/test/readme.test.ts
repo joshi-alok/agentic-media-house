@@ -499,7 +499,10 @@ describe('the README: the runbook', () => {
     expect(section('Repository layout')).toContain('the runbook (`docs/runbook.md`): the operations that put the publication on the air');
     expect(runbook()).toContain('`docs/runbook.md` is the list of operations that put the publication on the air, in seven parts');
     expect(runbook()).toContain('rewrite the author and committer of every commit to the no-reply address of GitHub');
-    expect(runbook()).toContain('going live (freezing the floor of the verifier, turning on the flags of `site/src/lib/live.ts` in a change of its own, enabling the schedule)');
+    expect(runbook()).toContain('going live (freezing the floor of the verifier, the four questions that the trials leave open, turning on the flags of `site/src/lib/live.ts` in a change of its own, switching on the schedule)');
+    expect(runbook()).toContain('the schedule that stays off until a variable of the repository says `on`');
+    expect(runbook()).toContain('a rehearsal on GitHub with `dry`, a rehearsal of a held piece in a private repository that is deleted afterwards');
+    expect(runbook()).toContain('The US$10 of the plan is enforced by the spend limit that the owner sets on the key in the Anthropic Console: the Desk\'s own limits are of calls and tokens.');
   });
 
   it('says that an outward step is not run without the go-ahead of the owner, and that no secret is on a command line', () => {
@@ -511,13 +514,15 @@ describe('the README: the runbook', () => {
 
   it('says what the tests check of it, and what they cannot', () => {
     expect(runbook()).toContain('`desk/test/runbook.test.ts` fails when a step has no command or no expected result');
+    expect(runbook()).toContain('when it names a check or a code of the gate that does not exist');
+    expect(runbook()).toContain('when anything in it is shaped like a key or an e-mail address');
     expect(runbook()).toContain('so none can be run by a test');
   });
 
   it('no longer says that the runbook is yet to be written, where it is named', () => {
     expect(README).not.toContain('when it is written');
     expect(section('The daily workflow')).toContain('the first real run (docs/runbook.md) is the proof');
-    expect(section('The tuning harness')).toContain('(docs/runbook.md, steps 16 to 20)');
+    expect(section('The tuning harness')).toContain('(docs/runbook.md, steps 17 to 21)');
   });
 });
 

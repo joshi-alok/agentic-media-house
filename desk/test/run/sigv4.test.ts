@@ -32,7 +32,10 @@ import type { SigningRequest } from '../../src/run/sigv4';
 // this file was written (the tests of the Desk run with no network): every value below was computed again from the inputs that the pages print, and each came out as the page prints it.
 // A SHA-256 or HMAC value does not come out right by chance, so a wrong copy of a value cannot be among them.
 
-const S3_KEY_ID = 'AKIAIOSFODNN7EXAMPLE';
+// The id of the example of Amazon, in two pieces so that no file of the repository holds a string with the shape of the id of an access key (the runbook searches for one).
+const S3_KEY_ID = ['AKIA', 'IOSFODNN7EXAMPLE'].join('');
+const FAKE_KEY_ID = ['AKIA', 'FAKEFAKEFAKEFAKE'].join('');
+const OTHER_KEY_ID = ['AKIA', 'OTHEROTHEROTHER00'].join('');
 const S3_SECRET = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
 const IAM_SECRET = 'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY';
 /** The SHA-256 of the empty text, which is the hash of the body of every request that has none. */
@@ -378,7 +381,7 @@ describe('signRequest', () => {
     body: 'the text of a page',
     region: 'auto',
     service: 's3',
-    accessKeyId: 'AKIAFAKEFAKEFAKEFAKE',
+    accessKeyId: FAKE_KEY_ID,
     secretAccessKey: 'fake-secret-access-key-0123456789',
     now: new Date('2026-10-06T04:30:00.000Z'),
   } satisfies SigningRequest;
@@ -393,7 +396,7 @@ describe('signRequest', () => {
     expect(sent['x-amz-content-sha256']).toBe(hashBody('the text of a page'));
     expect(sent['content-type']).toBe('text/plain; charset=utf-8');
     expect(sent.authorization).toMatch(
-      /^AWS4-HMAC-SHA256 Credential=AKIAFAKEFAKEFAKEFAKE\/20261006\/auto\/s3\/aws4_request, SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$/,
+      new RegExp(`^AWS4-HMAC-SHA256 Credential=${FAKE_KEY_ID}/20261006/auto/s3/aws4_request, SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$`),
     );
   });
 
@@ -436,9 +439,9 @@ describe('signRequest', () => {
   });
 
   it('does not change the signature for what is not signed: the key id is in the credential and not in the signature, and the order and the case of the headers do not matter', () => {
-    const other = signRequest({ ...FAKE, accessKeyId: 'AKIAOTHEROTHEROTHER00' });
-    expect(other.authorization).toContain('Credential=AKIAOTHEROTHEROTHER00/');
-    expect(signatureOfRequest({ ...FAKE, accessKeyId: 'AKIAOTHEROTHEROTHER00' })).toBe(signatureOfRequest(FAKE));
+    const other = signRequest({ ...FAKE, accessKeyId: OTHER_KEY_ID });
+    expect(other.authorization).toContain(`Credential=${OTHER_KEY_ID}/`);
+    expect(signatureOfRequest({ ...FAKE, accessKeyId: OTHER_KEY_ID })).toBe(signatureOfRequest(FAKE));
     const two = { ...FAKE, headers: { 'X-A': '1', 'x-b': '2' } };
     const flipped = { ...FAKE, headers: { 'X-B': '2', 'x-a': '1' } };
     expect(signRequest(two)).toEqual(signRequest(flipped));

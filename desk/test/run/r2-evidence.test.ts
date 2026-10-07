@@ -613,7 +613,7 @@ describe('R2EvidenceStore: what no message says', () => {
   const ACCOUNT = '0123456789abcdef0123456789abcdef';
   const HOST = `${ACCOUNT}.r2.cloudflarestorage.com`;
   const NAME = 'agentic-media-house-evidence';
-  const KEY_ID = 'AKIAMADEUPKEYID12345';
+  const KEY_ID = ['AKIA', 'MADEUPKEYID12345'].join('');
   const SECRET = 'made-up-secret-access-key-0123456789abcdefghij';
   const REAL_SHAPED = { endpoint: `https://${HOST}`, bucket: NAME, accessKeyId: KEY_ID, secretAccessKey: SECRET } as const;
 

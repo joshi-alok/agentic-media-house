@@ -12,7 +12,8 @@ import { canonicalRequest, hashBody, signatureOf, signingKey, stringToSign } fro
 /** The settings of the made-up bucket: the address, the name, and a key that is obviously not one. */
 export const FAKE_ENDPOINT = 'https://fake-account.r2.example';
 export const FAKE_BUCKET = 'fake-evidence';
-export const FAKE_KEY_ID = 'AKIAFAKEFAKEFAKEFAKE';
+// Written in two pieces, so that no file of the repository holds a string with the shape of the id of an access key, which step 1 of the runbook searches for.
+export const FAKE_KEY_ID = ['AKIA', 'FAKEFAKEFAKEFAKE'].join('');
 export const FAKE_SECRET = 'fake-secret-access-key-not-real-0123456789';
 export const FAKE_R2 = { endpoint: FAKE_ENDPOINT, bucket: FAKE_BUCKET, accessKeyId: FAKE_KEY_ID, secretAccessKey: FAKE_SECRET } as const;
 
