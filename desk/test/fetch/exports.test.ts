@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import * as entry from '../../src/index';
 import type {
+  BranchChange,
+  BranchFile,
+  BranchResult,
   Candidate,
   ComposeArtifact,
   DiscoverArtifact,
@@ -9,6 +12,7 @@ import type {
   ExtractArtifact,
   ExtractedPage,
   ExecResult,
+  FakeBranchCommit,
   FakeCommit,
   FeedErrorKind,
   FeedItem,
@@ -109,6 +113,7 @@ const VALUES = [
   'COMMIT_TRAILER',
   'GitCli',
   'FakeGit',
+  'MAIN_BRANCH',
   'HOLD_BRANCH',
   'holdBranchName',
   'assertHoldBranch',
@@ -184,6 +189,10 @@ describe('the package entry point: fetching', () => {
       ForgeFailure,
       PullRequest,
       ExecResult,
+      BranchFile,
+      BranchChange,
+      BranchResult,
+      FakeBranchCommit,
     ];
     const nothing: Exported | undefined = undefined;
     expect(nothing).toBeUndefined();
@@ -196,7 +205,7 @@ describe('the package entry point: fetching', () => {
     const composition = ['runCompose', 'gateContextOf', 'composeSystem', 'buildComposeUser', 'provenance', 'PLACE'];
     const verification = ['verifyPlanOf', 'VerifyReply', 'aggregateVerdicts', 'judgePlan', 'runVerifier', 'verifySystem', 'buildVerifyUser'];
     const revision = ['runVerify', 'reviseDraft', 'problemsOf', 'reviseReplySchema', 'reviseSystem', 'buildReviseUser'];
-    const publication = ['runPublish', 'runHold', 'holdReasonsOf', 'renderHeldPiece', 'heldPieceFiles', 'holdPrTitle', 'holdPrBody'];
+    const publication = ['runPublish', 'runHold', 'holdReasonsOf', 'renderHeldPiece', 'heldPieceFiles', 'holdPrTitle', 'holdPrBody', 'sendToOwner'];
     const orchestration = ['runDesk', 'DEFAULT_STAGES', 'replayRun', 'REPLAYED'];
     const program = ['parseArgs', 'main', 'USAGE'];
     const demo = ['DEMO_DATE', 'DEMO_URLS', 'DEMO_FIXTURE_DIR', 'demoWorldMap', 'demoFetcher', 'DEMO_REGISTRY_YAML', 'demoRegistry', 'DEMO_CLAIMS', 'DEMO_REPLY', 'DEMO_SELECT_REASON', 'clearingVerifier', 'demoClient'];

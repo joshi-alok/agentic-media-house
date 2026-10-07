@@ -3,12 +3,14 @@ import path from 'node:path';
 import type { DeskState } from '@robywire/gate';
 import { writeFileAtomic } from './atomic';
 import { assertNothingLost, readDeskState, updateDeskState } from './desk-state';
+import { MAIN_BRANCH } from './git';
 import type { GitTarget } from './git';
 
 // Where a run puts what it made. A run changes the site in one way: it may add a piece (an `.mdx` file and a ledger `.json` file with the
 // same slug) and it changes the desk state, and all of that goes into one commit. A `PublishTarget` is that, so that the stages do not know
 // whether they are writing to the real checkout of the site or only going through the motions. `SiteTarget` writes and commits; `DryTarget`
-// runs the same checks and writes nothing (a dry run, `desk run --dry`).
+// runs the same checks and writes nothing (a dry run, `desk run --dry`). A held piece is the one thing that is not committed to the checkout: its two files go
+// on a branch of their own, made beside the checkout, which is pushed for the owner to merge or close (`commitPieceToBranch`).
 
 /** The folders and the files of the site that the Desk uses, as paths below the repository (the folder of the site is `site`). */
 export interface SitePaths {
@@ -51,6 +53,19 @@ export interface TargetResult {
   files: string[];
 }
 
+/** A piece to put on a branch of its own: the name of the branch, the two files of the piece, and the subject of the one commit. */
+export interface BranchChange {
+  branch: string;
+  piece: PieceFiles;
+  message: string;
+}
+
+/** The commit that the piece is in, on its branch, and the files it covers, as paths below the repository. */
+export interface BranchResult {
+  commit: string;
+  files: string[];
+}
+
 export interface PublishTarget {
   /** True for a target that writes nothing. */
   readonly dry: boolean;
@@ -65,6 +80,14 @@ export interface PublishTarget {
    * correction.
    */
   apply(change: TargetChange): Promise<TargetResult>;
+  /**
+   * Put the two files of a piece on a new branch, in one commit made from the commit that the checkout is on, and say which commit. The checkout is not changed: nothing is
+   * written to it, and it stays on the branch it is on. Refuses, before anything is made, when the checkout is not on `main` (the pull request of the branch is into `main`, and
+   * a branch made from another would carry that branch's commits), when the slug is not a plain slug, and when the files are already there. A dry target makes no branch.
+   */
+  commitPieceToBranch(change: BranchChange): Promise<BranchResult>;
+  /** Remove a branch that `commitPieceToBranch` made, when what had to follow it failed. */
+  dropBranch(branch: string): Promise<void>;
 }
 
 /** A slug is a file name, so it is held to the shape that the renderer and the gate give every slug: nothing that could name another folder. */
@@ -159,6 +182,32 @@ export class SiteTarget implements PublishTarget {
       throw error;
     }
   }
+
+  async commitPieceToBranch(change: BranchChange): Promise<BranchResult> {
+    const { slug, mdx, ledger } = change.piece;
+    if (!isPlainSlug(slug)) throw new Error(`"${slug}" is not a plain slug (lowercase letters and digits joined by single hyphens), and a slug is a file name`);
+    const on = await this.git.currentBranch();
+    if (on !== MAIN_BRANCH) {
+      throw new Error(`the Desk makes the branch of a pull request from ${MAIN_BRANCH}, but the checkout is ${on === undefined ? 'on no branch' : `on ${on}`}, so the branch would carry commits that are not the piece's`);
+    }
+    const files = [this.paths.newsFile(slug), this.paths.ledgerFile(slug)];
+    for (const file of files) {
+      if (await exists(path.join(this.repoDir, file))) throw new Error(`${file} is already there, so the slug "${slug}" is taken: the Desk never overwrites a piece`);
+    }
+    const commit = await this.git.commitToNewBranch(
+      change.branch,
+      [
+        { path: files[0] as string, text: mdx },
+        { path: files[1] as string, text: ledger },
+      ],
+      change.message,
+    );
+    return { commit, files };
+  }
+
+  async dropBranch(branch: string): Promise<void> {
+    await this.git.deleteBranch(branch);
+  }
 }
 
 /** Goes through the checks of `SiteTarget` that need no git and writes nothing, so that a dry run says what a real run would have done. */
@@ -179,5 +228,13 @@ export class DryTarget implements PublishTarget {
 
   async apply(change: TargetChange): Promise<TargetResult> {
     return { commit: null, files: await check(this.repoDir, this.paths, change) };
+  }
+
+  async commitPieceToBranch(_change: BranchChange): Promise<BranchResult> {
+    throw new Error('a dry run makes no branch');
+  }
+
+  async dropBranch(_branch: string): Promise<void> {
+    throw new Error('a dry run makes no branch');
   }
 }

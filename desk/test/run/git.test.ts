@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { COMMIT_TRAILER, FakeGit, GitCli } from '../../src/run/git';
+import { COMMIT_TRAILER, FakeGit, GitCli, MAIN_BRANCH } from '../../src/run/git';
 import { useScratch } from '../support/context';
+import { ISOLATED, changesIn, git, show } from '../support/repo';
 
 // The Desk commits only what it wrote, only the files it names, and only into a repository that has nothing else of the Desk's in the way.
 // The tests of `GitCli` run the real `git` in a repository that each test makes for itself in a temporary folder: nothing leaves the
@@ -11,19 +12,7 @@ import { useScratch } from '../support/context';
 
 const scratch = useScratch();
 
-/** The settings of the machine that runs the tests (who signs, which hooks) must not reach these repositories. */
-const ISOLATED = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
-
-const git = (dir: string, ...args: string[]): string => execFileSync('git', args, { cwd: dir, encoding: 'utf8', env: { ...process.env, ...ISOLATED } }).trim();
-
-const cliFor = (dir: string): GitCli => new GitCli(dir, { env: ISOLATED });
-
-/** The files that have a change that is not committed, as `git status` says them, in order. */
-const changesIn = (dir: string): string[] =>
-  execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: dir, encoding: 'utf8', env: { ...process.env, ...ISOLATED } })
-    .split('\n')
-    .filter((line) => line !== '')
-    .sort();
+const cliFor = (dir: string, tempDir?: string): GitCli => new GitCli(dir, { env: ISOLATED, ...(tempDir === undefined ? {} : { tempDir }) });
 
 function write(dir: string, file: string, text: string): void {
   mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
@@ -141,6 +130,20 @@ describe('GitCli.commit', () => {
     expect(git(dir, 'log', '--format=%s')).toBe('start');
   });
 
+  it('puts the index back when the commit fails, so that the next commit is not refused for what was left staged: the files are as they were, and nothing is staged', async () => {
+    const dir = makeRepo();
+    const hook = path.join(dir, '.git/hooks/pre-commit');
+    writeFileSync(hook, '#!/bin/sh\nexit 1\n');
+    chmodSync(hook, 0o755);
+    writePiece(dir);
+    await expect(cliFor(dir).commit([NEWS, LEDGER, STATE], 'desk: publish new-piece')).rejects.toThrow('git commit failed');
+    expect(git(dir, 'diff', '--cached', '--name-only')).toBe('');
+    expect(changesIn(dir)).toEqual([` M ${STATE}`, `?? ${LEDGER}`, `?? ${NEWS}`]);
+    expect(git(dir, 'log', '--format=%s')).toBe('start');
+    rmSync(hook);
+    await expect(cliFor(dir).commit([NEWS, LEDGER, STATE], 'desk: publish new-piece')).resolves.toMatch(/^[0-9a-f]{40}$/);
+  });
+
   it('runs git with the environment it needs, which a hook of git can show: paths are literal, nothing asks for a password, and messages are in one language', async () => {
     const dir = makeRepo();
     const hook = path.join(dir, '.git/hooks/pre-commit');
@@ -207,6 +210,155 @@ describe('GitCli.isClean', () => {
   });
 });
 
+const BRANCH = 'hold/2026-10-05-new-piece';
+
+describe('GitCli.currentBranch', () => {
+  it('is the name of the branch that the checkout is on', async () => {
+    const dir = makeRepo();
+    expect(await cliFor(dir).currentBranch()).toBe('main');
+    git(dir, 'switch', '--quiet', '-c', 'other');
+    expect(await cliFor(dir).currentBranch()).toBe('other');
+  });
+
+  it('is undefined when the checkout is on no branch', async () => {
+    const dir = makeRepo();
+    git(dir, 'checkout', '--quiet', '--detach');
+    expect(await cliFor(dir).currentBranch()).toBeUndefined();
+  });
+});
+
+describe('GitCli.commitToNewBranch', () => {
+  const files = [
+    { path: NEWS, text: 'news\n' },
+    { path: LEDGER, text: '{}\n' },
+  ];
+
+  it('makes a branch with one commit that adds the files, on the commit that the checkout is on, and returns the id of the commit', async () => {
+    const dir = makeRepo();
+    const head = git(dir, 'rev-parse', 'HEAD');
+    const id = await cliFor(dir).commitToNewBranch(BRANCH, files, 'desk: held piece new-piece');
+    expect(id).toMatch(/^[0-9a-f]{40}$/);
+    expect(git(dir, 'rev-parse', BRANCH)).toBe(id);
+    expect(git(dir, 'rev-parse', `${BRANCH}^`)).toBe(head);
+    expect(filesOf(dir, id)).toEqual([LEDGER, NEWS]);
+    expect(show(dir, `${BRANCH}:${NEWS}`)).toBe('news\n');
+    expect(show(dir, `${BRANCH}:${LEDGER}`)).toBe('{}\n');
+    // The files that were there are still there, unchanged.
+    expect(git(dir, 'ls-tree', '-r', '--name-only', BRANCH).split('\n')).toEqual(['README.md', LEDGER, 'site/src/content/news/older.mdx', NEWS, STATE].sort());
+  });
+
+  it('writes the message as the subject and the trailer of the project as a trailer, as a commit of the Desk does', async () => {
+    const dir = makeRepo();
+    await cliFor(dir).commitToNewBranch(BRANCH, files, 'desk: held piece new-piece');
+    expect(git(dir, 'log', '-1', '--format=%B', BRANCH)).toBe(`desk: held piece new-piece\n\n${COMMIT_TRAILER}`);
+  });
+
+  it('does not change the checkout: not the branch it is on, not what it has, not its index, and not the changes that are not committed', async () => {
+    const dir = makeRepo();
+    write(dir, 'README.md', 'changed, not staged\n');
+    write(dir, 'staged.txt', 'staged\n');
+    git(dir, 'add', 'staged.txt');
+    write(dir, 'notes.txt', 'mine\n');
+    const before = { head: git(dir, 'rev-parse', 'HEAD'), changes: changesIn(dir), index: readFileSync(path.join(dir, '.git/index')), branch: git(dir, 'branch', '--show-current') };
+    await cliFor(dir).commitToNewBranch(BRANCH, files, 'desk: held piece new-piece');
+    expect({ head: git(dir, 'rev-parse', 'HEAD'), changes: changesIn(dir), index: readFileSync(path.join(dir, '.git/index')), branch: git(dir, 'branch', '--show-current') }).toEqual(before);
+    expect(existsSync(path.join(dir, NEWS))).toBe(false);
+    expect(existsSync(path.join(dir, LEDGER))).toBe(false);
+    expect(readFileSync(path.join(dir, 'README.md'), 'utf8')).toBe('changed, not staged\n');
+  });
+
+  it('starts from the commit and not from the files of the checkout: a change that is not committed is not on the branch', async () => {
+    const dir = makeRepo();
+    write(dir, STATE, '{"changed":true}\n');
+    await cliFor(dir).commitToNewBranch(BRANCH, files, 'desk: held piece new-piece');
+    expect(show(dir, `${BRANCH}:${STATE}`)).toBe('{}\n');
+    expect(readFileSync(path.join(dir, STATE), 'utf8')).toBe('{"changed":true}\n');
+  });
+
+  it('puts the text on the branch as it is, byte for byte: line endings, no final newline, quotes and letters outside ASCII', async () => {
+    const dir = makeRepo();
+    const odd = `a "quoted" line\r\nand a lone return\rno final newline, and an e with an accent: ${String.fromCharCode(233)}`;
+    await cliFor(dir).commitToNewBranch(BRANCH, [{ path: NEWS, text: odd }], 'desk: held piece new-piece');
+    expect(show(dir, `${BRANCH}:${NEWS}`)).toBe(odd);
+  });
+
+  it('takes a path relative to the repository or an absolute one', async () => {
+    const dir = makeRepo();
+    const id = await cliFor(dir).commitToNewBranch(BRANCH, [{ path: path.join(dir, NEWS), text: 'a\n' }, { path: LEDGER, text: 'b\n' }], 'x');
+    expect(filesOf(dir, id)).toEqual([LEDGER, NEWS]);
+  });
+
+  it('refuses a branch that is there, says so, and leaves that branch as it was', async () => {
+    const dir = makeRepo();
+    git(dir, 'branch', BRANCH);
+    const tip = git(dir, 'rev-parse', BRANCH);
+    await expect(cliFor(dir).commitToNewBranch(BRANCH, files, 'x')).rejects.toThrow(`the branch ${BRANCH} already exists`);
+    expect(git(dir, 'rev-parse', BRANCH)).toBe(tip);
+  });
+
+  describe.each(['', 'Hold/x', 'hold/x y', '-hold/x', '--force', '../main', 'hold/../main', 'hold//x', 'hold/x/', 'hold/x.lock', 'hold/x;id', 'hold/$(id)', 'hold/x\ny'])('the branch name %j', (name) => {
+    it('is refused before anything is run', async () => {
+      // A folder that is not a repository: git would fail there, so a refusal that says anything else was made before git was run.
+      await expect(cliFor(scratch()).commitToNewBranch(name, files, 'x')).rejects.toThrow('is not a branch name that the Desk makes');
+    });
+  });
+
+  it('refuses no files, the same file twice, a path outside the repository, the repository itself, and a message that says nothing', async () => {
+    const dir = makeRepo();
+    const cli = cliFor(dir);
+    await expect(cli.commitToNewBranch(BRANCH, [], 'x')).rejects.toThrow('needs at least one file');
+    await expect(cli.commitToNewBranch(BRANCH, [{ path: NEWS, text: 'a' }, { path: `./${NEWS}`, text: 'b' }], 'x')).rejects.toThrow('the same file twice');
+    await expect(cli.commitToNewBranch(BRANCH, [{ path: '../outside.txt', text: 'a' }], 'x')).rejects.toThrow('is not inside the repository');
+    await expect(cli.commitToNewBranch(BRANCH, [{ path: '.', text: 'a' }], 'x')).rejects.toThrow('the whole repository');
+    await expect(cli.commitToNewBranch(BRANCH, files, '  ')).rejects.toThrow('needs a message');
+    expect(git(dir, 'branch', '--format=%(refname:short)')).toBe('main');
+  });
+
+  it('makes nothing when git cannot build the commit, and says what git said: a file that is a folder in the commit that the checkout is on', async () => {
+    const dir = makeRepo();
+    const error = (await cliFor(dir).commitToNewBranch(BRANCH, [{ path: 'README.md/inside.txt', text: 'a' }], 'x').catch((caught: unknown) => caught)) as Error;
+    expect(error.message).toMatch(/^git update-index failed: .*README\.md\/inside\.txt/s);
+    expect(git(dir, 'branch', '--format=%(refname:short)')).toBe('main');
+  });
+
+  it('leaves nothing in the folder for temporary files, whether it made the commit or not', async () => {
+    const dir = makeRepo();
+    const temporary = scratch();
+    await cliFor(dir, temporary).commitToNewBranch(BRANCH, files, 'x');
+    await expect(cliFor(dir, temporary).commitToNewBranch('hold/2026-10-06-other', [{ path: 'README.md/inside.txt', text: 'a' }], 'x')).rejects.toThrow();
+    expect(readdirSync(temporary)).toEqual([]);
+  });
+
+  it('reads its paths as paths and never as patterns, as commit does', async () => {
+    const dir = makeRepo();
+    const id = await cliFor(dir).commitToNewBranch(BRANCH, [{ path: '*.txt', text: 'star\n' }], 'x');
+    expect(filesOf(dir, id)).toEqual(['*.txt']);
+  });
+});
+
+describe('GitCli.deleteBranch', () => {
+  it('removes a branch, and the setting that says what it follows', async () => {
+    const dir = makeRepo();
+    await cliFor(dir).commitToNewBranch(BRANCH, [{ path: NEWS, text: 'a\n' }], 'x');
+    git(dir, 'config', `branch.${BRANCH}.remote`, 'origin');
+    await cliFor(dir).deleteBranch(BRANCH);
+    expect(git(dir, 'branch', '--format=%(refname:short)')).toBe('main');
+    expect(git(dir, 'config', '--list')).not.toContain('branch.hold');
+  });
+
+  it('does not remove the branch that the checkout is on, and says so', async () => {
+    const dir = makeRepo();
+    await expect(cliFor(dir).deleteBranch('main')).rejects.toThrow('git branch failed');
+    expect(git(dir, 'branch', '--format=%(refname:short)')).toBe('main');
+  });
+
+  it('fails for a branch that is not there, and for a name that the Desk does not make', async () => {
+    const dir = makeRepo();
+    await expect(cliFor(dir).deleteBranch(BRANCH)).rejects.toThrow('not found');
+    await expect(cliFor(dir).deleteBranch('--all')).rejects.toThrow('is not a branch name that the Desk makes');
+  });
+});
+
 describe('FakeGit', () => {
   it('records each commit with its paths and its message, and gives each an id of its own', async () => {
     const fake = new FakeGit();
@@ -247,5 +399,41 @@ describe('FakeGit', () => {
     await expect(fake.commit(['a'], 'x')).rejects.toThrow('no space left');
     expect(fake.commits).toEqual([]);
     await expect(fake.commit(['a'], 'x')).resolves.toMatch(/^[0-9a-f]{40}$/);
+  });
+  it('is on main, which is a branch that exists, and says which branch the checkout is on', async () => {
+    const fake = new FakeGit();
+    expect(MAIN_BRANCH).toBe('main');
+    expect(await fake.currentBranch()).toBe('main');
+    expect([...fake.branches]).toEqual(['main']);
+    fake.branch = undefined;
+    expect(await fake.currentBranch()).toBeUndefined();
+  });
+
+  it('makes a branch with the files and the message it is given, and keeps them, apart from the commits on main', async () => {
+    const fake = new FakeGit();
+    const id = await fake.commitToNewBranch(BRANCH, [{ path: NEWS, text: 'a' }], 'held');
+    expect(id).toMatch(/^[0-9a-f]{40}$/);
+    expect(fake.branchCommits).toEqual([{ id, branch: BRANCH, files: [{ path: NEWS, text: 'a' }], message: 'held' }]);
+    expect(fake.commits).toEqual([]);
+    expect([...fake.branches]).toEqual(['main', BRANCH]);
+  });
+
+  it('refuses a branch that is there, and a name that the real one refuses, and fails the next branch commit when a test says so', async () => {
+    const fake = new FakeGit();
+    await fake.commitToNewBranch(BRANCH, [{ path: NEWS, text: 'a' }], 'held');
+    await expect(fake.commitToNewBranch(BRANCH, [{ path: NEWS, text: 'a' }], 'held')).rejects.toThrow('already exists');
+    await expect(fake.commitToNewBranch('Not A Branch', [], 'held')).rejects.toThrow('is not a branch name');
+    fake.failNextBranchCommit = new Error('no space left');
+    await expect(fake.commitToNewBranch('hold/2026-10-06-b', [], 'held')).rejects.toThrow('no space left');
+    await expect(fake.commitToNewBranch('hold/2026-10-06-b', [], 'held')).resolves.toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it('removes a branch, but not the one that the checkout is on and not one that is not there', async () => {
+    const fake = new FakeGit();
+    await fake.commitToNewBranch(BRANCH, [{ path: NEWS, text: 'a' }], 'held');
+    await fake.deleteBranch(BRANCH);
+    expect([...fake.branches]).toEqual(['main']);
+    await expect(fake.deleteBranch('main')).rejects.toThrow('the checkout is on');
+    await expect(fake.deleteBranch(BRANCH)).rejects.toThrow('is not there');
   });
 });

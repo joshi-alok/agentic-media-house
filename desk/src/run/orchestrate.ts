@@ -2,7 +2,7 @@ import { mkdir, readdir, rename, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { Claim, RunOutcome, SourcesRegistry } from '@robywire/gate';
 import { RunRecord, RunRefused, readRunRecord, recordRun, refuseApiOnFixtures, runPath, takeRunLock, writeJsonFile } from '../index';
-import type { BuiltClient, ClientKind, DeskConfig, EvidenceStore, Fetcher, PublishTarget, SourcesKind } from '../index';
+import type { BuiltClient, ClientKind, DeskConfig, EvidenceStore, Fetcher, ForgeTarget, PublishTarget, SourcesKind } from '../index';
 import { runCompose } from '../stages/compose';
 import { loadPublishedIndex } from '../stages/context';
 import type { StageContext } from '../stages/context';
@@ -57,6 +57,11 @@ export interface RunDeskOptions {
   evidence: EvidenceStore;
   /** Where a piece, a hold and the record of the run are put: the site, or a target that writes nothing. */
   target: PublishTarget;
+  /**
+   * Where a held piece is sent to the owner: a branch is pushed and a draft pull request is opened (`runHold`). Without one a hold is only recorded, in the folder of the run and
+   * in the desk state. A dry run never touches it. A step of the forge that fails ends the run as `failed` at the stage `hold`.
+   */
+  forge?: ForgeTarget;
   /** The folder of the ledgers of the published pieces, which says what has been published. */
   ledgerDir: string;
   /** The clock. It is read for the time of the run and nowhere else; the stages never read it. */
@@ -78,6 +83,8 @@ export interface RunResult {
   slug: string | null;
   /** Which try of its day the run was: 1 for the first. */
   attempt: number;
+  /** The address of the draft pull request that carries a held piece to the owner; null for every other run, and for a hold with no pull request. */
+  pullRequest: string | null;
   /** The commit that the run made; null for a dry run, and for a run whose desk state could not be recorded. */
   commit: string | null;
   dry: boolean;
@@ -178,7 +185,7 @@ async function planDay(config: DeskConfig, date: string, forceNew: boolean): Pro
 type Ending =
   | { outcome: 'no-story'; stage: string; reason: string }
   | { outcome: 'published'; stage: 'publish'; slug: string; commit: string | null; files: string[] }
-  | { outcome: 'held'; stage: 'hold'; slug: string; reason: string; commit: string | null; files: string[] }
+  | { outcome: 'held'; stage: 'hold'; slug: string; reason: string; pullRequest: string | null; commit: string | null; files: string[] }
   | { outcome: 'failed'; stage: string; reason: string };
 
 /**
@@ -191,7 +198,7 @@ type Ending =
  *
  * Then Discover, Select, Fetch, Extract, Compose and Verify in turn, each given what the one before it made. A story that is not there (Select chooses none,
  * Fetch gets no page, Extract keeps too few claims) ends the run as `no-story`. Verify's verdict ends it as `published` (the Publish stage) or `held` (the
- * Hold stage). Anything a stage throws, a model error and a spent budget included, ends it as `failed`, with the message and the name of the stage. The
+ * Hold stage; with a `forge` the held piece is first sent to the owner as a draft pull request). Anything a stage throws, a model error and a spent budget included, ends it as `failed`, with the message and the name of the stage. The
  * desk state is updated for every outcome: by Publish and by Hold for those two, here for the other two. The record of the run, `run.json`, is written last.
  */
 export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
@@ -256,8 +263,9 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
         return { outcome: 'published', stage: 'publish', slug: published.slug, commit: published.commit, files: published.files };
       }
       stage = 'hold';
-      const held = await stages.hold(ctx, target, claims, verified, run);
-      return { outcome: 'held', stage: 'hold', slug: held.slug, reason: `held for ${held.reasons.join(', ')}`, commit: held.commit, files: held.files };
+      const held = await stages.hold(ctx, target, claims, verified, run, options.forge);
+      const where = held.pullRequest !== null ? `; draft pull request ${held.pullRequest.url}` : held.note !== null ? `; no pull request: ${held.note}` : '';
+      return { outcome: 'held', stage: 'hold', slug: held.slug, reason: `held for ${held.reasons.join(', ')}${where}`, pullRequest: held.pullRequest?.url ?? null, commit: held.commit, files: held.files };
     };
 
     let ending: Ending;
@@ -307,7 +315,8 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
       log: lines,
     };
     await writeJsonFile(path.join(dir, 'run.json'), 'the run record run.json', record, RunRecord);
-    return { outcome: ending.outcome, runId, stage: ending.stage, reason, slug, attempt: day.attempt, commit, dry: target.dry, dir, files };
+    const pullRequest = ending.outcome === 'held' ? ending.pullRequest : null;
+    return { outcome: ending.outcome, runId, stage: ending.stage, reason, slug, attempt: day.attempt, pullRequest, commit, dry: target.dry, dir, files };
   } finally {
     await release();
   }

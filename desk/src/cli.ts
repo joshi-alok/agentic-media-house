@@ -3,10 +3,11 @@ import path from 'node:path';
 import { loadSources } from '@robywire/gate';
 import type { SourcesRegistry } from '@robywire/gate';
 import { CLIENT_KINDS, HttpFetcher, LocalEvidenceStore, RunRefused, SOURCES_KINDS, clientFromConfig, defaultConfig, loadConfig, placeholderHost, readDeskState, readRunRecord, refuseApiOnFixtures, runPath, sitePaths, DryTarget, SiteTarget } from './index';
-import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, Fetcher, GitTarget, Lookup, RetryOptions, SourcesKind, StoredRunRecord, Transport } from './index';
+import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, Fetcher, ForgeTarget, GitTarget, Lookup, RetryOptions, SourcesKind, StoredRunRecord, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
 import { runDesk } from './run/orchestrate';
+import type { RunResult, Stages } from './run/orchestrate';
 import { replayRun } from './run/replay';
 
 // The command line of the Desk: `desk run`, `desk replay <folder of a run>` and `desk status`. The arguments are read by hand, with no library, and a
@@ -151,6 +152,10 @@ export interface CliDeps {
   now: () => Date;
   /** What commits for a run that is not dry. */
   git: GitTarget;
+  /** Where a held piece is sent to the owner, for a run that is not dry: a branch is pushed and a draft pull request is opened. Without one a hold is only recorded. */
+  forge?: ForgeTarget;
+  /** Stages that take the place of the real ones, which a test uses to give a run an ending that the scripted story does not reach. */
+  stages?: Partial<Stages>;
   /** The settings of the run. By default `defaultConfig()` with the folders of the runs and of the evidence below `cwd`. */
   config?: DeskConfig;
   /** How live sources are fetched; the default is the global `fetch`. */
@@ -192,6 +197,18 @@ function sourcesOf(kind: SourcesKind, deps: CliDeps, config: DeskConfig): { sour
   if (kind === 'fixtures') return { sources: demoRegistry(), fetcher: demoFetcher(deps.now) };
   const fetcher = new HttpFetcher({ userAgent: config.userAgent, maxBytes: config.maxBytes, requestIntervalMs: config.requestIntervalMs, ...(deps.transport === undefined ? {} : { transport: deps.transport }), ...(deps.lookup === undefined ? {} : { lookup: deps.lookup }) });
   return { sources: loadSources(path.join(deps.cwd, 'sources.yml')), fetcher };
+}
+
+/** What `desk run` prints when the run ended, one line each: the outcome, the run, the try, the folder, the piece, the pull request, the reason, the stage that ended a run with no piece, and the commit. */
+export function resultLines(result: RunResult): string[] {
+  const lines = [`outcome: ${result.outcome}`, `run: ${result.runId}`, `attempt: ${result.attempt}`, `folder: ${result.dir}`];
+  if (result.slug !== null) lines.push(`piece: ${result.slug}`);
+  if (result.pullRequest !== null) lines.push(`pull request: ${result.pullRequest}`);
+  if (result.reason !== null) lines.push(`reason: ${result.reason}`);
+  if (result.outcome === 'no-story' || result.outcome === 'failed') lines.push(`stage: ${result.stage}`);
+  if (result.dry) lines.push(`dry run: nothing was written to the site or to git (${result.files.length} files would have been)`);
+  else if (result.commit !== null) lines.push(`commit: ${result.commit}`);
+  return lines;
 }
 
 async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDeps): Promise<number> {
@@ -239,19 +256,13 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
       evidence: new LocalEvidenceStore(config.evidenceDir),
       target: args.dry ? new DryTarget(deps.cwd) : new SiteTarget(deps.cwd, deps.git),
       ledgerDir: path.join(deps.cwd, sitePaths().ledgerDir),
+      ...(deps.forge === undefined ? {} : { forge: deps.forge }),
+      ...(deps.stages === undefined ? {} : { stages: deps.stages }),
       now: deps.now,
       forceNew: args.forceNew,
       log: (line) => deps.out(line),
     });
-    deps.out(`outcome: ${result.outcome}`);
-    deps.out(`run: ${result.runId}`);
-    deps.out(`attempt: ${result.attempt}`);
-    deps.out(`folder: ${result.dir}`);
-    if (result.slug !== null) deps.out(`piece: ${result.slug}`);
-    if (result.reason !== null) deps.out(`reason: ${result.reason}`);
-    if (result.outcome === 'no-story' || result.outcome === 'failed') deps.out(`stage: ${result.stage}`);
-    if (result.dry) deps.out(`dry run: nothing was written to the site or to git (${result.files.length} files would have been)`);
-    else if (result.commit !== null) deps.out(`commit: ${result.commit}`);
+    for (const line of resultLines(result)) deps.out(line);
     return result.outcome === 'failed' ? 1 : 0;
   } catch (error) {
     deps.err(error instanceof RunRefused ? `the run was refused: ${error.message}` : `the run could not start: ${describeError(error)}`);

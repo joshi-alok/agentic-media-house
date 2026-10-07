@@ -282,3 +282,84 @@ describe('DryTarget.apply', () => {
     await expect(new DryTarget(empty).apply(publishing())).rejects.toThrow('does not exist');
   });
 });
+
+describe('SiteTarget.commitPieceToBranch', () => {
+  const BRANCH = 'hold/2026-10-05-fixture-piece';
+  const change = { branch: BRANCH, piece: PIECE, message: 'desk: held piece fixture-piece, for the owner to release' };
+
+  it('gives the two files of the piece, as they are, and the message, to git for a new branch, and says which commit it is', async () => {
+    const { git, target } = setup();
+    const result = await target.commitPieceToBranch(change);
+    expect(git.branchCommits).toEqual([
+      {
+        id: result.commit,
+        branch: BRANCH,
+        files: [
+          { path: NEWS, text: PIECE.mdx },
+          { path: LEDGER, text: PIECE.ledger },
+        ],
+        message: change.message,
+      },
+    ]);
+    expect(result).toEqual({ commit: git.branchCommits[0]?.id, files: [NEWS, LEDGER] });
+    expect(git.commits).toEqual([]);
+  });
+
+  it('writes nothing into the checkout, and does not move it off the branch that it is on', async () => {
+    const { repoDir, git, target } = setup();
+    const before = filesBelow(repoDir);
+    await target.commitPieceToBranch(change);
+    expect(filesBelow(repoDir)).toEqual(before);
+    expect(read(repoDir, STATE)).toBe(COMMITTED_STATE);
+    expect(git.branch).toBe('main');
+  });
+
+  it('refuses when the checkout is not on main, or on no branch, and makes no branch', async () => {
+    const { git, target } = setup();
+    git.branch = 'other';
+    await expect(target.commitPieceToBranch(change)).rejects.toThrow('from main, but the checkout is on other');
+    git.branch = undefined;
+    await expect(target.commitPieceToBranch(change)).rejects.toThrow('from main, but the checkout is on no branch');
+    expect(git.branchCommits).toEqual([]);
+  });
+
+  it('refuses a slug that is not plain, and a piece whose files are already there, and makes no branch', async () => {
+    const { repoDir, git, target } = setup();
+    await expect(target.commitPieceToBranch({ ...change, piece: { ...PIECE, slug: '../x' } })).rejects.toThrow('is not a plain slug');
+    writeFileSync(path.join(repoDir, LEDGER), 'taken\n');
+    await expect(target.commitPieceToBranch(change)).rejects.toThrow(`${LEDGER} is already there, so the slug "fixture-piece" is taken`);
+    expect(git.branchCommits).toEqual([]);
+  });
+
+  it('lets git refuse a branch that is there, and says what git said', async () => {
+    const { git, target } = setup();
+    await target.commitPieceToBranch(change);
+    await expect(target.commitPieceToBranch(change)).rejects.toThrow('already exists');
+    expect(git.branchCommits).toHaveLength(1);
+  });
+
+  it('does not ask whether the checkout is clean: the branch is made beside it, and a change that is not committed is none of its business', async () => {
+    const { git, target } = setup();
+    git.dirty.add(STATE);
+    await expect(target.commitPieceToBranch(change)).resolves.toMatchObject({ files: [NEWS, LEDGER] });
+  });
+});
+
+describe('SiteTarget.dropBranch', () => {
+  it('removes a branch with git, and fails when git does', async () => {
+    const { git, target } = setup();
+    await target.commitPieceToBranch({ branch: 'hold/2026-10-05-fixture-piece', piece: PIECE, message: 'x' });
+    await target.dropBranch('hold/2026-10-05-fixture-piece');
+    expect([...git.branches]).toEqual(['main']);
+    await expect(target.dropBranch('hold/2026-10-05-fixture-piece')).rejects.toThrow('is not there');
+  });
+});
+
+describe('DryTarget: the branch of a held piece', () => {
+  it('makes none, and says so: a dry run never reaches the forge, so a call here is a mistake of the Desk', async () => {
+    const target = new DryTarget(makeSite(scratch()));
+    await expect(target.commitPieceToBranch({ branch: 'hold/2026-10-05-fixture-piece', piece: PIECE, message: 'x' })).rejects.toThrow('a dry run makes no branch');
+    await expect(target.dropBranch('hold/2026-10-05-fixture-piece')).rejects.toThrow('a dry run makes no branch');
+  });
+});
+

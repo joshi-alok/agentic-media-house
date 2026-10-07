@@ -1,15 +1,18 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { USAGE, main, parseArgs } from '../src/cli';
+import { USAGE, main, parseArgs, resultLines } from '../src/cli';
 import type { CliDeps, Parsed } from '../src/cli';
 import { defaultConfig } from '../src/config';
 import { DEMO_DATE, DEMO_REGISTRY_YAML } from '../src/demo/world';
 import { refuseApiOnFixtures } from '../src/run/spending';
 import { FetchError } from '../src/fetch/http';
 import type { Transport } from '../src/fetch/http';
+import { FakeForge } from '../src/run/forge';
 import { FakeGit } from '../src/run/git';
+import type { RunResult, Stages } from '../src/run/orchestrate';
 import { sitePaths } from '../src/run/target';
+import { runVerify } from '../src/stages/verify';
 import { useScratch } from './support/context';
 import { publicLookup } from './support/lookup';
 import { clock } from './support/run';
@@ -824,3 +827,92 @@ describe('main: status', () => {
     expect(await main(['status'], deps)).toBe(0);
   });
 });
+
+describe('resultLines', () => {
+  const RESULT: RunResult = {
+    outcome: 'held',
+    runId: '2026-10-05-043100',
+    stage: 'hold',
+    reason: 'held for TIER2_ATTRIBUTION; draft pull request https://github.example/agentic-media-house/pull/7',
+    slug: 'a-piece',
+    attempt: 2,
+    pullRequest: 'https://github.example/agentic-media-house/pull/7',
+    commit: 'abc123',
+    dry: false,
+    dir: '/runs/2026-10-05',
+    files: ['x'],
+  };
+
+  it('prints the outcome, the run, the try, the folder, the piece, the pull request, the reason and the commit, in that order, for a piece that is held and sent', () => {
+    expect(resultLines(RESULT)).toEqual([
+      'outcome: held',
+      'run: 2026-10-05-043100',
+      'attempt: 2',
+      'folder: /runs/2026-10-05',
+      'piece: a-piece',
+      'pull request: https://github.example/agentic-media-house/pull/7',
+      'reason: held for TIER2_ATTRIBUTION; draft pull request https://github.example/agentic-media-house/pull/7',
+      'commit: abc123',
+    ]);
+  });
+
+  it('has no line for what a run does not have: no piece, no pull request, no reason, no commit', () => {
+    expect(resultLines({ ...RESULT, outcome: 'published', stage: 'publish', reason: null, pullRequest: null, commit: null })).toEqual(['outcome: published', 'run: 2026-10-05-043100', 'attempt: 2', 'folder: /runs/2026-10-05', 'piece: a-piece']);
+  });
+
+  it('says the stage for a run that ended with no piece, and what a dry run would have written', () => {
+    expect(resultLines({ ...RESULT, outcome: 'no-story', stage: 'select', reason: 'nothing', slug: null, pullRequest: null, commit: null, dry: true, files: ['a', 'b'] })).toEqual([
+      'outcome: no-story',
+      'run: 2026-10-05-043100',
+      'attempt: 2',
+      'folder: /runs/2026-10-05',
+      'reason: nothing',
+      'stage: select',
+      'dry run: nothing was written to the site or to git (2 files would have been)',
+    ]);
+    expect(resultLines({ ...RESULT, outcome: 'failed', stage: 'hold', reason: 'boom', slug: null, pullRequest: null, commit: 'abc' })).toContain('stage: hold');
+  });
+});
+
+describe('desk run: a held piece that was sent to the owner', () => {
+  it('gives the forge to the run, and prints where the pull request is', async () => {
+    const forge = new FakeForge();
+    let given: unknown;
+    const stages: Partial<Stages> = {
+      verify: async (...args) => ({ ...(await runVerify(...args)), outcome: 'hold' as const }),
+      hold: async (_ctx, _target, _claims, verified, _run, forgeGiven) => {
+        given = forgeGiven;
+        return {
+          slug: verified.draft.slug,
+          file: '/runs/held.json',
+          reasons: ['TIER2_ATTRIBUTION'],
+          commit: null,
+          files: [],
+          pullRequest: { url: 'https://github.example/agentic-media-house/pull/7', number: 7, branch: 'hold/2026-10-05-x', commit: 'c'.repeat(40) },
+          note: null,
+        };
+      },
+    };
+    const { call, out } = setup({ forge, stages });
+    expect(await call(...DRY_DEMO)).toBe(0);
+    expect(given).toBe(forge);
+    expect(out).toContain('outcome: held');
+    expect(out).toContain('pull request: https://github.example/agentic-media-house/pull/7');
+  });
+
+  it('gives no forge to a run when there is none', async () => {
+    let given: unknown = 'not called';
+    const stages: Partial<Stages> = {
+      verify: async (...args) => ({ ...(await runVerify(...args)), outcome: 'hold' as const }),
+      hold: async (_ctx, _target, _claims, verified, _run, forgeGiven) => {
+        given = forgeGiven;
+        return { slug: verified.draft.slug, file: '/runs/held.json', reasons: ['TIER2_ATTRIBUTION'], commit: null, files: [], pullRequest: null, note: null };
+      },
+    };
+    const { call, out } = setup({ stages });
+    expect(await call(...DRY_DEMO)).toBe(0);
+    expect(given).toBeUndefined();
+    expect(out.some((line) => line.startsWith('pull request:'))).toBe(false);
+  });
+});
+
