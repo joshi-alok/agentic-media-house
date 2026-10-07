@@ -20,6 +20,7 @@ export * from './fetch/url';
 export * from './fetch/extract-text';
 export * from './fetch/feeds';
 export * from './run/evidence';
+export * from './run/sigv4';
 export * from './run/desk-state';
 export * from './run/git';
 export * from './run/forge';
