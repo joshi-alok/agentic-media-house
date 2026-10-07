@@ -6,6 +6,7 @@ import type { CliDeps, Parsed } from '../src/cli';
 import { defaultConfig } from '../src/config';
 import { DEMO_DATE, DEMO_REGISTRY_YAML } from '../src/demo/world';
 import { refuseApiOnFixtures } from '../src/run/spending';
+import { demoWorldMap } from '../src/demo/world';
 import { FetchError } from '../src/fetch/http';
 import type { Transport } from '../src/fetch/http';
 import { FakeForge } from '../src/run/forge';
@@ -18,8 +19,10 @@ import { useScratch } from './support/context';
 import { publicLookup } from './support/lookup';
 import { placePiece } from './support/pieces';
 import { PUBLISHED_SLUG, publishedPiece } from './support/published';
-import { clock } from './support/run';
+import { FAKE_BUCKET, FAKE_ENDPOINT, FAKE_KEY_ID, FAKE_SECRET, makeBucket } from './support/bucket';
+import { START, clock } from './support/run';
 import { COMMITTED_STATE, filesBelow, makeSite } from './support/site';
+import { fileReply, scriptedTransport } from './support/transport';
 
 // The command line, called as a function: `main(argv, deps)` with a clock, an environment, a git and a place to print that the test hands in. Nothing
 // is run as a program, nothing real is touched, and no command in these tests can reach a network or a model.
@@ -452,6 +455,89 @@ describe('main: --config, the file of settings', () => {
     const { call, out } = withFile(FILE);
     expect(await call('status', '--config', 'desk.yml')).toBe(0);
     expect(out).toEqual(['last run: none yet', 'holds: 0', 'corrections: 0', 'retractions: 0']);
+  });
+});
+
+describe('main: the evidence store', () => {
+  // The setting evidence.kind of a file of settings says whether the snapshots of a run are kept in a folder or in a private bucket. The bucket is described by the environment
+  // alone: these runs are given a made-up bucket (a function with the shape of fetch) and the made-up world as live sources, served by a made-up transport.
+  const R2_FILE = ['evidence:', '  kind: r2', 'requestIntervalMs: 0', `userAgent: "${TEST_AGENT}"`, ''].join('\n');
+  const R2_ENV = { R2_ENDPOINT: FAKE_ENDPOINT, R2_BUCKET: FAKE_BUCKET, R2_ACCESS_KEY_ID: FAKE_KEY_ID, R2_SECRET_ACCESS_KEY: FAKE_SECRET };
+
+  /** The pages of the made-up world as live sites answer for them: the files of the fixtures, and no robots.txt. */
+  const madeUpSites = () =>
+    scriptedTransport({
+      ...Object.fromEntries(Object.entries(demoWorldMap()).map(([url, file]) => [url, fileReply(file as string)])),
+      ...Object.fromEntries(['fixture-robotics', 'mercer-wire', 'gantry-daily'].map((host) => [`https://${host}.example/robots.txt`, { status: 404, type: 'text/plain', body: '' }])),
+    });
+
+  /** A repository with a file of settings that asks for the bucket, and a made-up bucket. */
+  function withBucket(overrides: Partial<CliDeps> = {}) {
+    const bucket = makeBucket(() => START);
+    const sites = madeUpSites();
+    const made = setup({ config: undefined, env: R2_ENV, transport: sites.transport, evidenceTransport: bucket.transport, ...overrides });
+    writeFileSync(path.join(made.cwd, 'desk.yml'), R2_FILE);
+    return { ...made, bucket, sites };
+  }
+
+  it('is not chosen with a flag: --evidence is an option that run and replay do not have', () => {
+    expect(refused('run', '--evidence', 'r2')).toBe('unknown option --evidence for run');
+    expect(refused('replay', 'runs/x', '--evidence', 'local')).toBe('unknown option --evidence for replay');
+    expect(USAGE).not.toContain('--evidence ');
+  });
+
+  it('says in the usage which store the settings choose, and where the bucket is described', () => {
+    expect(USAGE).toContain('the setting evidence.kind of a file of settings (--config) chooses: local, a folder');
+    expect(USAGE).toContain('R2_ENDPOINT, R2_BUCKET,');
+    expect(USAGE).toContain('R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY) and never from a file');
+  });
+
+  it('refuses a bucket that the environment does not describe, with exit code 2 and the names of the variables, and runs nothing and writes nothing', async () => {
+    const { call, err, out, cwd, git, bucket } = withBucket({ env: { R2_BUCKET: FAKE_BUCKET } });
+    const before = filesBelow(cwd);
+    expect(await call('run', '--dry', '--client', 'fake', '--config', 'desk.yml')).toBe(2);
+    expect(err).toEqual(['desk: the setting evidence.kind is r2, which needs R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY in the environment (they are not set, and a file of settings cannot have them)']);
+    expect(out).toEqual([]);
+    expect(filesBelow(cwd)).toEqual(before);
+    expect(existsSync(path.join(cwd, 'runs'))).toBe(false);
+    expect(git.commits).toEqual([]);
+    expect(bucket.calls).toEqual([]);
+  });
+
+  it('refuses a bucket that the environment describes wrongly, and does not say what the value was', async () => {
+    const { call, err } = withBucket({ env: { ...R2_ENV, R2_ENDPOINT: 'http://fake-account.r2.example', R2_SECRET_ACCESS_KEY: FAKE_SECRET } });
+    expect(await call('run', '--dry', '--client', 'fake', '--config', 'desk.yml')).toBe(2);
+    expect(err).toEqual(['desk: the setting evidence.kind is r2, and what the environment has for it cannot be used: the R2 endpoint is an https address with no path, such as https://<account>.r2.cloudflarestorage.com']);
+  });
+
+  it('refuses the made-up world for a bucket, for a run and for a replay, because nothing made up may be put in it', async () => {
+    const { call, err, cwd, bucket } = withBucket();
+    expect(await call(...DRY_DEMO, '--config', 'desk.yml')).toBe(2);
+    expect(err[0]).toBe(
+      'desk: --sources fixtures is a made-up world and is refused when the setting evidence.kind is r2: nothing made up may be put in the bucket, which a published piece cites its evidence from',
+    );
+    expect(existsSync(path.join(cwd, 'runs'))).toBe(false);
+    // A run of the made-up world, made with the folder, is not replayed from the bucket either.
+    const folder = setup();
+    expect(await folder.call(...DRY_DEMO)).toBe(0);
+    writeFileSync(path.join(folder.cwd, 'desk.yml'), R2_FILE);
+    folder.err.length = 0;
+    expect(await folder.call('replay', path.join('runs', DEMO_DATE), '--config', 'desk.yml')).toBe(2);
+    expect(folder.err[0]).toContain('is a made-up world and is refused when the setting evidence.kind is r2');
+    expect(bucket.calls).toEqual([]);
+  });
+
+  it('keeps the pages of a run in the bucket that the environment describes, and not in the folder: two objects in pending/, nothing in published/ for a dry run, and no key anywhere that is printed', async () => {
+    const { call, out, err, cwd, bucket, sites } = withBucket();
+    expect(await call('run', '--dry', '--client', 'fake', '--date', DEMO_DATE, '--config', 'desk.yml')).toBe(0);
+    expect(out).toContain('outcome: published');
+    expect(sites.sent.length).toBeGreaterThan(0);
+    const keys = [...bucket.objects.keys()].sort();
+    expect(keys).toHaveLength(2);
+    expect(keys.every((key) => /^pending\/[0-9a-f]{64}$/.test(key))).toBe(true);
+    expect(existsSync(path.join(cwd, 'evidence'))).toBe(false);
+    expect([...out, ...err].join('\n')).not.toContain(FAKE_SECRET);
+    expect([...out, ...err].join('\n')).not.toContain(FAKE_KEY_ID);
   });
 });
 

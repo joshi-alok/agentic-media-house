@@ -70,7 +70,7 @@ export interface Bucket {
 }
 
 /** Check a request the way that the bucket does. Gives the code of the S3 error to answer with, or undefined when the request is good. */
-function problemWith(call: { method: string; url: string; headers: Record<string, string>; body: string | undefined }): string | undefined {
+function problemWith(call: { method: string; url: string; headers: Record<string, string>; body: string | undefined }, now: Date): string | undefined {
   const headers = Object.fromEntries(Object.entries(call.headers).map(([name, value]) => [name.toLowerCase(), value]));
   const match = /^AWS4-HMAC-SHA256 Credential=([A-Za-z0-9]+)\/(\d{8})\/([a-z0-9-]+)\/([a-z0-9-]+)\/aws4_request, SignedHeaders=([a-z0-9;-]+), Signature=([0-9a-f]{64})$/.exec(headers.authorization ?? '');
   if (match === null) return 'AccessDenied';
@@ -85,7 +85,7 @@ function problemWith(call: { method: string; url: string; headers: Record<string
   if (headers.host !== new URL(call.url).host) return 'SignatureDoesNotMatch';
   const time = headers['x-amz-date'] as string;
   if (time.slice(0, 8) !== day) return 'SignatureDoesNotMatch';
-  const away = Math.abs(Date.parse(`${time.slice(0, 4)}-${time.slice(4, 6)}-${time.slice(6, 8)}T${time.slice(9, 11)}:${time.slice(11, 13)}:${time.slice(13, 15)}Z`) - BUCKET_TIME.getTime());
+  const away = Math.abs(Date.parse(`${time.slice(0, 4)}-${time.slice(4, 6)}-${time.slice(6, 8)}T${time.slice(9, 11)}:${time.slice(11, 13)}:${time.slice(13, 15)}Z`) - now.getTime());
   if (Number.isNaN(away) || away > 15 * 60 * 1000) return 'RequestTimeTooSkewed';
   if (headers['x-amz-content-sha256'] !== hashBody(call.body ?? '')) return 'XAmzContentSHA256Mismatch';
   const canonical = canonicalRequest({ method: call.method, url: call.url, headers: Object.fromEntries(signed.map((name) => [name, headers[name] as string])), payloadHash: headers['x-amz-content-sha256'] });
@@ -93,8 +93,8 @@ function problemWith(call: { method: string; url: string; headers: Record<string
   return expected === signature ? undefined : 'SignatureDoesNotMatch';
 }
 
-/** A made-up bucket, empty. */
-export function makeBucket(): Bucket {
+/** A made-up bucket, empty. Its clock is `BUCKET_TIME` unless it is given another, which a test that runs the command line needs, as that has the clock of its own. */
+export function makeBucket(now: () => Date = () => BUCKET_TIME): Bucket {
   const calls: BucketCall[] = [];
   const objects = new Map<string, StoredObject>();
   const faults: { fault: Fault; method?: string; key?: string; times: number }[] = [];
@@ -121,7 +121,7 @@ export function makeBucket(): Bucket {
       call.status = response.status;
       return response;
     };
-    const problem = problemWith(call);
+    const problem = problemWith(call, now());
     if (problem !== undefined) return respond(answer(problem));
     if (bucket !== FAKE_BUCKET) return respond(answer('NoSuchBucket'));
     if (init.method === 'PUT') {

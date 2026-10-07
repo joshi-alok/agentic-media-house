@@ -23,6 +23,16 @@ const Budget = z.strictObject({
 /** The model that plays each role. The verify model is a setting because the evals may show that it has to change. */
 const Models = z.strictObject({ select: text, extract: text, compose: text, verify: text });
 
+/** Where the snapshots of sources are kept: `local` is a folder on this machine (`evidenceDir`), `r2` is a private bucket on Cloudflare R2. */
+export const EVIDENCE_KINDS = ['local', 'r2'] as const;
+export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
+
+/**
+ * The evidence store. It has one setting, which of the two it is. The address, the name and the keys of a bucket are not settings: a file of settings is committed, so they are read
+ * from the environment (`R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`), and a file that tries to carry one of them is refused as a setting that does not exist.
+ */
+const Evidence = z.strictObject({ kind: z.enum(EVIDENCE_KINDS) });
+
 export const DeskConfig = z.strictObject({
   /** Select: a candidate older than this many hours is not considered. */
   recencyHours: count,
@@ -46,8 +56,9 @@ export const DeskConfig = z.strictObject({
   models: Models,
   /** Where each run writes its artifacts. Kept out of git. */
   runDir: text,
-  /** Where the snapshots of sources are kept. Kept out of git. */
+  /** Where the snapshots of sources are kept, when the store is `local`. Kept out of git. */
   evidenceDir: text,
+  evidence: Evidence,
 });
 export type DeskConfig = z.infer<typeof DeskConfig>;
 
@@ -74,6 +85,7 @@ export function defaultConfig(): DeskConfig {
     },
     runDir: 'runs',
     evidenceDir: 'evidence',
+    evidence: { kind: 'local' },
   };
 }
 

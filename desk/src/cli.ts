@@ -5,7 +5,6 @@ import type { CorrectionKind, SourcesRegistry } from '@robywire/gate';
 import {
   CLIENT_KINDS,
   HttpFetcher,
-  LocalEvidenceStore,
   RetractRefused,
   RunRefused,
   SOURCES_KINDS,
@@ -13,6 +12,7 @@ import {
   defaultConfig,
   isPlainSlug,
   loadConfig,
+  makeEvidenceStore,
   normaliseReason,
   placeholderHost,
   readDeskState,
@@ -24,7 +24,7 @@ import {
   DryTarget,
   SiteTarget,
 } from './index';
-import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, Fetcher, ForgeTarget, GitTarget, Lookup, RetryOptions, SourcesKind, StoredRunRecord, Transport } from './index';
+import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, EvidenceStore, Fetcher, ForgeTarget, GitTarget, Lookup, RetryOptions, SourcesKind, StoreTransport, StoredRunRecord, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
 import { runDesk } from './run/orchestrate';
@@ -64,6 +64,9 @@ export const USAGE = [
   '        again with no flag, up to maxAttemptsPerDay runs a day (3 unless the settings say otherwise), and the earlier run is kept beside the new one.',
   '        A piece that is held is sent to the owner as a draft pull request when the run is not dry (the branch hold/<day>-<slug> is pushed with git and gh, and the',
   '        address of the pull request is recorded in the desk state); if that fails the run ends failed at the stage hold and nothing is left on main but that record.',
+  '        The snapshots of the pages that a run reads are kept in the evidence store that the setting evidence.kind of a file of settings (--config) chooses: local, a folder',
+  '        (evidenceDir), which is the default, or r2, a private bucket on Cloudflare R2, whose address, name and keys are read from the environment (R2_ENDPOINT, R2_BUCKET,',
+  '        R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY) and never from a file. --sources fixtures is refused with r2, because nothing made up may be put in the bucket.',
   'replay  run Extract, Compose and Verify again from what a run kept, with no network, and say whether the artifacts are the same. The record of the run says',
   '        which client and which sources it used, so no flag is needed for them; --sources and --client are only checked against the record, and one that',
   '        contradicts it is refused. A run made with --client recorded has no replies of its own: replay it with --cassettes. A record from before records',
@@ -204,6 +207,8 @@ export interface CliDeps {
   transport?: Transport;
   /** How the names of live sources are looked up, to check that they are public addresses; the default asks the system. */
   lookup?: Lookup;
+  /** How the requests to a bucket of the evidence store are made, when the setting evidence.kind is r2; the default is the global `fetch`. */
+  evidenceTransport?: StoreTransport;
   /** How the api client waits between tries. */
   retry?: RetryOptions;
 }
@@ -230,6 +235,23 @@ function settingsOf(deps: CliDeps, file: string | undefined): { config: DeskConf
     return { config: configOf(deps, file) };
   } catch (error) {
     deps.err(describeError(error));
+    return { code: 2 };
+  }
+}
+
+/**
+ * The evidence store that the settings ask for, built from the environment of `deps` (`makeEvidenceStore`), or the exit code 2 and the reason, said on the error output. The made-up world
+ * is refused for a bucket: its pages are fiction, and nothing made up may be put where a published piece will cite its evidence.
+ */
+function evidenceOf(deps: CliDeps, config: DeskConfig, sources: SourcesKind): { evidence: EvidenceStore } | { code: number } {
+  if (sources === 'fixtures' && config.evidence.kind === 'r2') {
+    deps.err('desk: --sources fixtures is a made-up world and is refused when the setting evidence.kind is r2: nothing made up may be put in the bucket, which a published piece cites its evidence from');
+    return { code: 2 };
+  }
+  try {
+    return { evidence: makeEvidenceStore(config, deps.env, { now: deps.now, ...(deps.evidenceTransport === undefined ? {} : { transport: deps.evidenceTransport }) }) };
+  } catch (error) {
+    deps.err(`desk: ${describeError(error)}`);
     return { code: 2 };
   }
 }
@@ -273,6 +295,9 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
     return 1;
   }
 
+  const store = evidenceOf(deps, config, args.sources);
+  if ('code' in store) return store.code;
+
   let choice: ClientChoice;
   if (args.client === 'fake') choice = { kind: 'fake', fake: demoClient() };
   else if (args.client === 'recorded') choice = { kind: 'recorded', cassetteDir: path.resolve(deps.cwd, args.cassettes as string) };
@@ -295,7 +320,7 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
       model,
       clientKind: args.client,
       sourcesKind: args.sources,
-      evidence: new LocalEvidenceStore(config.evidenceDir),
+      evidence: store.evidence,
       target: args.dry ? new DryTarget(deps.cwd) : new SiteTarget(deps.cwd, deps.git),
       ledgerDir: path.join(deps.cwd, sitePaths().ledgerDir),
       ...(deps.forge === undefined ? {} : { forge: deps.forge }),
@@ -353,10 +378,12 @@ async function replayCommand(args: Extract<Parsed, { command: 'replay' }>, deps:
       deps.err(`desk: ${how.message}`);
       return 2;
     }
+    const store = evidenceOf(deps, config, how.sources);
+    if ('code' in store) return store.code;
     const report = await replayRun(runDir, {
       config,
       sources: sourcesOf(how.sources, deps, config).sources,
-      evidence: new LocalEvidenceStore(config.evidenceDir),
+      evidence: store.evidence,
       ledgerDir: path.join(deps.cwd, sitePaths().ledgerDir),
       ...(args.cassettes === undefined ? {} : { cassetteDir: path.resolve(deps.cwd, args.cassettes) }),
     });

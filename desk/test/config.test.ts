@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { PUBLICATION_NAME } from '@robywire/gate';
-import { DeskConfig, defaultConfig, loadConfig, placeholderHost } from '../src/config';
+import { DeskConfig, EVIDENCE_KINDS, defaultConfig, loadConfig, placeholderHost } from '../src/config';
 
 // The settings of a run live in one place and are checked when they are read:
 // a mistake in a config file stops the run before it starts, with a message that
@@ -46,6 +46,7 @@ describe('defaultConfig', () => {
       models: { select: 'claude-haiku-4-5-20251001', extract: 'claude-sonnet-5-5', compose: 'claude-sonnet-5-5', verify: 'claude-sonnet-5-5' },
       runDir: 'runs',
       evidenceDir: 'evidence',
+      evidence: { kind: 'local' },
     });
   });
 
@@ -212,6 +213,43 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
   it('a file that is not there, naming it', () => {
     const missing = path.join(scratch, 'missing.yml');
     expect(() => loadConfig(missing)).toThrow(`desk config ${missing}: cannot read the file (ENOENT)`);
+  });
+});
+
+describe('the evidence store setting', () => {
+  it('is the folder `evidenceDir` unless the file says r2, and has no other kind', () => {
+    expect([...EVIDENCE_KINDS]).toEqual(['local', 'r2']);
+    expect(defaultConfig().evidence).toEqual({ kind: 'local' });
+    expect(loadConfig(configFile('evidence:\n  kind: r2\n')).evidence).toEqual({ kind: 'r2' });
+    expect(loadConfig(configFile('evidence:\n  kind: local\n')).evidence).toEqual({ kind: 'local' });
+    expect(loadConfig(configFile('evidence:\n  kind: r2\nevidenceDir: elsewhere\n'))).toEqual({ ...defaultConfig(), evidence: { kind: 'r2' }, evidenceDir: 'elsewhere' });
+  });
+
+  it('does not change the defaults of the next caller', () => {
+    const first = defaultConfig();
+    first.evidence.kind = 'r2';
+    expect(defaultConfig().evidence.kind).toBe('local');
+  });
+
+  it('refuses another kind, a missing kind, and a setting that is not a mapping, naming the setting', () => {
+    expect(failure('evidence:\n  kind: s3\n')).toBe('desk config <file>: evidence.kind: Invalid option: expected one of "local"|"r2"');
+    expect(failure('evidence:\n  kind: ""\n')).toBe('desk config <file>: evidence.kind: Invalid option: expected one of "local"|"r2"');
+    expect(failure('evidence: {}\n')).toBe('desk config <file>: evidence.kind: Invalid option: expected one of "local"|"r2"');
+    expect(failure('evidence: r2\n')).toBe('desk config <file>: evidence: Invalid input: expected object, received string');
+  });
+
+  it.each(['endpoint', 'bucket', 'accessKeyId', 'secretAccessKey'])('refuses %s in the setting, because the address, the name and the keys of a bucket are read from the environment and never from a file', (key) => {
+    expect(failure(`evidence:\n  kind: r2\n  ${key}: fake-value-123\n`)).toBe(`desk config <file>: evidence: Unrecognized key: "${key}"`);
+  });
+
+  it.each(['r2', 'R2_SECRET_ACCESS_KEY', 'R2_ACCESS_KEY_ID', 'R2_ENDPOINT', 'R2_BUCKET', 'r2SecretAccessKey', 'secretAccessKey', 'bucket'])('refuses %s as a setting of its own', (key) => {
+    expect(failure(`${key}: fake-value-123\n`)).toBe(`desk config <file>: Unrecognized key: "${key}"`);
+  });
+
+  it('never repeats what a refused key held: a secret that was put in a file is not in the message', () => {
+    for (const yaml of ['evidence:\n  kind: r2\n  secretAccessKey: fake-secret-value-123\n', 'R2_SECRET_ACCESS_KEY: fake-secret-value-123\n', 'evidence: fake-secret-value-123\n', 'evidence:\n  kind: fake-secret-value-123\n']) {
+      expect(failure(yaml), yaml).not.toContain('fake-secret-value-123');
+    }
   });
 });
 

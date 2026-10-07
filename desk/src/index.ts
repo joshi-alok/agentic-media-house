@@ -21,6 +21,7 @@ export * from './fetch/extract-text';
 export * from './fetch/feeds';
 export * from './run/evidence';
 export * from './run/r2-evidence';
+export * from './run/evidence-factory';
 export * from './run/sigv4';
 export * from './run/desk-state';
 export * from './run/git';
