@@ -328,6 +328,24 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
     }
   });
 
+  it('leaves the plans out of those searches because they quote the made-up keys and addresses of the tests, and holds the plans to a list of exactly those', () => {
+    const searches = stepTitled(/^Check the repository/).blocks[0]!.lines.filter((line) => line.startsWith('git grep'));
+    for (const search of searches) expect(search).toContain("':!docs/superpowers/plans'");
+    const matches = (search: string): Set<string> => {
+      const pattern = /-E '([^']+)'/.exec(search)?.[1] as string;
+      const out = execFileSync('bash', ['--noprofile', '--norc', '-c', 'git grep -h -I -o -E "$1" -- docs/superpowers/plans; true', 'bash', pattern], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...ISOLATED } });
+      return new Set(out.split('\n').filter((line) => line !== ''));
+    };
+    const nobodys = /users\.noreply\.github\.com|noreply@anthropic\.com|@[a-z0-9.-]*\.(example|test|invalid)|@example\.(com|org|net)/i;
+    const keyId = (rest: string): string => ['AK', 'IA', rest].join('');
+    expect([...matches(searches[0] as string)].sort()).toEqual(
+      [keyId('FAKEFAKEFAKEFAKE'), keyId('IOSFODNN7EXAMPLE'), keyId('MADEUPKEYID12345'), keyId('OTHEROTHEROTHER0'), ['sk-a', 'nt-'].join('')].sort(),
+    );
+    expect([...matches(searches[1] as string)].filter((address) => !nobodys.test(address)).sort()).toEqual(
+      [['jane.doe', '@', 'acme-robotics.io'].join(''), ['jane.doe+tag', '@', 'mail.acme-robotics.co.uk'].join(''), ['secret-token', '@', 'github.com'].join('')].sort(),
+    );
+  });
+
   it('names only checks and codes of the gate that there are: every G1 to G10 and every code with its prefix, as the site keeps them', () => {
     const codes = Object.keys(REASON_LABELS);
     const named = [...TEXT.matchAll(/\bG(?:10|[1-9])(?:_[A-Z0-9_]*\*?)?(?![A-Za-z0-9_])/g)].map((match) => match[0]);

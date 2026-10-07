@@ -15,14 +15,14 @@ This is the list of operations that turn the repository into a running publicati
 
 ### 1. Check the repository
 
-Everything must pass on this machine before it is pushed anywhere. The last two commands look for what must never be in a public repository: anything shaped like a key, and an e-mail address (the owner's, or anyone's), in what git tracks. The patterns are written with brackets so that this file does not match them, and the second command leaves alone the addresses that are no one's: the placeholders (`.example`, `.test`, `example.com`), the address that GitHub keeps for an account, the one of the trailer of a commit, and the address of a server with a user name in it.
+Everything must pass on this machine before it is pushed anywhere. The last two commands look for what must never be in a public repository: anything shaped like a key, and an e-mail address (the owner's, or anyone's), in what git tracks. The patterns are written with brackets so that this file does not match them, and the second command leaves alone the addresses that are no one's: the placeholders (`.example`, `.test`, `example.com`), the address that GitHub keeps for an account, the one of the trailer of a commit, and the address of a server with a user name in it. Both leave out the plans (`docs/superpowers/plans`), which quote the test code of the project with the made-up key ids and sample addresses that it uses; a test of the repository (`desk/test/runbook.test.ts`) looks at that folder instead and allows only those made-up values, so a real key or address pasted into a plan still fails `npm run verify`.
 
 ```bash
 npm ci
 npm run verify
 git status --porcelain
-git grep -nI -E 'sk-a[n]t-|A[K]IA[0-9A-Z]{16}|gh[p]_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY' -- . ':!package-lock.json'
-git grep -nI -E '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' -- . ':!package-lock.json' | grep -v -i -E 'users\.noreply\.github\.com|noreply@anthropic\.com|@[a-z0-9.-]*\.(example|test|invalid)|@example\.(com|org|net)|://[^ /@]*@'
+git grep -nI -E 'sk-a[n]t-|A[K]IA[0-9A-Z]{16}|gh[p]_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY' -- . ':!package-lock.json' ':!docs/superpowers/plans'
+git grep -nI -E '[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}' -- . ':!package-lock.json' ':!docs/superpowers/plans' | grep -v -i -E 'users\.noreply\.github\.com|noreply@anthropic\.com|@[a-z0-9.-]*\.(example|test|invalid)|@example\.(com|org|net)|://[^ /@]*@'
 ```
 
 **Expect:** `npm run verify` ends with the lines `desk demo: ok: completed as published (dry run, scripted model and verifier)`, `Passed: 18 checks.`, `Passed: 17 checks.`, and `All scores are 95 or more.` after the Lighthouse table. `git status --porcelain` prints nothing. Neither `git grep` prints anything (the first exits 1, which here means that it found nothing; the second ends in `grep -v`, which exits 1 for the same reason).
