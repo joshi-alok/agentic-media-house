@@ -96,6 +96,14 @@ const SAYS_MORE = { ...DEMO_CLAIMS[3], text: 'The FX-1 never fails and is the sa
 const HIDDEN_SENTENCE = 'Fixture Robotics guarantees delivery within 2 weeks of an order.';
 const HIDDEN_QUOTE = { ...DEMO_CLAIMS[3], text: HIDDEN_SENTENCE, label: 'a guarantee', quote: HIDDEN_SENTENCE, values: [{ kind: 'number', raw: '2', normalised: '2' }] };
 
+/**
+ * A sentence of the release page that has a number in words, and a claim that lists it as another figure. The gate reads the raw text of a value before its normalised form,
+ * but it cannot read number words as digits, so for a value like this one the normalised form is what licenses a sentence: the claim would let a sentence that says 15 kg
+ * cite a quotation that says twelve kilograms.
+ */
+const LIFTS_SENTENCE = 'The arm lifts twelve kilograms.';
+const WRONG_NORMALISED = { ...DEMO_CLAIMS[3], text: LIFTS_SENTENCE, label: 'lifts twelve kilograms', quote: LIFTS_SENTENCE, values: [{ kind: 'number', raw: 'twelve kilograms', normalised: '15', unit: 'kg' }] };
+
 /** The release page of the made-up world with `extra` markup added to its article, and its fetcher; the text of the page is the same for a reader. */
 const releasePage = (extra: string): string => fixtureText('pages/fixture-robotics-fx-1-second-plant.html').replace('<noscript>', `${extra}<noscript>`);
 const worldWith = (pages: Record<string, string>): (() => Fetcher) => () => withPages(demoFetcher(() => FETCHED_AT), pages);
@@ -330,6 +338,22 @@ const BAD: Scenario[] = [
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
       expect(extracted.dropped.map((claim) => [claim.index, claim.reasons.map((reason) => reason.code)])).toEqual([[7, ['quote-not-found']]]);
+    },
+  },
+  {
+    name: 'a number in words whose normalised form is another figure, which a sentence then states and cites',
+    fetcher: worldWith({ [DEMO_URLS.release]: releasePage(`<p>${LIFTS_SENTENCE}</p>`) }),
+    script: () => told({ claims: [...DEMO_CLAIMS, WRONG_NORMALISED], piece: reply((copy) => { copy.takeaways[3] = fact('The arm lifts 15 kg.', 'c-8'); }) }),
+    gate: 'G3_UNKNOWN_CLAIM',
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
+    rounds: 2,
+    check: async ({ dir }) => {
+      const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
+      expect(extracted.claims).toHaveLength(7);
+      expect(extracted.claims.flatMap((claim) => claim.values).some((value) => value.normalised === '15')).toBe(false);
+      expect(extracted.dropped).toEqual([
+        { index: 7, text: LIFTS_SENTENCE, reasons: [{ code: 'value-normalised-mismatch', message: 'the number "twelve kilograms" reads as 12 kg, but the claim gives 15 kg' }] },
+      ]);
     },
   },
   {
@@ -593,9 +617,9 @@ describe('the adversarial matrix: the table', () => {
     expect(new Set(STOPPED.map((scenario) => scenario.name)).size).toBe(STOPPED.length);
   });
 
-  it('covers every kind of hole that the review of Plan 2 found, one scenario at least for each', () => {
+  it('covers every kind of hole that the reviews found, one scenario at least for each', () => {
     const names = [...BAD, ...STOPPED].map((scenario) => scenario.name).join(' | ');
-    for (const kind of ['part of a longer figure', 'lowercase invented name', 'label has a word', 'sentence that no reader sees', 'undated headline', 'redirects to', 'headed like the notes', 'asserts something and names no figure', 'orders the model to publish']) {
+    for (const kind of ['part of a longer figure', 'lowercase invented name', 'label has a word', 'sentence that no reader sees', 'undated headline', 'redirects to', 'headed like the notes', 'asserts something and names no figure', 'orders the model to publish', 'normalised form is another figure']) {
       expect(names, kind).toContain(kind);
     }
   });

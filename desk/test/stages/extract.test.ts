@@ -1,13 +1,15 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import type { ClaimValue } from '@robywire/gate';
 import { GOLDEN_CLAIMS } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/config';
+import { DEMO_CLAIMS } from '../../src/demo/story';
 import { ModelError } from '../../src/model/types';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { buildExtractUser, extractSystem } from '../../src/prompts/extract';
 import { ExtractArtifact, readArtifact } from '../../src/run/artifacts';
-import { CLAIM_PROBLEM_CODES } from '../../src/stages/claim-grounding';
+import { CLAIM_PROBLEM_CODES, normalisedMismatch } from '../../src/stages/claim-grounding';
 import { EXTRACT_MAX_OUTPUT_TOKENS, extractReplySchema, kindOfSnapshot, runExtract } from '../../src/stages/extract';
 import type { Snapshot } from '../../src/stages/fetch';
 import { FETCHED_AT, URLS, stageContext, useScratch } from '../support/context';
@@ -248,6 +250,80 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
     const { ctx } = setup([claim, claim, claim]);
     const result = await runExtract(ctx, [page], selectedStory(ARTICLE, null));
     expect(result.artifact.claims[0]?.span).toEqual({ start: 0, end: text.length, quote: text });
+  });
+});
+
+describe('runExtract: a value that says other than its raw text', () => {
+  // The release page with one more sentence, which has a number in words: the case in which the gate trusts the normalised form of a value, because it cannot read the raw text as digits.
+  const WITH_TWELVE: Snapshot = { ...RELEASE, text: `${RELEASE.text}\nThe arm lifts twelve kg.` };
+  const lifts = (normalised: string, unit = 'kg') => ({
+    text: 'The arm lifts twelve kg.',
+    label: 'lifts twelve kg',
+    type: 'spec',
+    quote: 'The arm lifts twelve kg.',
+    values: [{ kind: 'number', raw: 'twelve kg', normalised, unit }],
+    basis: 'datasheet',
+    status: 'unspecified',
+    source: 1,
+  });
+
+  it('keeps the claim whose number in words says what its normalised form says', async () => {
+    const { ctx } = setup([...CLEAN, lifts('12')]);
+    const result = await runExtract(ctx, [WITH_TWELVE, REPORT], selectedStory());
+    expect(result.artifact.dropped).toEqual([]);
+    expect(result.artifact.claims[7]?.values).toEqual([{ kind: 'number', raw: 'twelve kg', normalised: '12', unit: 'kg' }]);
+  });
+
+  it('drops the probe of the review, a claim that lists twelve kg as 15 kg, so that no claim of the record has a 15 that a sentence could cite', async () => {
+    const { ctx, logs } = setup([...CLEAN, lifts('15')]);
+    const result = await runExtract(ctx, [WITH_TWELVE, REPORT], selectedStory());
+    expect(result.artifact.dropped).toEqual([
+      { index: 7, text: 'The arm lifts twelve kg.', reasons: [{ code: 'value-normalised-mismatch', message: 'the number "twelve kg" reads as 12 kg, but the claim gives 15 kg' }] },
+    ]);
+    expect(result.artifact.claims).toHaveLength(7);
+    expect(result.artifact.claims.flatMap((claim) => claim.values).some((value) => value.normalised === '15')).toBe(false);
+    expect(logs).toEqual(['extract: 8 claims proposed, 7 kept, 1 dropped']);
+  });
+
+  it('drops a claim for a unit that is not the unit of its raw text, and for a unit that is left out', async () => {
+    const { ctx } = setup([...CLEAN, lifts('12', 'g'), { ...lifts('12'), values: [{ kind: 'number', raw: 'twelve kg', normalised: '12' }] }]);
+    const result = await runExtract(ctx, [WITH_TWELVE, REPORT], selectedStory());
+    expect(result.artifact.dropped.map((item) => item.reasons.map((reason) => reason.message))).toEqual([
+      ['the number "twelve kg" reads as 12 kg, but the claim gives 12 g'],
+      ['the number "twelve kg" reads as 12 kg, but the claim gives 12'],
+    ]);
+  });
+
+  it('drops a claim for a number in digits, a date and a name that say other than their raw text, with a reason for each claim and the code that names it', async () => {
+    const number = proposed('c-4', { values: [{ kind: 'number', raw: '12', normalised: '15' }] });
+    const date = proposed('c-2', { values: [{ kind: 'date', raw: '1 October 2026', normalised: '2026-10-02' }] });
+    const named = proposed('c-1', { values: [{ kind: 'name', raw: 'Brindle Logistics', normalised: 'Brindle Logistics' }] });
+    const { ctx } = setup([...CLEAN, number, date, named]);
+    const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
+    expect(result.artifact.dropped.map((item) => [item.index, item.reasons.map((reason) => reason.code)])).toEqual([
+      [7, ['value-normalised-mismatch']],
+      [8, ['value-normalised-mismatch']],
+      [9, ['value-normalised-mismatch']],
+    ]);
+    expect(result.artifact.dropped.map((item) => item.reasons[0]?.message)).toEqual([
+      'the number "12" reads as 12, but the claim gives 15',
+      'the date "1 October 2026" reads as 2026-10-01, but the claim gives 2026-10-02',
+      'the name "Brindle Logistics" in lowercase with single spaces is "brindle logistics", but the claim gives "Brindle Logistics"',
+    ]);
+    expect(result.artifact.claims).toHaveLength(7);
+  });
+
+  it('does not compare a value whose raw text is not a number or a date that the gate reads: the claim is kept, as the gate treats such a value', async () => {
+    const { ctx } = setup([...CLEAN.slice(0, 4), proposed('c-5', { values: [{ kind: 'number', raw: 'Tarnmoor', normalised: '99' }, { kind: 'date', raw: 'Tarnmoor', normalised: 'soon' }] }), CLEAN[5], CLEAN[6]]);
+    const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
+    expect(result.artifact.dropped).toEqual([]);
+    expect(result.artifact.claims).toHaveLength(7);
+  });
+
+  it('keeps every claim of the clean story: the values of its claims, and of the golden claims of the gate, all say what their raw texts say', () => {
+    for (const claim of [...GOLDEN_CLAIMS, ...DEMO_CLAIMS]) {
+      for (const value of claim.values) expect(normalisedMismatch(value as ClaimValue), `${claim.text} / ${value.raw}`).toBeUndefined();
+    }
   });
 });
 

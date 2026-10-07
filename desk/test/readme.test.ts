@@ -70,6 +70,14 @@ describe('the README: money is not spent on a made-up world', () => {
   });
 });
 
+describe('the README: the normalised form of a value', () => {
+  it('says that Extract holds the normalised form of every value to its raw text, and which values are not compared', () => {
+    expect(section('The desk workspace')).toContain("and holds every value's normalised form and unit to its raw text");
+    expect(section('What the Desk does not check')).toContain('**Values that are not compared.**');
+    expect(section('What the Desk does not check')).toContain('not compared with its normalised form');
+  });
+});
+
 describe('the README: what the Desk does not check', () => {
   const limits = (): string => section('What the Desk does not check');
 

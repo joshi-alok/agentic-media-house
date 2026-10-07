@@ -3,7 +3,7 @@ import type { Basis, ClaimValue } from '@robywire/gate';
 import { describe, expect, it } from 'vitest';
 import { extractPage } from '../../src/fetch/extract-text';
 import type { SourceKind } from '../../src/sources';
-import { ALLOWED_BASES, CLAIM_PROBLEM_CODES, COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH, claimProblems, locateQuote } from '../../src/stages/claim-grounding';
+import { ALLOWED_BASES, CLAIM_PROBLEM_CODES, COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH, claimProblems, locateQuote, normalisedMismatch } from '../../src/stages/claim-grounding';
 import type { ClaimCandidate } from '../../src/stages/claim-grounding';
 import { URLS } from '../support/context';
 import { fixtureText } from '../support/fixtures';
@@ -198,6 +198,120 @@ describe('claimProblems: the quotation', () => {
   });
 });
 
+describe('normalisedMismatch: what a value says about itself and what its raw text says', () => {
+  const date = (raw: string, normalised: string): ClaimValue => ({ kind: 'date', raw, normalised });
+  const named = (raw: string, normalised: string): ClaimValue => ({ kind: 'name', raw, normalised });
+
+  it.each([
+    ['a plain number', number('12', '12')],
+    ['a number with a unit written as the table has it', number('12 kg', '12', 'kg')],
+    ['a unit that is another spelling of the canonical one, in the raw text and in the unit field', number('12 kilograms', '12', 'kilograms')],
+    ['a number with a thousands comma, normalised as a plain decimal', number('1,200', '1200')],
+    ['a number with a magnitude letter', number('1.2k', '1200')],
+    ['a number with a magnitude word', number('3 million', '3000000')],
+    ['a decimal', number('2.30', '2.3')],
+    ['a sum of money, whose unit is its currency', number('$38,000', '38000', 'USD')],
+    ['a sum of money with a magnitude', number('$1.5 billion', '1500000000', 'USD')],
+    ['a percentage', number('3 percent', '3', '%')],
+    ['a number in words', number('twelve', '12')],
+    ['a number in words with a unit', number('twelve kilograms', '12', 'kg')],
+    ['a number in words with a hyphen and a scale', number('twenty-five thousand', '25000')],
+    ['a normalised form that has a comma, which the gate reads as the number it is', number('1200', '1,200')],
+    ['a day', date('1 October 2026', '2026-10-01')],
+    ['a day in the other order, and in ISO form', date('October 1, 2026', '2026-10-01')],
+    ['a date that is an ISO date already', date('2026-10-01', '2026-10-01')],
+    ['a month', date('October 2026', '2026-10')],
+    ['a year', date('2027', '2027')],
+    ['a name', named('Brindle Logistics', 'brindle logistics')],
+    ['a name with a hyphen and a digit', named('FX-1', 'fx-1')],
+    ['a name with a run of white space, folded to one space', named('Brindle  \n Logistics', 'brindle logistics')],
+    ['a name with white space at its edges, which is no part of it', named(' Brindle Logistics\n', 'brindle logistics')],
+  ] as [string, ClaimValue][])('finds nothing wrong with %s', (_what, value) => {
+    expect(normalisedMismatch(value)).toBeUndefined();
+  });
+
+  it.each([
+    ['the probe of the review: the raw text is twelve, the claim says 15', number('twelve', '15'), 'the number "twelve" reads as 12, but the claim gives 15'],
+    ['a number in digits', number('12', '15'), 'the number "12" reads as 12, but the claim gives 15'],
+    ['a number that is off by a power of ten', number('1.2k', '12000'), 'the number "1.2k" reads as 1200, but the claim gives 12000'],
+    ['a number with a comma that is read as a decimal point', number('1,200', '1.2'), 'the number "1,200" reads as 1200, but the claim gives 1.2'],
+    ['a number whose normalised form is not a number', number('12', 'twelve'), 'the number "12" reads as 12, but the claim gives twelve'],
+    ['a number whose unit is another', number('12 kg', '12', 'g'), 'the number "12 kg" reads as 12 kg, but the claim gives 12 g'],
+    ['a number whose unit is left out', number('12 kg', '12'), 'the number "12 kg" reads as 12 kg, but the claim gives 12'],
+    ['a number that is given a unit that its raw text does not have', number('12', '12', 'kg'), 'the number "12" reads as 12, but the claim gives 12 kg'],
+    ['a sum of money with another currency', number('$38,000', '38000', 'EUR'), 'the number "$38,000" reads as 38000 USD, but the claim gives 38000 EUR'],
+    ['a number in words with a wrong unit', number('twelve kilograms', '12', 'lb'), 'the number "twelve kilograms" reads as 12 kg, but the claim gives 12 lb'],
+    ['a day that is another day', date('1 October 2026', '2026-10-02'), 'the date "1 October 2026" reads as 2026-10-01, but the claim gives 2026-10-02'],
+    ['a day written as the day first, when the month is what the model wrote', date('1 October 2026', '2026-10'), 'the date "1 October 2026" reads as 2026-10-01, but the claim gives 2026-10'],
+    ['a month given with a day', date('October 2026', '2026-10-01'), 'the date "October 2026" reads as 2026-10, but the claim gives 2026-10-01'],
+    ['a year given with a month', date('2027', '2027-01'), 'the date "2027" reads as 2027, but the claim gives 2027-01'],
+    ['a date that is not in the ISO form', date('1 October 2026', '1 October 2026'), 'the date "1 October 2026" reads as 2026-10-01, but the claim gives 1 October 2026'],
+    ['a name that is not in lowercase', named('Brindle Logistics', 'Brindle Logistics'), 'the name "Brindle Logistics" in lowercase with single spaces is "brindle logistics", but the claim gives "Brindle Logistics"'],
+    ['a name that is another name', named('Brindle Logistics', 'harlow logistics'), 'the name "Brindle Logistics" in lowercase with single spaces is "brindle logistics", but the claim gives "harlow logistics"'],
+    ['a name with a run of white space left in', named('Brindle  Logistics', 'brindle  logistics'), 'the name "Brindle  Logistics" in lowercase with single spaces is "brindle logistics", but the claim gives "brindle  logistics"'],
+  ] as [string, ClaimValue, string][])('says what is wrong with %s', (_what, value, message) => {
+    expect(normalisedMismatch(value)).toBe(message);
+  });
+
+  it.each([
+    ['a word that states an amount that has no value to compare', number('half', '0.5')],
+    ['a lone one, which is a pronoun', number('one', '5')],
+    ['number words that are not a number', number('five five', '7')],
+    ['a phrase that is more than a number', number('about twelve kilograms', '15')],
+    ['a name that has digits', number('FX-1', '3')],
+    ['a date in a form that the gate does not read', date('last Tuesday', '2026-10-01')],
+    ['a day that does not exist', date('31 February 2026', '2026-02-28')],
+    ['a month with no year', date('October', '2026-10')],
+  ] as [string, ClaimValue][])('compares nothing when the raw text is not a token that the gate reads: %s', (_what, value) => {
+    expect(normalisedMismatch(value)).toBeUndefined();
+  });
+
+  it('shows at most 40 characters of a raw text and of a normalised form, with three dots when it cuts', () => {
+    const long = `${'a'.repeat(50)} b`;
+    expect(normalisedMismatch(named(long, 'x'))).toBe(`the name "${'a'.repeat(40)}..." in lowercase with single spaces is "${'a'.repeat(40)}...", but the claim gives "x"`);
+    expect(normalisedMismatch(number('12', 'z'.repeat(41)))).toBe(`the number "12" reads as 12, but the claim gives ${'z'.repeat(40)}...`);
+    expect(normalisedMismatch(named('b'.repeat(40), 'b'.repeat(40)))).toBeUndefined();
+  });
+});
+
+describe('claimProblems: a value that says other than its raw text', () => {
+  const page = 'Fixture Robotics says the arm lifts twelve kg. It ships on 1 October 2026 from Brindle Logistics.';
+  const quote = (overrides: Partial<ClaimCandidate>): ClaimCandidate =>
+    clean({ text: 'The arm lifts twelve kg.', label: 'lifts twelve kg', quote: 'the arm lifts twelve kg.', values: [number('twelve kg', '12', 'kg')], ...overrides });
+
+  it('keeps a claim whose number in words says what its normalised form says', () => {
+    expect(codesOf(quote({}), 'company-newsroom', page)).toEqual([]);
+  });
+
+  it('drops the probe of the review: twelve that is normalised as 15, which would let a sentence that says 15 kg cite a quotation that says twelve kg', () => {
+    const problems = claimProblems(quote({ values: [number('twelve kg', '15', 'kg')] }), page, 'company-newsroom', ALLOW);
+    expect(problems).toEqual([{ code: 'value-normalised-mismatch', message: 'the number "twelve kg" reads as 12 kg, but the claim gives 15 kg' }]);
+  });
+
+  it('drops a claim for a date, a name and a number in digits that say other than their raw text, once for each value', () => {
+    const claim = clean({
+      text: 'It ships on 1 October 2026 from Brindle Logistics.',
+      label: 'ships on 1 October 2026',
+      quote: 'It ships on 1 October 2026 from Brindle Logistics.',
+      values: [{ kind: 'date', raw: '1 October 2026', normalised: '2026-10-02' }, name('Brindle Logistics'), { kind: 'name', raw: 'Brindle', normalised: 'Brindle' }, number('1', '2')],
+    });
+    expect(claimProblems(claim, page, 'company-newsroom', ALLOW)).toEqual([
+      { code: 'value-normalised-mismatch', message: 'the date "1 October 2026" reads as 2026-10-01, but the claim gives 2026-10-02' },
+      { code: 'value-normalised-mismatch', message: 'the name "Brindle" in lowercase with single spaces is "brindle", but the claim gives "Brindle"' },
+      { code: 'value-normalised-mismatch', message: 'the number "1" reads as 1, but the claim gives 2' },
+    ]);
+  });
+
+  it('gives the reasons that a value is not in the quotation first and the reasons that it says other than its raw text next, then those of the text and the label', () => {
+    const claim = quote({ text: 'Harlow lifts twelve kg.', label: 'Harlow lifts', values: [number('7', '8'), number('twelve kg', '15', 'kg'), name('Harlow')] });
+    expect(codesOf(claim, 'company-newsroom', page)).toEqual(['value-not-in-quote', 'value-not-in-quote', 'value-normalised-mismatch', 'value-normalised-mismatch', 'text-not-in-quote', 'label-not-in-quote']);
+  });
+
+  it('does not make the check for a claim whose quotation is not on the page, which has nothing else checked either', () => {
+    expect(codesOf(quote({ quote: 'not on the page', values: [number('twelve kg', '15', 'kg')] }), 'company-newsroom', page)).toEqual(['quote-not-found']);
+  });
+});
+
 describe('claimProblems: the values', () => {
   it('drops a claim that lists a number that the quotation does not contain', () => {
     expect(codesOf(clean({ values: [number('$39,000', '39000', 'USD')] }))).toEqual(['value-not-in-quote']);
@@ -235,7 +349,7 @@ describe('claimProblems: the values', () => {
 
   it('reads a value the way the gate does: plain quotation marks, and one space for any white space', () => {
     const page = `Dana said ${String.fromCharCode(0x201c)}we went from pilot\nto production${String.fromCharCode(0x201d)}.`;
-    const claim = clean({ text: 'Dana said it went from pilot to production.', label: 'pilot', quote: page, values: [name('Dana'), { kind: 'name', raw: '"we went from pilot to  production"', normalised: 'x' }] });
+    const claim = clean({ text: 'Dana said it went from pilot to production.', label: 'pilot', quote: page, values: [name('Dana'), { kind: 'name', raw: '"we went from pilot to  production"', normalised: '"we went from pilot to production"' }] });
     expect(codesOf(claim, 'company-newsroom', page)).toEqual([]);
   });
 
@@ -497,7 +611,7 @@ describe('claimProblems: all the reasons at once', () => {
   });
 
   it('knows exactly the codes it can give', () => {
-    expect(CLAIM_PROBLEM_CODES).toEqual(['quote-not-found', 'quote-too-long', 'value-not-in-quote', 'text-not-in-quote', 'label-not-in-quote', 'label-too-long', 'basis-not-allowed', 'tier-basis']);
+    expect(CLAIM_PROBLEM_CODES).toEqual(['quote-not-found', 'quote-too-long', 'value-not-in-quote', 'value-normalised-mismatch', 'text-not-in-quote', 'label-not-in-quote', 'label-too-long', 'basis-not-allowed', 'tier-basis']);
   });
 
   it('names the bases of every kind of source in one table', () => {

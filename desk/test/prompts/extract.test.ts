@@ -33,6 +33,16 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('Every "raw" of a value must appear in the quote.');
   });
 
+  it('says how a value is written, because the Desk reads the raw text itself and drops a claim whose normalised form or unit says something else', () => {
+    expect(EXTRACT_INSTRUCTIONS).toContain('"raw" (exactly as the quote writes it, a number with its unit if the quote gives one: "12 kg", "$38,000")');
+    expect(EXTRACT_INSTRUCTIONS).toContain('and, for a number with a unit, "unit" (its short form: kg, m, %, USD)');
+    expect(EXTRACT_INSTRUCTIONS).toContain('The Desk reads "raw" itself and drops the claim when "normalised" or "unit" says something else.');
+    expect(EXTRACT_INSTRUCTIONS).toContain('A number: "normalised" is the plain decimal that "raw" means, with no comma and no magnitude word ("1,200" and "1.2k" are 1200, "3 million" is 3000000, "twelve" is 12)');
+    expect(EXTRACT_INSTRUCTIONS).toContain('"unit" is the short unit that "raw" has ("12 kilograms" is kg, "$38,000" is USD, "3 percent" is %) and is left out when "raw" has none');
+    expect(EXTRACT_INSTRUCTIONS).toContain('A date: "normalised" is YYYY-MM-DD for a day, YYYY-MM for a month and YYYY for a year, as "raw" gives it ("October 2026" is 2026-10).');
+    expect(EXTRACT_INSTRUCTIONS).toContain('A name: "normalised" is "raw" in lowercase with single spaces.');
+  });
+
   it('says that the text and the label may hold no number, date or capitalised word that the quote lacks, and no word that says how much', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('may contain only numbers, dates and capitalised words that appear in the quote');
     expect(EXTRACT_INSTRUCTIONS).toContain('write "the arm", not "the FX-1", when the quote only says "the arm"');

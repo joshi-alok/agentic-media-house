@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { DeskConfig } from '../config';
 import { describeIssues } from '../issues';
 import { canonicalJson, sha256Hex } from '../model/types';
+import { CLAIM_PROBLEM_CODES } from '../stages/claim-grounding';
 import { writeFileAtomic } from './atomic';
 
 // The record of a run. Every stage reads the artifact of the stage before it and writes its own,
@@ -104,11 +105,11 @@ export const FetchArtifact = z.strictObject({
 });
 export type FetchArtifact = z.infer<typeof FetchArtifact>;
 
-/** A claim that a model proposed and code dropped: its place in the reply of the model (counting from 0), what it said, and every reason. */
+/** A claim that a model proposed and code dropped: its place in the reply of the model (counting from 0), what it said, and every reason, each with the code of a check that claims go through (`CLAIM_PROBLEM_CODES`). */
 const DroppedClaim = z.strictObject({
   index: z.number().int().nonnegative(),
   text,
-  reasons: z.array(z.strictObject({ code: text, message: text })).min(1),
+  reasons: z.array(z.strictObject({ code: z.enum(CLAIM_PROBLEM_CODES), message: text })).min(1),
 });
 
 /**

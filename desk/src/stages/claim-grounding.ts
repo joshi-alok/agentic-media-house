@@ -1,5 +1,20 @@
-import { dateMatches, defaultConfig as defaultGateConfig, extractTokens, isSentenceStarter, normaliseQuotes, openingWordAccepted, sentenceWords, toNameToken, valueInQuote, wordSet } from '@robywire/gate';
-import type { Basis, ClaimValue } from '@robywire/gate';
+import {
+  canonicalUnit,
+  dateMatches,
+  defaultConfig as defaultGateConfig,
+  extractTokens,
+  isSentenceStarter,
+  normaliseQuotes,
+  openingWordAccepted,
+  parseDateToken,
+  parseNumberToken,
+  readNumberWords,
+  sentenceWords,
+  toNameToken,
+  valueInQuote,
+  wordSet,
+} from '@robywire/gate';
+import type { Basis, ClaimValue, ParsedNumber } from '@robywire/gate';
 import type { SourceKind } from '../index';
 
 // What code checks about a claim that a model proposes, before the claim becomes part of the record. The model is asked for
@@ -62,6 +77,7 @@ export const CLAIM_PROBLEM_CODES = [
   'quote-not-found',
   'quote-too-long',
   'value-not-in-quote',
+  'value-normalised-mismatch',
   'text-not-in-quote',
   'label-not-in-quote',
   'label-too-long',
@@ -207,6 +223,49 @@ function labelWordsBeyondQuote(label: string, quote: string, allowList: Readonly
   return sentenceWords(unquoted(label)).filter((word) => !plain(word) && !(word.includes('-') && word.split('-').every(plain)));
 }
 
+/** A number as the gate reads it from a raw text: a digit token (`parseNumberToken`) or number words (`readNumberWords`), or null when the text is neither. */
+function numberOfRaw(raw: string): ParsedNumber | null {
+  const token = parseNumberToken(raw);
+  if (token !== null) return token;
+  const words = readNumberWords(raw);
+  return words.kind === 'number' ? { value: words.value, ...(words.unit === undefined ? {} : { unit: words.unit }) } : null;
+}
+
+const figure = (value: string, unit: string | undefined): string => (unit === undefined ? value : `${value} ${unit}`);
+
+/**
+ * What a value says about itself that its raw text does not: a sentence, or `undefined` when its `normalised` form (and `unit`) say what the raw text says.
+ * The gate reads the raw text of a number, and of a date, before it reads the model's `normalised` form, except when the raw text is number words, which it
+ * cannot read as a digit token: then the `normalised` form is what licenses a sentence, so a claim that lists `twelve` as `15` would let a sentence that says
+ * 15 kg cite a quotation that says twelve kg. This is the one place where the two are held to each other, for every kind of value.
+ *
+ * - A number: when the raw text is a digit token or number words, its value and unit are those that the gate reads from it (`numberOfRaw`), and the claim must
+ *   give the same: `normalised` read as the gate reads it (so "1,200" is 1200), and `unit` in its canonical spelling, which is absent when the raw text has none.
+ * - A date: when the raw text is a date that the gate reads, `normalised` is the ISO form of it at the precision it has: YYYY-MM-DD for a day, YYYY-MM for a month, YYYY for a year.
+ * - A name: `normalised` is the raw text in lowercase with every run of white space made one space.
+ *
+ * A raw text that the gate cannot read as a number or a date (a vague amount, "half", a lone "one", a date in another shape) is not compared: it is not a
+ * token that G4 reads either. The text of the sentence is shown in part, so that a long answer of a model cannot make a long message.
+ */
+export function normalisedMismatch(value: ClaimValue): string | undefined {
+  const raw = excerpt(value.raw, 40);
+  if (value.kind === 'number') {
+    const read = numberOfRaw(value.raw);
+    if (read === null) return undefined;
+    const given = { value: parseNumberToken(value.normalised)?.value ?? value.normalised, unit: value.unit === undefined ? undefined : canonicalUnit(value.unit) };
+    if (given.value === read.value && given.unit === read.unit) return undefined;
+    return `the number "${raw}" reads as ${figure(read.value, read.unit)}, but the claim gives ${figure(excerpt(given.value, 40), given.unit)}`;
+  }
+  if (value.kind === 'date') {
+    const read = parseDateToken(value.raw);
+    if (read === null || value.normalised === read.iso) return undefined;
+    return `the date "${raw}" reads as ${read.iso}, but the claim gives ${excerpt(value.normalised, 40)}`;
+  }
+  const lowercase = value.raw.replace(/\s+/gu, ' ').trim().toLowerCase();
+  if (value.normalised === lowercase) return undefined;
+  return `the name "${raw}" in lowercase with single spaces is "${excerpt(lowercase, 40)}", but the claim gives "${excerpt(value.normalised, 40)}"`;
+}
+
 /** What goes wrong with the basis of a claim from this kind of page, or undefined when the basis fits. */
 function basisProblem(basis: Basis, kind: SourceKind): ClaimProblem | undefined {
   if (ALLOWED_BASES[kind].includes(basis)) return undefined;
@@ -224,7 +283,7 @@ function basisProblem(basis: Basis, kind: SourceKind): ClaimProblem | undefined 
  * 1. The quotation is on the page (`locateQuote`) and, as the page has it, is at most MAX_QUOTE_LENGTH characters.
  *    While the quotation is not on the page the next three checks have nothing to read, so they are not made.
  * 2. Each value the claim lists is inside the quotation as a whole token, compared as the gate compares it (`valueInQuote`, G4_VALUE_NOT_IN_SPAN):
- *    a 2 is not in "12 weeks".
+ *    a 2 is not in "12 weeks". Every such value is reported, and then every value whose `normalised` form or unit says other than its raw text (`normalisedMismatch`).
  * 3. The text, and then the label, say nothing that the quotation does not: no number, date, amount in words or capitalised word
  *    that is not in it (see `beyondQuote`). The text and the label are read by no check of the gate. And words: every word of the
  *    label is a word of the quotation, a plain word that may start a sentence or on the allow-list, and the label is at most
@@ -247,6 +306,10 @@ export function claimProblems(claim: ClaimCandidate, page: string, kind: SourceK
       if (!valueInQuote(value.raw, passage)) {
         problems.push({ code: 'value-not-in-quote', message: `the value "${excerpt(value.raw)}" is not in the quotation` });
       }
+    }
+    for (const value of claim.values) {
+      const mismatch = normalisedMismatch(value);
+      if (mismatch !== undefined) problems.push({ code: 'value-normalised-mismatch', message: mismatch });
     }
     const shown = (items: readonly string[]): string => items.map((item) => `"${excerpt(item, 40)}"`).join(', ');
     const inText = additional(beyondQuote(claim.text, passage, allowList), []);

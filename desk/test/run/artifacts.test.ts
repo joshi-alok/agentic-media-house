@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { CLIENT_KINDS, Candidate, ComposeArtifact, DiscoverArtifact, ExtractArtifact, FetchArtifact, GateReport, HeldArtifact, LegacyRunRecord, RunRecord, SOURCES_KINDS, SelectArtifact, VerifyArtifact, candidateId, readArtifact, readJsonFile, readRunRecord, runPath, writeArtifact, writeJsonFile } from '../../src/run/artifacts';
 import { sha256Hex } from '../../src/model/types';
+import { CLAIM_PROBLEM_CODES } from '../../src/stages/claim-grounding';
 import { defaultConfig } from '../../src/config';
 import { RUN_DATE, candidate } from '../support/candidates';
 
@@ -293,6 +294,18 @@ describe('ExtractArtifact', () => {
     const empty = extractArtifact();
     (empty.dropped[0] as { reasons: unknown[] }).reasons = [{ code: 'quote-not-found', message: '' }];
     expect(problem(ExtractArtifact, empty)).toBe('dropped.0.reasons.0.message: Too small: expected string to have >=1 characters');
+  });
+
+  it('accepts every reason that the checks of a claim can give, the new one included, and refuses a code that they cannot give', () => {
+    for (const code of CLAIM_PROBLEM_CODES) {
+      const artifact = extractArtifact();
+      (artifact.dropped[0] as { reasons: unknown[] }).reasons = [{ code, message: 'a reason' }];
+      expect(problem(ExtractArtifact, artifact), code).toBe('');
+    }
+    expect(CLAIM_PROBLEM_CODES).toContain('value-normalised-mismatch');
+    const unknown = extractArtifact();
+    (unknown.dropped[0] as { reasons: unknown[] }).reasons = [{ code: 'because-i-said-so', message: 'a reason' }];
+    expect(problem(ExtractArtifact, unknown)).toContain('dropped.0.reasons.0.code:');
   });
 
   it('refuses a place in the reply that is not a whole number from 0', () => {
