@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { allSentences } from '@robywire/gate';
 import { GOLDEN_CLAIMS } from '@robywire/gate/fixtures';
@@ -12,11 +12,15 @@ import { FakeClient } from '../src/model/fake';
 import { UNTRUSTED_PREAMBLE } from '../src/prompts/untrusted';
 import { ExtractArtifact, FetchArtifact, VerifyArtifact, candidateId, readArtifact } from '../src/run/artifacts';
 import { readDeskState } from '../src/run/desk-state';
+import { LocalEvidenceStore } from '../src/run/evidence';
+import type { EvidenceStore } from '../src/run/evidence';
 import { GhForge, HOLD_BRANCH } from '../src/run/forge';
 import type { RunResult } from '../src/run/orchestrate';
+import { R2EvidenceStore } from '../src/run/r2-evidence';
 import { SiteTarget } from '../src/run/target';
 import { assembleDraft } from '../src/stages/draft-assembly';
 import type { ComposeReply } from '../src/stages/draft-assembly';
+import { runFetch } from '../src/stages/fetch';
 import { FETCHED_AT, useScratch, withPages } from './support/context';
 import { scriptedExec } from './support/exec';
 import type { ScriptedReply } from './support/exec';
@@ -25,7 +29,9 @@ import { publicLookup, tableLookup } from './support/lookup';
 import { outsideFences } from './support/markdown';
 import { outsideBlocks } from './support/prompts';
 import { branchesIn, changesIn, git, initRepo, subjectsOf } from './support/repo';
-import { EMPTY_CONTENT, SELECT, STATE, contentOf, setupRun, unentailed } from './support/run';
+import { EMPTY_CONTENT, SELECT, START, STATE, contentOf, setupRun, unentailed } from './support/run';
+import { FAKE_R2, makeBucket } from './support/bucket';
+import { watched } from './support/store';
 import { fileReply, scriptedTransport } from './support/transport';
 import type { Route, Sent } from './support/transport';
 
@@ -839,3 +845,130 @@ describe('the adversarial matrix: the runs that are sent to the owner', () => {
   });
 });
 
+// The evidence store is something that the Desk trusts with the text of the pages that a piece quotes, and a store can go wrong: it can change a page, lose one or give back another text
+// than the one that it holds. The run reads every snapshot back before Extract takes a word from it, so each of these ends the run, failed, at the stage evidence, before the model is asked
+// to take a claim from a page that the store cannot show. The store is changed at the one moment where nothing else would notice, between the end of Fetch and the start of Extract.
+
+type MadeRun = ReturnType<typeof setupRun>;
+
+interface StoreFault {
+  name: string;
+  /** The store that the run is given, and what is done to it when Fetch has ended. */
+  store: (made: MadeRun) => { evidence: EvidenceStore; change: () => void; keys?: () => string[] };
+  /** What the error of the run says. */
+  reason: string;
+}
+
+/** The files of a folder of snapshots with the ending `ending`, as paths. */
+const snapshotsIn = (dir: string, ending: string): string[] => readdirSync(dir).filter((name) => name.endsWith(ending)).map((name) => path.join(dir, name));
+
+const STORE_FAULTS: StoreFault[] = [
+  {
+    name: 'a page in the folder is changed by one space',
+    store: (made) => ({
+      evidence: new LocalEvidenceStore(made.config.evidenceDir),
+      change: () => snapshotsIn(made.config.evidenceDir, '.txt').forEach((file) => writeFileSync(file, `${readFileSync(file, 'utf8')} `)),
+    }),
+    reason: 'has been changed: its text no longer matches its hash',
+  },
+  {
+    name: 'a page in the folder is lost',
+    store: (made) => ({ evidence: new LocalEvidenceStore(made.config.evidenceDir), change: () => snapshotsIn(made.config.evidenceDir, '.txt').forEach((file) => unlinkSync(file)) }),
+    reason: 'no evidence is stored for',
+  },
+  {
+    name: 'the record of where a page came from is lost',
+    store: (made) => ({ evidence: new LocalEvidenceStore(made.config.evidenceDir), change: () => snapshotsIn(made.config.evidenceDir, '.json').forEach((file) => unlinkSync(file)) }),
+    reason: 'has no record of where it came from',
+  },
+  {
+    name: 'an object of the bucket is changed by one space',
+    store: () => {
+      const bucket = makeBucket(() => START);
+      return {
+        evidence: new R2EvidenceStore({ ...FAKE_R2, transport: bucket.transport, now: () => START }),
+        change: () => [...bucket.objects.values()].forEach((object) => void (object.body += ' ')),
+      };
+    },
+    reason: 'has been changed: its text no longer matches its hash',
+  },
+  {
+    name: 'an object of the bucket is lost',
+    store: () => {
+      const bucket = makeBucket(() => START);
+      return { evidence: new R2EvidenceStore({ ...FAKE_R2, transport: bucket.transport, now: () => START }), change: () => bucket.objects.clear() };
+    },
+    reason: 'no evidence is stored for',
+  },
+  {
+    name: 'the record of an object of the bucket is changed',
+    store: () => {
+      const bucket = makeBucket(() => START);
+      return {
+        evidence: new R2EvidenceStore({ ...FAKE_R2, transport: bucket.transport, now: () => START }),
+        change: () => [...bucket.objects.values()].forEach((object) => void (object.headers['x-amz-meta-tier'] = '7')),
+      };
+    },
+    reason: 'the record of the evidence',
+  },
+  {
+    name: 'a store that does not check what it holds gives back another text',
+    store: (made) => {
+      const store = watched(new LocalEvidenceStore(made.config.evidenceDir));
+      return { evidence: store, change: () => store.lie('The FX-1 weighs 38 kg and ships free.') };
+    },
+    reason: 'is not the text that was fetched: the store gave back another text',
+  },
+];
+
+/** The clean story, run with a store that is changed when Fetch is done (or not changed, for the control). */
+async function storeRun(fault: StoreFault, changed: boolean) {
+  const made = setupRun(scratch, { fake: told({ verify: [clearingVerifier], revisions: [] }) });
+  const { evidence, change } = fault.store(made);
+  const stages = {
+    fetch: async (...args: Parameters<typeof runFetch>) => {
+      const fetched = await runFetch(...args);
+      if (changed) change();
+      return fetched;
+    },
+  };
+  return { ...made, result: await made.run({ evidence, stages }) };
+}
+
+describe.each(STORE_FAULTS.map((fault) => [fault.name, fault] as const))('the adversarial matrix: the evidence store, %s, between Fetch and Extract', (_name, fault) => {
+  it('ends failed at the stage evidence, with what is wrong with the store as the reason, and not published', async () => {
+    const { result } = await storeRun(fault, true);
+    expect(result.outcome).toBe('failed');
+    expect(result.stage).toBe('evidence');
+    expect(result.reason).toContain(fault.reason);
+    expect(result.slug).toBeNull();
+  });
+
+  it('does not ask the model to take a claim from the page: only Select was asked', async () => {
+    const { fake } = await storeRun(fault, true);
+    expect(fake.calls.map((call) => call.role)).toEqual(['select']);
+  });
+
+  it('puts nothing into the pages of the site, and makes one commit, of the desk state alone, that says that the run failed, with no hold', async () => {
+    const { repoDir, git } = await storeRun(fault, true);
+    expect(contentOf(repoDir)).toEqual(EMPTY_CONTENT);
+    expect(git.commits.map((commit) => commit.paths)).toEqual([[STATE]]);
+    const state = await readDeskState(path.join(repoDir, STATE));
+    expect(state.lastRun).toMatchObject({ outcome: 'failed', slug: null });
+    expect(state.holds).toEqual([]);
+  });
+
+  it('is only stopped for the change: the same run with nothing changed is published', async () => {
+    const { result, repoDir } = await storeRun(fault, false);
+    expect(result.outcome).toBe('published');
+    expect(contentOf(repoDir)).toHaveLength(4);
+  });
+});
+
+describe('the adversarial matrix: the evidence store', () => {
+  it('has a scenario for a changed page, a lost page, a lost record and a store that lies, for the folder and for the bucket, each with its own name', () => {
+    expect(new Set(STORE_FAULTS.map((fault) => fault.name)).size).toBe(STORE_FAULTS.length);
+    expect(STORE_FAULTS.length).toBeGreaterThanOrEqual(7);
+    expect(STORE_FAULTS.map((fault) => fault.reason)).toEqual(expect.arrayContaining(['has been changed: its text no longer matches its hash', 'no evidence is stored for', 'has no record of where it came from']));
+  });
+});

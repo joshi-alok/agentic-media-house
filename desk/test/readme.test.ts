@@ -144,6 +144,88 @@ describe('the README: holds and corrections', () => {
   });
 });
 
+describe('the README: the evidence store', () => {
+  const store = (): string => section('The evidence store');
+
+  it('no longer says that the bucket is not built, and says that it is built and has never been used against Cloudflare', () => {
+    expect(section('Which parts are live')).not.toContain('the bucket is not built');
+    expect(section('Which parts are live')).toContain('has never been used against Cloudflare');
+    expect(section('The desk workspace')).not.toContain('the private evidence bucket,');
+    expect(store()).toContain('It has never been used against Cloudflare');
+  });
+
+  it('says what a snapshot is: the text of a page named by its SHA-256, with where it came from, never changed, and refused when it no longer matches its hash', () => {
+    expect(store()).toContain('the text of the page, named by its SHA-256');
+    expect(store()).toContain('putting a text that is kept already changes nothing');
+    expect(store()).toContain('refused when it is read back');
+  });
+
+  it('says which store the settings choose, that the folder is the default, and that the bucket is reached through the S3 interface of R2 with a signature that the Desk writes itself and tests against the examples of Amazon', () => {
+    expect(store()).toContain('`evidence.kind`');
+    expect(store()).toContain('`local`, the default, is a folder');
+    expect(store()).toContain('`r2` is a **private bucket on Cloudflare R2**');
+    expect(store()).toContain('desk/src/run/sigv4.ts');
+    expect(store()).toContain('AWS Signature Version 4 written with `node:crypto`');
+    expect(store()).toContain('worked examples that Amazon publishes');
+    expect(store()).toContain('No package was added.');
+  });
+
+  it('says that the bucket is described by four variables of the environment and never by a file, that there is no flag, and what a run does without them', () => {
+    for (const name of ['R2_ENDPOINT', 'R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY']) expect(store()).toContain(`\`${name}\``);
+    expect(store()).toContain('They are never read from a file of settings');
+    expect(store()).toContain('there is no flag to choose the store');
+    expect(store()).toContain('refused with exit code 2, naming the ones that are missing and never what any of them holds');
+    expect(store()).toContain('No message, log, record or artifact of the Desk has a key in it');
+    expect(store()).toContain('`--sources fixtures`, the made-up world, is refused with `r2`');
+  });
+
+  it('says which keys the store writes, when, and for how long, in a table of the two prefixes', () => {
+    expect(store()).toContain('| `pending/<hash>` |');
+    expect(store()).toContain('| `published/<hash>` |');
+    expect(store()).toContain('By the bucket, 90 days after it was written');
+    expect(store()).toContain('| Never |');
+    expect(store()).toContain('`<hash>` is 64 lowercase hex characters.');
+    expect(store()).toContain('a dry run puts and reads but never keeps');
+    expect(store()).toContain('leave their snapshots in `pending/` only');
+  });
+
+  it('says what a run does with the store, where it ends when the store fails, and the four kinds of trouble', () => {
+    expect(store()).toContain('(the stage `evidence`)');
+    expect(store()).toContain('Publish keeps the snapshots that the piece cites before it writes the piece');
+    expect(store()).toContain('ends the run `failed` at the stage `fetch`, `evidence` or `publish`, with nothing published');
+    for (const kind of ['unreachable', 'denied', 'tampered', 'missing']) expect(store()).toContain(`\`${kind}\``);
+  });
+
+  it('says who can read the snapshots, and that page text is not in the repository or in what a workflow uploads', () => {
+    expect(store()).toContain('The bucket is private: no public access, no `r2.dev` address and no custom domain');
+    expect(store()).toContain('the Desk never sends an access-control header');
+    expect(store()).toContain('by no one else');
+    expect(store()).toContain('at most 300 characters');
+    expect(store()).toContain('must not have page text');
+  });
+
+  it('says how the bucket is made, and that the runbook makes it', () => {
+    expect(store()).toContain('The runbook makes it, once, outside this plan');
+    expect(store()).toContain('deletes the objects of the prefix `pending/` 90 days after they were written');
+    expect(store()).toContain('an API token that may read and write objects, limited to this bucket');
+  });
+
+  it('says in the settings that the evidence setting chooses the store and that a file that carries a key is refused', () => {
+    const command = section('The desk command');
+    expect(command).toContain('The setting `evidence` (`kind: local` or `kind: r2`) chooses the evidence store');
+    expect(command).toContain('a file that carries one is refused like any other setting that does not exist');
+  });
+
+  it('says the limits that the store has: the evidence of a piece that the owner releases, no retries, copies of an unpublished piece, and a record that is too long', () => {
+    const limits = section('What the Desk does not check');
+    expect(limits).toContain('**Evidence of a piece that the owner releases.**');
+    expect(limits).toContain('a command that keeps the snapshots that a piece on the site cites is not built');
+    expect(limits).toContain('**The store does not retry.**');
+    expect(limits).toContain('**Copies of snapshots of a piece that was not published.**');
+    expect(limits).toContain('**A record that is too long.**');
+  });
+});
+
 describe('the README: what the Desk does not check', () => {
   const limits = (): string => section('What the Desk does not check');
 
