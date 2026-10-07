@@ -61,13 +61,41 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: npm run desk -- run --config desk.config.yml --skip-if-done
 
+      # What the run committed does not reach main before the site has been built with it and audited. The Desk checks a piece against the gate, which knows nothing of Astro or of the
+      # audit of the build, so a piece that clears the gate can still break the build, and a broken build on main would stop every later deploy, a retraction included. The build and the audit
+      # run whenever the Desk ran (a day that is done makes no commit, and then they check main itself). The report of the audit is kept in the temporary folder of the runner, outside the
+      # repository, for the pull request that is opened when the audit fails. `set -o pipefail`: the step runs `bash -e`, with no pipefail, and the exit code of `tee` would hide the audit's.
+      - name: Build the site with what the run committed
+        id: build
+        if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' }}
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://agentic-media-house.joshi-alok.workers.dev' }}
+        run: npm run build
+
+      - name: Audit the production build
+        id: audit
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          npm run audit:prod 2>&1 | tee "$RUNNER_TEMP/audit.log"
+
       # A run that is not dry makes one commit, whatever way it ends (the piece and the desk state, or the desk state alone). `desk push` pushes what the checkout has that
       # origin/main has not: after a fetch, so that a checkout with no upstream or a detached one is an error and never "nothing to push"; again on top of what somebody else
       # pushed in the meantime when the push is rejected; and to a branch of its own, with exit code 1, when it cannot go to main. It writes pushed=true for the step that deploys.
+      # It runs only when the site was built and its audit passed.
       - name: Push what the run committed
         id: push
-        if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' }}
+        if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' && steps.build.outcome == 'success' && steps.audit.outcome == 'success' }}
         run: npm run desk -- push --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output "$GITHUB_OUTPUT"
+
+      # When the build or the audit failed, the commits do not go to main: they go to the branch desk-build-failed/<day>-<run>, and a draft pull request is opened on it, whose text is
+      # fixed sentences and the ids of the checks that failed, never what the report says. This step does not fail; the step that did has already failed the job.
+      - name: Keep what the run committed on a branch, because the site does not build with it
+        id: branch
+        if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' && (steps.build.outcome == 'failure' || steps.audit.outcome == 'failure') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run desk -- push --branch-only --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --audit-log "$RUNNER_TEMP/audit.log"
 
       # The artifacts of the run are the files of runs/: hashes, the short quotations of the claims, the drafts and the record of the run. Never the text of a page
       # (the snapshots are in the bucket, and runs/ has none), and never the trials of `desk tune`. A public repository's artifacts can be read by anyone.

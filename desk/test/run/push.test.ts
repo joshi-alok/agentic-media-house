@@ -1,8 +1,8 @@
 import { existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PushFailed, pushLines, pushRun, sideBranchName } from '../../src/run/push';
-import type { GitRunner, PushOptions } from '../../src/run/push';
+import { PushFailed, pushLines, pushRun, pushToSideBranch, sideBranchName, sideLines } from '../../src/run/push';
+import type { GitRunner, PushOptions, SideOptions } from '../../src/run/push';
 import { useScratch } from '../support/context';
 import { makeOrigin } from '../support/origin';
 import type { Origin } from '../support/origin';
@@ -345,5 +345,100 @@ describe('pushRun: its names', () => {
 
   it('makes the name of a rescue branch from the folder, the day and the run', () => {
     expect(sideBranchName('desk-rescue', DAY, RUN)).toBe(RESCUE);
+  });
+});
+
+describe('pushToSideBranch: commits that must not reach main', () => {
+  const BUILD_FAILED = 'desk-build-failed/2026-10-05-4711-1';
+  const side = (origin: Origin, overrides: Partial<SideOptions> = {}): SideOptions => ({ git: origin.run, remote: 'origin', branch: 'main', folder: 'desk-build-failed', runId: RUN, day: DAY, ...overrides });
+
+  it('puts the commits on a branch of their own, says how many and where, and leaves main of the remote exactly as it is', async () => {
+    const origin = makeOrigin(scratch());
+    origin.commit(origin.work, 'b.txt', 'b\n', 'desk: b');
+    origin.commit(origin.work, 'c.txt', 'c\n', 'desk: c');
+    const before = origin.remoteHead();
+    const head = git(origin.work, 'rev-parse', 'HEAD');
+    const outcome = await pushToSideBranch(side(origin));
+    expect(outcome).toEqual({ kind: 'branch', branch: BUILD_FAILED, commits: 2, head });
+    expect(origin.remoteHead()).toBe(before);
+    expect(git(origin.remote, 'rev-parse', BUILD_FAILED)).toBe(head);
+    expect(origin.remoteBranches()).toEqual([BUILD_FAILED, 'main']);
+    expect(sideLines(outcome)).toEqual([`push: the 2 commits of this run are on the branch ${BUILD_FAILED} of origin (${head.slice(0, 12)}), and main was not changed`]);
+  });
+
+  it('says "1 commit ... is", and does not rebase, fetch into the checkout or push anything but the branch when main of the remote has moved on', async () => {
+    const origin = makeOrigin(scratch());
+    origin.commit(origin.work, 'b.txt', 'b\n', 'desk: b');
+    origin.commit(origin.other, 'c.txt', 'c\n', 'someone else');
+    git(origin.other, 'push', '--quiet', 'origin', 'main');
+    const mine = git(origin.work, 'rev-parse', 'HEAD');
+    const outcome = await pushToSideBranch(side(origin));
+    expect(sideLines(outcome)[0]).toContain('the 1 commit of this run is on the branch');
+    expect(git(origin.work, 'rev-parse', 'HEAD')).toBe(mine);
+    expect(subjects(origin.remote, 'main')[0]).toBe('someone else');
+    expect(subjects(origin.remote, BUILD_FAILED)).toEqual(['desk: b', 'start']);
+  });
+
+  it('has nothing to put on a branch when main has no commit that origin/main does not have', async () => {
+    const origin = makeOrigin(scratch());
+    const outcome = await pushToSideBranch(side(origin));
+    expect(outcome).toEqual({ kind: 'nothing', commits: 0 });
+    expect(sideLines(outcome)).toEqual(['push: nothing to put on a branch: main has no commit that origin/main does not have']);
+    expect(origin.remoteBranches()).toEqual(['main']);
+  });
+
+  it('goes to another name when the branch is already there, and never changes the one that is', async () => {
+    const origin = makeOrigin(scratch());
+    git(origin.other, 'checkout', '--quiet', '-b', 'theirs');
+    origin.commit(origin.other, 'theirs.txt', 'theirs\n', 'an earlier branch');
+    git(origin.other, 'push', '--quiet', 'origin', `theirs:refs/heads/${BUILD_FAILED}`);
+    const theirs = git(origin.remote, 'rev-parse', BUILD_FAILED);
+    origin.commit(origin.work, 'b.txt', 'b\n', 'desk: b');
+    expect(await pushToSideBranch(side(origin))).toMatchObject({ kind: 'branch', branch: `${BUILD_FAILED}-2` });
+    expect(git(origin.remote, 'rev-parse', BUILD_FAILED)).toBe(theirs);
+  });
+
+  it('is an error, and says that the commits are only in this checkout, when the remote takes no branch', async () => {
+    const origin = makeOrigin(scratch());
+    writeFileSync(path.join(origin.remote, 'hooks', 'pre-receive'), '#!/bin/sh\necho "no pushes today" >&2\nexit 1\n', { mode: 0o755 });
+    origin.commit(origin.work, 'b.txt', 'b\n', 'desk: b');
+    const failure = await pushToSideBranch(side(origin)).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(PushFailed);
+    expect((failure as Error).message).toContain('only in this checkout');
+    expect((failure as Error).message).toContain('no pushes today');
+  });
+
+  it.each([
+    ['a checkout on no branch', (origin: Origin) => git(origin.work, 'checkout', '--quiet', '--detach'), 'is on no branch'],
+    ['a checkout on another branch than main', (origin: Origin) => git(origin.work, 'checkout', '--quiet', '-b', 'else'), 'is on else, not on main'],
+    ['a repository with no remote', (origin: Origin) => git(origin.work, 'remote', 'remove', 'origin'), 'no remote called origin'],
+  ])('refuses %s, as pushRun does, and pushes nothing', async (_what, spoil, message) => {
+    const origin = makeOrigin(scratch());
+    origin.commit(origin.work, 'b.txt', 'b\n', 'desk: b');
+    spoil(origin);
+    await expect(pushToSideBranch(side(origin))).rejects.toThrow(message);
+    expect(origin.remoteBranches()).toEqual(['main']);
+  });
+
+  it('refuses a remote that has no main, and an error of git when it counts', async () => {
+    const empty = makeOrigin(scratch(), { empty: true });
+    await expect(pushToSideBranch(side(empty))).rejects.toThrow('git fetch failed');
+    const origin = makeOrigin(scratch());
+    origin.commit(origin.work, 'b.txt', 'b\n', 'desk: b');
+    await expect(pushToSideBranch(side(origin, { git: failing(origin.run, 'rev-list', 'fatal: bad revision') }))).rejects.toThrow('git rev-list failed (exit code 128): fatal: bad revision');
+    expect(origin.remoteBranches()).toEqual(['main']);
+  });
+
+  it('refuses a folder, a day or a run that could make another kind of name, before it runs any command', async () => {
+    const origin = makeOrigin(scratch());
+    const calls: string[][] = [];
+    const watching: GitRunner = async (args) => {
+      calls.push([...args]);
+      return origin.run(args);
+    };
+    for (const overrides of [{ folder: 'desk-build-failed/' }, { runId: 'Run 1' }, { day: 'someday' }, { branch: '--force' }] as const) {
+      await expect(pushToSideBranch(side(origin, { git: watching, ...overrides }))).rejects.toBeInstanceOf(PushFailed);
+    }
+    expect(calls).toEqual([]);
   });
 });

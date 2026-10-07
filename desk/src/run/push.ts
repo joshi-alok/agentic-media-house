@@ -78,18 +78,13 @@ function check(options: PushOptions): void {
 
 const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 
-/**
- * Push the commits that this checkout has and `<remote>/<branch>` has not, to the branch of the remote. Fetches first and counts with `git rev-list --count <remote>/<branch>..HEAD`
- * (never from an upstream, which a checkout may not have). Nothing ahead is `nothing`; ahead is pushed with `git push <remote> HEAD:<branch>`. A push that is rejected because somebody
- * else pushed is made again, up to `retries` more times, after a fetch and a `git rebase <remote>/<branch>`; a rebase that cannot be done is undone (`git rebase --abort`), and so is every
- * rejection that is not a race. Then the commits are pushed to the rescue branch and the outcome is `rescued`: the caller reports that as a failure and says where the commits are. A
- * checkout on no branch, on another branch than `branch`, a missing remote, a remote with no `branch`, and any other error of git are `PushFailed`, and nothing is pushed on their account.
- */
-export async function pushRun(options: PushOptions): Promise<PushOutcome> {
-  check(options);
-  const { git, remote, branch } = options;
-  const there = `${remote}/${branch}`;
+/** Git as `pushRun` and `pushToSideBranch` use it: `attempt` gives what git ended with whatever the code, and `must` what it printed, and is an error for any code but 0. */
+interface Session {
+  attempt(args: readonly string[]): Promise<ExecResult>;
+  must(args: readonly string[]): Promise<string>;
+}
 
+function sessionOf(git: GitRunner): Session {
   /** Run git and give what it ended with, whatever the code; git that cannot be started is a `PushFailed`. */
   const attempt = async (args: readonly string[]): Promise<ExecResult> => {
     try {
@@ -104,16 +99,53 @@ export async function pushRun(options: PushOptions): Promise<PushOutcome> {
     if (result.code !== 0) throw new PushFailed(`git ${args[0]} failed (exit code ${result.code}): ${said(result.stderr) || 'it said nothing'}`);
     return result.stdout;
   };
+  return { attempt, must };
+}
 
-  const here = (await must(['branch', '--show-current'])).trim();
+/**
+ * How many commits this checkout has that `<remote>/<branch>` has not, after a fetch. The checkout must be on `branch` (not on another, not on none), the remote must be there and
+ * must have `branch`, and git must be able to count: each of those that is not so is a `PushFailed`, never a count of 0.
+ */
+async function commitsAhead(session: Session, remote: string, branch: string): Promise<number> {
+  const here = (await session.must(['branch', '--show-current'])).trim();
   if (here === '') throw new PushFailed(`the checkout is on no branch (HEAD is detached), so its commits are not pushed to ${branch}: nothing was pushed`);
   if (here !== branch) throw new PushFailed(`the checkout is on ${here}, not on ${branch}: only the commits of ${branch} are pushed to ${branch}, so nothing was pushed`);
-  const url = await attempt(['remote', 'get-url', remote]);
+  const url = await session.attempt(['remote', 'get-url', remote]);
   if (url.code !== 0) throw new PushFailed(`the repository has no remote called ${remote}, so nothing was pushed`);
-  await must(['fetch', remote, branch]);
-  const counted = (await must(['rev-list', '--count', `${there}..HEAD`])).trim();
-  if (!/^\d+$/.test(counted)) throw new PushFailed(`git did not count the commits that are ahead of ${there}: it said ${JSON.stringify(counted.slice(0, 40))}`);
-  const commits = Number(counted);
+  await session.must(['fetch', remote, branch]);
+  const counted = (await session.must(['rev-list', '--count', `${remote}/${branch}..HEAD`])).trim();
+  if (!/^\d+$/.test(counted)) throw new PushFailed(`git did not count the commits that are ahead of ${remote}/${branch}: it said ${JSON.stringify(counted.slice(0, 40))}`);
+  return Number(counted);
+}
+
+/** Push HEAD to a branch of its own, `name`, or to `name-2` or `name-3` when the name is taken. The branch that it went to, or what the remote said when it took none. */
+async function pushSide(session: Session, remote: string, name: string): Promise<{ branch: string } | { said: string }> {
+  let last = '';
+  for (const suffix of ['', '-2', '-3']) {
+    const result = await session.attempt(['push', remote, `HEAD:refs/heads/${name}${suffix}`]);
+    if (result.code === 0) return { branch: `${name}${suffix}` };
+    last = said(result.stderr) || 'it said nothing';
+    // A name that is taken is not a reason to give up; any other refusal is.
+    if (!RACE.test(result.stderr)) break;
+  }
+  return { said: last };
+}
+
+/**
+ * Push the commits that this checkout has and `<remote>/<branch>` has not, to the branch of the remote. Fetches first and counts with `git rev-list --count <remote>/<branch>..HEAD`
+ * (never from an upstream, which a checkout may not have). Nothing ahead is `nothing`; ahead is pushed with `git push <remote> HEAD:<branch>`. A push that is rejected because somebody
+ * else pushed is made again, up to `retries` more times, after a fetch and a `git rebase <remote>/<branch>`; a rebase that cannot be done is undone (`git rebase --abort`), and so is every
+ * rejection that is not a race. Then the commits are pushed to the rescue branch and the outcome is `rescued`: the caller reports that as a failure and says where the commits are. A
+ * checkout on no branch, on another branch than `branch`, a missing remote, a remote with no `branch`, and any other error of git are `PushFailed`, and nothing is pushed on their account.
+ */
+export async function pushRun(options: PushOptions): Promise<PushOutcome> {
+  check(options);
+  const { remote, branch } = options;
+  const there = `${remote}/${branch}`;
+  const session = sessionOf(options.git);
+  const { attempt, must } = session;
+
+  const commits = await commitsAhead(session, remote, branch);
   if (commits === 0) return { kind: 'nothing', commits: 0 };
 
   let retried = 0;
@@ -145,16 +177,42 @@ export async function pushRun(options: PushOptions): Promise<PushOutcome> {
   }
 
   const head = (await must(['rev-parse', 'HEAD'])).trim();
-  const name = sideBranchName(options.rescuePrefix, options.day, options.runId);
-  let last = '';
-  for (const suffix of ['', '-2', '-3']) {
-    const result = await attempt(['push', remote, `HEAD:refs/heads/${name}${suffix}`]);
-    if (result.code === 0) return { kind: 'rescued', branch: `${name}${suffix}`, commits, head, why };
-    last = said(result.stderr) || 'it said nothing';
-    // A name that is taken is not a reason to give up; any other refusal is.
-    if (!RACE.test(result.stderr)) break;
-  }
-  throw new PushFailed(`${why}; and the commits could not be pushed to a branch of their own either (${last}): they are only in this checkout, at ${head.slice(0, 12)}`);
+  const pushed = await pushSide(session, remote, sideBranchName(options.rescuePrefix, options.day, options.runId));
+  if ('branch' in pushed) return { kind: 'rescued', branch: pushed.branch, commits, head, why };
+  throw new PushFailed(`${why}; and the commits could not be pushed to a branch of their own either (${pushed.said}): they are only in this checkout, at ${head.slice(0, 12)}`);
+}
+
+export interface SideOptions {
+  git: GitRunner;
+  remote: string;
+  /** The branch that the commits are counted against, and that the checkout must be on: `main`. They are not pushed to it. */
+  branch: string;
+  /** The folder of branch names that the commits go to: `desk-build-failed`, so that the branch is `desk-build-failed/<day>-<run id>`. */
+  folder: string;
+  runId: string;
+  day: string;
+}
+
+export type SideOutcome =
+  /** The checkout has no commit that the remote does not have, so there is nothing to put on a branch. */
+  | { kind: 'nothing'; commits: 0 }
+  /** The commits are on the branch `branch` of the remote, and the branch of the remote that they were counted against was not changed. */
+  | { kind: 'branch'; branch: string; commits: number; head: string };
+
+/**
+ * Put the commits that this checkout has and `<remote>/<branch>` has not on a branch of their own, `<folder>/<day>-<run id>`, and leave `<branch>` of the remote alone: what a run does
+ * when what it committed must not reach `main` (the site does not build with it). Counts as `pushRun` does, after a fetch, and fails as it does: any error of git, a checkout that is on no
+ * branch or on another than `branch`, a missing remote and a remote that does not take the branch are a `PushFailed`.
+ */
+export async function pushToSideBranch(options: SideOptions): Promise<SideOutcome> {
+  check({ ...options, retries: 0, rescuePrefix: options.folder });
+  const session = sessionOf(options.git);
+  const commits = await commitsAhead(session, options.remote, options.branch);
+  if (commits === 0) return { kind: 'nothing', commits: 0 };
+  const head = (await session.must(['rev-parse', 'HEAD'])).trim();
+  const pushed = await pushSide(session, options.remote, sideBranchName(options.folder, options.day, options.runId));
+  if ('said' in pushed) throw new PushFailed(`${options.remote} did not take the commits on a branch of their own (${pushed.said}): they are only in this checkout, at ${head.slice(0, 12)}`);
+  return { kind: 'branch', branch: pushed.branch, commits, head };
 }
 
 /** What `desk push` prints, one line each. */
@@ -169,4 +227,10 @@ export function pushLines(outcome: PushOutcome): string[] {
     `push: why: ${outcome.why}`,
     'push: open a pull request from that branch into main, or put the commits on main by hand',
   ];
+}
+
+/** What `desk push --branch-only` prints about the branch, one line each. */
+export function sideLines(outcome: SideOutcome): string[] {
+  if (outcome.kind === 'nothing') return ['push: nothing to put on a branch: main has no commit that origin/main does not have'];
+  return [`push: the ${plural(outcome.commits, 'commit', 'commits')} of this run ${outcome.commits === 1 ? 'is' : 'are'} on the branch ${outcome.branch} of origin (${outcome.head.slice(0, 12)}), and main was not changed`];
 }

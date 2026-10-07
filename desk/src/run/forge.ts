@@ -12,6 +12,9 @@ import path from 'node:path';
 /** A branch that the Desk pushes: `hold/<day>-<slug>`. Nothing else is ever pushed or named in a pull request. */
 export const HOLD_BRANCH = /^hold\/\d{4}-\d{2}-\d{2}-[a-z0-9-]{1,80}$/;
 
+/** A branch of commits whose build failed: `desk-build-failed/<day>-<run id>`, and `-2` or `-3` after it when the name was taken (`desk push --branch-only` pushes it, and a draft pull request is opened on it). */
+export const BUILD_FAILED_BRANCH = /^desk-build-failed\/\d{4}-\d{2}-\d{2}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 /** The most characters of a slug that the name of a branch has. */
 const SLUG_IN_BRANCH = 80;
 
@@ -88,7 +91,7 @@ function oneLine(title: string): string {
  * can take it for an option. Throws a `ForgeError` of the kind `bad-input`.
  */
 export function checkPullRequest(request: PullRequestRequest): { title: string } {
-  assertHoldBranch(request.branch);
+  assertPullRequestBranch(request.branch);
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(request.base) || request.base.includes('..')) {
     throw new ForgeError('bad-input', `the base ${JSON.stringify(request.base)} is not a plain branch name, so no pull request is opened`);
   }
@@ -102,6 +105,13 @@ export function checkPullRequest(request: PullRequestRequest): { title: string }
 /** Refuse a branch that is not a hold branch, before any program is run for it. */
 export function assertHoldBranch(branch: string): void {
   if (!HOLD_BRANCH.test(branch)) throw new ForgeError('bad-input', `${JSON.stringify(branch)} is not a hold branch (hold/<day>-<slug>), and the Desk pushes nothing else`);
+}
+
+/** Refuse a branch that a pull request is not opened on: a hold branch, or a branch of commits whose build failed, and nothing else. */
+export function assertPullRequestBranch(branch: string): void {
+  if (!HOLD_BRANCH.test(branch) && !BUILD_FAILED_BRANCH.test(branch)) {
+    throw new ForgeError('bad-input', `${JSON.stringify(branch)} is not a hold branch (hold/<day>-<slug>) or a branch of commits whose build failed (desk-build-failed/<day>-<run>), and the Desk opens a pull request on nothing else`);
+  }
 }
 
 /** A stand-in for the forge that tests use. */

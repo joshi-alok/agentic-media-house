@@ -302,6 +302,16 @@ describe('the README: the daily workflow', () => {
     expect(workflow()).toContain('shares more than the length of a quotation (300 characters) with a page');
   });
 
+  it('says that the site is built and audited before anything reaches main, and what happens when it is not', () => {
+    expect(workflow()).toContain('reaches `main` only after the site has been built with it');
+    expect(workflow()).toContain('a piece that clears the gate can still break the build');
+    expect(workflow()).toContain('the step `desk push --branch-only` puts the commits on the branch `desk-build-failed/<day>-<run>` and opens a draft pull request on it');
+    expect(workflow()).toContain('and nothing that the report says about a page, and the job fails');
+    expect(workflow()).toContain('desk/test/workflows/build-before-push.test.ts');
+    expect(section('What the Desk does not check')).toContain('three a day');
+    expect(section('The desk command')).toContain('`--branch-only` is for commits that must not reach `main` because the site does not build with them');
+  });
+
   it('says that nothing could run it, that the versions of the actions were not checked, and what it assumes of the repository', () => {
     expect(workflow()).toContain('A workflow cannot be run anywhere but on GitHub');
     expect(workflow()).toContain('were not checked against GitHub');
@@ -362,7 +372,7 @@ describe('the README: the tuning harness', () => {
   it('is one of the commands, with its options, and says that it publishes and commits nothing', () => {
     expect(section('The desk command')).toContain('`npm run desk -- tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]`');
     expect(section('The desk command')).toContain('It publishes and commits nothing');
-    expect(section('The desk command')).toContain('`npm run desk -- push [--run-id <id>] [--output <file>]` pushes what the checkout has and `origin/main` has not');
+    expect(section('The desk command')).toContain('`npm run desk -- push [--branch-only] [--run-id <id>] [--output <file>] [--audit-log <file>]` pushes what the checkout has and `origin/main` has not');
   });
 
   it('says what the list is, what is fetched and how, what a page of no known kind and a redirect do, and what --client fake is', () => {

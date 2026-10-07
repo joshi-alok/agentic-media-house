@@ -296,8 +296,17 @@ describe('GhForge.openDraftPullRequest', () => {
     expect(calls[0]?.args[8]).toBe('a b c d e f');
   });
 
+  it('opens a pull request on a branch of commits whose build failed, with the same arguments as for a hold', async () => {
+    const failed = 'desk-build-failed/2026-10-05-4711-1';
+    const { exec, calls } = scriptedExec({ code: 0, stdout: `${URL}\n` });
+    await new GhForge(exec, { tempDir: scratch() }).openDraftPullRequest({ ...request, branch: failed });
+    expect(calls[0]?.args.slice(0, 7)).toEqual(['pr', 'create', '--draft', '--base', 'main', '--head', failed]);
+  });
+
   it.each([
     ['a branch that is not a hold branch', { branch: 'main' }, 'hold branch'],
+    ['a branch of a rescue, which only git pushes', { branch: 'desk-rescue/2026-10-05-4711-1' }, 'hold branch'],
+    ['a branch of commits whose build failed with a command in it', { branch: 'desk-build-failed/2026-10-05-4711-1; id' }, 'hold branch'],
     ['a branch with a command in it', { branch: `${BRANCH}; id` }, 'hold branch'],
     ['a base with a command in it', { base: 'main; id' }, 'base'],
     ['a base that is an option', { base: '--web' }, 'base'],
@@ -390,6 +399,14 @@ describe('FakeForge', () => {
     await expect(forge.openDraftPullRequest({ branch: BRANCH, title: 'a', body: 'b', base: 'main' })).rejects.toMatchObject({ kind: 'pr-exists' });
     forge.fail('hasRemote', new ForgeError('tool-missing', 'git cannot be started'));
     await expect(forge.hasRemote()).rejects.toMatchObject({ kind: 'tool-missing' });
+  });
+
+  it('opens a pull request on a branch of commits whose build failed too, and refuses it for a push, which is only for the branch of a hold', async () => {
+    const forge = new FakeForge();
+    const failed = 'desk-build-failed/2026-10-05-4711-1';
+    await expect(forge.openDraftPullRequest({ branch: failed, title: 'a', body: 'b', base: 'main' })).resolves.toMatchObject({ number: 1 });
+    await expect(forge.openDraftPullRequest({ branch: 'desk-rescue/2026-10-05-4711-1', title: 'a', body: 'b', base: 'main' })).rejects.toMatchObject({ kind: 'bad-input' });
+    await expect(forge.pushBranch(failed)).rejects.toMatchObject({ kind: 'bad-input' });
   });
 
   it('holds a branch to the same rules as the real forge, so that a test cannot pass with a branch that the real one would refuse', async () => {

@@ -3,7 +3,9 @@ import path from 'node:path';
 import { CORRECTION_KINDS, loadSources } from '@robywire/gate';
 import type { CorrectionKind, SourcesRegistry } from '@robywire/gate';
 import {
+  BUILD_FAILED_FOLDER,
   CLIENT_KINDS,
+  ForgeError,
   HttpFetcher,
   MAIN_BRANCH,
   PushFailed,
@@ -13,6 +15,8 @@ import {
   clientFromConfig,
   defaultConfig,
   gitRunner,
+  buildFailedPullRequest,
+  buildFailureOf,
   isPlainSlug,
   loadConfig,
   makeEvidenceStore,
@@ -21,11 +25,13 @@ import {
   placeholderHost,
   pushLines,
   pushRun,
+  pushToSideBranch,
   readDeskState,
   readRunRecord,
   refuseApiOnFixtures,
   retractPiece,
   runPath,
+  sideLines,
   sitePaths,
   DryTarget,
   FakeClient,
@@ -53,7 +59,7 @@ export type Parsed =
   | { command: 'status'; config: string | undefined }
   | { command: 'retract'; slug: string; reason: string; kind: CorrectionKind; dry: boolean }
   | { command: 'tune'; urls: string; trials: number; maxCalls: number; client: 'api' | 'fake'; config: string | undefined }
-  | { command: 'push'; runId: string | undefined; output: string | undefined }
+  | { command: 'push'; runId: string | undefined; output: string | undefined; branchOnly: boolean; auditLog: string | undefined }
   | { command: 'help' };
 
 /** What the arguments mean, or why they do not. */
@@ -66,7 +72,7 @@ export const USAGE = [
   '  desk status [--config <path>]',
   '  desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]',
   '  desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]',
-  '  desk push [--run-id <id>] [--output <file>]',
+  '  desk push [--branch-only] [--run-id <id>] [--output <file>] [--audit-log <file>]',
   '',
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
@@ -102,6 +108,9 @@ export const USAGE = [
   '        usual cause), or that main does not take, puts the commits on the branch desk-rescue/<day>-<id> instead, says where they are, and exits 1. Every error of git, a checkout on',
   '        no branch or on another branch than main, a missing remote and a remote with no main are exit code 1 too: a push never fails open. --run-id names the rescue branch (the workflow gives',
   '        the number of its run; by default it is the time) and --output <file> is where the line pushed=true is added when the commits were pushed (the file that GitHub gives a step).',
+  '        --branch-only is for commits that must not reach main because the site does not build with them: they are pushed to the branch desk-build-failed/<day>-<id> and a draft pull request',
+  '        is opened on it, whose text holds only fixed sentences, the ids of the checks of the audit that failed and their number of problems, read from --audit-log (the report that',
+  '        npm run audit:prod printed; a file that is not there says that the build failed before the audit). It does not push to main and cannot be given with --output.',
   '--config says where the settings of the Desk are: a YAML file laid over the defaults (how recent a story must be, how many candidates reach the model, the folders,',
   '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
 ].join('\n');
@@ -112,7 +121,7 @@ const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract' | 'tune' 
   status: { flags: [], valued: ['--config'] },
   retract: { flags: ['--dry'], valued: ['--reason', '--kind'] },
   tune: { flags: [], valued: ['--urls', '--trials', '--max-calls', '--client', '--config'] },
-  push: { flags: [], valued: ['--run-id', '--output'] },
+  push: { flags: ['--branch-only'], valued: ['--run-id', '--output', '--audit-log'] },
 };
 
 const CLIENTS: readonly string[] = CLIENT_KINDS;
@@ -187,7 +196,10 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     if (positional.length > 0) return fail(`push takes no arguments, but was given "${positional[0]}"`);
     const runId = value('--run-id');
     if (runId !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(runId)) return fail(`--run-id is lowercase letters and digits joined by single hyphens, not "${runId}"`);
-    return { ok: true, args: { command: 'push', runId, output: value('--output') } };
+    const branchOnly = given.has('--branch-only');
+    if (branchOnly && given.has('--output')) return fail('--output is for the push to main and cannot be given with --branch-only, which does not push to main');
+    if (!branchOnly && given.has('--audit-log')) return fail('--audit-log is for --branch-only: it is the report that the pull request of the commits whose build failed is made from');
+    return { ok: true, args: { command: 'push', runId, output: value('--output'), branchOnly, auditLog: value('--audit-log') } };
   }
   if (command === 'tune') {
     if (positional.length > 0) return fail(`tune takes no arguments, but was given "${positional[0]}"`);
@@ -571,6 +583,7 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
  * they were pushed, which is how the step that starts the deploy knows that there is something to deploy. Commits that went to the rescue branch, and every error, are exit code 1.
  */
 async function pushCommand(args: Extract<Parsed, { command: 'push' }>, deps: CliDeps): Promise<number> {
+  if (args.branchOnly) return branchOnlyCommand(args, deps);
   const now = deps.now();
   let outcome: PushOutcome;
   try {
@@ -597,6 +610,53 @@ async function pushCommand(args: Extract<Parsed, { command: 'push' }>, deps: Cli
     }
   }
   return outcome.kind === 'rescued' ? 1 : 0;
+}
+
+/**
+ * `desk push --branch-only`: the commits that this checkout has and origin/main has not go to the branch `desk-build-failed/<day>-<run id>`, and a draft pull request into main is opened on
+ * it, with the text that `buildFailedPullRequest` makes from the report of the audit in `--audit-log` (no file: the build failed before the audit). `main` is not pushed to. Exit code 0 when
+ * the commits are on the branch and the pull request is open; 1 for every error, and for a checkout that has no commit to put on a branch (then it is main itself that does not build).
+ */
+async function branchOnlyCommand(args: Extract<Parsed, { command: 'push' }>, deps: CliDeps): Promise<number> {
+  const now = deps.now();
+  const day = now.toISOString().slice(0, 10);
+  const runId = args.runId ?? now.toISOString().slice(11, 19).replace(/:/g, '');
+  let side: Awaited<ReturnType<typeof pushToSideBranch>>;
+  try {
+    side = await pushToSideBranch({ git: deps.pushGit ?? gitRunner(nodeExec(), deps.cwd), remote: 'origin', branch: MAIN_BRANCH, folder: BUILD_FAILED_FOLDER, runId, day });
+  } catch (error) {
+    deps.err(error instanceof PushFailed ? `desk: ${error.message}` : `the push could not be done: ${describeError(error)}`);
+    return 1;
+  }
+  if (side.kind === 'nothing') {
+    deps.err('desk: the site does not build, and this checkout has no commit that origin/main does not have: it is main itself that does not build, so there is nothing to put on a branch and no pull request to open');
+    return 1;
+  }
+  for (const line of sideLines(side)) deps.out(line);
+  let report: string | undefined;
+  if (args.auditLog !== undefined) {
+    try {
+      report = await readFile(path.resolve(deps.cwd, args.auditLog), 'utf8');
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        deps.err(`desk: the commits are on the branch ${side.branch}, but the report of the audit ${args.auditLog} could not be read (${describeError(error)}), so no pull request was opened: open one by hand`);
+        return 1;
+      }
+    }
+  }
+  if (deps.forge === undefined) {
+    deps.err(`desk: the commits are on the branch ${side.branch}, but this command has no forge to open a pull request with: open one by hand`);
+    return 1;
+  }
+  try {
+    const request = buildFailedPullRequest({ day, runId, branch: side.branch, commits: side.commits, failure: buildFailureOf(report) });
+    const opened = await deps.forge.openDraftPullRequest({ branch: side.branch, base: MAIN_BRANCH, ...request });
+    deps.out(`pull request: ${opened.url}`);
+    return 0;
+  } catch (error) {
+    deps.err(`desk: the commits are on the branch ${side.branch}, but the draft pull request could not be opened (${error instanceof ForgeError ? `${error.kind}: ` : ''}${describeError(error)}): open one by hand`);
+    return 1;
+  }
 }
 
 async function retractCommand(args: Extract<Parsed, { command: 'retract' }>, deps: CliDeps): Promise<number> {

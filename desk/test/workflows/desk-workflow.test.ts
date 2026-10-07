@@ -55,14 +55,17 @@ describe('desk.yml: what the token may do', () => {
 });
 
 describe('desk.yml: the steps, in order', () => {
-  it('checks out, sets up Node, installs, names the committer, runs the Desk, pushes, keeps the artifacts and deploys', () => {
+  it('checks out, sets up Node, installs, names the committer, runs the Desk, builds and audits the site, pushes (or keeps the commits on a branch), keeps the artifacts and deploys', () => {
     expect(names).toEqual([
       'Check out the repository, with its history',
       'Set up Node',
       'Install dependencies',
       'Give the commits of the Desk a name',
       'Run the Desk',
+      'Build the site with what the run committed',
+      'Audit the production build',
       'Push what the run committed',
+      'Keep what the run committed on a branch, because the site does not build with it',
       'Keep the artifacts of the run for 14 days',
       'Deploy the site',
     ]);
@@ -173,16 +176,73 @@ describe('desk.yml: pushing what the run committed', () => {
     expect(push.run).toBe('npm run desk -- push --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output "$GITHUB_OUTPUT"');
     // What the shell makes of it, for the made-up run 4711, attempt 2.
     const words = push.run!.replace('npm run desk -- ', '').replace('"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"', '4711-2').replace('"$GITHUB_OUTPUT"', '/runner/output').split(' ');
-    expect(parseArgs(words)).toEqual({ ok: true, args: { command: 'push', runId: '4711-2', output: '/runner/output' } });
+    expect(parseArgs(words)).toEqual({ ok: true, args: { command: 'push', runId: '4711-2', output: '/runner/output', branchOnly: false, auditLog: undefined } });
   });
 
   it('has no script of its own that could swallow an error: no `if`, no `||`, no `;` and no `git` in the command', () => {
     expect(push.run).not.toMatch(/\bif\b|\|\||;|\bgit\b/);
   });
 
-  it('is asked after the run whatever way the run ended, unless the workflow was cancelled or the run never started', () => {
-    expect(push.if).toBe("${{ !cancelled() && steps.desk.conclusion != 'skipped' }}");
+  it('is asked after the run whatever way the run ended, but only when the site was built with what the run committed and its audit passed: nothing reaches main before that', () => {
+    expect(push.if).toBe("${{ !cancelled() && steps.desk.conclusion != 'skipped' && steps.build.outcome == 'success' && steps.audit.outcome == 'success' }}");
     expect(push.id).toBe('push');
+  });
+});
+
+describe('desk.yml: the build and the audit, before anything reaches main', () => {
+  const build = stepNamed(workflow, 'Build the site with what the run committed');
+  const audit = stepNamed(workflow, 'Audit the production build');
+  const branch = stepNamed(workflow, 'Keep what the run committed on a branch, because the site does not build with it');
+  const deployWorkflow = loadWorkflow('deploy.yml');
+
+  it('come after the run and before the push, in this order: run, build, audit, push', () => {
+    const order = ['Run the Desk', build.name, audit.name, 'Push what the run committed'].map((name) => names.indexOf(name!));
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('build as the Deploy workflow builds, with the same address for the site (the variable SITE_URL, or the address that the site is live at), so that what is audited is what is deployed', () => {
+    expect(build.run).toBe('npm run build');
+    expect(build.env).toEqual(stepNamed(deployWorkflow, 'Production build').env);
+    expect(build.id).toBe('build');
+  });
+
+  it('audit the production build, in the same way that CI and Deploy do, and keep the report outside the repository, in the folder that the runner gives the job', () => {
+    expect(audit.run).toBe('set -o pipefail\nnpm run audit:prod 2>&1 | tee "$RUNNER_TEMP/audit.log"\n');
+    expect(audit.id).toBe('audit');
+    expect(audit.if).toBe("${{ !cancelled() && steps.build.outcome == 'success' }}");
+  });
+
+  it('are asked whenever the Desk ran, unless the workflow was cancelled (a day that is done makes no commit, and then they check main itself)', () => {
+    expect(build.if).toBe("${{ !cancelled() && steps.desk.conclusion != 'skipped' }}");
+  });
+
+  it('are followed, when either fails, by a step that keeps the commits on a branch and opens a draft pull request, with the report of the audit, and by nothing that pushes to main', () => {
+    expect(branch.id).toBe('branch');
+    expect(branch.if).toBe("${{ !cancelled() && steps.desk.conclusion != 'skipped' && (steps.build.outcome == 'failure' || steps.audit.outcome == 'failure') }}");
+    expect(branch.run).toBe('npm run desk -- push --branch-only --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --audit-log "$RUNNER_TEMP/audit.log"');
+    const words = branch.run!.replace('npm run desk -- ', '').replace('"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"', '4711-2').replace('"$RUNNER_TEMP/audit.log"', '/runner/audit.log').split(' ');
+    expect(parseArgs(words)).toEqual({ ok: true, args: { command: 'push', runId: '4711-2', output: undefined, branchOnly: true, auditLog: '/runner/audit.log' } });
+    // The step opens a pull request, so it has the token of the workflow for gh, and no other step of the two has anything but what it needs.
+    expect(branch.env).toEqual({ GH_TOKEN: '${{ github.token }}' });
+    expect(build.env).toEqual({ SITE_URL: "${{ vars.SITE_URL || 'https://agentic-media-house.joshi-alok.workers.dev' }}" });
+    expect(audit).not.toHaveProperty('env');
+  });
+
+  it('the step that audits ends with the exit code of the audit, not of `tee`: run as GitHub runs a script (bash -e, with no pipefail of its own), with an audit that fails', () => {
+    const folder = scratch();
+    const bin = path.join(folder, 'bin');
+    mkdirSync(bin);
+    const npm = path.join(bin, 'npm');
+    writeFileSync(npm, '#!/bin/sh\necho "  FAIL  A5   a check"\necho "             - a problem"\nexit 1\n', { mode: 0o755 });
+    const temp = path.join(folder, 'temp');
+    mkdirSync(temp);
+    const env = { ...process.env, ...ISOLATED, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: temp };
+    expect(() => execFileSync('bash', ['-e', '-c', audit.run!], { cwd: folder, env, stdio: 'pipe' })).toThrow();
+    expect(readFileSync(path.join(temp, 'audit.log'), 'utf8')).toBe('  FAIL  A5   a check\n             - a problem\n');
+    // And without the first line the exit code of tee is the one that counts, which is what this line is for.
+    const without = audit.run!.replace('set -o pipefail\n', '');
+    expect(execFileSync('bash', ['-e', '-c', without], { cwd: folder, env, stdio: 'pipe' }).toString()).toContain('FAIL');
   });
 });
 
