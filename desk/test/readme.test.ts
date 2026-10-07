@@ -78,6 +78,14 @@ describe('the README: the normalised form of a value', () => {
   });
 });
 
+describe('the README: what status says', () => {
+  it('says what status prints: the last run with its day and try, the holds, the corrections and the retractions, and where the try comes from', () => {
+    const command = section('The desk command');
+    expect(command).toContain('`npm run desk -- status [--config <path>]` prints the last run (its outcome, its day and which try of the day it was), the number of holds, and the number of corrections and of retractions in the desk state.');
+    expect(command).toContain('The try is read from the record of the run (`runs/<date>/run.json`), which only the machine that made the run has');
+  });
+});
+
 describe('the README: what the Desk does not check', () => {
   const limits = (): string => section('What the Desk does not check');
 

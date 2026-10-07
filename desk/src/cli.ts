@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
 import { loadSources } from '@robywire/gate';
 import type { SourcesRegistry } from '@robywire/gate';
@@ -41,7 +42,8 @@ export const USAGE = [
   '        which client and which sources it used, so no flag is needed for them; --sources and --client are only checked against the record, and one that',
   '        contradicts it is refused. A run made with --client recorded has no replies of its own: replay it with --cassettes. A record from before records',
   '        said how a run was made needs --sources.',
-  'status  print the last run and the number of holds, from the desk state.',
+  'status  print the last run (its outcome, its day and which try of the day it was), the number of holds, and the number of corrections and of retractions.',
+  '        The desk state has all but the try, which is read from the record of the run in the folder of the runs, if it is there.',
   '--config says where the settings of the Desk are: a YAML file laid over the defaults (how recent a story must be, how many candidates reach the model, the folders,',
   '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
 ].join('\n');
@@ -316,15 +318,47 @@ async function replayCommand(args: Extract<Parsed, { command: 'replay' }>, deps:
   }
 }
 
+/** The day that a run id starts with (`2026-10-05-043100` is `2026-10-05`), or undefined for an id that does not start with a day. */
+function dayOfRun(runId: string): string | undefined {
+  const day = runId.slice(0, 10);
+  return runId.charAt(10) === '-' && isDay(day) ? day : undefined;
+}
+
+/**
+ * Which try of its day the run `runId` was, as the words that say it: from `run.json` in the folder of its day, which is there only on the machine that made the run (the
+ * desk state does not hold it). When the record is not there, is of another run (a later run of the day has taken the folder), is from before records said which try
+ * a run was, or cannot be read, the words say that the try is not known, and why, and never guess.
+ */
+async function describeAttempt(config: DeskConfig, cwd: string, day: string, runId: string): Promise<string> {
+  const file = path.join(config.runDir, day, 'run.json');
+  const shown = path.relative(cwd, file).split(path.sep).join('/');
+  if (!(await stat(file).then(() => true, () => false))) return `attempt not known (${shown} is not here)`;
+  let record: StoredRunRecord;
+  try {
+    record = await readRunRecord(file);
+  } catch {
+    return `attempt not known (${shown} cannot be read)`;
+  }
+  if (record.runId !== runId) return `attempt not known (${shown} is the record of the run ${record.runId})`;
+  if (record.attempt === undefined) return 'attempt not known (its record is from before records said which try it was)';
+  return `attempt ${record.attempt}`;
+}
+
 async function statusCommand(args: Extract<Parsed, { command: 'status' }>, deps: CliDeps): Promise<number> {
-  // Status reads the desk state alone and has no use for the settings, but a file of settings that is wrong is refused here as everywhere.
+  // Status reads the desk state, and the folder of the runs for the try of the last run, so a file of settings that is wrong is refused here as everywhere.
   const settings = settingsOf(deps, args.config);
   if ('code' in settings) return settings.code;
   try {
     const state = await readDeskState(path.join(deps.cwd, sitePaths().stateFile));
     const { lastRun } = state;
     deps.out(lastRun === null ? 'last run: none yet' : `last run: ${lastRun.outcome} at ${lastRun.at} (run ${lastRun.runId}${lastRun.slug === null ? '' : `, piece ${lastRun.slug}`})`);
+    if (lastRun !== null) {
+      const day = dayOfRun(lastRun.runId);
+      deps.out(day === undefined ? 'last run day: unknown' : `last run day: ${day}, ${await describeAttempt(settings.config, deps.cwd, day, lastRun.runId)}`);
+    }
     deps.out(`holds: ${state.holds.length}`);
+    deps.out(`corrections: ${state.corrections.filter((entry) => entry.kind === 'correction').length}`);
+    deps.out(`retractions: ${state.corrections.filter((entry) => entry.kind === 'retraction').length}`);
     return 0;
   } catch (error) {
     deps.err(describeError(error));

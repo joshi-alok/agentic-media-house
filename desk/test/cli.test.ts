@@ -440,7 +440,7 @@ describe('main: --config, the file of settings', () => {
   it('lets status read a file of settings, which it has no use for but refuses when it is wrong', async () => {
     const { call, out } = withFile(FILE);
     expect(await call('status', '--config', 'desk.yml')).toBe(0);
-    expect(out).toEqual(['last run: none yet', 'holds: 0']);
+    expect(out).toEqual(['last run: none yet', 'holds: 0', 'corrections: 0', 'retractions: 0']);
   });
 });
 
@@ -725,25 +725,88 @@ describe('main: replay', () => {
 });
 
 describe('main: status', () => {
-  it('says that nothing has happened yet, and that there are no holds, for the desk state that the site starts with', async () => {
+  const NONE = ['last run: none yet', 'holds: 0', 'corrections: 0', 'retractions: 0'];
+  const LAST = { at: '2026-10-05T04:31:00.000Z', outcome: 'published', runId: '2026-10-05-043100', slug: 'a-piece' };
+  const correction = (kind: 'correction' | 'retraction') => ({ at: '2026-10-06T09:00:00.000Z', slug: 'a-piece', kind, note: 'A note.' });
+  const stateOf = (cwd: string, state: unknown): void => writeFileSync(path.join(cwd, STATE), JSON.stringify(state));
+
+  it('says that nothing has happened yet, and that there are no holds, corrections or retractions, for the desk state that the site starts with', async () => {
     const { call, out } = setup();
     expect(await call('status')).toBe(0);
-    expect(out).toEqual(['last run: none yet', 'holds: 0']);
+    expect(out).toEqual(NONE);
   });
 
-  it('says what the last run did, which piece it made when it made one, and how many drafts are held', async () => {
+  it('says what the last run did, which piece it made when it made one, which day and try it was, and how many drafts are held', async () => {
     const { call, out, cwd } = setup();
     const hold = { at: '2026-10-04T04:31:00.000Z', categories: ['humanoids'], reasons: ['TIER2_ATTRIBUTION'] };
-    writeFileSync(path.join(cwd, STATE), JSON.stringify({ lastRun: { at: '2026-10-05T04:31:00.000Z', outcome: 'published', runId: '2026-10-05-043100', slug: 'a-piece' }, holds: [hold, hold], corrections: [] }));
+    stateOf(cwd, { lastRun: LAST, holds: [hold, hold], corrections: [] });
     expect(await call('status')).toBe(0);
-    expect(out).toEqual(['last run: published at 2026-10-05T04:31:00.000Z (run 2026-10-05-043100, piece a-piece)', 'holds: 2']);
+    expect(out).toEqual([
+      'last run: published at 2026-10-05T04:31:00.000Z (run 2026-10-05-043100, piece a-piece)',
+      'last run day: 2026-10-05, attempt not known (runs/2026-10-05/run.json is not here)',
+      'holds: 2',
+      'corrections: 0',
+      'retractions: 0',
+    ]);
+  });
+
+  it('counts the corrections and the retractions of the desk state apart', async () => {
+    const { call, out, cwd } = setup();
+    stateOf(cwd, { lastRun: null, holds: [], corrections: [correction('correction'), correction('retraction'), correction('correction'), correction('correction')] });
+    expect(await call('status')).toBe(0);
+    expect(out).toEqual(['last run: none yet', 'holds: 0', 'corrections: 3', 'retractions: 1']);
+    out.length = 0;
+    stateOf(cwd, { lastRun: null, holds: [], corrections: [correction('retraction'), correction('retraction')] });
+    await call('status');
+    expect(out.slice(2)).toEqual(['corrections: 0', 'retractions: 2']);
   });
 
   it('leaves out the piece for a run that made none', async () => {
     const { call, out, cwd } = setup();
-    writeFileSync(path.join(cwd, STATE), JSON.stringify({ lastRun: { at: '2026-10-05T04:31:00.000Z', outcome: 'no-story', runId: 'r', slug: null }, holds: [], corrections: [] }));
+    stateOf(cwd, { lastRun: { at: '2026-10-05T04:31:00.000Z', outcome: 'no-story', runId: 'r', slug: null }, holds: [], corrections: [] });
     await call('status');
     expect(out[0]).toBe('last run: no-story at 2026-10-05T04:31:00.000Z (run r)');
+  });
+
+  it('says which try of its day the last run was, from the record of the run in the folder of the runs, for each try of a day that fails', async () => {
+    const { call, out } = setup({ env: { ANTHROPIC_API_KEY: 'k' } });
+    for (const attempt of [1, 2]) {
+      await call('run', '--date', '2026-10-05');
+      out.length = 0;
+      expect(await call('status')).toBe(0);
+      expect(out[0]).toMatch(/^last run: failed at 2026-10-05T04:31:\d\d\.\d{3}Z \(run 2026-10-05-0431\d\d\)$/);
+      expect(out[1]).toBe(`last run day: 2026-10-05, attempt ${attempt}`);
+    }
+  });
+
+  it('does not say a try that it does not know: the record is of another run, is from before records said which try it was, cannot be read, or the run id does not start with a day', async () => {
+    const { call, out, cwd } = setup();
+    mkdirSync(path.join(cwd, 'runs', '2026-10-05'), { recursive: true });
+    const record = path.join(cwd, 'runs', '2026-10-05', 'run.json');
+    stateOf(cwd, { lastRun: LAST, holds: [], corrections: [] });
+    await call(...DRY_DEMO);
+    out.length = 0;
+    const made = JSON.parse(readFileSync(record, 'utf8')) as Record<string, unknown>;
+    writeFileSync(record, JSON.stringify({ ...made, runId: '2026-10-05-050000' }));
+    await call('status');
+    expect(out[1]).toBe('last run day: 2026-10-05, attempt not known (runs/2026-10-05/run.json is the record of the run 2026-10-05-050000)');
+    out.length = 0;
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = { ...made, runId: LAST.runId } as Record<string, unknown>;
+    writeFileSync(record, JSON.stringify(before));
+    await call('status');
+    expect(out[1]).toBe('last run day: 2026-10-05, attempt not known (its record is from before records said which try it was)');
+    out.length = 0;
+    writeFileSync(record, '{"runId": ');
+    await call('status');
+    expect(out[1]).toBe('last run day: 2026-10-05, attempt not known (runs/2026-10-05/run.json cannot be read)');
+    out.length = 0;
+    // A run id starts with a day that exists and a hyphen: anything else does not say a day.
+    for (const runId of ['r', '2026-10-05', '2026-13-45-043100', 'abcdefghij-043100', '2026-10-5-0431']) {
+      out.length = 0;
+      stateOf(cwd, { lastRun: { ...LAST, runId }, holds: [], corrections: [] });
+      await call('status');
+      expect(out[1], runId).toBe('last run day: unknown');
+    }
   });
 
   it('exits with 1 and says why when the desk state cannot be read', async () => {
