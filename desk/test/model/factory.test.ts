@@ -8,6 +8,7 @@ import type { ClientChoice } from '../../src/model/factory';
 import { FakeClient } from '../../src/model/fake';
 import { RecordingClient } from '../../src/model/recorded';
 import { ModelError } from '../../src/model/types';
+import type { ModelClient } from '../../src/model/types';
 import { request } from '../support/requests';
 
 // The factory picks the client for a run and wraps it: retrying around budgeting around the client.
@@ -73,6 +74,64 @@ describe('clientFromConfig with a folder to record in', () => {
     const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake: new FakeClient().script('select', { answer: 'x' }) }, {});
     await built.client.json(request());
     expect(readdirSync(scratch)).toHaveLength(before);
+  });
+});
+
+describe('clientFromConfig with a layer to put round the chosen client', () => {
+  /** A layer that counts the calls that reach the chosen client, and keeps what each was asked. */
+  const counting = () => {
+    const seen: string[] = [];
+    return { seen, wrap: (inner: ModelClient): ModelClient => ({ json: async (call) => (seen.push(call.user), inner.json(call)) }) };
+  };
+
+  it('puts it directly round the chosen client, so that it sees each call that reaches the model and the answer that the model gives', async () => {
+    const layer = counting();
+    const fake = new FakeClient().script('select', { answer: 'one' });
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake }, {}, noWait, undefined, layer.wrap);
+    expect((await built.client.json(request())).value).toEqual({ answer: 'one' });
+    expect(layer.seen).toEqual([request().user]);
+    expect(fake.calls).toHaveLength(1);
+  });
+
+  it('sees every try of a call that is retried, because the retrying is outside it, and the budget counts the same tries', async () => {
+    const layer = counting();
+    const flaky = new FakeClient().script('select', overloaded(), { answer: 'second try' });
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake: flaky }, {}, noWait, undefined, layer.wrap);
+    await built.client.json(request());
+    expect(layer.seen).toHaveLength(2);
+    expect(built.spent().calls).toBe(2);
+  });
+
+  it('sees a call that the budget refuses never, because the budget is outside it', async () => {
+    const layer = counting();
+    const config = { ...defaultConfig(), budget: { ...defaultConfig().budget, maxCalls: 1 } };
+    const built = clientFromConfig(config, { kind: 'fake', fake: new FakeClient().script('select', { answer: 'a' }, { answer: 'b' }) }, {}, noWait, undefined, layer.wrap);
+    await built.client.json(request());
+    await expect(built.client.json(request())).rejects.toMatchObject({ kind: 'budget' });
+    expect(layer.seen).toHaveLength(1);
+  });
+
+  it('is put round a client that is recorded too, inside the recording, so that a layer that refuses a call leaves no cassette', async () => {
+    const dir = path.join(scratch, 'wrapped-recording');
+    const refusing = (): ModelClient => ({
+      json: async () => {
+        throw new Error('the layer refused');
+      },
+    });
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake: new FakeClient().script('select', { answer: 'x' }) }, {}, noWait, dir, refusing);
+    await expect(built.client.json(request())).rejects.toThrow('the layer refused');
+    expect(existsSync(dir)).toBe(false);
+  });
+
+  it('still needs the key of the api client, and refuses before it builds the layer', () => {
+    let built = false;
+    expect(() =>
+      clientFromConfig(defaultConfig(), { kind: 'api' }, {}, noWait, undefined, (client) => {
+        built = true;
+        return client;
+      }),
+    ).toThrow('ANTHROPIC_API_KEY is not set');
+    expect(built).toBe(false);
   });
 });
 

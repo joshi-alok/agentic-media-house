@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { CORRECTION_KINDS, loadSources } from '@robywire/gate';
 import type { CorrectionKind, SourcesRegistry } from '@robywire/gate';
@@ -22,16 +22,18 @@ import {
   runPath,
   sitePaths,
   DryTarget,
+  FakeClient,
   SiteTarget,
 } from './index';
-import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, EvidenceStore, Fetcher, ForgeTarget, GitTarget, Lookup, RetryOptions, SourcesKind, StoreTransport, StoredRunRecord, Transport } from './index';
+import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, EvidenceStore, Fetcher, ForgeTarget, GitTarget, Lookup, ModelClient, RetryOptions, SourcesKind, StoreTransport, StoredRunRecord, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
 import { runDesk } from './run/orchestrate';
 import type { RunResult, Stages } from './run/orchestrate';
 import { replayRun } from './run/replay';
+import { TUNE_DEFAULT_CALLS, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRefused, parseUrlList, runTune } from './run/tune';
 
-// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status` and `desk retract <slug>`. The arguments are read by hand, with no library, and a
+// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status`, `desk retract <slug>` and `desk tune`. The arguments are read by hand, with no library, and a
 // mistake in them is a usage error (exit code 2) that says what is wrong and writes nothing. Everything `main` needs from the outside, the clock, the
 // environment, git, where to print, is in `deps`, so that a test calls `main` with fakes and nothing real is touched. The exit codes are 0 for a run that
 // published, held or found no story, for a replay that came out equal and for a correction that was made, 1 for a run that failed, was refused or could not start, a
@@ -44,6 +46,7 @@ export type Parsed =
   | { command: 'replay'; runDir: string; sources: SourcesKind | undefined; client: ClientKind | undefined; cassettes: string | undefined; config: string | undefined }
   | { command: 'status'; config: string | undefined }
   | { command: 'retract'; slug: string; reason: string; kind: CorrectionKind; dry: boolean }
+  | { command: 'tune'; urls: string; trials: number; maxCalls: number; client: 'api' | 'fake'; config: string | undefined }
   | { command: 'help' };
 
 /** What the arguments mean, or why they do not. */
@@ -55,6 +58,7 @@ export const USAGE = [
   '  desk replay <folder of a run> [--sources fixtures|live] [--client fake|recorded|api] [--cassettes <folder>] [--config <path>]',
   '  desk status [--config <path>]',
   '  desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]',
+  '  desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]',
   '',
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
@@ -79,15 +83,22 @@ export const USAGE = [
   'retract record a correction (the default) or a retraction of a piece that is on the site: the note goes into the desk state, updatedAt of the piece is set to today',
   '        (UTC), and the two are committed in one commit. The reason is one line of at most 500 characters. Nothing is deleted: the page stays up with its notice. A piece',
   '        that was held is on its pull request until the owner merges it, and cannot be corrected before. --dry says what would be done and writes nothing.',
+  'tune    try the pipeline on real pages and say what each step found. --urls is a file of addresses, one to a line (a # starts a comment). Each page is fetched as the Desk fetches',
+  '        (robots.txt honoured, at the pace of the settings) and sent through Extract, Compose and Verify with --client api (the default; it needs ANTHROPIC_API_KEY) or --client fake (a model',
+  '        that proposes no claims: it tries the fetching and the sorting of the pages and costs nothing). --trials N runs the model steps N times on each page (1 to 10, 1 unless told otherwise),',
+  '        and --max-calls M stops the whole invocation, with exit code 1, when it has made M model calls (1 to 200, 40 unless told otherwise); each trial is also held to the budget of the settings.',
+  '        For each page and trial it prints the claims proposed, dropped (with the rule that dropped them) and kept, what the gate said of the draft, what the model check said of its sentences,',
+  '        and the tokens (dollars too when the settings have prices). Nothing is published or committed: it writes only below runs/tune/<stamp>/, and keeps the pages there, never in the bucket.',
   '--config says where the settings of the Desk are: a YAML file laid over the defaults (how recent a story must be, how many candidates reach the model, the folders,',
   '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
 ].join('\n');
 
-const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract', { flags: readonly string[]; valued: readonly string[] }>> = {
+const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract' | 'tune', { flags: readonly string[]; valued: readonly string[] }>> = {
   run: { flags: ['--dry', '--force-new', '--skip-if-done'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
   replay: { flags: [], valued: ['--sources', '--client', '--cassettes', '--config'] },
   status: { flags: [], valued: ['--config'] },
   retract: { flags: ['--dry'], valued: ['--reason', '--kind'] },
+  tune: { flags: [], valued: ['--urls', '--trials', '--max-calls', '--client', '--config'] },
 };
 
 const CLIENTS: readonly string[] = CLIENT_KINDS;
@@ -113,7 +124,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   const [command, ...rest] = argv;
   if (command === undefined) return fail('no command given');
   if (command === 'help' || command === '--help' || command === '-h') return { ok: true, args: { command: 'help' } };
-  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'retract') return fail(`unknown command "${command}"`);
+  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'retract' && command !== 'tune') return fail(`unknown command "${command}"`);
 
   const given = new Map<string, string | true>();
   const positional: string[] = [];
@@ -157,6 +168,19 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     const kind = value('--kind') ?? 'correction';
     if (!(CORRECTION_KINDS as readonly string[]).includes(kind)) return fail(`--kind is correction or retraction, not "${kind}"`);
     return { ok: true, args: { command: 'retract', slug, reason, kind: kind as CorrectionKind, dry: given.has('--dry') } };
+  }
+  if (command === 'tune') {
+    if (positional.length > 0) return fail(`tune takes no arguments, but was given "${positional[0]}"`);
+    const urls = value('--urls');
+    if (urls === undefined) return fail('tune needs --urls <file>: the file that lists the addresses of the pages to try, one to a line');
+    const whole = (given: string | undefined, fallback: number, most: number): number | undefined => (given === undefined ? fallback : /^[1-9]\d{0,5}$/.test(given) && Number(given) <= most ? Number(given) : undefined);
+    const trials = whole(value('--trials'), 1, TUNE_MAX_TRIALS);
+    if (trials === undefined) return fail(`--trials is a whole number from 1 to ${TUNE_MAX_TRIALS}, not "${value('--trials')}"`);
+    const maxCalls = whole(value('--max-calls'), TUNE_DEFAULT_CALLS, TUNE_MAX_CALLS);
+    if (maxCalls === undefined) return fail(`--max-calls is a whole number from 1 to ${TUNE_MAX_CALLS}, not "${value('--max-calls')}"`);
+    const client = value('--client') ?? 'api';
+    if (client !== 'api' && client !== 'fake') return fail(`--client is api or fake for tune, not "${client}"`);
+    return { ok: true, args: { command: 'tune', urls, trials, maxCalls, client, config: value('--config') } };
   }
   const sourcesGiven = value('--sources');
   if (sourcesGiven !== undefined && !SOURCES.includes(sourcesGiven)) return fail(`--sources is fixtures or live, not "${sourcesGiven}"`);
@@ -217,6 +241,8 @@ export interface CliDeps {
   evidenceTransport?: StoreTransport;
   /** How the api client waits between tries. */
   retry?: RetryOptions;
+  /** The scripted model that `desk tune --client fake` uses, which a test gives a story to tell. By default it is one that proposes no claims on any page. */
+  tuneClient?: FakeClient;
 }
 
 const describeError = (error: unknown): string => (error instanceof Error ? error.message || error.name : String(error));
@@ -281,6 +307,10 @@ export function resultLines(result: RunResult): string[] {
   return lines;
 }
 
+/** Why a user agent that links to a placeholder address is refused for `what` (a live run, a tuning run): the site that is asked cannot find out who is asking. */
+const placeholderRefusal = (userAgent: string, host: string, what: string): string =>
+  `desk: the user agent "${userAgent}" links to ${host}, which is a placeholder address: ${what} needs a user agent that links to the real /method page of the Desk; set userAgent in a file of settings and pass it with --config <path>`;
+
 /** A path as it is shown to a person: relative to the folder the command was started in, with forward slashes. */
 const shownPath = (cwd: string, file: string): string => path.relative(cwd, file).split(path.sep).join('/');
 
@@ -314,9 +344,7 @@ async function runCommand(args: Extract<Parsed, { command: 'run' }>, deps: CliDe
   const { config } = settings;
   const placeholder = args.sources === 'live' ? placeholderHost(config.userAgent) : undefined;
   if (placeholder !== undefined) {
-    deps.err(
-      `desk: the user agent "${config.userAgent}" links to ${placeholder}, which is a placeholder address: a live run needs a user agent that links to the real /method page of the Desk; set userAgent in a file of settings and pass it with --config <path>`,
-    );
+    deps.err(placeholderRefusal(config.userAgent, placeholder, 'a live run'));
     return 2;
   }
   const date = args.date ?? (args.sources === 'fixtures' ? DEMO_DATE : deps.now().toISOString().slice(0, 10));
@@ -443,6 +471,79 @@ async function replayCommand(args: Extract<Parsed, { command: 'replay' }>, deps:
   }
 }
 
+/**
+ * `desk tune`: the table of what each step found on each real page of a list. The settings are read first, then the list, then the registry, then the client (so that the api without a
+ * key is refused before anything is fetched), and only then does the first page get fetched. A mistake in any of them is exit code 2 and nothing is written (the registry that cannot be read
+ * is 1, as for `run`); an invocation that is stopped by the budget of calls is 1, with the reason on the error output; every other ending is 0, the pages that could not be tried included,
+ * because what happened to them is in the table.
+ */
+async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: CliDeps): Promise<number> {
+  const settings = settingsOf(deps, args.config);
+  if ('code' in settings) return settings.code;
+  const { config } = settings;
+  const placeholder = placeholderHost(config.userAgent);
+  if (placeholder !== undefined) {
+    deps.err(placeholderRefusal(config.userAgent, placeholder, 'a tuning run, which fetches live pages,'));
+    return 2;
+  }
+  let text: string;
+  try {
+    text = await readFile(path.resolve(deps.cwd, args.urls), 'utf8');
+  } catch (error) {
+    deps.err(`desk: cannot read the list of addresses ${args.urls} (${(error as NodeJS.ErrnoException).code ?? 'unknown error'})`);
+    return 2;
+  }
+  const listed = parseUrlList(text);
+  if ('problem' in listed) {
+    deps.err(`desk: the list of addresses ${args.urls}: ${listed.problem}`);
+    return 2;
+  }
+  let world: ReturnType<typeof sourcesOf>;
+  try {
+    world = sourcesOf('live', deps, config);
+  } catch (error) {
+    deps.err(`the sources cannot be read: ${describeError(error)}`);
+    return 1;
+  }
+  const choice: ClientChoice =
+    args.client === 'fake'
+      ? { kind: 'fake', fake: deps.tuneClient ?? new FakeClient().script('extract', ...Array.from({ length: listed.urls.length * args.trials }, () => ({ claims: [] }))) }
+      : { kind: 'api' };
+  const buildClient = (wrap: (client: ModelClient) => ModelClient): BuiltClient => clientFromConfig(config, choice, deps.env, deps.retry ?? {}, undefined, wrap);
+  try {
+    buildClient((client) => client);
+  } catch (error) {
+    deps.err(describeError(error));
+    return 2;
+  }
+  const now = deps.now();
+  const stamp = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+  deps.out(`tune: ${listed.urls.length} ${listed.urls.length === 1 ? 'address' : 'addresses'}, ${args.trials} ${args.trials === 1 ? 'trial' : 'trials'} each, at most ${args.maxCalls} model calls, client ${args.client}`);
+  deps.out(`folder: ${shownPath(deps.cwd, path.join(config.runDir, 'tune', stamp))}`);
+  try {
+    const { record } = await runTune({
+      urls: listed.urls,
+      trials: args.trials,
+      maxCalls: args.maxCalls,
+      clientKind: args.client,
+      sourcesKind: 'live',
+      config,
+      sources: world.sources,
+      fetcher: world.fetcher,
+      buildClient,
+      date: now.toISOString().slice(0, 10),
+      stamp,
+      out: (line) => deps.out(line),
+    });
+    if (record.stopped === null) return 0;
+    deps.err(`desk: the tuning stopped before it was done: ${record.stopped}`);
+    return 1;
+  } catch (error) {
+    deps.err(error instanceof TuneRefused ? `desk: ${error.message}` : `the tuning could not be done: ${describeError(error)}`);
+    return error instanceof TuneRefused ? 2 : 1;
+  }
+}
+
 async function retractCommand(args: Extract<Parsed, { command: 'retract' }>, deps: CliDeps): Promise<number> {
   try {
     const result = await retractPiece({ repoDir: deps.cwd, git: deps.git, slug: args.slug, reason: args.reason, kind: args.kind, now: deps.now, dry: args.dry });
@@ -520,5 +621,7 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
       return statusCommand(parsed.args, deps);
     case 'retract':
       return retractCommand(parsed.args, deps);
+    case 'tune':
+      return tuneCommand(parsed.args, deps);
   }
 }

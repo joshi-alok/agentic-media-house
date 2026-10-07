@@ -354,3 +354,50 @@ describe('the README: the deploy workflow', () => {
   });
 });
 
+describe('the README: the tuning harness', () => {
+  const tune = (): string => section('The tuning harness');
+
+  it('is one of the commands, with its options, and says that it publishes and commits nothing', () => {
+    expect(section('The desk command')).toContain('`npm run desk -- tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]`');
+    expect(section('The desk command')).toContain('It publishes and commits nothing');
+  });
+
+  it('says what the list is, what is fetched and how, what a page of no known kind and a redirect do, and what --client fake is', () => {
+    expect(tune()).toContain('lists addresses, one to a line (`#` starts a comment)');
+    expect(tune()).toContain('`robots.txt` honoured, at the pace of the settings');
+    expect(tune()).toContain('an address on a host that the registry does not list is not fetched at all');
+    expect(tune()).toContain('`--client fake` (a scripted model that proposes no claims: it tries the fetching and the sorting and costs nothing)');
+  });
+
+  it('says what the table has, and that a page that cannot be tried or a trial that fails does not make the exit code 1', () => {
+    expect(tune()).toContain('the claims dropped (counted under each rule that dropped them)');
+    expect(tune()).toContain('what the gate said of the first draft (its failure codes)');
+    expect(tune()).toContain('what the model check said of the first draft that the gate cleared');
+    expect(tune()).toContain('neither makes the exit code 1');
+  });
+
+  it('says that dollars come only from prices that the owner wrote, and when there are none', () => {
+    expect(tune()).toContain('The Desk does not know what a model costs and never guesses.');
+    expect(tune()).toContain('`inputPerMillion` and `outputPerMillion`');
+    expect(tune()).toContain('it shows no dollars when extract, compose and verify are not one model');
+  });
+
+  it('says what the budget of calls is, how it is counted, what happens when it is spent, and that each trial also has the budget of the settings', () => {
+    expect(tune()).toContain('`--max-calls M` (1 to 200, 40 by default) is the most model calls that the whole invocation may make, counted where a call reaches the model, each retry included');
+    expect(tune()).toContain('with the reason in the table and on the error output and exit code 1, and what was done is kept');
+    expect(tune()).toContain('Each trial is also held to the budget of the settings');
+  });
+
+  it('says where it writes and what it never touches, that the pages are not in the bucket, and that the workflow does not upload them', () => {
+    expect(tune()).toContain('Only below `runs/tune/<stamp>/`');
+    expect(tune()).toContain('It never touches `site/`, the desk state or git, and it never uses the evidence store of the settings');
+    expect(tune()).toContain('the daily workflow does not upload it');
+  });
+
+  it('says that it has only been run on scripted models and made-up pages, and that prices are a setting', () => {
+    expect(tune()).toContain('It has been run only against scripted models and made-up pages.');
+    expect(section('The desk command')).toContain('and `prices` (what a million tokens cost, which only `desk tune` reads)');
+    expect(section('The desk workspace')).toContain('`desk tune`, the command that measures them, is built and tested with scripted models and has never been run against a real one');
+  });
+});
+

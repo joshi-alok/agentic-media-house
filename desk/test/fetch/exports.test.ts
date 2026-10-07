@@ -254,7 +254,7 @@ describe('the package entry point: fetching', () => {
     const revision = ['runVerify', 'reviseDraft', 'problemsOf', 'reviseReplySchema', 'reviseSystem', 'buildReviseUser'];
     const publication = ['runPublish', 'runHold', 'holdReasonsOf', 'renderHeldPiece', 'heldPieceFiles', 'holdPrTitle', 'holdPrBody', 'sendToOwner'];
     const orchestration = ['runDesk', 'DEFAULT_STAGES', 'replayRun', 'REPLAYED'];
-    const program = ['parseArgs', 'main', 'USAGE'];
+    const program = ['parseArgs', 'main', 'USAGE', 'runTune', 'parseUrlList', 'priceOf', 'dollarsOf', 'rowLines', 'totalLines', 'TuneRow', 'TuneRecord', 'TUNE_DEFAULT_CALLS', 'TUNE_MAX_CALLS', 'TUNE_MAX_TRIALS', 'TUNE_FOLDER', 'TuneRefused'];
     const demo = ['DEMO_DATE', 'DEMO_URLS', 'DEMO_FIXTURE_DIR', 'demoWorldMap', 'demoFetcher', 'DEMO_REGISTRY_YAML', 'demoRegistry', 'DEMO_CLAIMS', 'DEMO_REPLY', 'DEMO_SELECT_REASON', 'clearingVerifier', 'demoClient'];
     for (const name of [...stages, ...extraction, ...assembly, ...composition, ...verification, ...revision, ...publication, ...orchestration, ...program, ...demo]) {
       expect(entry).not.toHaveProperty(name);

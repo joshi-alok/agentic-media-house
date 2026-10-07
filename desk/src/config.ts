@@ -33,6 +33,12 @@ export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
  */
 const Evidence = z.strictObject({ kind: z.enum(EVIDENCE_KINDS) });
 
+/**
+ * What a million tokens of the model cost, in dollars, for the tokens that go in and for the tokens that come out. The Desk does not know the prices of a provider and never guesses them: the
+ * owner reads them from the price list and writes them here, and only `desk tune` uses them, to turn the tokens that a trial reported into dollars. Without the block `desk tune` shows tokens only.
+ */
+const Prices = z.strictObject({ inputPerMillion: z.number().positive(), outputPerMillion: z.number().positive() });
+
 export const DeskConfig = z.strictObject({
   /** Select: a candidate older than this many hours is not considered. */
   recencyHours: count,
@@ -59,6 +65,8 @@ export const DeskConfig = z.strictObject({
   /** Where the snapshots of sources are kept, when the store is `local`. Kept out of git. */
   evidenceDir: text,
   evidence: Evidence,
+  /** Tune: the price of a million tokens, for `desk tune` to show dollars. Not set unless the owner sets it. */
+  prices: Prices.optional(),
 });
 export type DeskConfig = z.infer<typeof DeskConfig>;
 

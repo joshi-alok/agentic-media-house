@@ -253,6 +253,29 @@ describe('the evidence store setting', () => {
   });
 });
 
+describe('the prices setting', () => {
+  it('is not there unless the file has it: the Desk does not know what a model costs and never makes a price up', () => {
+    expect(defaultConfig()).not.toHaveProperty('prices');
+    expect(loadConfig(configFile('recencyHours: 48\n'))).not.toHaveProperty('prices');
+    expect(loadConfig().prices).toBeUndefined();
+  });
+
+  it('is the price of a million tokens in and of a million tokens out, in dollars, as the file gives them', () => {
+    expect(loadConfig(configFile('prices:\n  inputPerMillion: 3\n  outputPerMillion: 15\n')).prices).toEqual({ inputPerMillion: 3, outputPerMillion: 15 });
+    expect(loadConfig(configFile('prices:\n  inputPerMillion: 0.8\n  outputPerMillion: 4.25\n')).prices).toEqual({ inputPerMillion: 0.8, outputPerMillion: 4.25 });
+    expect(loadConfig(configFile('prices: { inputPerMillion: 1, outputPerMillion: 5 }\n'))).toEqual({ ...defaultConfig(), prices: { inputPerMillion: 1, outputPerMillion: 5 } });
+  });
+
+  it('refuses a price that is not a number above zero, a price that is missing, one that does not exist, and a block that is not a mapping, naming the setting', () => {
+    expect(failure('prices:\n  inputPerMillion: 0\n  outputPerMillion: 15\n')).toBe('desk config <file>: prices.inputPerMillion: Too small: expected number to be >0');
+    expect(failure('prices:\n  inputPerMillion: 3\n  outputPerMillion: -1\n')).toBe('desk config <file>: prices.outputPerMillion: Too small: expected number to be >0');
+    expect(failure('prices:\n  inputPerMillion: cheap\n  outputPerMillion: 15\n')).toBe('desk config <file>: prices.inputPerMillion: Invalid input: expected number, received string');
+    expect(failure('prices:\n  inputPerMillion: 3\n')).toBe('desk config <file>: prices.outputPerMillion: Invalid input: expected number, received undefined');
+    expect(failure('prices:\n  inputPerMillion: 3\n  outputPerMillion: 15\n  cachedPerMillion: 1\n')).toBe('desk config <file>: prices: Unrecognized key: "cachedPerMillion"');
+    expect(failure('prices: 3\n')).toBe('desk config <file>: prices: Invalid input: expected object, received number');
+  });
+});
+
 describe('the folders of a run', () => {
   it('are kept out of git: run artifacts and private snapshots of sources never go into the repository', () => {
     const ignored = readFileSync(new URL('../../.gitignore', import.meta.url), 'utf8').split('\n');

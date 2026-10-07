@@ -52,9 +52,19 @@ function chosenClient(choice: ClientChoice, env: Environment): ModelClient {
  * With `record`, a folder, every call that the chosen client answers is kept in it as a cassette
  * (see `RecordingClient`), so that the run can be replayed later with no model and no network.
  * Recording is the innermost layer: a call that fails is not recorded, and a retry that succeeds is.
+ *
+ * With `wrap`, a function, the chosen client is put inside what it returns before anything else is built around it: the layer that sees exactly the calls that reach the
+ * model, each retry included, which `desk tune` uses to count them against the budget of a whole invocation, whatever the budget of one run says.
  */
-export function clientFromConfig(config: DeskConfig, choice: ClientChoice, env: Environment, retry: RetryOptions = {}, record?: string): BuiltClient {
-  const chosen = chosenClient(choice, env);
+export function clientFromConfig(
+  config: DeskConfig,
+  choice: ClientChoice,
+  env: Environment,
+  retry: RetryOptions = {},
+  record?: string,
+  wrap?: (client: ModelClient) => ModelClient,
+): BuiltClient {
+  const chosen = wrap === undefined ? chosenClient(choice, env) : wrap(chosenClient(choice, env));
   const budgeted = new BudgetedClient(record === undefined ? chosen : new RecordingClient(chosen, record), config.budget);
   return { client: new RetryClient(budgeted, retry), spent: () => budgeted.spent() };
 }
