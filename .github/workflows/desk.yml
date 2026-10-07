@@ -61,17 +61,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: npm run desk -- run --config desk.config.yml --skip-if-done
 
-      # A run that is not dry makes one commit, whatever way it ends (the piece and the desk state, or the desk state alone). Push it, and only when there is one.
+      # A run that is not dry makes one commit, whatever way it ends (the piece and the desk state, or the desk state alone). `desk push` pushes what the checkout has that
+      # origin/main has not: after a fetch, so that a checkout with no upstream or a detached one is an error and never "nothing to push"; again on top of what somebody else
+      # pushed in the meantime when the push is rejected; and to a branch of its own, with exit code 1, when it cannot go to main. It writes pushed=true for the step that deploys.
       - name: Push what the run committed
         id: push
         if: ${{ !cancelled() && steps.desk.conclusion != 'skipped' }}
-        run: |
-          if [ -n "$(git rev-list '@{u}..HEAD')" ]; then
-            git push
-            echo 'pushed=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'The run made no commit, so there is nothing to push.'
-          fi
+        run: npm run desk -- push --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output "$GITHUB_OUTPUT"
 
       # The artifacts of the run are the files of runs/: hashes, the short quotations of the claims, the drafts and the record of the run. Never the text of a page
       # (the snapshots are in the bucket, and runs/ has none), and never the trials of `desk tune`. A public repository's artifacts can be read by anyone.

@@ -26,6 +26,7 @@ export * from './run/sigv4';
 export * from './run/desk-state';
 export * from './run/git';
 export * from './run/forge';
+export * from './run/push';
 export * from './run/retract';
 export * from './run/target';
 export * from './run/lock';

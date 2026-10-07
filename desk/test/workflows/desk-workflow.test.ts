@@ -169,84 +169,15 @@ describe('desk.yml: the secrets', () => {
 describe('desk.yml: pushing what the run committed', () => {
   const push = stepNamed(workflow, 'Push what the run committed');
 
-  /** A made-up remote (a bare repository in a folder) and a clone of it that is on main and follows origin/main, as the checkout of the workflow is. */
-  function checkout() {
-    const root = scratch();
-    const remote = path.join(root, 'origin.git');
-    const work = path.join(root, 'work');
-    mkdirSync(remote);
-    git(remote, 'init', '--quiet', '--bare', '-b', 'main');
-    const seed = path.join(root, 'seed');
-    mkdirSync(seed);
-    git(seed, 'init', '--quiet', '-b', 'main');
-    git(seed, 'config', 'user.name', 'Seed');
-    git(seed, 'config', 'user.email', 'seed@example.com');
-    writeFileSync(path.join(seed, 'a.txt'), 'a\n');
-    git(seed, 'add', '.');
-    git(seed, 'commit', '--quiet', '-m', 'start');
-    git(seed, 'push', '--quiet', remote, 'main');
-    execFileSync('git', ['clone', '--quiet', remote, work], { env: { ...process.env, ...ISOLATED } });
-    git(work, 'config', 'user.name', 'github-actions[bot]');
-    git(work, 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com');
-    const output = path.join(root, 'output');
-    writeFileSync(output, '');
-    const commit = (file: string): void => {
-      writeFileSync(path.join(work, file), `${file}\n`);
-      git(work, 'add', file);
-      git(work, 'commit', '--quiet', '-m', `desk: ${file}`);
-    };
-    const step = (): string => runScript(push.run!, work, { GITHUB_OUTPUT: output });
-    return { remote, work, output, commit, step, remoteHead: () => git(remote, 'rev-parse', 'main'), outputs: () => readFileSync(output, 'utf8') };
-  }
-
-  it('pushes when the run made a commit, and says so for the step that deploys', () => {
-    const made = checkout();
-    made.commit('b.txt');
-    made.step();
-    expect(made.remoteHead()).toBe(git(made.work, 'rev-parse', 'HEAD'));
-    expect(made.outputs()).toBe('pushed=true\n');
+  it('is the command `desk push`, which counts after a fetch, tries again when it is rejected and never fails open (test/run/push.test.ts says how), with the number of the run for the name of a rescue branch', () => {
+    expect(push.run).toBe('npm run desk -- push --run-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --output "$GITHUB_OUTPUT"');
+    // What the shell makes of it, for the made-up run 4711, attempt 2.
+    const words = push.run!.replace('npm run desk -- ', '').replace('"${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"', '4711-2').replace('"$GITHUB_OUTPUT"', '/runner/output').split(' ');
+    expect(parseArgs(words)).toEqual({ ok: true, args: { command: 'push', runId: '4711-2', output: '/runner/output' } });
   });
 
-  it('pushes the commit of a run that failed too: the desk state says that it failed', () => {
-    const made = checkout();
-    made.commit('desk-state.json');
-    made.step();
-    expect(made.remoteHead()).toBe(git(made.work, 'rev-parse', 'HEAD'));
-  });
-
-  it('does nothing, and says that it did nothing, when the run made no commit (a day that was done, or a dry run)', () => {
-    const made = checkout();
-    const before = made.remoteHead();
-    expect(made.step()).toContain('nothing to push');
-    expect(made.remoteHead()).toBe(before);
-    expect(made.outputs()).toBe('');
-  });
-
-  it('does not push a branch that the run made for a hold, which the Desk pushes itself: only what main is ahead by', () => {
-    const made = checkout();
-    git(made.work, 'checkout', '--quiet', '-b', 'hold/2026-10-05-a-piece');
-    made.commit('held.txt');
-    git(made.work, 'checkout', '--quiet', 'main');
-    const before = made.remoteHead();
-    made.step();
-    expect(made.remoteHead()).toBe(before);
-    expect(made.outputs()).toBe('');
-  });
-
-  it('fails the step when the push is refused, and does not say that it pushed', () => {
-    const made = checkout();
-    made.commit('b.txt');
-    // Someone else pushed to main since the checkout.
-    const other = path.join(path.dirname(made.work), 'other');
-    execFileSync('git', ['clone', '--quiet', made.remote, other], { env: { ...process.env, ...ISOLATED } });
-    git(other, 'config', 'user.name', 'Someone');
-    git(other, 'config', 'user.email', 'someone@example.com');
-    writeFileSync(path.join(other, 'c.txt'), 'c\n');
-    git(other, 'add', '.');
-    git(other, 'commit', '--quiet', '-m', 'someone');
-    git(other, 'push', '--quiet', 'origin', 'main');
-    expect(() => made.step()).toThrow();
-    expect(made.outputs()).toBe('');
+  it('has no script of its own that could swallow an error: no `if`, no `||`, no `;` and no `git` in the command', () => {
+    expect(push.run).not.toMatch(/\bif\b|\|\||;|\bgit\b/);
   });
 
   it('is asked after the run whatever way the run ended, unless the workflow was cancelled or the run never started', () => {

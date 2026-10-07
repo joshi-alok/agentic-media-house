@@ -1,20 +1,26 @@
-import { readFile, stat } from 'node:fs/promises';
+import { appendFile, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { CORRECTION_KINDS, loadSources } from '@robywire/gate';
 import type { CorrectionKind, SourcesRegistry } from '@robywire/gate';
 import {
   CLIENT_KINDS,
   HttpFetcher,
+  MAIN_BRANCH,
+  PushFailed,
   RetractRefused,
   RunRefused,
   SOURCES_KINDS,
   clientFromConfig,
   defaultConfig,
+  gitRunner,
   isPlainSlug,
   loadConfig,
   makeEvidenceStore,
   normaliseReason,
+  nodeExec,
   placeholderHost,
+  pushLines,
+  pushRun,
   readDeskState,
   readRunRecord,
   refuseApiOnFixtures,
@@ -25,7 +31,7 @@ import {
   FakeClient,
   SiteTarget,
 } from './index';
-import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, EvidenceStore, Fetcher, ForgeTarget, GitTarget, Lookup, ModelClient, RetryOptions, SourcesKind, StoreTransport, StoredRunRecord, Transport } from './index';
+import type { BuiltClient, ClientChoice, ClientKind, DeskConfig, Environment, EvidenceStore, Fetcher, ForgeTarget, GitRunner, GitTarget, Lookup, ModelClient, PushOutcome, RetryOptions, SourcesKind, StoreTransport, StoredRunRecord, Transport } from './index';
 import { demoClient } from './demo/story';
 import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
 import { runDesk } from './run/orchestrate';
@@ -33,7 +39,7 @@ import type { RunResult, Stages } from './run/orchestrate';
 import { replayRun } from './run/replay';
 import { TUNE_DEFAULT_CALLS, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRefused, parseUrlList, runTune } from './run/tune';
 
-// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status`, `desk retract <slug>` and `desk tune`. The arguments are read by hand, with no library, and a
+// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status`, `desk retract <slug>`, `desk tune` and `desk push`. The arguments are read by hand, with no library, and a
 // mistake in them is a usage error (exit code 2) that says what is wrong and writes nothing. Everything `main` needs from the outside, the clock, the
 // environment, git, where to print, is in `deps`, so that a test calls `main` with fakes and nothing real is touched. The exit codes are 0 for a run that
 // published, held or found no story, for a replay that came out equal and for a correction that was made, 1 for a run that failed, was refused or could not start, a
@@ -47,6 +53,7 @@ export type Parsed =
   | { command: 'status'; config: string | undefined }
   | { command: 'retract'; slug: string; reason: string; kind: CorrectionKind; dry: boolean }
   | { command: 'tune'; urls: string; trials: number; maxCalls: number; client: 'api' | 'fake'; config: string | undefined }
+  | { command: 'push'; runId: string | undefined; output: string | undefined }
   | { command: 'help' };
 
 /** What the arguments mean, or why they do not. */
@@ -59,6 +66,7 @@ export const USAGE = [
   '  desk status [--config <path>]',
   '  desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]',
   '  desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]',
+  '  desk push [--run-id <id>] [--output <file>]',
   '',
   'run     write today\'s piece, or hold it, or find no story. --dry writes the artifacts and never touches the site or git.',
   '        --client says who answers the model calls (api is the default and needs ANTHROPIC_API_KEY; recorded needs --cassettes; fake is a scripted',
@@ -89,16 +97,22 @@ export const USAGE = [
   '        and --max-calls M stops the whole invocation, with exit code 1, when it has made M model calls (1 to 200, 40 unless told otherwise); each trial is also held to the budget of the settings.',
   '        For each page and trial it prints the claims proposed, dropped (with the rule that dropped them) and kept, what the gate said of the draft, what the model check said of its sentences,',
   '        and the tokens (dollars too when the settings have prices). Nothing is published or committed: it writes only below runs/tune/<stamp>/, and keeps the pages there, never in the bucket.',
+  'push    push to main of origin the commits that this checkout has and origin/main has not (what a run committed), after a fetch, and say what it did. Nothing ahead is not an error and exits 0.',
+  '        A push that is rejected because somebody else pushed is made again on top of what they pushed (up to 3 more times); a push that cannot be put on top (the desk state is the',
+  '        usual cause), or that main does not take, puts the commits on the branch desk-rescue/<day>-<id> instead, says where they are, and exits 1. Every error of git, a checkout on',
+  '        no branch or on another branch than main, a missing remote and a remote with no main are exit code 1 too: a push never fails open. --run-id names the rescue branch (the workflow gives',
+  '        the number of its run; by default it is the time) and --output <file> is where the line pushed=true is added when the commits were pushed (the file that GitHub gives a step).',
   '--config says where the settings of the Desk are: a YAML file laid over the defaults (how recent a story must be, how many candidates reach the model, the folders,',
   '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
 ].join('\n');
 
-const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract' | 'tune', { flags: readonly string[]; valued: readonly string[] }>> = {
+const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract' | 'tune' | 'push', { flags: readonly string[]; valued: readonly string[] }>> = {
   run: { flags: ['--dry', '--force-new', '--skip-if-done'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
   replay: { flags: [], valued: ['--sources', '--client', '--cassettes', '--config'] },
   status: { flags: [], valued: ['--config'] },
   retract: { flags: ['--dry'], valued: ['--reason', '--kind'] },
   tune: { flags: [], valued: ['--urls', '--trials', '--max-calls', '--client', '--config'] },
+  push: { flags: [], valued: ['--run-id', '--output'] },
 };
 
 const CLIENTS: readonly string[] = CLIENT_KINDS;
@@ -124,7 +138,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   const [command, ...rest] = argv;
   if (command === undefined) return fail('no command given');
   if (command === 'help' || command === '--help' || command === '-h') return { ok: true, args: { command: 'help' } };
-  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'retract' && command !== 'tune') return fail(`unknown command "${command}"`);
+  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'retract' && command !== 'tune' && command !== 'push') return fail(`unknown command "${command}"`);
 
   const given = new Map<string, string | true>();
   const positional: string[] = [];
@@ -168,6 +182,12 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     const kind = value('--kind') ?? 'correction';
     if (!(CORRECTION_KINDS as readonly string[]).includes(kind)) return fail(`--kind is correction or retraction, not "${kind}"`);
     return { ok: true, args: { command: 'retract', slug, reason, kind: kind as CorrectionKind, dry: given.has('--dry') } };
+  }
+  if (command === 'push') {
+    if (positional.length > 0) return fail(`push takes no arguments, but was given "${positional[0]}"`);
+    const runId = value('--run-id');
+    if (runId !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(runId)) return fail(`--run-id is lowercase letters and digits joined by single hyphens, not "${runId}"`);
+    return { ok: true, args: { command: 'push', runId, output: value('--output') } };
   }
   if (command === 'tune') {
     if (positional.length > 0) return fail(`tune takes no arguments, but was given "${positional[0]}"`);
@@ -241,6 +261,8 @@ export interface CliDeps {
   evidenceTransport?: StoreTransport;
   /** How the api client waits between tries. */
   retry?: RetryOptions;
+  /** Git in the folder of the checkout, as `desk push` runs it; by default the program `git` in `cwd`. */
+  pushGit?: GitRunner;
   /** The scripted model that `desk tune --client fake` uses, which a test gives a story to tell. By default it is one that proposes no claims on any page. */
   tuneClient?: FakeClient;
 }
@@ -544,6 +566,39 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
   }
 }
 
+/**
+ * `desk push`: the commits of the run go to main of origin (`pushRun`). Pushed or nothing to push is exit code 0, and the line `pushed=true` is added to the file of `--output` when
+ * they were pushed, which is how the step that starts the deploy knows that there is something to deploy. Commits that went to the rescue branch, and every error, are exit code 1.
+ */
+async function pushCommand(args: Extract<Parsed, { command: 'push' }>, deps: CliDeps): Promise<number> {
+  const now = deps.now();
+  let outcome: PushOutcome;
+  try {
+    outcome = await pushRun({
+      git: deps.pushGit ?? gitRunner(nodeExec(), deps.cwd),
+      remote: 'origin',
+      branch: MAIN_BRANCH,
+      retries: 3,
+      rescuePrefix: 'desk-rescue',
+      runId: args.runId ?? now.toISOString().slice(11, 19).replace(/:/g, ''),
+      day: now.toISOString().slice(0, 10),
+    });
+  } catch (error) {
+    deps.err(error instanceof PushFailed ? `desk: ${error.message}` : `the push could not be done: ${describeError(error)}`);
+    return 1;
+  }
+  for (const line of pushLines(outcome)) (outcome.kind === 'rescued' ? deps.err : deps.out)(line);
+  if (outcome.kind === 'pushed' && args.output !== undefined) {
+    try {
+      await appendFile(path.resolve(deps.cwd, args.output), 'pushed=true\n');
+    } catch (error) {
+      deps.err(`desk: the commits were pushed, but ${args.output} could not be written (${describeError(error)}), so nothing will say that they were: deploy by hand`);
+      return 1;
+    }
+  }
+  return outcome.kind === 'rescued' ? 1 : 0;
+}
+
 async function retractCommand(args: Extract<Parsed, { command: 'retract' }>, deps: CliDeps): Promise<number> {
   try {
     const result = await retractPiece({ repoDir: deps.cwd, git: deps.git, slug: args.slug, reason: args.reason, kind: args.kind, now: deps.now, dry: args.dry });
@@ -623,5 +678,7 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
       return retractCommand(parsed.args, deps);
     case 'tune':
       return tuneCommand(parsed.args, deps);
+    case 'push':
+      return pushCommand(parsed.args, deps);
   }
 }

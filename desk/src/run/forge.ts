@@ -195,7 +195,7 @@ export function nodeExec(environment: Readonly<Record<string, string>> = {}): Ex
 }
 
 /** What a program said, to put in a message: the first three non-empty lines, one after the other, with the password or token of an address taken out. */
-function said(stderr: string): string {
+export function said(stderr: string): string {
   return stderr
     .split('\n')
     .map((line) => line.trim())

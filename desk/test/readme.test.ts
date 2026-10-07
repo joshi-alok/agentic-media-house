@@ -293,7 +293,9 @@ describe('the README: the daily workflow', () => {
   });
 
   it('says what is pushed, why the last step starts the deploy by hand, and what is kept as an artifact and why no page text is in it', () => {
-    expect(workflow()).toContain('`git rev-list @{u}..HEAD`');
+    expect(workflow()).toContain('`git rev-list --count origin/main..HEAD` (never from an upstream, which a checkout may not have)');
+    expect(workflow()).toContain('It never fails open');
+    expect(workflow()).toContain('the commits are pushed to the branch `desk-rescue/<day>-<run>`');
     expect(workflow()).toContain('A push by the token of a workflow starts no other workflow');
     expect(workflow()).toContain('kept as an artifact for 14 days, even when the run failed, except `runs/tune/`');
     expect(workflow()).toContain('no page text goes there');
@@ -360,6 +362,7 @@ describe('the README: the tuning harness', () => {
   it('is one of the commands, with its options, and says that it publishes and commits nothing', () => {
     expect(section('The desk command')).toContain('`npm run desk -- tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]`');
     expect(section('The desk command')).toContain('It publishes and commits nothing');
+    expect(section('The desk command')).toContain('`npm run desk -- push [--run-id <id>] [--output <file>]` pushes what the checkout has and `origin/main` has not');
   });
 
   it('says what the list is, what is fetched and how, what a page of no known kind and a redirect do, and what --client fake is', () => {
