@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
@@ -68,6 +68,24 @@ describe('clientFromConfig with a folder to record in', () => {
     await built.client.json(request());
     expect(readdirSync(dir)).toHaveLength(1);
     expect(built.spent().calls).toBe(2);
+  });
+
+  it('counts a call that succeeds once, with the tokens it reported, and writes its cassette', async () => {
+    const dir = path.join(scratch, 'counted');
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake: new FakeClient().script('select', { answer: 'hi' }) }, {}, noWait, dir);
+    await built.client.json(request());
+    expect(readdirSync(dir)).toHaveLength(1);
+    expect(built.spent()).toEqual({ calls: 1, inputTokens: 8, outputTokens: 4 });
+  });
+
+  it('counts a paid call once when its cassette cannot be written, fails the run with that error, and does not try the call again', async () => {
+    const file = path.join(scratch, 'a-file-where-a-folder-should-be');
+    writeFileSync(file, 'a file');
+    const fake = new FakeClient().script('select', { answer: 'hi' }, { answer: 'never asked for' });
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake }, {}, noWait, path.join(file, 'cassettes'));
+    await expect(built.client.json(request())).rejects.toMatchObject({ kind: 'unrecorded', retryable: false });
+    expect(fake.calls).toHaveLength(1);
+    expect(built.spent()).toEqual({ calls: 1, inputTokens: 8, outputTokens: 4 });
   });
 
   it('records nothing when it is not given a folder', async () => {

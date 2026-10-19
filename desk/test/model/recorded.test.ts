@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { FakeClient } from '../../src/model/fake';
 import { RecordedClient, RecordingClient, cassettePath } from '../../src/model/recorded';
 import { ModelError, requestKey, sha256Hex } from '../../src/model/types';
-import type { ModelClient, ModelRequest } from '../../src/model/types';
+import type { ModelClient, ModelRequest, ModelResponse } from '../../src/model/types';
 import { Answer, request } from '../support/requests';
 
 // A cassette is one JSON file for one request, named by the key of the request. A recording client
@@ -102,6 +102,81 @@ describe('RecordingClient', () => {
     const error = await failureOf(new RecordingClient(new FakeClient().script('select', failure), dir));
     expect(error).toBe(failure);
     expect(existsSync(dir)).toBe(false);
+  });
+});
+
+describe('RecordingClient when a paid response cannot be written', () => {
+  // The call has already been answered, and paid for, when the cassette is written. A write that fails
+  // must not make the tokens disappear: the error carries them, so that the budget counts the call.
+  const paid = { inputTokens: 20_000, outputTokens: 7_000 };
+  const secrets = { system: 'SYSTEM TEXT of a prompt', user: 'PAGE TEXT of a source', answer: 'ANSWER TEXT of a model' };
+
+  /** A client that answers every call with the secret reply and the usage that was paid for, and counts the calls. */
+  const answering = (): ModelClient & { calls: number } => {
+    const client = {
+      calls: 0,
+      json: async <T,>(): Promise<ModelResponse<T>> => {
+        client.calls += 1;
+        return { value: { answer: secrets.answer } as T, usage: paid };
+      },
+    };
+    return client;
+  };
+
+  /** A folder that cannot be created, because a file is where its parent should be. */
+  function folderUnderAFile(): string {
+    const file = path.join(scratch, `not-a-folder-${++counter}`);
+    writeFileSync(file, 'a file');
+    return path.join(file, 'cassettes');
+  }
+
+  /** A folder that exists, but whose cassette cannot be written, because a folder is where the file should be. */
+  function folderWithABlockedCassette(req: ModelRequest<Answer>): string {
+    const dir = freshDir();
+    mkdirSync(cassettePath(dir, requestKey(req)), { recursive: true });
+    return dir;
+  }
+
+  const cases: [string, (req: ModelRequest<Answer>) => string][] = [
+    ['the folder cannot be created', folderUnderAFile],
+    ['the file cannot be written', folderWithABlockedCassette],
+  ];
+
+  for (const [when, dirFor] of cases) {
+    describe(`when ${when}`, () => {
+      const req = request({ system: secrets.system, user: secrets.user });
+      const failing = async (): Promise<{ error: ModelError; dir: string; inner: { calls: number } }> => {
+        const dir = dirFor(req);
+        const inner = answering();
+        return { error: await failureOf(new RecordingClient(inner, dir), req), dir, inner };
+      };
+
+      it('fails with an unrecorded error that carries the usage of the response, and is not retryable', async () => {
+        const { error, inner } = await failing();
+        expect(error.kind).toBe('unrecorded');
+        expect(error.usage).toEqual(paid);
+        expect(error.retryable).toBe(false);
+        expect(inner.calls).toBe(1);
+      });
+
+      it('names the problem, the role and the folder, and says the call was paid for', async () => {
+        const { error, dir } = await failing();
+        expect(error.message).toMatch(/^the response to this select request was paid for but could not be recorded in /);
+        expect(error.message).toContain(dir);
+        expect(error.message).toMatch(/\b(ENOTDIR|EEXIST|EISDIR|ENOENT)\b/);
+      });
+
+      it('holds no text of a page, a prompt or a reply, and keeps the error that was thrown as its cause', async () => {
+        const { error } = await failing();
+        for (const text of Object.values(secrets)) expect(error.message).not.toContain(text);
+        expect(error.cause).toBeInstanceOf(Error);
+      });
+    });
+  }
+
+  it('does not wrap an error of the client behind it: it is let through untouched, as before', async () => {
+    const failure = new ModelError('refused', 'cut off', { usage: paid });
+    expect(await failureOf(new RecordingClient({ json: async () => Promise.reject(failure) }, folderUnderAFile()))).toBe(failure);
   });
 });
 

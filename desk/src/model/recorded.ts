@@ -72,6 +72,13 @@ export class RecordedClient implements ModelClient {
  * Forwards every call to another client and keeps each successful response as a cassette
  * in a folder, which it creates when it first needs it. A call that fails is not recorded.
  * Recording the same request again replaces its cassette.
+ *
+ * A response that cannot be kept (the disk is full, the folder cannot be written) fails the call,
+ * because a run that is meant to be replayable has no replay without it. The call has been paid for
+ * by then, so the failure is an `unrecorded` `ModelError` that carries the usage of the response:
+ * a budget behind this client then counts the tokens, as it counts those of any failed call that spent
+ * some. It is not `retryable`, since another try would only pay again for a write that still fails.
+ * Its message names the role, the folder and the error code, and nothing of the request or the reply.
  */
 export class RecordingClient implements ModelClient {
   constructor(
@@ -81,14 +88,23 @@ export class RecordingClient implements ModelClient {
 
   async json<T>(request: ModelRequest<T>): Promise<ModelResponse<T>> {
     const response = await this.inner.json(request);
-    const key = requestKey(request);
-    const cassette: Cassette = {
-      key,
-      request: { role: request.role, model: request.model, systemHash: sha256Hex(request.system), userHash: sha256Hex(request.user) },
-      response,
-    };
-    mkdirSync(this.dir, { recursive: true });
-    writeFileSync(cassettePath(this.dir, key), `${JSON.stringify(cassette, null, 2)}\n`);
+    try {
+      const key = requestKey(request);
+      const cassette: Cassette = {
+        key,
+        request: { role: request.role, model: request.model, systemHash: sha256Hex(request.system), userHash: sha256Hex(request.user) },
+        response,
+      };
+      mkdirSync(this.dir, { recursive: true });
+      writeFileSync(cassettePath(this.dir, key), `${JSON.stringify(cassette, null, 2)}\n`);
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code;
+      const why = typeof code === 'string' ? code : 'write failed';
+      throw new ModelError('unrecorded', `the response to this ${request.role} request was paid for but could not be recorded in ${this.dir}: ${why}`, {
+        cause: error,
+        usage: response.usage,
+      });
+    }
     return response;
   }
 }

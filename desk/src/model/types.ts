@@ -57,7 +57,7 @@ export interface ModelClient {
  * - `transport`: the request did not get an answer (network, the provider's own errors); some are `retryable`, and a call that could not reach the provider at all is `unreached`.
  * - `schema`: the reply came but is not JSON of the shape that was asked for.
  * - `budget`: the run has used all it may spend.
- * - `unrecorded`: no scripted reply or recorded response exists for this request.
+ * - `unrecorded`: no scripted reply or recorded response exists for this request; or a response that was paid for could not be written as a cassette (it carries `usage`).
  * - `refused`: the model stopped without finishing an answer: it declined, or ran out of its output limit.
  */
 export type ModelErrorKind = 'transport' | 'schema' | 'budget' | 'unrecorded' | 'refused';
