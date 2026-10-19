@@ -10,7 +10,7 @@ import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { buildExtractUser, extractSystem } from '../../src/prompts/extract';
 import { ExtractArtifact, readArtifact } from '../../src/run/artifacts';
 import { CLAIM_PROBLEM_CODES, normalisedMismatch } from '../../src/stages/claim-grounding';
-import { EXTRACT_MAX_OUTPUT_TOKENS, extractReplySchema, kindOfSnapshot, runExtract } from '../../src/stages/extract';
+import { EXTRACT_EFFORT, EXTRACT_MAX_OUTPUT_TOKENS, extractReplySchema, kindOfSnapshot, runExtract } from '../../src/stages/extract';
 import type { Snapshot } from '../../src/stages/fetch';
 import { FETCHED_AT, URLS, stageContext, useScratch } from '../support/context';
 import { blocksOf, outsideBlocks } from '../support/prompts';
@@ -101,10 +101,12 @@ describe('runExtract: a clean script', () => {
     await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(fake.calls).toHaveLength(1);
     const call = fake.calls[0];
-    expect(Object.keys(call ?? {}).sort()).toEqual(['maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
+    expect(Object.keys(call ?? {}).sort()).toEqual(['effort', 'maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
     expect(call?.role).toBe('extract');
     expect(call?.model).toBe(ctx.config.models.extract);
     expect(call?.maxOutputTokens).toBe(EXTRACT_MAX_OUTPUT_TOKENS);
+    expect(call?.effort).toBe(EXTRACT_EFFORT);
+    expect(EXTRACT_EFFORT).toBe('low');
     expect(call?.system).toBe(extractSystem());
     expect(call?.system.startsWith(UNTRUSTED_PREAMBLE)).toBe(true);
     expect(call?.user).toBe(

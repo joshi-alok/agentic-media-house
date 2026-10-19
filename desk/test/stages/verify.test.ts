@@ -9,7 +9,7 @@ import { FakeClient } from '../../src/model/fake';
 import { ModelError } from '../../src/model/types';
 import { buildReviseUser, reviseSystem } from '../../src/prompts/compose';
 import { ComposeArtifact, VerifyArtifact, readArtifact } from '../../src/run/artifacts';
-import { runCompose } from '../../src/stages/compose';
+import { COMPOSE_EFFORT, runCompose } from '../../src/stages/compose';
 import type { StageContext } from '../../src/stages/context';
 import { assembleDraft } from '../../src/stages/draft-assembly';
 import { problemsOf, reviseDraft, reviseReplySchema, runVerify } from '../../src/stages/verify';
@@ -156,7 +156,8 @@ describe('runVerify: a draft that the gate sends back, and is mended by one revi
     expect(call?.role).toBe('compose');
     expect(call?.model).toBe(ctx.config.models.compose);
     expect(call?.system).toBe(reviseSystem());
-    expect(Object.keys(call ?? {}).sort()).toEqual(['maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
+    expect(call?.effort).toBe(COMPOSE_EFFORT);
+    expect(Object.keys(call ?? {}).sort()).toEqual(['effort', 'maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
     const user = call?.user ?? '';
     const blocks = blocksOf(user);
     expect(blocks.filter((block) => !block.id.startsWith('c-')).map((block) => block.id)).toEqual([bad, `${bad}-problems`]);

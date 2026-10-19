@@ -11,6 +11,12 @@ import { z } from 'zod';
 export const MODEL_ROLES = ['select', 'extract', 'compose', 'verify'] as const;
 export type ModelRole = (typeof MODEL_ROLES)[number];
 
+/**
+ * How hard a model may think before it answers: the `effort` of the API, for the models that take one. It is named by the stage, never by the config, because what
+ * a stage asks (find quotations, write from claims, judge a sentence) decides it. Thinking is paid for as output and counts against `maxOutputTokens`.
+ */
+export type ModelEffort = 'low' | 'medium' | 'high';
+
 /** One question to a model, and the shape the answer must have. */
 export interface ModelRequest<T> {
   role: ModelRole;
@@ -23,6 +29,11 @@ export interface ModelRequest<T> {
   schema: z.ZodType<T>;
   /** The most tokens the reply may have. */
   maxOutputTokens: number;
+  /**
+   * How hard the model may think. Left out, the client sends nothing and the model's own default applies, which for a Sonnet is `high`. The client sends it only to a
+   * model that takes one (a Haiku 4.5 does not: the API answers 400), and sends nothing to any other, so a stage may name one whatever model the config gives it.
+   */
+  effort?: ModelEffort;
 }
 
 /** What a call cost, as the model's provider reported it. */
@@ -56,12 +67,15 @@ export class ModelError extends Error {
   readonly kind: ModelErrorKind;
   /** True only for a transport error that is worth trying again (a 429 or a 5xx); false for every other kind. */
   readonly retryable: boolean;
+  /** What the failed call cost, when the provider reported it: a reply cut off at its limit has spent its tokens all the same. Undefined when nothing was reported. */
+  readonly usage: ModelUsage | undefined;
 
-  constructor(kind: ModelErrorKind, message: string, options: { cause?: unknown; retryable?: boolean } = {}) {
+  constructor(kind: ModelErrorKind, message: string, options: { cause?: unknown; retryable?: boolean; usage?: ModelUsage } = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'ModelError';
     this.kind = kind;
     this.retryable = kind === 'transport' && options.retryable === true;
+    this.usage = options.usage;
   }
 }
 
@@ -105,9 +119,9 @@ export function jsonSchemaOf<T>(schema: z.ZodType<T>): unknown {
  * recorded response can be found again; changing any one of the five gives a
  * different key.
  *
- * `maxOutputTokens` is left out on purpose. It limits how long the answer may be;
- * it is not part of the question. A limit that someone changes in the config
- * must not make every recorded response miss.
+ * `maxOutputTokens` and `effort` are left out on purpose. One limits how long the answer
+ * may be and the other how hard the model may think; neither is part of the question. A
+ * limit or an effort that someone changes must not make every recorded response miss.
  */
 export function requestKey<T>(request: ModelRequest<T>): string {
   return sha256Hex(

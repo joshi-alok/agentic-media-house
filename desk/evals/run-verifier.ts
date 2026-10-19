@@ -251,6 +251,8 @@ export interface EvalDeps {
   client?: ModelClient;
   /** The labelled set to use, instead of the committed one. A test hands in a file that is wrong. */
   setFile?: string;
+  /** What the client has spent so far, to say after a failure what the calls before it cost. The api client's own is used; a test hands in one for a client it supplies. */
+  spent?: () => { calls: number; inputTokens: number; outputTokens: number };
 }
 
 const USAGE = 'Usage: evals:verifier [--client fake|api] [--model <name>] [--batch <number>] [--min-precision <0 to 1>] [--min-recall <0 to 1>]';
@@ -305,13 +307,16 @@ export async function main(argv: readonly string[], deps: EvalDeps): Promise<num
     return 1;
   }
   let client: ModelClient;
+  let spent = deps.spent;
   if (deps.client !== undefined) {
     client = deps.client;
   } else if (clientKind === 'fake') {
     client = perfectVerifier(set);
   } else {
     try {
-      client = clientFromConfig(config, { kind: 'api' }, deps.env).client;
+      const built = clientFromConfig(config, { kind: 'api' }, deps.env);
+      client = built.client;
+      spent = built.spent;
     } catch (error) {
       deps.err(error instanceof Error ? error.message : String(error));
       return 2;
@@ -326,6 +331,8 @@ export async function main(argv: readonly string[], deps: EvalDeps): Promise<num
     return failures.length === 0 ? 0 : 1;
   } catch (error) {
     deps.err(`the evaluation failed: ${error instanceof Error ? error.message : String(error)}`);
+    const spentSoFar = spent?.();
+    if (spentSoFar !== undefined) deps.err(`spent before the failure: ${spentSoFar.calls} model calls, ${spentSoFar.inputTokens} input tokens, ${spentSoFar.outputTokens} output tokens`);
     return 1;
   }
 }

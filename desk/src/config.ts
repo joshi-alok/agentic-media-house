@@ -23,6 +23,17 @@ const Budget = z.strictObject({
 /** The model that plays each role. The verify model is a setting because the evals may show that it has to change. */
 const Models = z.strictObject({ select: text, extract: text, compose: text, verify: text });
 
+/**
+ * The models that take `output_config.effort`: the Fable, Mythos, Opus (from 4.5), Sonnet (from 4.6) and Haiku (from 5) families. A Haiku 4.5, a Sonnet 4.5 and older models answer 400 to
+ * it, and so would a model this list does not know, so the client sends an effort only to a model on the list: a 400 ends a run after the stages before it were paid for.
+ */
+const TAKES_EFFORT = /^claude-(?:fable-|mythos-|opus-(?:4-[5-9]|5)|sonnet-(?:4-[6-9]|5)|haiku-5)/;
+
+/** Whether the API takes an `effort` for this model. */
+export function takesEffort(model: string): boolean {
+  return TAKES_EFFORT.test(model);
+}
+
 /** Where the snapshots of sources are kept: `local` is a folder on this machine (`evidenceDir`), `r2` is a private bucket on Cloudflare R2. */
 export const EVIDENCE_KINDS = ['local', 'r2'] as const;
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];

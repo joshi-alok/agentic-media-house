@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ComposeArtifact, VerifyArtifact, writeArtifact } from '../index';
 import { buildReviseUser, promptClaimIds, reviseSystem } from '../prompts/compose';
 import type { ReviseItem } from '../prompts/compose';
-import { COMPOSE_MAX_OUTPUT_TOKENS, gateContextOf } from './compose';
+import { COMPOSE_EFFORT, COMPOSE_MAX_OUTPUT_TOKENS, gateContextOf } from './compose';
 import type { ComposeResult } from './compose';
 import type { StageContext } from './context';
 import { ReplySentence, finishDraft } from './draft-assembly';
@@ -171,6 +171,7 @@ export async function reviseDraft(ctx: StageContext, claims: Claim[], draft: Dra
     user: buildReviseUser(claims, items),
     schema: reviseReplySchema(items),
     maxOutputTokens: COMPOSE_MAX_OUTPUT_TOKENS,
+    effort: COMPOSE_EFFORT,
   });
 
   const sentences = new Map<number, ReplySentence>();

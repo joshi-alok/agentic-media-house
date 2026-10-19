@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { takesEffort } from '../../src/config';
 import { AnthropicClient, replyFormat } from '../../src/model/anthropic';
 import type { CreateMessage, MessageParams, MessageReply } from '../../src/model/anthropic';
 import { ModelError } from '../../src/model/types';
@@ -289,5 +290,108 @@ describe('AnthropicClient replies that are not an answer', () => {
     const { createMessage } = standIn(reply('not json'), reply('{"answer":"x"}', { stop_reason: 'max_tokens' }));
     const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
     expect(error.kind).toBe('refused');
+  });
+});
+
+describe('AnthropicClient: what a call that did not finish cost', () => {
+  const cutOff = (input: number, output: number, extra: Partial<MessageReply['usage']> = {}): MessageReply =>
+    reply('{"answer":"par', { stop_reason: 'max_tokens', usage: { input_tokens: input, output_tokens: output, ...extra } });
+
+  it('puts what a reply cut off at the output limit cost into the error, because the tokens were spent all the same', async () => {
+    const { createMessage } = standIn(cutOff(7000, 8000));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('refused');
+    expect(error.message).toBe('the reply was cut off at the output limit');
+    expect(error.usage).toEqual({ inputTokens: 7000, outputTokens: 8000 });
+  });
+
+  it('counts the tokens of the cache as input, as it does for a reply that finished', async () => {
+    const { createMessage } = standIn(cutOff(7000, 8000, { cache_creation_input_tokens: 100, cache_read_input_tokens: 200 }));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.usage).toEqual({ inputTokens: 7300, outputTokens: 8000 });
+  });
+
+  it('does the same for a refusal and for any other early stop', async () => {
+    for (const reason of ['refusal', 'pause_turn', null]) {
+      const { createMessage } = standIn(reply('{"answer":"x"}', { stop_reason: reason, usage: { input_tokens: 30, output_tokens: 7 } }));
+      const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+      expect(error.usage, String(reason)).toEqual({ inputTokens: 30, outputTokens: 7 });
+    }
+  });
+
+  it('adds the cost of the first call when it is the repair that is cut off', async () => {
+    const { createMessage } = standIn(reply('not json', { usage: { input_tokens: 10, output_tokens: 5 } }), cutOff(20, 100));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('refused');
+    expect(error.usage).toEqual({ inputTokens: 30, outputTokens: 105 });
+  });
+
+  it('adds up both calls when the repair does not fix the reply either', async () => {
+    const { createMessage } = standIn(
+      reply('not json', { usage: { input_tokens: 10, output_tokens: 5 } }),
+      reply('still not json', { usage: { input_tokens: 20, output_tokens: 6 } }),
+    );
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('schema');
+    expect(error.usage).toEqual({ inputTokens: 30, outputTokens: 11 });
+  });
+
+  it('reports no cost for an error that never got an answer', async () => {
+    const { createMessage } = standIn(httpError(401));
+    expect((await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }))).usage).toBeUndefined();
+  });
+
+  it('adds the cost of the first call to a transport error of the repair', async () => {
+    const { createMessage } = standIn(reply('not json', { usage: { input_tokens: 10, output_tokens: 5 } }), httpError(503));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('transport');
+    expect(error.retryable).toBe(true);
+    expect(error.cause).toBeInstanceOf(Anthropic.APIError);
+    expect((error.cause as InstanceType<typeof Anthropic.APIError>).status).toBe(503);
+    expect(error.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+  });
+});
+
+describe('AnthropicClient: the effort of a request', () => {
+  it('sends no effort unless the request names one: the four fields stay four', async () => {
+    const { createMessage, sent } = standIn(reply('{"answer":"x"}'));
+    await new AnthropicClient({ apiKey: KEY, createMessage }).json(request());
+    expect(Object.keys(sent[0] ?? {}).sort()).toEqual(['max_tokens', 'messages', 'model', 'system']);
+  });
+
+  it('sends the effort of the request as output_config.effort, in the call and in the repair, and no other field', async () => {
+    const { createMessage, sent } = standIn(reply('not json'), reply('{"answer":"x"}'));
+    await new AnthropicClient({ apiKey: KEY, createMessage }).json(request({ model: 'claude-sonnet-5-5', effort: 'low' }));
+    expect(sent).toHaveLength(2);
+    for (const params of sent) {
+      expect(params.output_config).toEqual({ effort: 'low' });
+      expect(Object.keys(params).sort()).toEqual(['max_tokens', 'messages', 'model', 'output_config', 'system']);
+    }
+  });
+});
+
+describe('AnthropicClient: only a model that takes an effort is sent one', () => {
+  const TAKE = ['claude-sonnet-5-5', 'claude-sonnet-5', 'claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-6', 'claude-opus-4-5', 'claude-sonnet-4-6', 'claude-fable-5-1', 'claude-mythos-5-1', 'claude-haiku-5-5'];
+  const DO_NOT = ['claude-haiku-4-5-20251001', 'claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-sonnet-4', 'claude-opus-4-1', 'claude-3-5-haiku-latest', 'model-a', ''];
+
+  it('knows the models that take one, and refuses to guess for any other, because a 400 ends a run after its earlier stages were paid for', () => {
+    for (const model of TAKE) expect(takesEffort(model), model).toBe(true);
+    for (const model of DO_NOT) expect(takesEffort(model), model).toBe(false);
+  });
+
+  it('sends the effort to each model that takes one', async () => {
+    for (const model of TAKE) {
+      const { createMessage, sent } = standIn(reply('{"answer":"x"}'));
+      await new AnthropicClient({ apiKey: KEY, createMessage }).json(request({ model, effort: 'medium' }));
+      expect(sent[0]?.output_config, model).toEqual({ effort: 'medium' });
+    }
+  });
+
+  it('sends none to a model that takes none, although the request names one: the four fields stay four', async () => {
+    for (const model of DO_NOT) {
+      const { createMessage, sent } = standIn(reply('not json'), reply('{"answer":"x"}'));
+      await new AnthropicClient({ apiKey: KEY, createMessage }).json(request({ model, effort: 'medium' }));
+      for (const params of sent) expect(Object.keys(params).sort(), model).toEqual(['max_tokens', 'messages', 'model', 'system']);
+    }
   });
 });

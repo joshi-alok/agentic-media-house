@@ -3,6 +3,7 @@ import type { Claim, SourcesRegistry } from '@robywire/gate';
 import { z } from 'zod';
 import { ExtractArtifact, sourceKind, writeArtifact } from '../index';
 import type { SelectArtifact, SourceKind } from '../index';
+import type { ModelEffort } from '../model/types';
 import { MAX_CLAIMS, buildExtractUser, extractSystem } from '../prompts/extract';
 import { claimProblems, locateQuote } from './claim-grounding';
 import type { Snapshot } from './fetch';
@@ -15,6 +16,13 @@ import type { StageContext } from './context';
 
 /** The most tokens the reply may have: 40 claims of about 150 tokens each, and room for the JSON around them. */
 export const EXTRACT_MAX_OUTPUT_TOKENS = 8000;
+
+/**
+ * How hard the model may think while it extracts. Finding the passages that state a fact and copying them word for word is extraction, which Anthropic's guidance puts at
+ * `low`; the first trial on a real page ran at the model's default (`high`), spent all of the 8000 tokens on thinking and wrote no claim. The code checks every quotation
+ * whatever the effort, so a lower effort cannot let a wrong one through. Only a model that takes an effort may be given one.
+ */
+export const EXTRACT_EFFORT: ModelEffort = 'low';
 
 const text = z.string().min(1);
 
@@ -98,6 +106,7 @@ export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selec
       user: buildExtractUser(pages.map(({ snapshot, kind }) => ({ tier: snapshot.tier, kind, ...(kind === 'tier2' ? { outlet } : {}), text: snapshot.text }))),
       schema: extractReplySchema(pages.length),
       maxOutputTokens: EXTRACT_MAX_OUTPUT_TOKENS,
+      effort: EXTRACT_EFFORT,
     });
     reply.value.claims.forEach((proposed, index) => {
       const { snapshot, kind } = pages[proposed.source - 1] as { snapshot: Snapshot; kind: SourceKind };

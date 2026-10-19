@@ -150,7 +150,7 @@ describe('evaluateVerifier: what it asks, and how', () => {
       expect(request.model).toBe(MODEL);
       expect(request.system).toBe(verifySystem());
       expect(request.maxOutputTokens).toBe(VERIFY_MAX_OUTPUT_TOKENS);
-      expect(Object.keys(request).sort()).toEqual(['maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
+      expect(Object.keys(request).sort()).toEqual(['effort', 'maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
     }
   });
 
@@ -313,10 +313,10 @@ describe('formatReport', () => {
 });
 
 describe('main', () => {
-  function run(argv: string[], overrides: { client?: ModelClient; env?: Record<string, string> } = {}) {
+  function run(argv: string[], overrides: { client?: ModelClient; env?: Record<string, string>; spent?: () => { calls: number; inputTokens: number; outputTokens: number } } = {}) {
     const out: string[] = [];
     const err: string[] = [];
-    const deps = { out: (line: string) => void out.push(line), err: (line: string) => void err.push(line), env: overrides.env ?? {}, ...(overrides.client === undefined ? {} : { client: overrides.client }) };
+    const deps = { out: (line: string) => void out.push(line), err: (line: string) => void err.push(line), env: overrides.env ?? {}, ...(overrides.client === undefined ? {} : { client: overrides.client }), ...(overrides.spent === undefined ? {} : { spent: overrides.spent }) };
     return main(argv, deps).then((code) => ({ code, out, err }));
   }
 
@@ -427,6 +427,17 @@ describe('main', () => {
     const { code, err } = await run([], { client: failing });
     expect(code).toBe(1);
     expect(err).toEqual(['the evaluation failed: the model declined']);
+  });
+
+  it('says what the calls cost before the evaluation failed, when the client counts it, because those calls were paid for', async () => {
+    const failing: ModelClient = {
+      async json() {
+        throw new ModelError('refused', 'the reply was cut off at the output limit');
+      },
+    };
+    const { code, err } = await run([], { client: failing, spent: () => ({ calls: 4, inputTokens: 31000, outputTokens: 12500 }) });
+    expect(code).toBe(1);
+    expect(err).toEqual(['the evaluation failed: the reply was cut off at the output limit', 'spent before the failure: 4 model calls, 31000 input tokens, 12500 output tokens']);
   });
 });
 

@@ -1,23 +1,26 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { z } from 'zod';
+import { takesEffort } from '../config';
 import { describeIssues } from '../issues';
 import { ModelError, jsonSchemaOf } from './types';
-import type { ModelClient, ModelRequest, ModelResponse, ModelUsage } from './types';
+import type { ModelClient, ModelEffort, ModelRequest, ModelResponse, ModelUsage } from './types';
 
 // The client for the Anthropic API. It sends a system prompt and one user message and a limit on
-// the reply, and nothing else: it has no way to send a tool. It reads the text of the reply as
+// the reply, and how hard to think when the stage says so, and nothing else: it has no way to send a tool. It reads the text of the reply as
 // JSON and checks it against the schema of the request. A reply that cannot be used gets one
 // repair call, in which the model is shown what was wrong; after that the call fails.
 
 /**
- * What this client sends to the API: exactly these four fields. There is no field for a tool
- * or a tool choice, so none can be sent. (The SDK accepts much more; this is the part used.)
+ * What this client sends to the API: these four fields, and a fifth, `output_config`, only when the request
+ * names an effort. There is no field for a tool or a tool choice, so none can be sent. (The SDK accepts much
+ * more; this is the part used.)
  */
 export interface MessageParams {
   model: string;
   max_tokens: number;
   system: string;
   messages: { role: 'user' | 'assistant'; content: string }[];
+  output_config?: { effort: ModelEffort };
 }
 
 /** What this client reads of the API's reply. (The SDK's reply has much more.) */
@@ -80,11 +83,20 @@ function transportError(error: unknown): ModelError {
   return new ModelError('transport', `the Anthropic API returned an error: ${message}`, { cause: error, retryable });
 }
 
-/** The error for a reply that stopped without being a finished answer. */
-function unfinished(stopReason: string | null): ModelError {
-  if (stopReason === 'refusal') return new ModelError('refused', 'the model declined to answer');
-  if (stopReason === 'max_tokens') return new ModelError('refused', 'the reply was cut off at the output limit');
-  return new ModelError('refused', `the model stopped before it finished its answer: stop reason ${stopReason ?? 'none'}`);
+/** The error for a reply that stopped without being a finished answer. The call is paid for all the same, so the error carries what it cost. */
+function unfinished(stopReason: string | null, usage: ModelUsage): ModelError {
+  if (stopReason === 'refusal') return new ModelError('refused', 'the model declined to answer', { usage });
+  if (stopReason === 'max_tokens') return new ModelError('refused', 'the reply was cut off at the output limit', { usage });
+  return new ModelError('refused', `the model stopped before it finished its answer: stop reason ${stopReason ?? 'none'}`, { usage });
+}
+
+/** Two costs added. */
+const addUsage = (a: ModelUsage, b: ModelUsage): ModelUsage => ({ inputTokens: a.inputTokens + b.inputTokens, outputTokens: a.outputTokens + b.outputTokens });
+
+/** The same error with the cost of an earlier call of the same request added to what it reports: the repair fails after the first call was paid for. */
+function withEarlierCost(error: unknown, earlier: ModelUsage): unknown {
+  if (!(error instanceof ModelError)) return error;
+  return new ModelError(error.kind, error.message, { cause: error.cause, retryable: error.retryable, usage: addUsage(error.usage ?? { inputTokens: 0, outputTokens: 0 }, earlier) });
 }
 
 type Reading<T> = { ok: true; value: T } | { ok: false; problem: string; cause: unknown };
@@ -112,7 +124,12 @@ export class AnthropicClient implements ModelClient {
   }
 
   async json<T>(request: ModelRequest<T>): Promise<ModelResponse<T>> {
-    const base = { model: request.model, max_tokens: request.maxOutputTokens, system: `${request.system}\n\n${replyFormat(request.schema)}` };
+    const base = {
+      model: request.model,
+      max_tokens: request.maxOutputTokens,
+      system: `${request.system}\n\n${replyFormat(request.schema)}`,
+      ...(request.effort === undefined || !takesEffort(request.model) ? {} : { output_config: { effort: request.effort } }),
+    };
     const user = { role: 'user' as const, content: request.user };
 
     const first = await this.ask({ ...base, messages: [user] });
@@ -125,11 +142,16 @@ export class AnthropicClient implements ModelClient {
       { role: 'assistant' as const, content: first.text === '' ? '(empty reply)' : first.text },
       { role: 'user' as const, content: `Your last reply could not be used: ${reading.problem}. Reply again with only the corrected JSON value.` },
     ];
-    const second = await this.ask({ ...base, messages: repair });
-    const usage = { inputTokens: first.usage.inputTokens + second.usage.inputTokens, outputTokens: first.usage.outputTokens + second.usage.outputTokens };
+    let second: { text: string; usage: ModelUsage };
+    try {
+      second = await this.ask({ ...base, messages: repair });
+    } catch (error) {
+      throw withEarlierCost(error, first.usage);
+    }
+    const usage = addUsage(first.usage, second.usage);
     const again = read(second.text, request.schema);
     if (again.ok) return { value: again.value, usage };
-    throw new ModelError('schema', `the reply is not usable, and one repair did not fix it: ${again.problem}`, { cause: again.cause });
+    throw new ModelError('schema', `the reply is not usable, and one repair did not fix it: ${again.problem}`, { cause: again.cause, usage });
   }
 
   /** One call of the API: the text of the reply and what it cost, or the error it is mapped to. */
@@ -140,14 +162,12 @@ export class AnthropicClient implements ModelClient {
     } catch (error) {
       throw error instanceof ModelError ? error : transportError(error);
     }
-    if (message.stop_reason !== 'end_turn') throw unfinished(message.stop_reason);
-    const { usage } = message;
-    return {
-      text: message.content.map((block) => (block.type === 'text' ? (block.text ?? '') : '')).join(''),
-      usage: {
-        inputTokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
-        outputTokens: usage.output_tokens,
-      },
+    const { usage: reported } = message;
+    const usage = {
+      inputTokens: reported.input_tokens + (reported.cache_creation_input_tokens ?? 0) + (reported.cache_read_input_tokens ?? 0),
+      outputTokens: reported.output_tokens,
     };
+    if (message.stop_reason !== 'end_turn') throw unfinished(message.stop_reason, usage);
+    return { text: message.content.map((block) => (block.type === 'text' ? (block.text ?? '') : '')).join(''), usage };
   }
 }

@@ -24,7 +24,8 @@ const spentError = (used: number, limit: number, what: string): ModelError => ne
  * limit is let finish and keeps its answer, because its tokens are already spent and are
  * known only when it returns; it is the next call that is refused. A call counts from the
  * moment it starts, even if it fails, so that calls started together cannot go over the limit.
- * A failed call adds no tokens, because it reported none.
+ * A failed call adds the tokens that its error reports (a reply cut off at its limit has spent
+ * them), and none when the error reports none, as for a call that never got an answer.
  */
 export class BudgetedClient implements ModelClient {
   private calls = 0;
@@ -44,10 +45,18 @@ export class BudgetedClient implements ModelClient {
   async json<T>(request: ModelRequest<T>): Promise<ModelResponse<T>> {
     this.refuseIfSpent();
     this.calls += 1;
-    const response = await this.inner.json(request);
-    this.inputTokens += response.usage.inputTokens;
-    this.outputTokens += response.usage.outputTokens;
-    return response;
+    try {
+      const response = await this.inner.json(request);
+      this.inputTokens += response.usage.inputTokens;
+      this.outputTokens += response.usage.outputTokens;
+      return response;
+    } catch (error) {
+      if (error instanceof ModelError && error.usage !== undefined) {
+        this.inputTokens += error.usage.inputTokens;
+        this.outputTokens += error.usage.outputTokens;
+      }
+      throw error;
+    }
   }
 
   private refuseIfSpent(): void {

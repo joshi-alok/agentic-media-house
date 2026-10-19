@@ -2,7 +2,7 @@ import { allSentences, citedClaims, describeLocation } from '@robywire/gate';
 import type { Claim, Draft, LedgerEntry, LedgerSection } from '@robywire/gate';
 import { z } from 'zod';
 import { ModelError } from '../index';
-import type { ModelClient, ModelUsage } from '../index';
+import type { ModelClient, ModelEffort, ModelUsage } from '../index';
 import { buildVerifyUser, verifySystem } from '../prompts/verify';
 import type { StageContext } from './context';
 
@@ -14,6 +14,12 @@ import type { StageContext } from './context';
 
 /** The most tokens the reply may have: a verdict and a short reason for every item and every claim of a long piece. */
 export const VERIFY_MAX_OUTPUT_TOKENS = 8000;
+
+/**
+ * How hard the model may think while it judges whether a sentence is supported, unsupported or distorted: `medium`, because this is the one job where a second look
+ * is the point. It is a first setting to be measured on the labelled set (`npm run evals:verifier -- --client api`), not a conclusion.
+ */
+export const VERIFY_EFFORT: ModelEffort = 'medium';
 
 /** What the verifier judges of a sentence. */
 export interface SentenceItem {
@@ -169,6 +175,7 @@ export async function judgePlan(client: ModelClient, model: string, plan: Verify
     user: buildVerifyUser({ claims: plan.claims, sentences: plan.sentences, headings: plan.headings }),
     schema: VerifyReply,
     maxOutputTokens: VERIFY_MAX_OUTPUT_TOKENS,
+    effort: VERIFY_EFFORT,
   });
   return { outcome: aggregateVerdicts(model, plan, reply.value), usage: reply.usage };
 }

@@ -104,6 +104,21 @@ describe('no tools in what the clients behind the wrappers receive', () => {
 });
 
 describe('no tools in what leaves for the API', () => {
+  it('a request that names an effort adds one field, output_config, and no tool', async () => {
+    const sent: MessageParams[] = [];
+    const client = new AnthropicClient({
+      apiKey: KEY,
+      createMessage: async (params) => {
+        sent.push(params);
+        return { content: [{ type: 'text', text: '{"answer":"x"}' }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } };
+      },
+    });
+    await client.json(request({ model: 'claude-sonnet-5-5', effort: 'medium' }));
+    expect(Object.keys(sent[0] as object).sort()).toEqual(['max_tokens', 'messages', 'model', 'output_config', 'system']);
+    expect(sent[0]?.output_config).toEqual({ effort: 'medium' });
+    expectNoTools(sent[0]);
+  });
+
   it('the call handed to the API by the client holds four fields and no tool, in the first request and in the repair', async () => {
     const sent: MessageParams[] = [];
     const client = new AnthropicClient({

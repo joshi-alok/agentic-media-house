@@ -1,5 +1,6 @@
 import { defaultContext, runGate } from '@robywire/gate';
 import type { Claim, Draft, GateContext, GateResult } from '@robywire/gate';
+import type { ModelEffort } from '../model/types';
 import { buildComposeUser, composeSystem } from '../prompts/compose';
 import type { StageContext } from './context';
 import { ComposeReply, assembleDraft } from './draft-assembly';
@@ -11,6 +12,9 @@ import { ComposeReply, assembleDraft } from './draft-assembly';
 
 /** The most tokens the reply may have: a piece of 850 words is about 1,200 tokens, and every sentence also carries its claim ids and the JSON around them. */
 export const COMPOSE_MAX_OUTPUT_TOKENS = 6000;
+
+/** How hard the model may think while it writes from claims: `low`, as for any writing that follows fixed rules, which the gate then checks in code. */
+export const COMPOSE_EFFORT: ModelEffort = 'low';
 
 /** What the gate needs to know of the world: the slugs and the titles that are published, and the gate's own defaults for everything else. */
 export function gateContextOf(ctx: Pick<StageContext, 'published'>): GateContext {
@@ -38,6 +42,7 @@ export async function runCompose(ctx: StageContext, claims: Claim[]): Promise<Co
     user: buildComposeUser(claims, ctx.date),
     schema: ComposeReply,
     maxOutputTokens: COMPOSE_MAX_OUTPUT_TOKENS,
+    effort: COMPOSE_EFFORT,
   });
   const draft = assembleDraft(reply.value, claims, ctx);
   const gate = runGate({ draft, claims }, gateContextOf(ctx));

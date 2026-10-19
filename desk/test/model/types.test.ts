@@ -166,3 +166,21 @@ describe('requestKey', () => {
     expect(requestKey(reordered)).toBe(requestKey(request()));
   });
 });
+
+describe('ModelError: what a failed call cost', () => {
+  it('reports no cost unless it is given one', () => {
+    expect(new ModelError('transport', 'no answer').usage).toBeUndefined();
+  });
+
+  it('keeps the cost of a call that spent tokens and failed all the same', () => {
+    expect(new ModelError('refused', 'cut off', { usage: { inputTokens: 7000, outputTokens: 8000 } }).usage).toEqual({ inputTokens: 7000, outputTokens: 8000 });
+  });
+});
+
+describe('requestKey and the effort of a request', () => {
+  it('does not depend on it, as it does not depend on the limit of the reply: how hard a model thinks is not part of the question', () => {
+    const base = requestKey(request());
+    expect(requestKey(request({ effort: 'low' }))).toBe(base);
+    expect(requestKey(request({ effort: 'high' }))).toBe(base);
+  });
+});
