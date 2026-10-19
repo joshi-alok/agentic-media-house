@@ -422,7 +422,10 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
       expect(line).toContain("-w '%{http_code}\\n'");
       expect(line).not.toMatch(/Authorization|--user|-u |-H /i);
     }
-    expect(step.text).toMatch(/both `curl` commands print `403`/);
+    expect(step.text).toMatch(/both `curl` commands print `400`/);
+    expect(step.text).toContain('InvalidArgument');
+    expect(step.text).toContain('adding `-6` to both `curl` commands');
+    expect(step.text).toContain('`1034`');
     expect(step.text).toContain('dev-url get');
     expect(step.number).toBeGreaterThan(stepTitled(/^Keep the secrets in files/).number);
     expect(step.number).toBeLessThan(stepTitled(/^Push, and watch/).number);

@@ -111,7 +111,7 @@ npx wrangler r2 bucket dev-url get agentic-media-house-evidence
 npx wrangler r2 bucket domain list agentic-media-house-evidence
 ```
 
-**Expect:** the first command says that the bucket was created. `lifecycle list` shows one rule, `pending-90-days`, for the prefix `pending/`, that expires objects after 90 days, and no rule for any other prefix. `dev-url get` says that public access through `r2.dev` is disabled. `domain list` shows no custom domain. If either of the last two says otherwise, the bucket is public: turn it off (`npx wrangler r2 bucket dev-url disable agentic-media-house-evidence`) before anything is put in it.
+**Expect:** the first command says that the bucket was created. `lifecycle list` shows the rule `pending-90-days`, for the prefix `pending/`, that expires objects after 90 days, and no other rule that expires objects. It also shows a rule that Cloudflare adds to every bucket, `Default Multipart Abort Rule`, which only throws away uploads that were never finished, after 7 days; leave it. `dev-url get` says that public access through `r2.dev` is disabled. `domain list` shows no custom domain. If either of the last two says otherwise, the bucket is public: turn it off (`npx wrangler r2 bucket dev-url disable agentic-media-house-evidence`) before anything is put in it.
 
 ### 7. Make the access key of the bucket (in the dashboard)
 
@@ -165,7 +165,7 @@ CLOUDFLARE_ACCOUNT_ID=<the account id of step 5>
 
 ### 10. Prove that the bucket is private
 
-The bucket keeps the pages that the Desk quotes from, and the whole design depends on one property of it: an anonymous request is refused. Step 6 checked the settings that make the bucket private (no `r2.dev` address, no custom domain). This asks the bucket itself, with a request that carries no signature and no key, for an object that does not exist and for the list of the bucket. A bucket that is private answers both with a refusal; a bucket that has been made public answers the list, or answers a missing object as a missing object.
+The bucket keeps the pages that the Desk quotes from, and the whole design depends on one property of it: an anonymous request is refused. A bucket is public only through two settings: its `r2.dev` address and the custom domains that are connected to it. Step 6 made it with neither, and this step reads both again. The S3 address, the one the Desk writes to, wants a signature on every request (R2 gives the same refusal for a bucket that does not exist), and the two `curl` commands ask it, with no signature and no key, for an object that does not exist and for the list of the bucket, to show that the address the Desk uses refuses what is not signed.
 
 ```bash
 ( set -a; . ~/.config/agentic-media-house/r2.env; set +a; curl -s -o /dev/null -w '%{http_code}\n' "$R2_ENDPOINT/$R2_BUCKET/pending/anonymous-request" )
@@ -174,7 +174,7 @@ npx wrangler r2 bucket dev-url get agentic-media-house-evidence
 npx wrangler r2 bucket domain list agentic-media-house-evidence
 ```
 
-**Expect:** both `curl` commands print `403`: the request has no signature, and the bucket refuses it, for an object that is not there as for the list of the bucket (a `404` for the first would mean that it answered an anonymous request as a public bucket does). They print only the status, and not the address. `dev-url get` says that public access through `r2.dev` is disabled, and `domain list` shows no custom domain. **If either `curl` prints `200`, or the first prints `404`, stop: the bucket is public, or the endpoint is wrong.** Turn public access off (`npx wrangler r2 bucket dev-url disable agentic-media-house-evidence`, outward) and run this step again before anything is put in the bucket. Run it again whenever someone has changed the settings of the bucket in the dashboard.
+**Expect:** both `curl` commands print `400`: R2 refuses a request that has no signature (the body, which is not printed, says `InvalidArgument`). The answer is the same for any bucket, even one that does not exist, so it shows that the address the Desk uses wants a signature, and the two settings are what show that this bucket is private. They print only the status, and not the address. `dev-url get` says that public access through `r2.dev` is disabled, and `domain list` shows no custom domain. **If either `curl` prints `200`, or `dev-url get` does not say disabled, or `domain list` shows a domain, stop: the bucket may be public.** If a `curl` prints `000`, read its error: a TLS `handshake failure` means that your network cannot reach the endpoint over IPv4 (it happened on the machine where this was first run), and adding `-6` to both `curl` commands, which uses the IPv6 addresses of the endpoint, gets an answer. Do not point `curl` at an address of your own choosing (`--resolve`): Cloudflare answers that with its own error `1034`, which is not an answer from the bucket. Turn public access off (`npx wrangler r2 bucket dev-url disable agentic-media-house-evidence`, outward) and run this step again before anything is put in the bucket. Run it again whenever someone has changed the settings of the bucket in the dashboard.
 
 ### 11. Set the secrets of the repository (outward)
 
