@@ -636,4 +636,42 @@ describe('shortenLabel', () => {
   it('keeps the one word of a label that is a single long word', () => {
     expect(shortenLabel('payload')).toBe('payload');
   });
+
+  it('returns a label of exactly the longest allowed length byte for byte, with the comma at its end', () => {
+    expect(shortenLabel('payload, reach, mass, speed, power, torque,')).toBe('payload, reach, mass, speed, power, torque,');
+  });
+
+  it('returns a short label byte for byte, with its odd spacing', () => {
+    expect(shortenLabel('Fixture  Robotics lists')).toBe('Fixture  Robotics lists');
+    expect(shortenLabel(' per arm, ')).toBe(' per arm, ');
+  });
+
+  it('leaves no quote mark open when the cut falls inside a quotation', () => {
+    const cut = shortenLabel('The "FX-1 arm lists a very long payload" claim now');
+    expect(cut).toBe('The FX-1 arm lists a very');
+    expect(cut).not.toContain('"');
+  });
+
+  it('leaves no curly quote mark open when the cut falls inside a quotation', () => {
+    const opening = String.fromCharCode(0x201c);
+    const closing = String.fromCharCode(0x201d);
+    const cut = shortenLabel(`The ${opening}FX-1 arm lists a very long payload${closing} claim now`);
+    expect(cut).toBe('The FX-1 arm lists a very');
+    expect(cut).not.toContain(opening);
+    expect(cut).not.toContain(closing);
+  });
+
+  it('keeps the quote marks of a quotation that the cut leaves whole', () => {
+    expect(shortenLabel('The "FX-1 arm" lists a very long payload')).toBe('The "FX-1 arm" lists a very');
+  });
+
+  it('leaves no bracket open when the cut falls inside a parenthesis', () => {
+    const cut = shortenLabel('one two three four (five six seven) eight');
+    expect(cut).toBe('one two three four five six');
+    expect(cut).not.toContain('(');
+  });
+
+  it('keeps the brackets of a parenthesis that the cut leaves whole', () => {
+    expect(shortenLabel('one two (three) four five six seven')).toBe('one two (three) four five six');
+  });
 });

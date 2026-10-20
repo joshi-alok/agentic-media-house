@@ -223,16 +223,38 @@ function labelWordsBeyondQuote(label: string, quote: string, allowList: Readonly
   return sentenceWords(unquoted(label)).filter((word) => !plain(word) && !(word.includes('-') && word.split('-').every(plain)));
 }
 
+/** The words of a label as `claimProblems` counts them: quote marks are read as spaces, and the punctuation around a word is not part of it. */
+const labelWordCount = (label: string): number => sentenceWords(unquoted(label)).length;
+
+/**
+ * What a cut can leave open, closed: a quote mark (straight, or curly) that has no partner is taken out, as a space, because `claimProblems` reads a quote mark as a space
+ * anyway, and so is an opening parenthesis that is not closed. Marks that come in pairs are left as they are.
+ */
+function withoutOpenMarks(label: string): string {
+  let text = label;
+  const count = (pattern: RegExp): number => (text.match(pattern) ?? []).length;
+  if (count(/"/gu) % 2 === 1) text = text.replaceAll('"', ' ');
+  if (count(/[\u201C-\u201F]/gu) % 2 === 1) text = text.replace(/[\u201C-\u201F]/gu, ' ');
+  const characters = [...text];
+  const open: number[] = [];
+  characters.forEach((character, at) => {
+    if (character === '(') open.push(at);
+    else if (character === ')') open.pop();
+  });
+  return characters.filter((_, at) => !open.includes(at)).join('').replace(/\s+/gu, ' ').trim();
+}
+
 /**
  * A label cut to at most MAX_LABEL_WORDS words, counted as `claimProblems` counts them. The first words of a label are words of the label, so every rule that holds for
- * the whole label (each word is a word of the quotation, a plain word or on the allow-list) holds for them too. What is left has no punctuation at its end. A label that
- * is short enough is returned as it is. This is what Extract does with a label that is too long, instead of dropping the claim for a rule about looks.
+ * the whole label (each word is a word of the quotation, a plain word or on the allow-list) holds for them too. A label that is short enough is returned as it is, byte for
+ * byte. What is cut is cut at a space, and what is left has no quote mark or parenthesis that is open (a quotation that the cut ended in the middle of loses its quote marks, and
+ * so does a parenthesis) and no punctuation at its end. This is what Extract does with a label that is too long, instead of dropping the claim for a rule about looks.
  */
 export function shortenLabel(label: string): string {
+  if (labelWordCount(label) <= MAX_LABEL_WORDS) return label;
   const parts = label.trim().split(/\s+/u);
-  while (parts.length > 1 && sentenceWords(unquoted(parts.join(' '))).length > MAX_LABEL_WORDS) parts.pop();
-  const cut = parts.join(' ');
-  return cut === label.trim() ? label : cut.replace(/[\s,;:]+$/u, '');
+  while (parts.length > 1 && labelWordCount(parts.join(' ')) > MAX_LABEL_WORDS) parts.pop();
+  return withoutOpenMarks(parts.join(' ')).replace(/[\s,;:]+$/u, '');
 }
 
 /** A number as the gate reads it from a raw text: a digit token (`parseNumberToken`) or number words (`readNumberWords`), or null when the text is neither. */
@@ -328,7 +350,7 @@ export function claimProblems(claim: ClaimCandidate, page: string, kind: SourceK
     const textBeyond = [...inText, ...additional(wordsBeyondQuote(claim.text, passage, allowList), inText)];
     if (textBeyond.length > 0) problems.push({ code: 'text-not-in-quote', message: `the text says what the quotation does not: ${shown(textBeyond)}` });
     const inLabel = additional(beyondQuote(claim.label, passage, allowList), []);
-    const labelWords = sentenceWords(unquoted(claim.label)).length;
+    const labelWords = labelWordCount(claim.label);
     const labelBeyond = [...inLabel, ...additional(labelWordsBeyondQuote(claim.label, passage, allowList), inLabel)];
     if (labelBeyond.length > 0) problems.push({ code: 'label-not-in-quote', message: `the label says what the quotation does not: ${shown(labelBeyond)}` });
     else if (labelWords === 0) problems.push({ code: 'label-not-in-quote', message: 'the label has no word' });

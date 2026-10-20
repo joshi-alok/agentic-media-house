@@ -5,7 +5,7 @@ import { ExtractArtifact, sourceKind, writeArtifact } from '../index';
 import type { SelectArtifact, SourceKind } from '../index';
 import type { ModelEffort } from '../model/types';
 import { MAX_CLAIMS, buildExtractUser, extractSystem } from '../prompts/extract';
-import { claimProblems, locateQuote, shortenLabel } from './claim-grounding';
+import { MAX_LABEL_WORDS, claimProblems, locateQuote, shortenLabel } from './claim-grounding';
 import type { Snapshot } from './fetch';
 import type { StageContext } from './context';
 
@@ -83,7 +83,7 @@ const ALLOW_LIST = defaultContext().nameAllowList;
  * `schema` error that ends the run, with nothing written. Each claim of the reply is then checked by `claimProblems` against the
  * page it names: a claim with a problem is recorded in `dropped` (its place in the reply, its text and every reason), and the
  * rest are kept, numbered `c-1`, `c-2` and so on in the order of the reply, with the quoted span as the page has it. A label of more than
- * six words is cut to six first (`shortenLabel`), so that a claim is not lost for the length of its label.
+ * six words is cut to six first (`shortenLabel`), so that a claim is not lost for the length of its label, and the log line says how many labels were cut.
  */
 export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selected: SelectArtifact): Promise<ExtractResult> {
   if (selected.chosen === null) throw new Error('runExtract needs a story: the Select stage chose none');
@@ -99,6 +99,7 @@ export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selec
 
   const claims: Claim[] = [];
   const dropped: ExtractArtifact['dropped'] = [];
+  let cut = 0;
   if (pages.length > 0) {
     const reply = await ctx.client.json({
       role: 'extract',
@@ -112,6 +113,7 @@ export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selec
     reply.value.claims.forEach((proposed, index) => {
       const { snapshot, kind } = pages[proposed.source - 1] as { snapshot: Snapshot; kind: SourceKind };
       const label = shortenLabel(proposed.label);
+      if (label !== proposed.label) cut += 1;
       const problems = claimProblems({ ...proposed, label }, snapshot.text, kind, ALLOW_LIST);
       if (problems.length > 0) {
         dropped.push({ index, text: proposed.text, reasons: problems });
@@ -140,7 +142,8 @@ export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selec
 
   const artifact: ExtractArtifact = { date: ctx.date, claims, dropped };
   await writeArtifact(ctx.runDir, '04-extract', artifact, ExtractArtifact);
-  ctx.log(`extract: ${claims.length + dropped.length} claims proposed, ${claims.length} kept, ${dropped.length} dropped`);
+  const cuts = cut === 0 ? '' : `, ${cut} ${cut === 1 ? 'label' : 'labels'} cut to ${MAX_LABEL_WORDS} words`;
+  ctx.log(`extract: ${claims.length + dropped.length} claims proposed, ${claims.length} kept, ${dropped.length} dropped${cuts}`);
   if (claims.length < ctx.config.minClaims) {
     const why = pages.length === 0 ? 'no page of the story is a known kind of source' : `${claims.length} of the ${claims.length + dropped.length} claims proposed survived the checks`;
     return { ok: false, outcome: 'no-story', reason: `${why}, and at least ${ctx.config.minClaims} are needed to write a piece`, artifact };

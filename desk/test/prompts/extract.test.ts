@@ -70,7 +70,7 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('Do not stop after the first few');
     expect(EXTRACT_INSTRUCTIONS).toContain('A long announcement states twenty or more separate facts');
     expect(EXTRACT_INSTRUCTIONS).toContain('make one claim for each');
-    expect(EXTRACT_INSTRUCTIONS).toContain(`Count the words of a label before you write it and aim for three to five: a label of more than ${MAX_LABEL_WORDS} words is dropped.`);
+    expect(EXTRACT_INSTRUCTIONS).toContain(`Count the words of a label before you write it and aim for three to five: a label has at most ${MAX_LABEL_WORDS} words, and a longer one is cut to its first ${MAX_LABEL_WORDS} words, so put the words that name the fact first.`);
     // the coverage is asked for inside the limit and does not weaken any rule that the code checks
     expect(EXTRACT_INSTRUCTIONS.indexOf('List every fact')).toBeLessThan(EXTRACT_INSTRUCTIONS.indexOf(`List at most ${MAX_CLAIMS} claims.`));
     expect(EXTRACT_INSTRUCTIONS).toContain('Leave out any claim you are not sure of');

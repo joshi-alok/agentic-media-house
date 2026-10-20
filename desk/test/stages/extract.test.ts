@@ -131,6 +131,15 @@ describe('runExtract: a clean script', () => {
     await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(logs).toEqual(['extract: 7 claims proposed, 7 kept, 0 dropped']);
   });
+
+  it('logs how many labels were cut to six words, and says nothing of it when none was', async () => {
+    const one = setup([...CLEAN, proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' })]);
+    await runExtract(one.ctx, SNAPSHOTS, selectedStory());
+    expect(one.logs).toEqual(['extract: 8 claims proposed, 8 kept, 0 dropped, 1 label cut to 6 words']);
+    const two = setup([...CLEAN, proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' }), proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' })]);
+    await runExtract(two.ctx, SNAPSHOTS, selectedStory());
+    expect(two.logs).toEqual(['extract: 9 claims proposed, 9 kept, 0 dropped, 2 labels cut to 6 words']);
+  });
 });
 
 describe('runExtract: a claim from the page of the outlet', () => {
