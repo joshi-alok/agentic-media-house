@@ -92,7 +92,7 @@ primary:
       url: "https://arxiv.org/list/cs.AI/recent"
       feed: "https://rss.arxiv.org/rss/cs.AI"
       beats: [agent-infrastructure]
-      keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, AI agent, AI agents, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets]
+      keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets]
       status: unverified
       note: The page of a paper is its abstract; the Desk does not read PDFs. The API and the Atom feeds are closed to the Desk by robots.txt; rss.arxiv.org is open.
     - name: arXiv cs.CR
@@ -100,7 +100,7 @@ primary:
       url: "https://arxiv.org/list/cs.CR/recent"
       feed: "https://rss.arxiv.org/rss/cs.CR"
       beats: [security-incidents]
-      keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, AI agent, AI agents, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets]
+      keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets, account abstraction]
       status: unverified
     - name: IACR ePrint
       short: IACR ePrint
@@ -114,14 +114,14 @@ primary:
       url: "https://ethresear.ch/"
       feed: "https://ethresear.ch/latest.rss"
       beats: [protocols-standards, wallets-keys]
-      keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, agent intents, agent payments, agentic payments, ERC8004, ERC-4337, EIP-7702]
+      keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, ERC8004, ERC-4337, EIP-7702]
       status: unverified
     - name: Ethereum Magicians
       short: Ethereum Magicians
       url: "https://ethereum-magicians.org/"
       feed: "https://ethereum-magicians.org/latest.rss"
       beats: [protocols-standards, identity-trust]
-      keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, agent intents, agent payments, agentic payments, ERC8004, ERC-4337, EIP-7702]
+      keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, ERC8004, ERC-4337, EIP-7702]
       status: unverified
 
   # Standards, open protocols and regulators. Underserved and highly checkable. An entry with no feed is a place the Desk
