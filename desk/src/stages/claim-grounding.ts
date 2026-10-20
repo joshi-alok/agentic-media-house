@@ -223,6 +223,18 @@ function labelWordsBeyondQuote(label: string, quote: string, allowList: Readonly
   return sentenceWords(unquoted(label)).filter((word) => !plain(word) && !(word.includes('-') && word.split('-').every(plain)));
 }
 
+/**
+ * A label cut to at most MAX_LABEL_WORDS words, counted as `claimProblems` counts them. The first words of a label are words of the label, so every rule that holds for
+ * the whole label (each word is a word of the quotation, a plain word or on the allow-list) holds for them too. What is left has no punctuation at its end. A label that
+ * is short enough is returned as it is. This is what Extract does with a label that is too long, instead of dropping the claim for a rule about looks.
+ */
+export function shortenLabel(label: string): string {
+  const parts = label.trim().split(/\s+/u);
+  while (parts.length > 1 && sentenceWords(unquoted(parts.join(' '))).length > MAX_LABEL_WORDS) parts.pop();
+  const cut = parts.join(' ');
+  return cut === label.trim() ? label : cut.replace(/[\s,;:]+$/u, '');
+}
+
 /** A number as the gate reads it from a raw text: a digit token (`parseNumberToken`) or number words (`readNumberWords`), or null when the text is neither. */
 function numberOfRaw(raw: string): ParsedNumber | null {
   const token = parseNumberToken(raw);

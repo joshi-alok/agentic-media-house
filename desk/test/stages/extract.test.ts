@@ -199,7 +199,7 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
     ]);
   });
 
-  it('drops a claim whose label or text has a word that the quotation lacks, and records each reason as a sentence that a person can read', async () => {
+  it('drops a claim whose label or text has a word that the quotation lacks, records each reason as a sentence that a person can read, and shortens a label that is too long instead of dropping the claim', async () => {
     const label = proposed('c-4', { label: 'list price' });
     const text = proposed('c-4', { text: 'the harlow dynamics arm lists the FX-1 from $38,000 per arm' });
     const tooLong = proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' });
@@ -208,13 +208,13 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
     expect(result.artifact.dropped.map((item) => [item.index, item.reasons])).toEqual([
       [7, [{ code: 'label-not-in-quote', message: 'the label says what the quotation does not: "list", "price"' }]],
       [8, [{ code: 'text-not-in-quote', message: 'the text says what the quotation does not: "harlow", "dynamics"' }]],
-      [9, [{ code: 'label-too-long', message: 'the label has 7 words, and the longest allowed is 6' }]],
     ]);
     const stored = await readArtifact(ctx.runDir, '04-extract', ExtractArtifact);
     expect(stored.dropped.flatMap((item) => item.reasons.map((reason) => reason.message))).toEqual(
       result.artifact.dropped.flatMap((item) => item.reasons.map((reason) => reason.message)),
     );
-    expect(result.artifact.claims).toHaveLength(7);
+    expect(result.artifact.claims).toHaveLength(8);
+    expect(result.artifact.claims.at(-1)?.label).toBe('Fixture Robotics lists the FX-1 from');
   });
 
   it('drops a claim with a value that its quotation lacks', async () => {

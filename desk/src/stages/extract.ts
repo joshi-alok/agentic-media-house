@@ -5,7 +5,7 @@ import { ExtractArtifact, sourceKind, writeArtifact } from '../index';
 import type { SelectArtifact, SourceKind } from '../index';
 import type { ModelEffort } from '../model/types';
 import { MAX_CLAIMS, buildExtractUser, extractSystem } from '../prompts/extract';
-import { claimProblems, locateQuote } from './claim-grounding';
+import { claimProblems, locateQuote, shortenLabel } from './claim-grounding';
 import type { Snapshot } from './fetch';
 import type { StageContext } from './context';
 
@@ -82,7 +82,8 @@ const ALLOW_LIST = defaultContext().nameAllowList;
  * `kindOfSnapshot`) is not shown, and when none is left no model is asked. One call is made, and a reply that is not valid is a
  * `schema` error that ends the run, with nothing written. Each claim of the reply is then checked by `claimProblems` against the
  * page it names: a claim with a problem is recorded in `dropped` (its place in the reply, its text and every reason), and the
- * rest are kept, numbered `c-1`, `c-2` and so on in the order of the reply, with the quoted span as the page has it.
+ * rest are kept, numbered `c-1`, `c-2` and so on in the order of the reply, with the quoted span as the page has it. A label of more than
+ * six words is cut to six first (`shortenLabel`), so that a claim is not lost for the length of its label.
  */
 export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selected: SelectArtifact): Promise<ExtractResult> {
   if (selected.chosen === null) throw new Error('runExtract needs a story: the Select stage chose none');
@@ -110,7 +111,8 @@ export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selec
     });
     reply.value.claims.forEach((proposed, index) => {
       const { snapshot, kind } = pages[proposed.source - 1] as { snapshot: Snapshot; kind: SourceKind };
-      const problems = claimProblems(proposed, snapshot.text, kind, ALLOW_LIST);
+      const label = shortenLabel(proposed.label);
+      const problems = claimProblems({ ...proposed, label }, snapshot.text, kind, ALLOW_LIST);
       if (problems.length > 0) {
         dropped.push({ index, text: proposed.text, reasons: problems });
         return;
@@ -119,7 +121,7 @@ export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selec
       claims.push({
         id: `c-${claims.length + 1}`,
         text: proposed.text,
-        label: proposed.label,
+        label,
         type: proposed.type,
         source: {
           url: snapshot.url,

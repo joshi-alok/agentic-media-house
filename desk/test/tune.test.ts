@@ -222,7 +222,7 @@ describe('main: tune, the table', () => {
       '  kind: company-newsroom (tier 1)',
       '  result: too few claims to write a piece from: 2 of the 4 claims proposed survived the checks, and at least 3 are needed to write a piece',
       '  claims proposed: 4',
-      '  claims dropped: quote-not-found 1, label-not-in-quote 1, label-too-long 1',
+      '  claims dropped: quote-not-found 1, label-not-in-quote 1',
       '  claims surviving: 2',
       `  tokens: ${ONE_EXTRACT_IN} in, 499 out, 1 model call`,
     ]);

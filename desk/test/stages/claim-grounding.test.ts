@@ -3,7 +3,7 @@ import type { Basis, ClaimValue } from '@robywire/gate';
 import { describe, expect, it } from 'vitest';
 import { extractPage } from '../../src/fetch/extract-text';
 import type { SourceKind } from '../../src/sources';
-import { ALLOWED_BASES, CLAIM_PROBLEM_CODES, COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH, claimProblems, locateQuote, normalisedMismatch } from '../../src/stages/claim-grounding';
+import { ALLOWED_BASES, CLAIM_PROBLEM_CODES, COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH, claimProblems, locateQuote, normalisedMismatch, shortenLabel } from '../../src/stages/claim-grounding';
 import type { ClaimCandidate } from '../../src/stages/claim-grounding';
 import { URLS } from '../support/context';
 import { fixtureText } from '../support/fixtures';
@@ -616,5 +616,24 @@ describe('claimProblems: all the reasons at once', () => {
 
   it('names the bases of every kind of source in one table', () => {
     expect(Object.keys(ALLOWED_BASES).sort()).toEqual(['arxiv', 'company-newsroom', 'sec', 'standard', 'tier2', 'unknown']);
+  });
+});
+
+describe('shortenLabel', () => {
+  it('leaves a label of the longest allowed length as it is', () => {
+    expect(shortenLabel('Fixture Robotics lists the FX-1 arm')).toBe('Fixture Robotics lists the FX-1 arm');
+    expect(MAX_LABEL_WORDS).toBe(6);
+  });
+
+  it('cuts a longer label at the longest allowed length', () => {
+    expect(shortenLabel('Fixture Robotics lists the FX-1 from arm')).toBe('Fixture Robotics lists the FX-1 from');
+  });
+
+  it('takes the punctuation off the end of what is left', () => {
+    expect(shortenLabel('payload, reach, mass, speed, power, torque, cycle time')).toBe('payload, reach, mass, speed, power, torque');
+  });
+
+  it('keeps the one word of a label that is a single long word', () => {
+    expect(shortenLabel('payload')).toBe('payload');
   });
 });
