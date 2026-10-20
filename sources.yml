@@ -38,7 +38,7 @@ primary:
         url: "https://stripe.com/blog"
         feed: "https://stripe.com/blog/feed.rss"
         keywords: [stablecoin, stablecoins, USDC, crypto, x402, agentic commerce, agentic payments, agent payments, machine payments]
-        status: unverified
+        status: verified
       - name: Coinbase blog
         short: Coinbase
         url: "https://www.coinbase.com/blog"
@@ -51,19 +51,20 @@ primary:
         short: Ethereum Foundation
         url: "https://blog.ethereum.org/"
         feed: "https://blog.ethereum.org/en/feed.xml"
-        status: unverified
+        status: verified
       - name: Vitalik Buterin's blog
         short: Vitalik Buterin's blog
         url: "https://vitalik.eth.limo/"
         feed: "https://vitalik.eth.limo/feed.xml"
-        status: unverified
+        status: verified
+        note: "The feed is read (176 items) but 0 are on a primary page: its items link to vitalik.ca, not to the host of url (vitalik.eth.limo), so Discover would drop every one of them; vitalik.ca did not resolve from the machine of the check (checked 2026-10-21). Change url to the host the items link to, after checking it with sources-check."
       - name: a16z crypto
         short: a16z crypto
         url: "https://a16zcrypto.com/"
         feed: "https://a16zcrypto.com/feed.xml"
         beats: [protocols-standards, agent-infrastructure, policy-regulation]
         keywords: [agent, agents, agentic, AI, x402, stablecoin, stablecoins]
-        status: unverified
+        status: verified
     agent-infrastructure:
       - name: Cloudflare blog
         short: Cloudflare
@@ -71,11 +72,12 @@ primary:
         feed: "https://blog.cloudflare.com/rss/"
         beats: [agent-infrastructure, payments-commerce]
         keywords: [x402, stablecoin, stablecoins, pay per crawl, Web Bot Auth, NET Dollar, crypto, blockchain, payments, agentic payments]
-        status: unverified
+        status: verified
+        note: "20 items, 0 with a keyword, 20 on a primary page (checked 2026-10-21). The keywords may need to change."
       - name: Chainlink blog
         short: Chainlink
         url: "https://chain.link/blog"
-        status: unverified
+        status: verified
         note: The old feed address redirects to the page, so the Desk reads the page.
 
   # Research. A paper is primary; a press release about a paper is not.
@@ -86,14 +88,14 @@ primary:
       feed: "https://rss.arxiv.org/rss/cs.MA"
       beats: [agent-infrastructure]
       keywords: [blockchain, onchain, on-chain, smart contract, smart contracts, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets, stablecoin, stablecoins]
-      status: unverified
+      status: verified
     - name: arXiv cs.AI
       short: arXiv
       url: "https://arxiv.org/list/cs.AI/recent"
       feed: "https://rss.arxiv.org/rss/cs.AI"
       beats: [agent-infrastructure]
       keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets]
-      status: unverified
+      status: verified
       note: The page of a paper is its abstract; the Desk does not read PDFs. The API and the Atom feeds are closed to the Desk by robots.txt; rss.arxiv.org is open.
     - name: arXiv cs.CR
       short: arXiv
@@ -101,63 +103,64 @@ primary:
       feed: "https://rss.arxiv.org/rss/cs.CR"
       beats: [security-incidents]
       keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets, account abstraction]
-      status: unverified
+      status: verified
     - name: IACR ePrint
       short: IACR ePrint
       url: "https://eprint.iacr.org/"
       feed: "https://eprint.iacr.org/rss/rss.xml"
       beats: [identity-trust, security-incidents]
       keywords: [agent, agents, agentic, blockchain, smart contract, smart contracts, wallet, wallets, account abstraction]
-      status: unverified
+      status: verified
+      note: "100 items, 0 with a keyword, 100 on a primary page (checked 2026-10-21). The keywords may need to change."
     - name: Ethereum Research
       short: Ethereum Research
       url: "https://ethresear.ch/"
       feed: "https://ethresear.ch/latest.rss"
       beats: [protocols-standards, wallets-keys]
       keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, ERC8004, ERC-4337, EIP-7702]
-      status: unverified
+      status: verified
     - name: Ethereum Magicians
       short: Ethereum Magicians
       url: "https://ethereum-magicians.org/"
       feed: "https://ethereum-magicians.org/latest.rss"
       beats: [protocols-standards, identity-trust]
       keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, ERC8004, ERC-4337, EIP-7702]
-      status: unverified
+      status: verified
 
   # Standards, open protocols and regulators. Underserved and highly checkable. An entry with no feed is a place the Desk
   # recognises as primary when a story links to it.
   standards:
-    - { name: Ethereum Improvement Proposals, short: EIPs, url: "https://eips.ethereum.org/", status: unverified }
-    - { name: Ethereum Requests for Comment, short: ERCs, url: "https://ercs.ethereum.org/", status: unverified }
-    - { name: Model Context Protocol, short: Model Context Protocol, url: "https://modelcontextprotocol.io/", status: unverified }
-    - { name: x402 documentation, short: x402, url: "https://docs.x402.org/", status: unverified }
-    - { name: x402 site, short: x402, url: "https://www.x402.org/", status: unverified }
-    - { name: x402 repository, short: x402, url: "https://github.com/coinbase/x402", status: unverified, note: "Pages only: the Atom feed of releases is closed to the Desk by robots.txt." }
-    - { name: Agent2Agent protocol, short: Agent2Agent, url: "https://a2a-protocol.org/", status: unverified }
-    - { name: Agent2Agent repository, short: Agent2Agent, url: "https://github.com/a2aproject/A2A", status: unverified }
-    - { name: W3C, short: W3C, url: "https://www.w3.org/", status: unverified }
-    - { name: IETF datatracker, short: IETF, url: "https://datatracker.ietf.org/", status: unverified }
+    - { name: Ethereum Improvement Proposals, short: EIPs, url: "https://eips.ethereum.org/", status: verified }
+    - { name: Ethereum Requests for Comment, short: ERCs, url: "https://ercs.ethereum.org/", status: verified }
+    - { name: Model Context Protocol, short: Model Context Protocol, url: "https://modelcontextprotocol.io/", status: verified }
+    - { name: x402 documentation, short: x402, url: "https://docs.x402.org/", status: verified }
+    - { name: x402 site, short: x402, url: "https://www.x402.org/", status: verified }
+    - { name: x402 repository, short: x402, url: "https://github.com/coinbase/x402", status: verified, note: "Pages only: the Atom feed of releases is closed to the Desk by robots.txt." }
+    - { name: Agent2Agent protocol, short: Agent2Agent, url: "https://a2a-protocol.org/", status: verified }
+    - { name: Agent2Agent repository, short: Agent2Agent, url: "https://github.com/a2aproject/A2A", status: verified }
+    - { name: W3C, short: W3C, url: "https://www.w3.org/", status: verified }
+    - { name: IETF datatracker, short: IETF, url: "https://datatracker.ietf.org/", status: verified }
     - name: SEC press releases
       short: SEC
       url: "https://www.sec.gov/newsroom/press-releases"
       feed: "https://www.sec.gov/news/pressreleases.rss"
       beats: [policy-regulation]
       keywords: [crypto, digital asset, digital assets, blockchain, stablecoin, stablecoins, token, tokens, cryptocurrency, cryptocurrencies, AI, artificial intelligence, agentic]
-      status: unverified
+      status: verified
     - name: CFTC press releases
       short: CFTC
       url: "https://www.cftc.gov/PressRoom/PressReleases"
       feed: "https://www.cftc.gov/RSS/RSSGP/rssgp.xml"
       beats: [policy-regulation]
       keywords: [crypto, digital asset, digital assets, blockchain, stablecoin, stablecoins, token, tokens, cryptocurrency, cryptocurrencies, AI, artificial intelligence, agentic]
-      status: unverified
+      status: verified
     - name: Federal Reserve press releases
       short: Federal Reserve
       url: "https://www.federalreserve.gov/newsevents/pressreleases.htm"
       feed: "https://www.federalreserve.gov/feeds/press_all.xml"
       beats: [policy-regulation]
       keywords: [stablecoin, stablecoins, digital asset, digital assets, crypto, payment, payments, AI, artificial intelligence, agentic]
-      status: unverified
+      status: verified
 
   # Money. A filing or the project's own announcement beats any coverage of it.
   funding:
@@ -176,25 +179,25 @@ secondary:
   - name: CoinDesk
     short: CoinDesk
     feed: "https://www.coindesk.com/arc/outboundfeeds/rss"
-    status: unverified
+    status: verified
     beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
     keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
   - name: Cointelegraph
     short: Cointelegraph
     feed: "https://cointelegraph.com/rss"
-    status: unverified
+    status: verified
     beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
     keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
   - name: Decrypt
     short: Decrypt
     feed: "https://decrypt.co/feed"
-    status: unverified
+    status: verified
     beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
     keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
   - name: The Block
     short: The Block
     feed: "https://www.theblock.co/rss.xml"
-    status: unverified
+    status: verified
     beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
     keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
   - name: The Defiant
