@@ -77,7 +77,7 @@ export const DeskConfig = z.strictObject({
   requestIntervalMs: z.number().int().nonnegative(),
   /** Fetch: the most bytes read from one page. */
   maxBytes: count,
-  /** Fetch: the most characters of one page that go on to be read. A longer text is cut at a paragraph and the artifact says so. */
+  /** Fetch: the most characters of one page that go on to be read. A longer text is cut at a paragraph or a line, or else a space, and the artifact says so. */
   maxPageChars: count,
   budget: Budget,
   models: Models,

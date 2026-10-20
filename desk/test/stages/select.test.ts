@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/config';
 import { FixtureFetcher } from '../../src/fetch/http';
+import type { Fetcher } from '../../src/fetch/http';
 import { jsonSchemaOf, ModelError } from '../../src/model/types';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { SelectArtifact, candidateId, readArtifact } from '../../src/run/artifacts';
@@ -275,6 +276,22 @@ describe('runSelect: the primary source', () => {
     expect(artifact.tier1Url).toBeNull();
     expect(artifact.chosen).toEqual(ARTICLE);
     expect(artifact.reasons).toEqual(['A product shipped.', NOTE('the page of the story has no link to a primary source')]);
+  });
+
+  it('is the first link of a page of markdown that goes to a primary source: the page is read as text, not as html', async () => {
+    const markdown: Fetcher = {
+      get: async (url) => ({
+        url,
+        finalUrl: url,
+        status: 200,
+        contentType: 'text/markdown; charset=utf-8',
+        body: `# The story\n\nSee [elsewhere](https://elsewhere.example/a) and [the release](${URLS.release}).`,
+        retrievedAt: FETCHED_AT.toISOString(),
+      }),
+    };
+    const { ctx, fake } = stageContext(scratch, { fetcher: markdown });
+    fake.script('select', choose(ARTICLE.id));
+    expect((await runSelect(ctx, discovered(ALL))).tier1Url).toBe(URLS.release);
   });
 
   it('does not take a link of the sidebar of the page for the source of the story', async () => {

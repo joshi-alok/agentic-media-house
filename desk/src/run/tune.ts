@@ -3,7 +3,7 @@ import path from 'node:path';
 import { PROFILE_IDS, ROUTES, allSentences, countWords } from '@robywire/gate';
 import type { Claim, Draft, ProfileId, SourcesRegistry } from '@robywire/gate';
 import { z } from 'zod';
-import { ComposeArtifact, DeskConfig, LocalEvidenceStore, candidateId, canonicalUrl, extractPage, hostKey, readArtifact, refuseApiOnFixtures, sourceKind, tier2Feeds, writeJsonFile } from '../index';
+import { ComposeArtifact, DeskConfig, LocalEvidenceStore, candidateId, canonicalUrl, hostKey, readAndCut, readArtifact, refuseApiOnFixtures, sourceKind, tier2Feeds, writeJsonFile } from '../index';
 import type { BuiltClient, ClientKind, EvidenceStore, Fetcher, ModelClient, ModelRequest, ModelResponse, SelectArtifact, SourceKind, SourcesKind } from '../index';
 import { runCompose } from '../stages/compose';
 import { describeFailure, emptyPublished, isSourceFailure } from '../stages/context';
@@ -378,7 +378,7 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
 
 /**
  * Fetch one page and make it ready to try, or say why it cannot be: an address that is on no host of the registry is not fetched at all, a page that cannot be fetched or read, or has no
- * text, is `not-fetched`, and a page that redirected to another kind of site than it was asked for is not a known kind of source. The text is kept in `evidence`.
+ * text, is `not-fetched`, and a page that redirected to another kind of site than it was asked for is not a known kind of source. The page is read and cut as Fetch reads and cuts it (`readAndCut`, to `maxPageChars`), and the text that is left is kept in `evidence` and is what the models are shown.
  */
 async function prepare(options: TuneOptions, evidence: EvidenceStore, url: string): Promise<{ page: Page } | { row: TuneRow }> {
   const asked = sourceKind(url, options.sources);
@@ -386,12 +386,12 @@ async function prepare(options: TuneOptions, evidence: EvidenceStore, url: strin
   const tier: 1 | 2 = asked === 'tier2' ? 2 : 1;
   try {
     const fetched = await options.fetcher.get(url);
-    const { title, text } = extractPage(fetched.body, fetched.finalUrl);
+    const { title, text, cut } = readAndCut(fetched, options.config.maxPageChars);
     if (text === '') return { row: untried(url, asked, 'not-fetched', 'the page has no text to read') };
     const kind = kindOfSnapshot({ tier, url, finalUrl: fetched.finalUrl }, options.sources);
     if (kind === 'unknown') return { row: untried(url, 'unknown', 'unknown-kind', `the page was served from ${fetched.finalUrl}, which is not the kind of source that ${url} is, so it was not read`) };
     const { hash } = await evidence.put(text, { url, finalUrl: fetched.finalUrl, tier, retrievedAt: fetched.retrievedAt });
-    const snapshot: Snapshot = { url, finalUrl: fetched.finalUrl, tier, hash, retrievedAt: fetched.retrievedAt, bytes: Buffer.byteLength(text, 'utf8'), title, text };
+    const snapshot: Snapshot = { url, finalUrl: fetched.finalUrl, tier, hash, retrievedAt: fetched.retrievedAt, bytes: Buffer.byteLength(text, 'utf8'), title, ...(cut ? { truncated: true as const } : {}), text };
     const chosen = { id: candidateId(url), title: title === '' ? url : title, url, outlet: outletOf(url, options.sources), tier, beats: [], origin: tier === 1 ? ('newsroom' as const) : ('feed' as const) };
     return { page: { snapshot, kind, selected: { date: options.date, chosen, reasons: [], tier1Url: tier === 1 ? url : null, shortlist: [chosen.id] } } };
   } catch (error) {

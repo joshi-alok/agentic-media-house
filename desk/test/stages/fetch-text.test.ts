@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/config';
+import { extractPage } from '../../src/fetch/extract-text';
 import { FixtureFetcher } from '../../src/fetch/http';
 import type { Fetcher } from '../../src/fetch/http';
 import { sha256Hex } from '../../src/model/types';
@@ -7,7 +8,7 @@ import { FetchArtifact, readArtifact } from '../../src/run/artifacts';
 import type { SelectArtifact } from '../../src/run/artifacts';
 import { runFetch } from '../../src/stages/fetch';
 import { RUN_DATE, candidate } from '../support/candidates';
-import { FETCHED_AT, stageContext, useScratch } from '../support/context';
+import { FETCHED_AT, URLS, stageContext, useScratch, worldMap } from '../support/context';
 import { FIXTURE_DIR, fixtureText } from '../support/fixtures';
 
 const scratch = useScratch();
@@ -90,5 +91,34 @@ describe('runFetch: a text with nothing to read', () => {
     const result = await runFetch(ctx, selected);
     expect(result.ok).toBe(false);
     expect(result.artifact.failures).toEqual([{ url: URL, tier: 1, reason: 'the page has no text to read' }]);
+  });
+});
+
+describe('runFetch: a page of html that is longer than maxPageChars', () => {
+  it('is cut at a block, and the text that is stored is the beginning of the text that is read', async () => {
+    const full = extractPage(fixtureText('pages/fixture-robotics-fx-1-second-plant.html'), URLS.release).text;
+    const release = candidate({ url: URLS.release, title: 'The release', tier: 1, outlet: 'Fixture Robotics', origin: 'newsroom', publishedAt: undefined });
+    const { ctx } = stageContext(scratch, { config: { ...defaultConfig(), maxPageChars: 400 } });
+    const result = await runFetch(ctx, { date: RUN_DATE, chosen: release, reasons: ['A release.'], tier1Url: URLS.release, shortlist: [release.id] });
+    expect(full.length).toBeGreaterThan(400);
+    if (!result.ok) throw new Error(`the fetch failed: ${result.reason}`);
+    const text = result.snapshots[0]!.text;
+    expect(text.length).toBeLessThanOrEqual(400);
+    expect(text.length).toBeGreaterThan(200);
+    expect(full.startsWith(`${text}\n`)).toBe(true);
+    expect(result.artifact.documents[0]).toMatchObject({ truncated: true, hash: sha256Hex(text), bytes: Buffer.byteLength(text, 'utf8') });
+  });
+});
+
+describe('runFetch: a story with no date of its own whose page is markdown', () => {
+  it('ends with no story, as a page of html that gives no date does: a text does not say when it was published', async () => {
+    const undated = candidate({ url: URL, title: 'ERC-0000: Agent payment registry', tier: 1, outlet: 'Ethereum Magicians', origin: 'newsroom', publishedAt: undefined });
+    const { ctx } = stageContext(scratch, { fetcher: world({ [URL]: 'pages/sample-proposal.md' }) });
+    const result = await runFetch(ctx, { date: RUN_DATE, chosen: undated, reasons: ['A proposal was published.'], tier1Url: URL, shortlist: [undated.id] });
+    if (result.ok) throw new Error('the fetch went on');
+    expect(result.outcome).toBe('no-story');
+    expect(result.reason).toBe('stale-or-undated: the story has no date and its page gives none either');
+    expect(result.artifact.documents).toEqual([]);
+    expect(result.artifact.failures).toEqual([{ url: URL, tier: 1, reason: result.reason }]);
   });
 });

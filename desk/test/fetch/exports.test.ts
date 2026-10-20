@@ -106,6 +106,7 @@ const VALUES = [
   'extractPage',
   'readPage',
   'cutText',
+  'readAndCut',
   'FeedError',
   'normaliseFeedDate',
   'parseFeed',

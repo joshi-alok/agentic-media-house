@@ -504,6 +504,36 @@ describe('main: tune, the scripted client that proposes nothing', () => {
   });
 });
 
+describe('main: tune, a page that is markdown', () => {
+  // The page is read and cut as Fetch reads and cuts it, so that a trial is a trial of what a run would do: the models are shown the text that is left after the cut.
+  const FIRST = 'The first paragraph says what shipped.';
+  const SECOND = 'The second paragraph is long enough that the limit falls inside it, and none of it may reach the models.';
+  const MARKDOWN = `# Fixture Robotics ships FX-1\n\n${FIRST}\n\n${SECOND}\n`;
+  const markdownWorld = () => world({ [RELEASE]: { type: 'text/markdown; charset=utf-8', body: MARKDOWN } });
+
+  it('reads it as text, cuts it to maxPageChars, keeps the text that is left and shows the models only that', async () => {
+    const fake = new FakeClient().script('extract', { claims: [] });
+    const made = tuning([RELEASE], { routes: markdownWorld(), deps: { tuneClient: fake } });
+    made.deps.config = { ...made.deps.config!, maxPageChars: 80 };
+    expect(await made.call('--client', 'fake')).toBe(0);
+    const kept = filesBelow(made.dir).find((file) => file.startsWith('evidence/') && file.endsWith('.txt'))!;
+    // The lines of the text are as they were, which html reading would have put in one line, and the text ends where a paragraph ends.
+    expect(readFileSync(path.join(made.dir, kept), 'utf8')).toBe(`# Fixture Robotics ships FX-1\n\n${FIRST}`);
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls[0]!.user).toContain(`# Fixture Robotics ships FX-1\n\n${FIRST}`);
+    expect(fake.calls[0]!.user).not.toContain('The second paragraph');
+  });
+
+  it('keeps the whole text of a page that fits', async () => {
+    const fake = new FakeClient().script('extract', { claims: [] });
+    const made = tuning([RELEASE], { routes: markdownWorld(), deps: { tuneClient: fake } });
+    expect(await made.call('--client', 'fake')).toBe(0);
+    const kept = filesBelow(made.dir).find((file) => file.startsWith('evidence/') && file.endsWith('.txt'))!;
+    expect(readFileSync(path.join(made.dir, kept), 'utf8')).toBe(MARKDOWN.trim());
+    expect(fake.calls[0]!.user).toContain(SECOND);
+  });
+});
+
 describe('main: tune, the budget of model calls', () => {
   it('stops the whole invocation when the calls are spent, and says so in the table and on the error output, with exit code 1, and keeps what was done', async () => {
     const { call, out, err, record } = tuning([RELEASE, ARTICLE], { deps: { tuneClient: story() } });
