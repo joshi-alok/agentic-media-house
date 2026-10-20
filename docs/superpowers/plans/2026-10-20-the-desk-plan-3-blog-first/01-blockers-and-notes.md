@@ -1152,8 +1152,7 @@ describe('the seeded defects whose code is a blocker', () => {
 Run: `npm test --workspace @robywire/evals -- test/notes.test.ts`
 Expected: PASS (the mechanism exists since Task 1 and the notes since Tasks 2 and 3). If a note case fails because its break also trips a *blocker* with another code, that is fine for the first group (it asserts only about its own code); if a blocker case does not give the route `revise`, read the case: it is a bug of the case, not of the gate.
 
-To prove that the test can fail, temporarily remove `'G2_BODY_LENGTH'` from `NOTE_CODES` and run it again.
-Expected: FAIL on "has a seeded defect for every note" and on the `G2_BODY_LENGTH` case; restore the list.
+To prove that the test can fail, temporarily change one line of `gate/src/gate.ts` and run it again, then restore the file (`git checkout gate/src/gate.ts`): (a) `const failures = found;` makes every note case fail (notes leak into `failures`); (b) `const failures = found.filter(() => false);` makes every blocker case fail (no blocker is reported); (c) adding a made-up code such as `'G2_NO_SUCH_NOTE'` to `NOTE_CODES` makes "has a seeded defect for every note" fail. (Removing a real code from `NOTE_CODES` does NOT make this test fail: both of its groups are derived from `severityOf`, so the cases just move from one group to the other. Which codes are notes is pinned by the exact list in `gate/test/severity.test.ts`; this test pins that the gate behaves as `severityOf` says.)
 
 - [ ] **Step 3: Run everything and commit**
 
@@ -1171,6 +1170,7 @@ git commit -m "test(evals): every note is proven to be reported as a note and ne
 
 **Files:**
 - Modify: `desk/src/stages/compose.ts`, `desk/src/stages/verify.ts`, `desk/test/stages/compose.test.ts`, `desk/test/stages/verify.test.ts`
+- Modify (cleanups queued by the reviews of Tasks 2 to 5, Step 3b): `desk/src/stages/publish.ts`, `desk/src/stages/hold.ts`, `desk/src/stages/select.ts`, `desk/src/stages/fetch.ts` (comments and one user-visible string), `desk/test/stages/select.test.ts`, `desk/test/support/held.ts`, `desk/test/stages/hold-pr.test.ts`
 
 Nothing in the revision loop needs a change to ignore notes: `runVerify` asks the model check when `gate.failures` is empty, and `problemsOf` reads `gate.failures` only. This task proves it, and makes a note visible in the log of a run.
 
@@ -1199,10 +1199,7 @@ describe('runVerify: a draft with notes and no blocker', () => {
     expect(result.gate.warnings.map((note) => note.code)).toEqual(['G2_HEADING_QUESTION']);
   });
 
-  it('has nothing to send back for a note', async () => {
-    const { composed } = await start(askedQuestion);
-    expect(problemsOf(composed.draft, composed.gate, [])).toEqual({ problems: [], unattached: [] });
-  });
+  // The test "sends nothing back for a note" of Task 2 already proves that `problemsOf` has nothing to send back for a note: do not repeat it here.
 
   it('says in the log how many notes the gate found', async () => {
     const { ctx, fake, claims, composed, logs } = await start(askedQuestion);
@@ -1238,6 +1235,15 @@ Expected: FAIL: the compose log has no `notes`, and the verify log line is `veri
 
 Update the doc comment of `runVerify`: after "the gate's verdict on the draft" add "(its notes never block, never go back to the composer and never keep the model check from running)", and delete the sentence "A draft that cites another outlet is routed to `hold` by the gate (TIER2_ATTRIBUTION), so it is held even though it is clean: it is never published by itself." (Task 5 removed the behaviour) and the same clause in the header comment of the file ("unless it cites another outlet, in which case it is `hold` however clean it is,").
 
+- [ ] **Step 3b: Clean up what the reviews of Tasks 2 to 5 queued for this task**
+
+These are cleanups of comments, one dead branch and one string; they change no behaviour of a run. If a cleanup turns out to need more than that, STOP and report it.
+
+1. `desk/src/stages/verify.ts`, `problemsOf`: the branch `if (where === 'opening') return sentenceIds(...)` is dead (only `G2_OPENING_LENGTH` reported `where: 'opening'`, and it is a note, so it never reaches `problemsOf`). Delete it, delete the clause of the doc comment that describes it ("at every sentence of the opening when it is `opening` (the length of the opening is the length of its sentences)"), and delete the test that keeps it alive by calling `runGateWith(ALL_CHECKS, input, defaultContext(), [])` in `desk/test/stages/verify.test.ts` ("points a failure of the opening as a whole at every sentence of the opening"; keep the test that proves a short opening is a note and sends nothing back). Fix the doc comments that still list the length of the piece among the failures that no sentence can mend (`problemsOf` ~line 39 and `runVerify` ~line 203): the length is a note now; the examples of a failure no sentence can mend are the number of sections, the categories and the basis of a claim.
+2. Stale prose that says a piece that cites another outlet is held (Task 5 made it publish when it is clean): `desk/src/stages/verify.ts` ~lines 18 and 206-207 (if Step 3 above already removed them, nothing to do), `desk/src/stages/publish.ts` ~37-38, `desk/src/stages/compose.ts` ~33 (the route `hold` "when only a hold reason was found (a claim of another outlet)": the gate asks for no hold now), `desk/src/stages/hold.ts` ~13 and ~57 (a hold comes from a blocker that stands after the rounds of revision, or from the model check; `TIER2_ATTRIBUTION` is a retired reason).
+3. `desk/src/stages/select.ts` ~84 and ~112, and `desk/src/stages/fetch.ts` ~47, say that a story with no reachable tier-1 source "is written in attributed form and held". It is written in attributed form and, if the gate and the model check clear it, published. Reword the comments, and the user-visible string at `select.ts` ~112 together with the test that pins it (`desk/test/stages/select.test.ts` ~262): the string must say "written in attributed form" and no longer say "held".
+4. `desk/test/support/held.ts` hard-codes two empty revisions and three verifier passes, and `desk/test/stages/hold-pr.test.ts` ~line 146 hard-codes `| Rounds of revision | 2 |`: derive them from `defaultConfig().maxRevisionRounds` (import it from `../../src/config`) so a change of the limit does not break three helpers. Behaviour of the tests must not change.
+
 - [ ] **Step 4: Run, then everything**
 
 Run: `npm test --workspace @robywire/desk -- test/stages/compose.test.ts test/stages/verify.test.ts`
@@ -1250,5 +1256,5 @@ Expected: all exit 0.
 
 ```bash
 git add desk
-git commit -m "feat(desk): a draft with notes and no blocker goes to the model check and is sent back for nothing, and the log of a run says how many notes the gate found" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "feat(desk): a draft with notes and no blocker goes to the model check and is sent back for nothing, the log of a run says how many notes the gate found, and the comments and the string that still said a piece of another outlet is held say what is true" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
