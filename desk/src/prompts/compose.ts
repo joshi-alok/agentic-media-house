@@ -46,7 +46,7 @@ export function composeRules(config: GateConfig = GATE): string[] {
     '- (blocks) A number written in words is checked like a number written in digits. Write figures as digits.',
     '- (noted in a fact sentence; it blocks in analysis and in a heading) Never use a word that states an amount without a figure: half, twice, double, doubled, tenfold, a third and the like. Give the figure and cite the claim that has it. If the claim states a period such as "the first half of 2027", write it as a quotation, word for word, in double quotation marks, or write the year alone.',
     '- (blocks) A passage in double quotation marks must be word for word inside the quoted passage of a claim that the sentence cites. Do not use quotation marks for anything else.',
-    '- (blocks) Write no price prediction, no market call and no advice to buy, sell or hold. Do not say where a price will go, do not call a token or a project a good or bad investment, and do not write a ticker with a dollar sign.',
+    '- (blocks) Write no price prediction, no market call and no advice to buy, sell or hold. Do not say where a price will go, do not call a token or a project a good or bad investment, and do not write a ticker with a dollar sign. Do not write a disclaimer such as "not financial advice" (the footer says it), do not use hype such as "to the moon" or "guaranteed returns", and a quotation that contains one of these must be cut, not kept.',
     '- (noted) Name a person, company, product or place only if a claim that the sentence cites names it. A second model reads every fact sentence beside the passages it cites; a sentence it rejects is sent back to you, and the piece is held if it is still rejected after the rounds of revision.',
     '',
     'Headings:',

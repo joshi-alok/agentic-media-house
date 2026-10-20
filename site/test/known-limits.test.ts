@@ -45,9 +45,9 @@ describe('KNOWN_LIMITS', () => {
     expect(text).toContain('The name check is strict on purpose');
     expect(unseen).toHaveLength(8);
     expect(misread).toHaveLength(2);
-    expect(strict).toHaveLength(2);
-    expect(unchecked).toHaveLength(4);
-    expect(KNOWN_LIMITS).toHaveLength(16);
+    expect(strict).toHaveLength(3);
+    expect(unchecked).toHaveLength(5);
+    expect(KNOWN_LIMITS).toHaveLength(18);
   });
 
   it.each(KNOWN_LIMITS.map((limit) => [limit.text.slice(0, 40), limit] as const))('is written as plain sentences: %s', (_name, limit) => {
@@ -210,6 +210,23 @@ describe('KNOWN_LIMITS', () => {
     expect(findings(build(true))).toEqual({ headingBlockers: 0, headingNotes: 0, analysisBlockers: 0 });
   });
 
+  it('is true of the strict limit about quotations: a quotation with a phrase of the policy rule is refused for that reason alone, and the same warning in other words is published', () => {
+    const limit = withText(strict, 'A quotation that contains one of the phrases the Desk never writes in its own voice is refused');
+    expect(limit.text).toContain('because quoted passages are read too');
+    expect(limit.example).toBe('The regulator warned that firms must not promise customers "guaranteed returns".');
+    const said = (text: string, passage: string) => {
+      const input = cloneGolden();
+      const claim = input.claims.find((item) => item.id === 'c-1')!;
+      // The claim has the words in its quoted passage, so the quotation is word for word (G5) and only the policy rule can refuse it.
+      claim.span.quote = `${claim.span.quote} ${passage}`;
+      input.draft.takeaways[0] = { kind: 'fact', text, claimIds: ['c-1'] };
+      const result = runGate(input, defaultContext());
+      return { route: result.route, failures: result.failures.map((failure) => failure.code) };
+    };
+    expect(said(limit.example, 'The rule bars any promise of guaranteed returns.')).toEqual({ route: 'revise', failures: ['G9_POLICY_PHRASE'] });
+    expect(said('The regulator warned that firms must not promise customers a return with no risk.', 'The rule bars any promise of guaranteed returns.')).toEqual({ route: 'publish', failures: [] });
+  });
+
   it('says what the strictness costs and what it buys', () => {
     const limit = withText(strict, 'The name check is strict on purpose');
     expect(limit.text).toContain('A note costs nothing, and the model check reads each sentence for a name that slipped through.');
@@ -260,6 +277,23 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
     // The share is a target of a fifth by default and a note above it: it caps nothing, and what shows the exposure is the label on every analysis sentence.
     expect(defaultConfig().analysisShareCap).toBe(0.2);
     expect(NOTE_CODES).toContain('G7_ANALYSIS_SHARE');
+  });
+
+  it('is true of the policy rule: a price prediction in other words, and advice without one of the listed phrases, pass every check of code', () => {
+    const limit = withText(unchecked, 'The rule against a price prediction, advice to buy or sell, hype and a disclaimer is a fixed list of phrases');
+    expect(limit.text).toContain('a pattern for a ticker with a dollar sign');
+    expect(limit.text).toContain('the same thing said in other words passes, and no rule of code notices');
+    // The text says nothing about a model check: whether one runs is a matter of the switchboard, and this limit is about code.
+    expect(limit.text).not.toMatch(/model/i);
+    for (const example of [limit.example, 'The token is worth buying.']) {
+      const input = cloneGolden();
+      input.draft.takeaways[0]!.text = example;
+      expect(route(input), example).toEqual({ route: 'publish', failures: [] });
+    }
+    // The rule is not off: the listed words are refused.
+    const refused = cloneGolden();
+    refused.draft.takeaways[0]!.text = 'Analysts set a price target for the token.';
+    expect(route(refused).failures).toEqual(['G9_POLICY_PHRASE']);
   });
 
   it('is true of a heading: one that asserts something in words and names no figure and no capitalised word passes', () => {

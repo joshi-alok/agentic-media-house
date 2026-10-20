@@ -9,7 +9,8 @@ export type Severity = (typeof SEVERITIES)[number];
  *
  * A note is a rule about the shape or the style of a piece, or about a word in a fact sentence or a heading that the model check judges better than a
  * word list can. A rule about analysis is never a note for a name or a figure, because the model check holds analysis only to adding nothing the passages do not support, and code stays the strict judge of what it may name or count. A blocker is a rule about a figure, a
- * quotation, a citation, a duplicate or the structure that the renderer needs. A word that mixes letters and digits (mid-2027, FY2027, 10x) is a figure,
+ * quotation, a citation, a duplicate or the structure that the renderer needs; so is a rule about the Desk's own voice (no price prediction, no advice to buy or
+ * sell, no hype, no disclaimer, no ticker with a dollar sign: G9_POLICY_PHRASE), which is a matter of policy and not of style. A word that mixes letters and digits (mid-2027, FY2027, 10x) is a figure,
  * although the reader of the gate takes it for a name, so G4_FIGURE_UNSUPPORTED blocks and is not on this list.
  */
 export const NOTE_CODES: readonly string[] = [

@@ -70,16 +70,16 @@ export function titleTokens(title: string): Set<string> {
  *   match is on any part of the text, so "delve" catches "delves". Quoted
  *   passages are read too: if a source's own hype is inside a quotation,
  *   cut the quotation or paraphrase it. `where` is the phrase.
- * - The Desk makes no price prediction, no market call and gives no advice to
- *   buy, sell or hold, and writes no ticker with a dollar sign
- *   (G9_POLICY_PHRASE, a blocker). It reads the title, the description, every
- *   fact and analysis sentence and every section heading; the limitation
- *   sentences are written by code from fixed notes and are not read. The
- *   phrases of `policyPhrases` are matched by whole words (no letter or digit
- *   next to the phrase), so "price target" is refused and "prices targeted"
- *   is not; case, quote shapes, dashes and spacing are ignored, and quoted
- *   passages are read. A cashtag is a dollar sign followed by two to ten
- *   letters. `where` is the place, `title`, `opening, sentence 1` or
+ * - The Desk makes no price prediction, no market call, gives no advice to
+ *   buy, sell or hold, uses no hype and no disclaimer, and writes no ticker
+ *   with a dollar sign (G9_POLICY_PHRASE, a blocker). It reads the title, the
+ *   description, every fact and analysis sentence and every section heading;
+ *   the limitation sentences are written by code from fixed notes and are not
+ *   read. The phrases of `policyPhrases` are matched by whole words (no letter
+ *   or digit next to the phrase), so "price target" is refused and "prices
+ *   targeted" is not; case, quote shapes, dashes and spacing are ignored, and
+ *   quoted passages are read. A cashtag is a dollar sign followed by two to
+ *   ten letters. `where` is the place, `title`, `opening, sentence 1` or
  *   `section "<heading>"`, so that a sentence or a heading that has one can be
  *   sent back to the composer.
  */
@@ -156,7 +156,7 @@ export const checkG9: Check = ({ draft }, ctx) => {
         failures.push({
           check: 'G9',
           code: 'G9_POLICY_PHRASE',
-          message: `the phrase "${phrase}" appears at ${place.where}: the Desk makes no price prediction, no market call and gives no advice to buy, sell or hold`,
+          message: `the phrase "${phrase}" appears at ${place.where}: the Desk makes no price prediction, no market call, no advice to buy, sell or hold, no hype and no disclaimer (the footer carries it)`,
           where: place.where,
         });
       }

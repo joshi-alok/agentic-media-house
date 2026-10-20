@@ -38,6 +38,37 @@ describe('G9_POLICY_PHRASE', () => {
     expect(policy(run(say('Prices targeted by the attack fell and a pricetarget file was left.')))).toEqual([]);
   });
 
+  it('matches whole words at both edges: a letter or a digit next to the phrase on either side lets it through', () => {
+    expect(policy(run(say('The team will reprice target dates after the audit.')))).toEqual([]);
+    expect(policy(run(say('The file price target2 was left in the folder.')))).toEqual([]);
+    expect(policy(run(say('The file 2price target was left in the folder.')))).toEqual([]);
+    expect(policy(run(say('The analysts set a price target 2 days before the launch.')))).toHaveLength(1);
+  });
+
+  it.each(['guaranteed return', 'guaranteed returns', 'guaranteed profit', 'guaranteed profits', 'risk-free return', 'risk-free returns', 'buy the dip', 'buying the dip', 'to the moon'])(
+    'refuses the phrase "%s" in a sentence, in the singular or the plural form that the list has',
+    (phrase) => {
+      const failures = policy(run(say(`The post promised ${phrase} for every holder.`)));
+      expect(failures).toHaveLength(1);
+      expect(failures[0]?.message).toContain(`"${phrase}"`);
+    },
+  );
+
+  it('lists the singular and the plural of a phrase apart, because a whole word is not its plural', () => {
+    const only = (text: string) => policy(run(say(text))).map((failure) => failure.message.match(/"([^"]+)"/)?.[1]);
+    expect(only('The fund promised a guaranteed return.')).toEqual(['guaranteed return']);
+    expect(only('The fund promised guaranteed returns.')).toEqual(['guaranteed returns']);
+    expect(only('The fund promised guaranteed profits.')).toEqual(['guaranteed profits']);
+    expect(only('The fund promised a risk-free return.')).toEqual(['risk-free return']);
+  });
+
+  it('says in the message that the Desk writes no prediction, no advice, no hype and no disclaimer', () => {
+    const [failure] = policy(run(say('The analysts set a price target for the token.')));
+    expect(failure?.message).toBe(
+      'the phrase "price target" appears at opening, sentence 1: the Desk makes no price prediction, no market call, no advice to buy, sell or hold, no hype and no disclaimer (the footer carries it)',
+    );
+  });
+
   it('ignores case, the shape of quotation marks and the spacing', () => {
     expect(policy(run(say('The note said:  PRICE   TARGET  was raised.')))).toHaveLength(1);
   });
@@ -72,6 +103,28 @@ describe('G9_POLICY_PHRASE', () => {
     // A failure for each cashtag a place has, as for each phrase.
     expect(policy(run(say('Holders of $TAO and $BTC.'))).map((failure) => failure.message.match(/"([^"]+)"/)?.[1])).toEqual(['$TAO', '$BTC']);
     expect(policy(run(say('The sum of $$ETH is odd.')))).toEqual([]);
+  });
+
+  it('does not take a dollar sign after a letter, a digit or another dollar sign for the start of a cashtag', () => {
+    // Each of these reaches the lookbehind: the dollar sign is followed by letters, and the character in front of it is what rules the tag out.
+    for (const text of ['The US$ETH rate moved.', 'The A$BC rate moved.', 'The 5$ETH rate moved.', 'The sum of $$ETH is odd.']) {
+      expect(policy(run(say(text))), text).toEqual([]);
+    }
+  });
+
+  it('takes a tag of two to ten letters and no other: one letter, eleven letters and a tag that goes on into a digit are not cashtags', () => {
+    expect(policy(run(say('The $AB token moved.')))).toHaveLength(1);
+    expect(policy(run(say('The $ABCDEFGHIJ token moved.')))).toHaveLength(1);
+    expect(policy(run(say('The $USDC token moved.')))).toHaveLength(1);
+    expect(policy(run(say('The $A token moved.')))).toEqual([]);
+    expect(policy(run(say('The $ABCDEFGHIJK token moved.')))).toEqual([]);
+    expect(policy(run(say('The $ETH2 token moved.')))).toEqual([]);
+  });
+
+  it('takes a tag in lowercase, and after a bracket, a quotation mark or a space', () => {
+    for (const text of ['The $eth token moved.', 'The token ($ETH) moved.', 'The token "$ETH" moved.', 'The token moved, $ETH rose.']) {
+      expect(policy(run(say(text))), text).toHaveLength(1);
+    }
   });
 
   it('reports a cashtag once for each place, however often it is written there', () => {

@@ -120,9 +120,9 @@ describe('composeSystem', () => {
   });
 
   // The publication does not call the price of a token, tell where it will go or tell the reader what to buy: the writer is told so, in the draft and in the revision.
-  it('says in a rule that blocks that there is no price prediction, no market call, no advice and no ticker with a dollar sign', () => {
+  it('says in a rule that blocks that there is no price prediction, no market call, no advice, no disclaimer, no hype and no ticker with a dollar sign', () => {
     const line =
-      '- (blocks) Write no price prediction, no market call and no advice to buy, sell or hold. Do not say where a price will go, do not call a token or a project a good or bad investment, and do not write a ticker with a dollar sign.';
+      '- (blocks) Write no price prediction, no market call and no advice to buy, sell or hold. Do not say where a price will go, do not call a token or a project a good or bad investment, and do not write a ticker with a dollar sign. Do not write a disclaimer such as "not financial advice" (the footer says it), do not use hype such as "to the moon" or "guaranteed returns", and a quotation that contains one of these must be cut, not kept.';
     expect(composeRules()).toContain(line);
     for (const prompt of [COMPOSE_INSTRUCTIONS, REVISE_INSTRUCTIONS]) expect(prompt).toContain(line);
   });

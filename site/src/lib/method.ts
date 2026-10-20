@@ -171,6 +171,11 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
     example: 'Rollout began in the spring.',
   },
   {
+    kind: 'strict',
+    text: 'A quotation that contains one of the phrases the Desk never writes in its own voice is refused, because quoted passages are read too: a source that warns against "guaranteed returns" cannot be quoted for it, and the warning has to be put in other words.',
+    example: 'The regulator warned that firms must not promise customers "guaranteed returns".',
+  },
+  {
     kind: 'unchecked',
     text: 'The page address of a piece and the text and the label of each claim are written by a model, and no rule of the gate reads them for figures or names: a label such as "Harlow Logistics 12 plants" passes the gate. The Extract stage will check the text and the label against the passage before the gate sees the claim, and the receipts page shows the label and the passage, never the text.',
     example: 'Harlow Logistics 12 plants',
@@ -189,6 +194,11 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
     kind: 'unchecked',
     text: 'A section heading that names no figure and no capitalised word is not checked by code for what it asserts: "the arms keep failing" passes the gate.',
     example: 'the arms keep failing',
+  },
+  {
+    kind: 'unchecked',
+    text: 'The rule against a price prediction, advice to buy or sell, hype and a disclaimer is a fixed list of phrases and a pattern for a ticker with a dollar sign: the same thing said in other words passes, and no rule of code notices.',
+    example: 'Analysts expect the token to reach a new high next month.',
   },
 ];
 

@@ -27,8 +27,9 @@ export interface GateConfig {
   /** G9: phrases that must not appear anywhere in the piece. Lowercase, plain apostrophes. */
   bannedPhrases: readonly string[];
   /**
-   * G9: phrases of the Desk's own voice that are never allowed: a price prediction, a market call, advice to buy, sell or hold. Lowercase, plain apostrophes.
-   * Unlike the banned phrases they are matched by whole words and they block.
+   * G9: phrases of the Desk's own voice that are never allowed: a price prediction, a market call, advice to buy, sell or hold, hype, a disclaimer. Lowercase, plain apostrophes.
+   * Unlike the banned phrases they are matched by whole words and they block. The cashtag rule (a dollar sign and two to ten letters) is fixed in code and is not
+   * configurable: an empty list still blocks cashtags.
    */
   policyPhrases: readonly string[];
 }
@@ -51,7 +52,7 @@ export const DEFAULT_BANNED_PHRASES: readonly string[] = [
   'paves the way',
 ];
 
-/** What the publication never says in its own voice. Compared in lowercase, by whole words (see `G9_POLICY_PHRASE`). */
+/** What the publication never says in its own voice. Compared in lowercase, by whole words (see `G9_POLICY_PHRASE`), so the singular and the plural of a phrase are both listed. */
 export const DEFAULT_POLICY_PHRASES: readonly string[] = [
   'price target',
   'price targets',
@@ -63,8 +64,12 @@ export const DEFAULT_POLICY_PHRASES: readonly string[] = [
   'will moon',
   'to the moon',
   'buy the dip',
+  'buying the dip',
+  'guaranteed return',
   'guaranteed returns',
   'guaranteed profit',
+  'guaranteed profits',
+  'risk-free return',
   'risk-free returns',
   'you should buy',
   'you should sell',

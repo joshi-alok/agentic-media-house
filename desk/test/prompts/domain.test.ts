@@ -16,6 +16,7 @@ describe('the prompts say what the publication is', () => {
 
   it('the compose prompt says there is no price, no market call and no advice', () => {
     expect(composeSystem()).toContain('no price prediction, no market call and no advice to buy, sell or hold');
+    expect(composeSystem()).toContain('Do not write a disclaimer such as "not financial advice" (the footer says it)');
   });
 
   it('the select prompt says what the publication covers', () => {
