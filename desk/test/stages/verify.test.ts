@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { allSentences, buildLimitations, citedClaims, defaultContext, runGate } from '@robywire/gate';
+import { ALL_CHECKS, allSentences, buildLimitations, citedClaims, defaultContext, runGate, runGateWith } from '@robywire/gate';
 import type { Claim, Draft } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
@@ -325,8 +325,8 @@ describe('runVerify: a draft that is never mended is held', () => {
   });
 
   it('holds a draft whose failures no sentence can mend, at once and without asking the composer', async () => {
-    const { ctx, fake, claims, composed, logs } = await start((reply) => { reply.takeaways = reply.takeaways.slice(0, 2); });
-    expect(composed.gate.failures.map((failure) => failure.code)).toEqual(['G2_TAKEAWAYS_COUNT']);
+    const { ctx, fake, claims, composed, logs } = await start((reply) => { reply.sections = reply.sections.slice(0, 1); });
+    expect(composed.gate.failures.map((failure) => failure.code)).toEqual(['G2_SECTIONS_MIN']);
     const result = await runVerify(ctx, claims, composed);
     expect(result.outcome).toBe('hold');
     expect(result.rounds).toBe(0);
@@ -336,13 +336,13 @@ describe('runVerify: a draft that is never mended is held', () => {
   });
 
   it('mends what a sentence can mend and then holds what it cannot, without using the rounds that are left', async () => {
-    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; reply.takeaways = reply.takeaways.slice(0, 2); });
-    expect(new Set(composed.gate.failures.map((failure) => failure.code))).toEqual(new Set(['G4_NUMBER_UNSUPPORTED', 'G2_TAKEAWAYS_COUNT']));
+    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; reply.sections = reply.sections.slice(0, 1); });
+    expect(new Set(composed.gate.failures.map((failure) => failure.code))).toEqual(new Set(['G4_NUMBER_UNSUPPORTED', 'G2_SECTIONS_MIN']));
     fake.script('compose', rewriting(idOf(composed.draft, INVENTED), GOOD_TAKEAWAY));
     const result = await runVerify(ctx, claims, composed);
     expect(result.outcome).toBe('hold');
     expect(result.rounds).toBe(1);
-    expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G2_TAKEAWAYS_COUNT']);
+    expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G2_SECTIONS_MIN']);
     expect(callsOf(fake, 'compose')).toHaveLength(2);
   });
 
@@ -645,10 +645,24 @@ describe('problemsOf', () => {
     expect(problems.map((problem) => [problem.id, problem.reason.split(':')[0]])).toEqual([['s2', 'G2_SENTENCE_START']]);
   });
 
-  it('points the length of the opening at every sentence of the opening', () => {
-    const { problems, unattached } = problemsFor((draft) => { draft.opening = draft.opening.slice(0, 2); });
+  it('points a failure of the opening as a whole at every sentence of the opening', () => {
+    // The length of the opening is a note and never a failure, and no blocker is reported for the opening as a whole. The gate is run with no
+    // notes, so that this failure, which a check can still report, shows where problemsOf sends a failure whose place is the opening.
+    const draft = structuredClone(GOLDEN_DRAFT) as Draft;
+    draft.opening = draft.opening.slice(0, 2);
+    const gate = runGateWith(ALL_CHECKS, { draft, claims: cloneGolden().claims }, defaultContext(), []);
+    const { problems, unattached } = problemsOf(draft, gate, []);
     expect(problems.map((problem) => problem.id)).toEqual(['s2', 's3']);
     expect(problems.every((problem) => problem.reason.startsWith('G2_OPENING_LENGTH: '))).toBe(true);
+    expect(unattached).toEqual([]);
+  });
+
+  it('sends nothing back for a note: an opening that is too short is listed in the warnings of the gate and is no problem', () => {
+    const { gate, problems, unattached } = problemsFor((draft) => { draft.opening = draft.opening.slice(0, 2); });
+    expect(gate.failures).toEqual([]);
+    expect(gate.warnings.map((item) => item.code)).toEqual(['G2_OPENING_LENGTH']);
+    expect(gate.route).toBe('publish');
+    expect(problems).toEqual([]);
     expect(unattached).toEqual([]);
   });
 
@@ -683,14 +697,9 @@ describe('problemsOf', () => {
   });
 
   it.each([
-    ['the number of takeaways', (draft: Draft) => { draft.takeaways = draft.takeaways.slice(0, 2); }, 'G2_TAKEAWAYS_COUNT'],
-    ['the length of the piece', (draft: Draft) => { for (const section of draft.sections) section.paragraphs = section.paragraphs.slice(0, 1); }, 'G2_BODY_LENGTH'],
     ['the number of sections', (draft: Draft) => { draft.sections = draft.sections.slice(0, 1); }, 'G2_SECTIONS_MIN'],
     ['the categories', (draft: Draft) => { draft.categories = []; }, 'G1_CATEGORY_COUNT'],
     ['the slug', (draft: Draft) => { draft.slug = 'Not A Slug'; }, 'G1_SLUG_FORMAT'],
-    ['the share of analysis in the piece', (draft: Draft) => {
-      for (const index of [0, 2]) draft.sections[index]!.paragraphs = draft.sections[index]!.paragraphs.map((paragraph) => paragraph.map((sentence) => ({ kind: 'analysis' as const, text: sentence.text, claimIds: sentence.claimIds })));
-    }, 'G7_ANALYSIS_SHARE'],
     ['a limitation that is missing', (draft: Draft) => { draft.limitations = []; }, 'G2_LIMITATIONS_MISSING'],
   ])('leaves %s as a problem that no sentence can mend', (_what, change, code) => {
     const { gate, unattached } = problemsFor(change);

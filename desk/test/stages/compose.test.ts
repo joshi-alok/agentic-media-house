@@ -35,7 +35,12 @@ async function verdictOn(change: (reply: Reply) => void, claims: Claim[] = GOLDE
   const reply = structuredClone(base);
   change(reply);
   const { result } = await compose(reply, claims, overrides);
-  return { codes: [...new Set(result.gate.failures.map((failure) => failure.code))], route: result.gate.route, holds: result.gate.holdReasons };
+  return {
+    codes: [...new Set(result.gate.failures.map((failure) => failure.code))],
+    notes: [...new Set(result.gate.warnings.map((finding) => finding.code))],
+    route: result.gate.route,
+    holds: result.gate.holdReasons,
+  };
 }
 
 describe('runCompose: the golden piece', () => {
@@ -117,23 +122,28 @@ describe('runCompose: a script that breaks a rule is caught, with the gate\'s ow
     ['a heading has no quotation', (reply) => { section(reply, 0).heading = 'What "shipped"'; }, 'G4_HEADING_QUOTE'],
     ['a heading is lowercase except the words of the claims of its section', (reply) => { section(reply, 0).heading = 'What Shipped'; }, 'G4_HEADING_NAME'],
     ['a heading names nobody that its claims do not', (reply) => { section(reply, 0).heading = 'What Harlow shipped'; }, 'G4_HEADING_NAME'],
-    ['a heading is a statement, not a question', (reply) => { section(reply, 0).heading = 'What shipped?'; }, 'G2_HEADING_QUESTION'],
-    ['a heading is short', (reply) => { section(reply, 0).heading = `What shipped${' and so on'.repeat(10)}`; }, 'G2_HEADING_TOO_LONG'],
     ['a section has a heading', (reply) => { section(reply, 0).heading = ''; }, 'G2_HEADING_EMPTY'],
     ['analysis is never in the opening', (reply) => { reply.opening[1] = { kind: 'analysis', text: 'The first site, at Ashvale, now runs 40 of the arms, and a third site is planned.', claimIds: ['c-23', 'c-26'] }; }, 'G7_ANALYSIS_PLACEMENT'],
     ['analysis is never in the title', (reply) => { reply.title = { kind: 'analysis', text: 'Fixture Robotics ships its FX-1 warehouse arm to a second plant', claimIds: ['c-1'] }; }, 'G7_ANALYSIS_PLACEMENT'],
-    ['analysis is at most a fifth of the sentences', (reply) => {
-      for (const index of [0, 2]) section(reply, index).paragraphs = section(reply, index).paragraphs.map((paragraph) => paragraph.map((sentence) => ({ kind: 'analysis' as const, text: sentence.text, claimIds: sentence.claimIds })));
-    }, 'G7_ANALYSIS_SHARE'],
     ['analysis introduces no number that no fact has', (reply) => { section(reply, 2).paragraphs[1]?.push({ kind: 'analysis', text: 'The rollout may reach 5000 plants.', claimIds: ['c-6'] }); }, 'G7_ANALYSIS_NEW_VALUE'],
-    ['the opening is as long as the gate says', (reply) => { reply.opening = reply.opening.slice(0, 1); }, 'G2_OPENING_LENGTH'],
-    ['there are as many takeaways as the gate says', (reply) => { reply.takeaways = reply.takeaways.slice(0, 2); }, 'G2_TAKEAWAYS_COUNT'],
     ['there are at least two sections', (reply) => { reply.sections = reply.sections.slice(0, 1); }, 'G2_SECTIONS_MIN'],
-    ['the piece is as long as the gate says', (reply) => { for (const item of reply.sections) item.paragraphs = item.paragraphs.slice(0, 1); }, 'G2_BODY_LENGTH'],
     ['the description is short', (reply) => { reply.description = { kind: 'fact', text: `Fixture Robotics has begun shipping the FX-1 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor${', and more'.repeat(10)}.`, claimIds: ['c-1', 'c-8'] }; }, 'G1_DESCRIPTION_TOO_LONG'],
     ['a piece has a category', (reply) => { reply.categories = []; }, 'G1_CATEGORY_COUNT'],
     ['funding comes with a beat', (reply) => { reply.categories = ['funding']; }, 'G1_CATEGORY_NO_BEAT'],
     ['no banned phrase', (reply) => { reply.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the groundbreaking FX-1 arm, rated for 12 kg, to a second plant.', claimIds: ['c-1', 'c-8'] }; }, 'G9_BANNED_PHRASE'],
+  ];
+
+  // The rules that have become notes: the gate reports them in `warnings`, and a piece that breaks only one of them is published.
+  const NOTE_ROWS: [string, (reply: Reply) => void, string][] = [
+    ['a heading is a statement, not a question', (reply) => { section(reply, 0).heading = 'What shipped?'; }, 'G2_HEADING_QUESTION'],
+    ['a heading is short', (reply) => { section(reply, 0).heading = `What shipped${' and so on'.repeat(10)}`; }, 'G2_HEADING_TOO_LONG'],
+    // Analysis sentences with no value of their own are added: turning the facts into analysis would also break the rule that analysis has no value that no fact has.
+    ['analysis is at most a fifth of the sentences', (reply) => {
+      section(reply, 1).paragraphs.push(Array.from({ length: 12 }, () => ({ kind: 'analysis' as const, text: 'That reading is a modest one.', claimIds: ['c-1'] })));
+    }, 'G7_ANALYSIS_SHARE'],
+    ['the opening is as long as the gate says', (reply) => { reply.opening = reply.opening.slice(0, 1); }, 'G2_OPENING_LENGTH'],
+    ['there are as many takeaways as the gate says', (reply) => { reply.takeaways = reply.takeaways.slice(0, 2); }, 'G2_TAKEAWAYS_COUNT'],
+    ['the piece is as long as the gate says', (reply) => { for (const item of reply.sections) item.paragraphs = item.paragraphs.slice(0, 1); }, 'G2_BODY_LENGTH'],
   ];
 
   it.each(ROWS)('catches a script that breaks the rule: %s', async (_rule, change, code) => {
@@ -141,6 +151,14 @@ describe('runCompose: a script that breaks a rule is caught, with the gate\'s ow
     const verdict = await verdictOn(change);
     expect(verdict.codes).toContain(code);
     expect(verdict.route).toBe('revise');
+  });
+
+  it.each(NOTE_ROWS)('notes, and does not block, a script that breaks the rule: %s', async (_rule, change, code) => {
+    expect(ALL_FAILURE_CODES).toContain(code);
+    const verdict = await verdictOn(change);
+    expect(verdict.notes).toContain(code);
+    expect(verdict.codes).not.toContain(code);
+    expect(verdict.route).toBe('publish');
   });
 
   it('catches a claim of another outlet that is stated as plain fact, and one that is used in analysis', async () => {

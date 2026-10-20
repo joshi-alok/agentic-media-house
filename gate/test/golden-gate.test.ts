@@ -151,7 +151,6 @@ function attribute(g: GateInput): void {
 describe('runGate on the golden piece with one thing wrong', () => {
   const defects: [CheckId, string, (copy: GateInput) => void, ContextOverrides?][] = [
     ['G1', 'G1_TITLE_EMPTY', (g) => (g.draft.title.text = '')],
-    ['G2', 'G2_HEADING_QUESTION', (g) => (g.draft.sections[0]!.heading = 'What shipped?')],
     ['G2', 'G2_HEADING_RESERVED', (g) => (g.draft.sections[1]!.heading = "What we couldn't verify")],
     ['G3', 'G3_NO_CLAIM', (g) => (g.draft.takeaways[0]!.claimIds = [])],
     [
@@ -228,12 +227,45 @@ describe('runGate when the piece rests on a tier-2 claim', () => {
       mutate(cloneGolden(), (g) => {
         makeTier2(g);
         attribute(g);
-        g.draft.sections[0]!.heading = 'What shipped?';
+        g.draft.sections[0]!.heading = '';
       }),
       api.defaultContext(),
     );
     expect(result.route).toBe('revise');
     expect(result.checks.G2).toBe('fail');
     expect(result.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+  });
+});
+
+describe('runGate: length and shape are notes', () => {
+  it('publishes a piece whose body is outside the range, and lists the length as a note', () => {
+    const result = api.runGate(cloneGolden(), api.defaultContext({ config: { bodyWords: { min: 5000, max: 6000 } } }));
+    expect(result.route).toBe('publish');
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((item) => item.code)).toEqual(['G2_BODY_LENGTH']);
+    expect(result.checks.G2).toBe('pass');
+  });
+
+  it('publishes a piece whose heading is a question, and lists the heading as a note', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.sections[0]!.heading = 'What shipped?';
+      }),
+      api.defaultContext(),
+    );
+    expect(result.route).toBe('publish');
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((item) => item.code)).toEqual(['G2_HEADING_QUESTION']);
+  });
+
+  it('still sends a piece back for a broken structure: a piece with one section is a blocker', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.sections = g.draft.sections.slice(0, 1);
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures.map((item) => item.code)).toContain('G2_SECTIONS_MIN');
+    expect(result.route).toBe('revise');
   });
 });

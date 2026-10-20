@@ -67,9 +67,9 @@ describe('fixtureFiles: what is generated', () => {
 describe('fixtureFiles: a fixture must be publishable', () => {
   it('stops, naming the piece and the failure, when a piece does not pass the gate', () => {
     const broken = fixturePieces();
-    broken[1]!.input.draft.opening = [];
+    broken[1]!.input.draft.takeaways[0]!.claimIds = [];
     expect(() => fixtureFiles(broken)).toThrow(
-      'generate-fixtures: the fixture fixture-robotics-ships-fx-2-to-second-plant does not publish (route revise: G2_OPENING_LENGTH',
+      'generate-fixtures: the fixture fixture-robotics-ships-fx-2-to-second-plant does not publish (route revise: G3_NO_CLAIM',
     );
   });
 
@@ -78,8 +78,8 @@ describe('fixtureFiles: a fixture must be publishable', () => {
     cleared[4] = { ...cleared[0]!, slug: HELD_SLUG, runId: 'fixture-run-5', route: 'hold' };
     expect(() => fixtureFiles(cleared)).toThrow(`generate-fixtures: the fixture ${HELD_SLUG} does not hold (route publish: none)`);
     const failing = fixturePieces();
-    failing[4]!.input.draft.opening = [];
-    expect(() => fixtureFiles(failing)).toThrow(`generate-fixtures: the fixture ${HELD_SLUG} does not hold (route revise: G2_OPENING_LENGTH`);
+    failing[4]!.input.draft.takeaways[0]!.claimIds = [];
+    expect(() => fixtureFiles(failing)).toThrow(`generate-fixtures: the fixture ${HELD_SLUG} does not hold (route revise: G3_NO_CLAIM`);
   });
 });
 

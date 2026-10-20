@@ -69,7 +69,7 @@ describe('runGateWith: the per-check summary', () => {
   });
 
   it('marks only the checks that produced a failure as fail', () => {
-    const { checks } = run([fails('G2', 'G2_BODY_LENGTH'), fails('G5', 'G5_QUOTE_NOT_VERBATIM'), passes]);
+    const { checks } = run([fails('G2', 'G2_SECTIONS_MIN'), fails('G5', 'G5_QUOTE_NOT_VERBATIM'), passes]);
     expect(checks).toEqual({
       G1: 'pass',
       G2: 'fail',
@@ -203,9 +203,17 @@ describe('runGateWith: blockers and notes', () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it('has no notes by default: every code a check reports is still a blocker', () => {
+  it('has the notes of the gate by default: a length is a note and publishes with one warning', () => {
     const result = run([fails('G2', 'G2_BODY_LENGTH')]);
+    expect(result.route).toBe('publish');
+    expect(result.failures).toEqual([]);
+    expect(result.warnings).toEqual([failure('G2', 'G2_BODY_LENGTH')]);
+  });
+
+  it('has the blockers of the gate by default: a broken structure is sent back and is no warning', () => {
+    const result = run([fails('G2', 'G2_SECTIONS_MIN')]);
     expect(result.route).toBe('revise');
+    expect(result.failures).toEqual([failure('G2', 'G2_SECTIONS_MIN')]);
     expect(result.warnings).toEqual([]);
   });
 });

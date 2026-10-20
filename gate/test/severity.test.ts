@@ -21,6 +21,17 @@ describe('severityOf', () => {
 });
 
 describe('NOTE_CODES', () => {
+  it('holds the length and the shape of a piece as notes', () => {
+    expect([...NOTE_CODES]).toEqual([
+      'G2_OPENING_LENGTH',
+      'G2_TAKEAWAYS_COUNT',
+      'G2_BODY_LENGTH',
+      'G2_HEADING_QUESTION',
+      'G2_HEADING_TOO_LONG',
+      'G7_ANALYSIS_SHARE',
+    ]);
+  });
+
   it('lists only codes that a check can report', () => {
     expect(NOTE_CODES.filter((code) => !ALL_FAILURE_CODES.includes(code))).toEqual([]);
   });
