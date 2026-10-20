@@ -27,6 +27,20 @@ const SENTENCES = [
 /** Who the writer is told it is: the same line for a draft and for the revision of one. */
 const WRITER = `You are the writer of ${PUBLICATION_NAME}, a publication about AI agents in crypto whose every factual sentence traces to a passage of a source.`;
 
+/**
+ * What an explainer is, said to the writer. It is told before the rules, which are checked, and after the job. It adds nothing a claim must support: it is about how to write what
+ * the claims say.
+ */
+export const EXPLAINER_VOICE: readonly string[] = [
+  'What this piece is: an explainer for people who build or use AI agents on a blockchain, or who want to understand them.',
+  '- It explains one thing that the claims describe: what it is, how it works, who made it, what it changes for people who build or use agents, and what is not yet known.',
+  '- Open with the point, in one sentence, before anything about where it came from. Then say why it matters to the reader.',
+  '- Use plain words. Explain a term the first time it appears, in a few words, using only what the claims say; if no claim explains a term, do not use the term.',
+  '- Give each section one job, and a heading that says what the section says ("How a payment is settled"), not what it is about ("Overview", "Background", "Details").',
+  '- Say what the source does not say. A project\'s own description of its work is not a test of it: where a claim rests on the project\'s own statement, write "the project says" in the sentence rather than stating it as settled.',
+  '- Keep to what the claims say about the thing, in the order a reader needs it. Do not add a section for a view of the market, a price or what to do with money.',
+];
+
 /** How the number of takeaways is said: a digest has none, a brief has none or up to some, an explainer has a range. */
 function takeawayWords(range: { min: number; max: number }): string {
   if (range.max === 0) return 'There are no takeaways.';
@@ -80,8 +94,11 @@ export function composeRules(config: GateConfig = GATE): string[] {
 /** The rules for the defaults of the gate, as the tests read them. */
 export const COMPOSE_RULES: readonly string[] = composeRules(GATE);
 
-/** What the model is told to do, and what each part of its reply means, for a kind of piece. The client adds the JSON Schema of the reply to it. */
-export function composeInstructions(config: GateConfig = GATE): string {
+/**
+ * What the model is told to do, and what each part of its reply means, for a kind of piece. The client adds the JSON Schema of the reply to it. For the profile `explainer`
+ * the voice of an explainer stands between the shape of the reply and the rules; the other profiles, and no profile, are told nothing more.
+ */
+export function composeInstructions(config: GateConfig = GATE, profile?: ProfileId): string {
   return [
     WRITER,
     'You are given claims, each with an id, a text, a label, a quoted passage from its source and the values (numbers, dates and names) that it licenses. You write one piece from them, as sentences that cite claim ids. You write nothing that the claims do not support, and you add nothing from what you know.',
@@ -94,6 +111,7 @@ export function composeInstructions(config: GateConfig = GATE): string {
     '- "sections": a list of sections, each with a "heading" and "paragraphs", a list of paragraphs, each a list of sentences.',
     ...SENTENCES,
     '',
+    ...(profile === 'explainer' ? [...EXPLAINER_VOICE, ''] : []),
     ...composeRules(config),
   ].join('\n');
 }
@@ -101,9 +119,9 @@ export function composeInstructions(config: GateConfig = GATE): string {
 /** What the model is told for the defaults of the gate. */
 export const COMPOSE_INSTRUCTIONS = composeInstructions(GATE);
 
-/** The system prompt of the Compose stage: the paragraph about untrusted text, then the instructions, with the numbers of the profile when there is one. */
+/** The system prompt of the Compose stage: the paragraph about untrusted text, then the instructions, with the numbers of the profile when there is one and, for an explainer, its voice. */
 export function composeSystem(profile?: ProfileId): string {
-  return systemPrompt(composeInstructions(configOf(profile)));
+  return systemPrompt(composeInstructions(configOf(profile), profile));
 }
 
 /** The text of a claim as it stands in its block: what it says, what it is called, the passage it quotes, and the values it licenses. */
