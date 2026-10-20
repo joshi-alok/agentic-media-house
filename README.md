@@ -26,7 +26,7 @@ The workspace packages export their TypeScript source directly, so there is no b
 
 If a story has no reachable tier-1 source, that fact goes in the piece. It is never quietly laundered through a competitor's reporting.
 
-Every `status` starts as `unverified`, except the two that the original list already had: `blocked` for the arXiv feed, which the fetcher cannot reach, and `n/a` for the funding announcement, which has no fixed address. The Desk changes the others as it fetches. `gate/src/sources.ts` validates the file (`loadSources`) and `gate/test/sources.test.ts` checks it on every test run.
+Every `status` starts as `unverified`, except the entries the check of 2026-10-20 found closed to the Desk, which are `blocked` with a note that says why, and `n/a` for the funding announcement, which has no fixed address. `desk sources-check` fetches every entry the way the Desk fetches and says which can be read; the statuses of the entries it could read are then `verified`. `gate/src/sources.ts` validates the file (`loadSources`) and `gate/test/sources.test.ts` checks it on every test run.
 
 ## Which parts are live
 
