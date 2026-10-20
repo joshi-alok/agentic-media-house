@@ -34,6 +34,12 @@ describe('selectSystem', () => {
     expect(SELECT_INSTRUCTIONS).toContain('judge from titles alone');
   });
 
+  it('says that a story of another outlet is written only after its primary source is found, and that one whose primary source cannot be found is left out', () => {
+    expect(SELECT_INSTRUCTIONS).toContain(
+      'A story from another outlet is written only after its primary source is found, and a story whose primary source cannot be found is left out; prefer a story whose primary source is likely to be on the page you are shown.',
+    );
+  });
+
   it('says that a candidate is from an outlet or a project, and not from a company only', () => {
     expect(SELECT_INSTRUCTIONS).toContain('the outlet or project it is from');
     expect(SELECT_INSTRUCTIONS).not.toContain('the outlet or company it is from');

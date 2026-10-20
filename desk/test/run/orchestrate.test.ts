@@ -7,7 +7,7 @@ import type { DeskConfig } from '../../src/config';
 import { FetchError } from '../../src/fetch/http';
 import { FakeClient } from '../../src/model/fake';
 import { clientFromConfig } from '../../src/model/factory';
-import { VerifyArtifact, readArtifact } from '../../src/run/artifacts';
+import { FetchArtifact, VerifyArtifact, readArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
 import { EvidenceError, LocalEvidenceStore } from '../../src/run/evidence';
 import { LOCK_FILE, RunRefused } from '../../src/run/lock';
@@ -902,5 +902,33 @@ describe('runDesk: the profile of the settings', () => {
     const without = setup({ stages: noting([]), dry: true });
     await without.run();
     expect(recordOf(without.dir)).not.toHaveProperty('profile');
+  });
+
+  it('writes an explainer from the primary page alone: the article of the outlet that led to it is not kept as evidence', async () => {
+    const { run, dir } = setup({ config: { profile: 'explainer' }, dry: true });
+    const result = await run();
+    expect(result.outcome).toBe('published');
+    const fetched = await readArtifact(dir, '03-fetch', FetchArtifact);
+    expect(fetched.documents.map((document) => [document.url, document.tier])).toEqual([[DEMO_URLS.release, 1]]);
+  });
+
+  it('ends an explainer with no story, at Select, when no story with a primary page is found, and fetches nothing', async () => {
+    const page = '<html><head><title>No links</title></head><body><article><p>Fixture Robotics shipped something.</p></article></body></html>';
+    const fake = new FakeClient().script('select', SELECT, { chosenId: null, reasons: ['Nothing else is good enough.'] });
+    const fetcher = withPages(demoFetcher(() => FETCHED_AT), { [DEMO_URLS.mercerArticle]: page });
+    const { run, dir } = setup({ config: { profile: 'explainer' }, dry: true, fake, fetcher });
+    const result = await run();
+    expect(result).toMatchObject({ outcome: 'no-story', stage: 'select', slug: null });
+    expect(result.reason).toContain('was left out: the page of the story has no link to a primary source, and an explainer is written from a primary page.');
+    expect(existsSync(path.join(dir, '03-fetch.json'))).toBe(false);
+  });
+
+  it('still writes a story with no primary page, in attributed form, when the settings name no profile', async () => {
+    const page = '<html><head><title>No links</title></head><body><article><p>Fixture Robotics shipped something.</p></article></body></html>';
+    const fetcher = withPages(demoFetcher(() => FETCHED_AT), { [DEMO_URLS.mercerArticle]: page });
+    const { run, dir } = setup({ dry: true, fetcher });
+    await run();
+    const fetched = await readArtifact(dir, '03-fetch', FetchArtifact);
+    expect(fetched.documents.map((document) => [document.url, document.tier])).toEqual([[DEMO_URLS.mercerArticle, 2]]);
   });
 });

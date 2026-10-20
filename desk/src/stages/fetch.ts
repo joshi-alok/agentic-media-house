@@ -6,7 +6,8 @@ import { MAX_TITLE_LENGTH } from './discover';
 import { recencyWindow } from './select';
 
 // Stage 3, Fetch: get the pages that the story will be written from, and keep them as evidence. For the story that
-// Select chose these are the page of its primary source (if Select found one) and the page of the story itself. Each
+// Select chose these are the page of its primary source (if Select found one) and the page of the story itself; for an
+// explainer, which is written from a primary page, the page of its primary source alone. Each
 // is fetched politely (the fetcher's job), reduced to its text, and put in the evidence store, which names it by the
 // SHA-256 of the text. The artifact records where each page came from and its hash, never the text: the text is
 // handed to the next stage in memory, and the evidence store is where anyone can read it again. Before the next stage takes a
@@ -45,7 +46,9 @@ function staleOrUndated(publishedAt: string | undefined, ctx: Pick<StageContext,
  * A page that cannot be fetched or read (robots.txt forbids it, it is too large, it is not text, it has no text in it) is not
  * fatal: it is recorded in the artifact with the reason and the stage goes on. In particular, when the primary source is
  * unreachable the story falls back to the page of the story alone, which is written in attributed form and, if the gate and the model
- * check clear it, published; the artifact says that the primary source failed. When every page fails the result is `no-story`. A story that has no date of its own (a headline
+ * check clear it, published; the artifact says that the primary source failed. When every page fails the result is `no-story`. With the profile `explainer` there is no such fallback:
+ * the primary source is the only page fetched, and the article of the outlet that led to it never is, so that no claim of another outlet can enter the piece. A story that
+ * Select gave no primary source is then a bug of the Desk, and the stage throws. A story that has no date of its own (a headline
  * link of a newsroom page) must have a page that gives one inside the window of `recencyWindow`, as an old announcement on a newsroom page
  * is not today's news: when its page gives none, or an old one, nothing more is fetched, the page is recorded as a failure whose reason begins
  * with `stale-or-undated`, and the result is `no-story` with that reason. Any other error ends the run, and that
@@ -60,8 +63,14 @@ export async function runFetch(ctx: StageContext, selected: SelectArtifact): Pro
   const chosen = selected.chosen;
 
   const targets: { url: string; tier: 1 | 2 }[] = [];
-  if (selected.tier1Url !== null) targets.push({ url: selected.tier1Url, tier: 1 });
-  if (chosen.url !== selected.tier1Url) targets.push({ url: chosen.url, tier: chosen.tier });
+  if (ctx.profile === 'explainer') {
+    // An explainer is written from the primary page alone: the article of the outlet that led to it is not fetched, so that no claim of another outlet can enter the piece.
+    if (selected.tier1Url === null) throw new Error('runFetch: an explainer is written from a primary page, and Select found none');
+    targets.push({ url: selected.tier1Url, tier: 1 });
+  } else {
+    if (selected.tier1Url !== null) targets.push({ url: selected.tier1Url, tier: 1 });
+    if (chosen.url !== selected.tier1Url) targets.push({ url: chosen.url, tier: chosen.tier });
+  }
 
   const documents: FetchDocument[] = [];
   const snapshots: Snapshot[] = [];

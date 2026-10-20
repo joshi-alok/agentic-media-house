@@ -16,6 +16,9 @@ import { isCovered } from './duplicates';
 /** The most tokens the reply of the model may have: an id and a few sentences. */
 export const SELECT_MAX_OUTPUT_TOKENS = 600;
 
+/** How many times the model is asked when the story it chose has no primary page and the piece must have one. */
+export const SELECT_ATTEMPTS = 3;
+
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 
@@ -89,10 +92,12 @@ async function findTier1(ctx: StageContext, chosen: Candidate): Promise<{ url: s
 /**
  * Choose one story, or none, and write `02-select.json`.
  *
- * With nothing on the shortlist, no model is asked. Otherwise one call is made, and a reply that is not valid, or that names an id that is not on
- * the shortlist, is a `schema` error that ends the run. When a story is chosen, its primary source is looked for (see `findTier1`); when
+ * With nothing on the shortlist, no model is asked. Otherwise the model is asked, and a reply that is not valid, or that names an id that is not on
+ * what it was offered, is a `schema` error that ends the run. When a story is chosen, its primary source is looked for (see `findTier1`); when
  * none is found the reasons end with a sentence of the code that says so, because such a story is written in attributed form and, if the gate and
- * the model check clear it, published.
+ * the model check clear it, published. With the profile `explainer`, a story whose primary source is not found is left out and the model is asked again
+ * without it, at most `SELECT_ATTEMPTS` times in all; each story left out is a sentence at the head of the reasons, and when none is left to choose the
+ * reasons end with a sentence that says that no story with a primary page was found. The shortlist of the artifact is that of the first ask.
  */
 export async function runSelect(ctx: StageContext, discovered: DiscoverArtifact): Promise<SelectArtifact> {
   const shortlist = shortlistOf(discovered.candidates, ctx);
@@ -103,26 +108,40 @@ export async function runSelect(ctx: StageContext, discovered: DiscoverArtifact)
     ctx.log(`select: ${reason}`);
     artifact = { date: ctx.date, chosen: null, reasons: [reason], tier1Url: null, shortlist: [] };
   } else {
-    const ids = shortlist.map((candidate) => candidate.id) as [string, ...string[]];
-    const reply = await ctx.client.json({
-      role: 'select',
-      model: ctx.config.models.select,
-      system: selectSystem(),
-      user: buildSelectUser(shortlist, ctx.sources.bar, ctx.date),
-      schema: selectReplySchema(ids),
-      maxOutputTokens: SELECT_MAX_OUTPUT_TOKENS,
-    });
-    const chosen = shortlist.find((candidate) => candidate.id === reply.value.chosenId) ?? null;
-    if (chosen === null) {
-      artifact = { date: ctx.date, chosen: null, reasons: reply.value.reasons, tier1Url: null, shortlist: ids };
-    } else {
+    const firstIds = shortlist.map((candidate) => candidate.id) as [string, ...string[]];
+    const primaryOnly = ctx.profile === 'explainer';
+    const notes: string[] = [];
+    let offered = shortlist;
+    let result: SelectArtifact | undefined;
+    for (let attempt = 1; attempt <= (primaryOnly ? SELECT_ATTEMPTS : 1) && offered.length > 0; attempt++) {
+      const ids = offered.map((candidate) => candidate.id) as [string, ...string[]];
+      const reply = await ctx.client.json({
+        role: 'select',
+        model: ctx.config.models.select,
+        system: selectSystem(),
+        user: buildSelectUser(offered, ctx.sources.bar, ctx.date),
+        schema: selectReplySchema(ids),
+        maxOutputTokens: SELECT_MAX_OUTPUT_TOKENS,
+      });
+      const chosen = offered.find((candidate) => candidate.id === reply.value.chosenId) ?? null;
+      if (chosen === null) {
+        result = { date: ctx.date, chosen: null, reasons: [...notes, ...reply.value.reasons], tier1Url: null, shortlist: firstIds };
+        break;
+      }
       const source = await findTier1(ctx, chosen);
-      const reasons =
-        'url' in source
-          ? reply.value.reasons
-          : [...reply.value.reasons, `No tier-1 source was found: ${source.why}, so the story is written in attributed form.`];
-      artifact = { date: ctx.date, chosen, reasons, tier1Url: 'url' in source ? source.url : null, shortlist: ids };
+      if ('url' in source) {
+        result = { date: ctx.date, chosen, reasons: [...notes, ...reply.value.reasons], tier1Url: source.url, shortlist: firstIds };
+        break;
+      }
+      if (!primaryOnly) {
+        result = { date: ctx.date, chosen, reasons: [...reply.value.reasons, `No tier-1 source was found: ${source.why}, so the story is written in attributed form.`], tier1Url: null, shortlist: firstIds };
+        break;
+      }
+      notes.push(`"${chosen.title}" was left out: ${source.why}, and an explainer is written from a primary page.`);
+      ctx.log(`select: ${JSON.stringify(chosen.title)} has no primary page (${source.why}), so it is left out`);
+      offered = offered.filter((candidate) => candidate.id !== chosen.id);
     }
+    artifact = result ?? { date: ctx.date, chosen: null, reasons: [...notes, 'No story with a primary page was found, and an explainer is written from one.'], tier1Url: null, shortlist: firstIds };
   }
 
   await writeArtifact(ctx.runDir, '02-select', artifact, SelectArtifact);
