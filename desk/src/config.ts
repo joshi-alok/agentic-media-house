@@ -55,6 +55,8 @@ export const DeskConfig = z.strictObject({
   recencyHours: count,
   /** Select: the most candidates that are sent to the model. */
   shortlistMax: count,
+  /** Select: the most stories that one source can have on the shortlist, so that a source that publishes a great deal cannot fill it. */
+  shortlistPerSource: count,
   /** Extract: fewer surviving claims than this ends the run with no story. */
   minClaims: count,
   /** Verify: how many times a draft goes back to the composer before it is held (`modelCheckRevisions` adds rounds for a rejection by the model check). */
@@ -95,6 +97,7 @@ export function defaultConfig(): DeskConfig {
   return {
     recencyHours: 72,
     shortlistMax: 15,
+    shortlistPerSource: 3,
     minClaims: 3,
     maxRevisionRounds: 2,
     modelCheckRevisions: 1,

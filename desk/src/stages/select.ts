@@ -42,7 +42,7 @@ export function recencyWindow(ctx: Pick<StageContext, 'date' | 'config'>): { sta
  * longer ago than `config.recencyHours` before the end of the day of the run (a candidate with no date is not dropped), when it
  * was published after the end of that day, and when none of its beats is one of the seven beats of the vocabulary. The rest are
  * ordered, newest first with the ones that have no date last (each group keeps the order in which Discover found them), and
- * cut to `config.shortlistMax`.
+ * cut to `config.shortlistMax`, with at most `config.shortlistPerSource` from one source (candidates with the same `outlet` are one source).
  */
 export function shortlistOf(candidates: Candidate[], ctx: Pick<StageContext, 'date' | 'config' | 'published'>): Candidate[] {
   const { start, end } = recencyWindow(ctx);
@@ -54,8 +54,18 @@ export function shortlistOf(candidates: Candidate[], ctx: Pick<StageContext, 'da
     return time >= start && time < end;
   });
   const timeOf = (candidate: Candidate): number => (candidate.publishedAt === undefined ? Number.NEGATIVE_INFINITY : Date.parse(candidate.publishedAt));
-  // Array.prototype.sort is stable: candidates with the same time stay in the order they were found.
-  return kept.sort((a, b) => timeOf(b) - timeOf(a)).slice(0, ctx.config.shortlistMax);
+  // Newest first (Array.prototype.sort is stable: candidates with the same time stay in the order they were found), and at most `shortlistPerSource`
+  // from one source, so that a source that publishes a great deal cannot fill the shortlist.
+  const taken = new Map<string, number>();
+  const shortlist: Candidate[] = [];
+  for (const candidate of kept.sort((a, b) => timeOf(b) - timeOf(a))) {
+    const used = taken.get(candidate.outlet) ?? 0;
+    if (used >= ctx.config.shortlistPerSource) continue;
+    taken.set(candidate.outlet, used + 1);
+    shortlist.push(candidate);
+    if (shortlist.length === ctx.config.shortlistMax) break;
+  }
+  return shortlist;
 }
 
 /**

@@ -42,6 +42,7 @@ describe('defaultConfig', () => {
     expect(defaultConfig()).toEqual({
       recencyHours: 72,
       shortlistMax: 15,
+      shortlistPerSource: 3,
       minClaims: 3,
       maxRevisionRounds: 2,
       modelCheckRevisions: 1,

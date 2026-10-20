@@ -104,22 +104,28 @@ describe('shortlistOf', () => {
 
   describe('order and size', () => {
     it('puts the newest first, keeps the order of discovery among candidates of the same time, and puts the undated after them in the order of discovery', () => {
-      const list = listOf([
-        dated('undated-1', undefined),
-        dated('old', '2026-10-03T10:00:00.000Z'),
-        dated('same-1', '2026-10-04T10:00:00.000Z'),
-        dated('undated-2', undefined),
-        dated('new', '2026-10-05T01:00:00.000Z'),
-        dated('same-2', '2026-10-04T10:00:00.000Z'),
-      ]);
+      // Every story is of one outlet; the share of one source (see select-quota.test.ts) is not what this test is about.
+      const config = { ...defaultConfig(), shortlistPerSource: 99 };
+      const list = listOf(
+        [
+          dated('undated-1', undefined),
+          dated('old', '2026-10-03T10:00:00.000Z'),
+          dated('same-1', '2026-10-04T10:00:00.000Z'),
+          dated('undated-2', undefined),
+          dated('new', '2026-10-05T01:00:00.000Z'),
+          dated('same-2', '2026-10-04T10:00:00.000Z'),
+        ],
+        { config },
+      );
       expect(list.map((url) => url.split('/').pop())).toEqual(['new', 'same-1', 'same-2', 'old', 'undated-1', 'undated-2']);
     });
 
     it('cuts the list to the size in the configuration, after it has been put in order', () => {
       const many = Array.from({ length: 20 }, (_, index) => dated(`s${index}`, `2026-10-04T${String(index).padStart(2, '0')}:00:00.000Z`));
-      const config = { ...defaultConfig(), shortlistMax: 3 };
-      expect(listOf(many, { config }).map((url) => url.split('/').pop())).toEqual(['s19', 's18', 's17']);
-      expect(listOf(many)).toHaveLength(15);
+      // Every story is of one outlet; the share of one source (see select-quota.test.ts) is not what this test is about.
+      const config = { ...defaultConfig(), shortlistPerSource: 99 };
+      expect(listOf(many, { config: { ...config, shortlistMax: 3 } }).map((url) => url.split('/').pop())).toEqual(['s19', 's18', 's17']);
+      expect(listOf(many, { config })).toHaveLength(15);
     });
 
     it('gives an empty list for no candidates', () => {
