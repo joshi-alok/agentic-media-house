@@ -57,6 +57,11 @@ describe('the public API of @robywire/gate', () => {
     // configuration
     'DEFAULT_BANNED_PHRASES',
     'DEFAULT_NAME_ALLOW_LIST',
+    // profiles
+    'PROFILES',
+    'PROFILE_IDS',
+    'profileOverrides',
+    'isProfileId',
     // vocabularies, schemas, registry
     'BEATS',
     'CATEGORY_VOCAB',
