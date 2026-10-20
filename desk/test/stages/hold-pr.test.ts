@@ -130,12 +130,12 @@ describe('renderHeldPiece', () => {
     // A held artifact whose gate has one note with a message: the ledger keeps the code and the place, not the message.
     const withNote = heldWith({ warnings: [{ check: 'G2', code: 'G2_BODY_LENGTH', message: 'a message that must not be stored', where: 'body' }] });
     const { ledger } = renderHeldPiece(withNote);
-    expect(ledger.gate.warnings).toStrictEqual([{ code: 'G2_BODY_LENGTH', where: 'body' }]);
+    expect(ledger.gate.notes).toStrictEqual([{ code: 'G2_BODY_LENGTH', where: 'body' }]);
     expect(JSON.stringify(ledger)).not.toContain('must not be stored');
     // A held record written before notes existed has no `warnings` at all.
     const older = heldWith({});
     delete (older.gate as { warnings?: unknown }).warnings;
-    expect(renderHeldPiece(older).ledger.gate.warnings).toEqual([]);
+    expect(renderHeldPiece(older).ledger.gate.notes).toEqual([]);
   });
 });
 

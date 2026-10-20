@@ -85,7 +85,7 @@ describe('receiptsView: the gate summary', () => {
     expect(view.gate.route).toBe('publish');
     expect(view.gate.holdReasons).toEqual([]);
     const held = structuredClone(golden);
-    held.gate = { route: 'hold', checks: { ...held.gate.checks, G6: 'fail' }, holdReasons: ['TIER2_ATTRIBUTION'], warnings: [] };
+    held.gate = { route: 'hold', checks: { ...held.gate.checks, G6: 'fail' }, holdReasons: ['TIER2_ATTRIBUTION'], notes: [] };
     const heldView = receiptsView(held);
     expect(heldView.gate.route).toBe('hold');
     expect(heldView.gate.holdReasons).toEqual([{ code: 'TIER2_ATTRIBUTION', label: "Rests on another outlet's reporting" }]);
@@ -120,7 +120,7 @@ describe('routeText', () => {
   it('is part of the gate summary', () => {
     expect(view.gate.routeText).toBe(routeText(view.gate.route));
     const held = structuredClone(golden);
-    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'], warnings: [] };
+    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'], notes: [] };
     delete held.release;
     expect(receiptsView(held).gate.routeText).toBe('This draft was held for the owner.');
   });
@@ -166,7 +166,7 @@ describe('receiptsView: how the piece was released', () => {
 
   it('has the note for owner', () => {
     const held = structuredClone(without);
-    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'], warnings: [] };
+    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'], notes: [] };
     expect(receiptsView({ ...held, release: 'owner' }).releaseNote).toBe('Held for the owner, then released by the owner.');
   });
 });
@@ -187,7 +187,7 @@ describe('CHECKS_PASSED_TEXT', () => {
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(Object.values(result.checks)).toEqual(CHECK_IDS.map(() => 'pass'));
     const ledger = structuredClone(golden);
-    ledger.gate = { route: 'publish', checks: result.checks, holdReasons: [], warnings: result.warnings.map(({ code, where }) => (where === undefined ? { code } : { code, where })) };
+    ledger.gate = { route: 'publish', checks: result.checks, holdReasons: [], notes: result.warnings.map(({ code, where }) => (where === undefined ? { code } : { code, where })) };
     const shown = receiptsView(ledger).gate;
     expect(shown.checks.every((check) => check.result === 'pass')).toBe(true);
     expect(shown.notes.length).toBeGreaterThan(0);

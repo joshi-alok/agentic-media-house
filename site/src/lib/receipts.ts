@@ -77,7 +77,7 @@ export function releaseNote(release: Release | undefined): string | undefined {
 /** The notes of a ledger, one for each code, in the order in which each code first comes up, with the number of findings. */
 function notesOf(ledger: LedgerEntry): GateNote[] {
   const notes: GateNote[] = [];
-  for (const { code } of ledger.gate.warnings) {
+  for (const { code } of ledger.gate.notes) {
     const found = notes.find((note) => note.code === code);
     if (found === undefined) notes.push({ code, label: reasonLabel(code), count: 1 });
     else found.count += 1;

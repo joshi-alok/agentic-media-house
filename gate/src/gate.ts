@@ -39,7 +39,7 @@ export interface GateResult {
   route: Route;
   /** The blockers: what the draft is sent back for. */
   failures: Failure[];
-  /** The notes: what was found and does not block (see `NOTE_CODES`). They never go back to the composer; the ledger records them as `gate.warnings` (code and place only) and the receipts page lists them. */
+  /** The notes: what was found and does not block (see `NOTE_CODES`). They never go back to the composer; the ledger records them as `gate.notes` (code and place only) and the receipts page lists them. */
   warnings: Failure[];
   holdReasons: string[];
   /** All nine ids are always present. A check is 'fail' when it produced a blocker. */

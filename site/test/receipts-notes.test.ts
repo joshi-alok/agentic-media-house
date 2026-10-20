@@ -14,13 +14,13 @@ describe('receiptsView: the notes', () => {
 
   it('turns a note into its code, its words and how many times it was found', () => {
     const ledger = ledgerOf();
-    ledger.gate.warnings = [{ code: 'G2_BODY_LENGTH', where: 'body' }];
+    ledger.gate.notes = [{ code: 'G2_BODY_LENGTH', where: 'body' }];
     expect(receiptsView(ledger).gate.notes).toEqual([{ code: 'G2_BODY_LENGTH', label: 'The piece was too short or too long', count: 1 }]);
   });
 
   it('groups the findings of one code, in the order in which each code first came up, and counts them', () => {
     const ledger = ledgerOf();
-    ledger.gate.warnings = [
+    ledger.gate.notes = [
       { code: 'G2_BODY_LENGTH', where: 'body' },
       { code: 'G9_BANNED_PHRASE', where: 'delve' },
       { code: 'G9_BANNED_PHRASE', where: 'game-changer' },
@@ -33,23 +33,23 @@ describe('receiptsView: the notes', () => {
     ]);
   });
 
-  it('does not change the warnings of the ledger it is given', () => {
+  it('does not change the notes of the ledger it is given', () => {
     const ledger = ledgerOf();
-    ledger.gate.warnings = [{ code: 'G9_BANNED_PHRASE', where: 'delve' }, { code: 'G9_BANNED_PHRASE', where: 'delve' }];
-    const before = structuredClone(ledger.gate.warnings);
+    ledger.gate.notes = [{ code: 'G9_BANNED_PHRASE', where: 'delve' }, { code: 'G9_BANNED_PHRASE', where: 'delve' }];
+    const before = structuredClone(ledger.gate.notes);
     receiptsView(ledger);
-    expect(ledger.gate.warnings).toEqual(before);
+    expect(ledger.gate.notes).toEqual(before);
   });
 
   it('shows a code it has no words for as it is', () => {
     const ledger = ledgerOf();
-    ledger.gate.warnings = [{ code: 'G9_SOMETHING_NEW' }];
+    ledger.gate.notes = [{ code: 'G9_SOMETHING_NEW' }];
     expect(receiptsView(ledger).gate.notes).toEqual([{ code: 'G9_SOMETHING_NEW', label: 'G9_SOMETHING_NEW', count: 1 }]);
   });
 
   it('never shows where a note was found: that is a place for most codes and a phrase for one', () => {
     const ledger = ledgerOf();
-    ledger.gate.warnings = [{ code: 'G9_BANNED_PHRASE', where: 'delve' }];
+    ledger.gate.notes = [{ code: 'G9_BANNED_PHRASE', where: 'delve' }];
     expect(JSON.stringify(receiptsView(ledger).gate.notes)).not.toContain('delve');
   });
 });

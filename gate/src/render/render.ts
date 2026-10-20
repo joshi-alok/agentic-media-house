@@ -134,7 +134,8 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
       route: meta.gate.route,
       checks: { ...meta.gate.checks },
       holdReasons: [...meta.gate.holdReasons],
-      warnings: meta.gate.warnings.map(({ code, where }) => (where === undefined ? { code } : { code, where })),
+      // GateResult.warnings is the gate's word; the ledger, which readers see, says notes.
+      notes: meta.gate.warnings.map(({ code, where }) => (where === undefined ? { code } : { code, where })),
     },
     ...(release === undefined ? {} : { release }),
     ...(meta.verifier === undefined ? {} : { verifier: structuredClone(meta.verifier) }),
