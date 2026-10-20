@@ -51,7 +51,25 @@ These parts follow once Task 15 passes. They are listed so that the order is kno
 
 ## Diagnosis result
 
-(Recorded by Task 15. Empty until the run has been made.)
+**Run of 2026-10-20**, branch `plan-3-blog-first` at `a3cdbd7`, the owner's go given in chat. Command: `desk tune --urls runs/tune-urls.txt --trials 1 --max-calls 40 --client api --config runs/tune-settings.yml --profile brief` (folder `runs/tune/20261020-143741`, git-ignored). Spent: 21 of 40 calls, 103,652 tokens in and 20,054 out, **US$0.41** at the prices of the settings. Exit 0, not stopped.
+
+| Page | Claims kept | Rounds | Last draft: blockers / words / notes | Model check on the last draft | Outcome |
+|---|---|---|---|---|---|
+| 1 Agility Robotics (company) | 8 of 10 | 1 | none / 280 / 2 | 15 of 15 entailed | **published** |
+| 2 IEEE Spectrum (another outlet) | 6 of 10 | 2 | none / 270 / 2 | 12 of 13: the heading "Orders, funding and availability" was not entailed (the cited passages cover funding and availability, not orders) | **held** |
+| 3 FANUC (company) | 9 of 11 | 2 | none / 246 / 1 | 15 of 16: one takeaway "not entailed", with a reason that says the sentence is supported | **held** |
+| 4 Boston Dynamics (company) | 3 of 5 | 0 | none / 175 / 2 | 12 of 12 entailed | **published** |
+| 5 Universal Robots (company) | 3 of 7 | 1 | none / 130 / 6 | 13 of 13 entailed | **published** |
+
+**Criterion (at least 3 of 5 pages with at least 3 claims, a last draft with no blocker, and a model check that ran): 5 of 5.** The diagnosis holds: the news-shaped gate was what stopped every earlier trial. Plan 3b may start. Three pieces would publish by themselves; two are held by the model check after the rounds of revision were spent on blockers in round 0 (page 2: 11 sentences without the outlet's exact name and 4 unsupported numbers; page 3: one number and one name in analysis), leaving none for the model check's objection.
+
+What the drafts show that the numbers do not (to design in Plan 3b):
+- **The facts are clean, short and cited; nothing is padded or invented** in the three published drafts. The drafts are 130 to 280 words, so the 150 to 500 range of `brief` fits a press release; a piece with only 3 claims repeats one fact in the title, description, opening and takeaway.
+- **The "What we couldn't verify" sentences are unreadable.** They are written by code from the label and values of each claim and give text such as "The 5 Agility unveiled Digit 5, 5 repeatedly lift up to 50 lb., 90-minute 90-minute runtime battery charges in 9 and 5 weighs 284 lb. (129 kg) figures come from a company press release". Labels are fragments of the quoted passage, cut to six words. This must be redesigned before anything is published (for example one plain sentence per basis, naming the source, with no concatenated fragments).
+- **An attributed piece repeats the outlet in every sentence** ("IEEE Spectrum — Robotics reports that ..." eight times), because G6 demands the registry's exact outlet name in each attributed sentence. A digest needs one attribution per item or paragraph, and a short outlet name.
+- **The model check is the weak link.** It rejected one heading rightly (a heading claiming more than its claims) and one takeaway wrongly (its own reason says "this is fine"). The verdict must follow the reasoning (ask for the reason first, or a structured verdict), and the labelled set needs cases for headings and invented entities. A rejection found in the last round has no revision round left: reserve one round for the model check, or let a model-check rejection of a heading or sentence go back for one more round.
+- **Round 0 is still expensive for the writer**: 13 unsupported numbers on page 5 (product and standard names that contain a number), 11 unattributed sentences on page 2. The prompt now tells the writer; the next run will show whether it learned.
+
 
 ## Deviations decided during execution
 
