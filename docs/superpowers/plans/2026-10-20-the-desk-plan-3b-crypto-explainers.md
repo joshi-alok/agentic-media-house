@@ -1,0 +1,65 @@
+# The Desk, blog first — Plan 3b: Crypto Explainers Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Make the Desk able to publish, once a day and without a human, one readable explainer about AI agents in crypto, written from one primary source (a standard, a protocol document, a project's own post, a paper, a regulator's release), with every figure and quotation traced and every "what we couldn't verify" note readable; and find out, on real runs and before anything is published, whether it does.
+
+**Architecture:** Plan 3 split the gate into blockers and notes and proved on five real pages that a short piece can pass. Plan 3b fixes what that run showed (unreadable limitation notes, a model check whose verdict can contradict its reason and cannot be answered in the last round, analysis that no model reads), swaps the vocabulary from robotics to crypto, teaches the Desk to read the feeds and pages that crypto sources really offer (several are closed to it by `robots.txt`; a read-only check on 2026-10-20 says which), and makes the daily run write an explainer from a primary page. The digest (several stories in one post) needs a multi-story pipeline and is Plan 3c.
+
+**Tech Stack:** The stack of Plans 1 to 3: TypeScript, Zod, Vitest, Astro, `tsx`. No new package. Tasks 1 to 17 and 20 use no key. `desk sources-check` (Task 13 Step 5, Task 19 Step 1) fetches public pages and feeds with the Desk's own polite fetcher. Tasks 18 and 19 are paid runs and wait for the owner's go.
+
+**Design:** [the Desk, blog first](../specs/2026-10-20-the-desk-blog-first-redesign-design.md) (sections 2 to 6 stand, with the changes under "Decisions made here"), and the findings recorded in [Plan 3's diagnosis result](./2026-10-20-the-desk-plan-3-blog-first.md).
+
+---
+
+## Before you start
+
+Plan 3 is done on the branch `plan-3-blog-first` (`npm run verify` green: gate 2268, evals 309, site 1331, desk 3930 tests, 60 seeded defects). It is not merged into `main`. The documents of Plan 3b are committed on that branch. Work for Plan 3b on a new branch cut from it: `git switch -c plan-3b-crypto-explainers plan-3-blog-first`. The owner decides when both branches are merged. The working tree must be clean.
+
+## How to read this plan
+
+Five part files in [`2026-10-20-the-desk-plan-3b-crypto-explainers/`](./2026-10-20-the-desk-plan-3b-crypto-explainers/), executed **strictly in order**. Tasks are numbered 1 to 20. Conventions are those of Plan 3 (see the rules at the top of Part 01): run from the repository root, test first, ASCII only in source files, the whole suite green after every task, one commit per task with the trailer as the second `-m`. Where a task changes tests in files it cannot list line by line, it gives a **rule** (R2 to R13; R1 is Plan 3's) and the `grep` that finds them; apply the rule, never weaken a test that guards a blocker, and if a failing test is in neither the list nor the rule, stop and ask.
+
+| Part | Tasks | What it builds |
+|---|---|---|
+| [01](./2026-10-20-the-desk-plan-3b-crypto-explainers/01-a-piece-worth-publishing.md) | 1–5 | Limitation sentences that say, in words and with no fragments, how far to trust a group of claims; a model check that gives its reason before its verdict, with a verdict that must follow the reason; one revision to answer a model-check rejection found in the last round; analysis read by the model check; the public ledger says "notes" |
+| [02](./2026-10-20-the-desk-plan-3b-crypto-explainers/02-crypto-vocabulary.md) | 6–8 | The seven crypto beats and the two renamed bases (the golden story stays and is remapped by a script); the words (prompts, copy, footer, banned filler, README); `G9_POLICY_PHRASE`, a blocker for price predictions, advice and cashtags |
+| [03](./2026-10-20-the-desk-plan-3b-crypto-explainers/03-sources-the-desk-can-read.md) | 9–13 | A registry that holds primary feeds, short outlet names, keywords and GitHub repositories by path; Discover that reads primary feeds and narrows every feed by keywords, with a quota per source on the shortlist; Fetch that reads plain text and markdown and cuts a long page; the new `sources.yml`; `desk sources-check`, a free command that says which sources the Desk can really read |
+| [04](./2026-10-20-the-desk-plan-3b-crypto-explainers/04-the-explainer-run.md) | 14–16 | The kind of piece is a setting and the daily run writes an explainer (it was judged by the defaults of the gate); Select asks again without a story that has no primary page, and Fetch fetches that page alone; the explainer's voice in the compose prompt |
+| [05](./2026-10-20-the-desk-plan-3b-crypto-explainers/05-acceptance.md) | 17–20 | The labelled set of the model check grows to 90 sentences in the domain; the model check measured on a real model and its floors chosen (paid, owner's go); six real explainers written and read (paid, owner's go); a hold rehearsed with one line of change, and the runbook brought to the explainer path |
+
+## What exists after Plan 3b
+
+`gate/src/limitations.ts` writes label-free notes (`BASIS_NOTES`, `STATUS_NOTES`, no cap on a group); `VerifyReply` has `reason`, `missing`, `verdict` in that order, and code refuses an "entailed" over a non-empty list; `modelCheckRevisions` and `shortlistPerSource`, `maxPageChars` and `profile` in the settings; the model check judges analysis; `LedgerEntry.gate.notes`; the crypto `BEATS`; the bases `docs` and `announcement`; `G9_POLICY_PHRASE`; `short`, `feed`, `keywords` and `beats` on registry entries, `SHARED_HOSTS` and path-scoped sources, the source kind `research`; `readPage`/`cutText`; `desk sources-check [--items]`; `EXPLAINER_VOICE`; a profile on the record of a run; a labelled set of 90 sentences; a new `sources.yml` for the domain; measured floors for the model check; six explainers read by the owner. Root `verify` is unchanged in shape.
+
+## Decisions made here, for you to veto
+
+1. **Scope.** Plan 3b is the explainer path. The digest is Plan 3c (the multi-story pipeline: Select v2, Fetch and Extract per story, the format rule, hold records for several sources, the "Reported by" label) together with the `format` field and its chip on the site. Reason: the digest is the largest piece of work, nothing in the explainer needs it, and a `format` field with one value is a field that says nothing; each plan ends with something that publishes.
+2. **Explainer only from a primary page.** With the profile `explainer` Select does not settle for a story it cannot find a primary page for: it asks again without it (at most three asks), and Fetch fetches the primary page alone, so an explainer holds no claim of another outlet. Trade press is used to discover, never to write from. (The tier-2 rules of the gate stay, for Plan 3c.)
+3. **Limitation notes in words.** One sentence per basis (and per outlet, for claims another outlet reported) and one per status, with no label and no figure, citing every claim of its group; no cap on the group; the code `G8_LIMITATION_GROUP_SIZE` is deleted. The page already writes a numbered marker after each sentence for each claim it cites, so the sentence need not repeat the claim. The wording is in Task 1 and is yours to change.
+4. **The model check.** The reason comes before the verdict; a verdict must follow the reason (`missing` is the list of what no passage states): `entailed` with a non-empty list fails as `not_entailed`, `not_entailed` with an empty list fails as `ambiguous`. A rejection found when the revision rounds are spent gets one more round (`modelCheckRevisions: 1`); a blocker of the gate does not. The model check also reads analysis ("adds no entity, event, figure or claim the passages do not support"). Cost: about US$0.04 more per piece; the strict gate rules for analysis stay as a second line.
+5. **Vocabulary, changed as little as the domain allows.** Beats: `payments-commerce`, `identity-trust`, `wallets-keys`, `protocols-standards`, `agent-infrastructure`, `security-incidents`, `policy-regulation`, plus the tag `funding`. Bases: `datasheet` becomes `docs` and `press-release` becomes `announcement`; `briefing`, `demo`, `paper`, `filing`, `standard`, `measured` and `reported` stay, and the safe bases are unchanged. There is no basis for chain data or for source code yet: no source kind can grant one, and a word nobody can use only invites the model to use it. The golden story stays robotics-flavoured and is remapped by a script; rewriting it is not worth about 140 files.
+6. **Policy phrases** are a blocker, matched by whole words (plural forms listed), in the title, description, headings, fact and analysis sentences, not in code-written limitations; a quotation containing one must be cut. A cashtag (`$` and two to ten letters) is refused. The list is in Task 8 and is yours to change.
+7. **Sources the Desk can really read** (checked 2026-10-20 with the Desk's own `robots.txt` reader). GitHub Atom feeds, The Defiant's feed, the Coinbase blog (403) and FATF (403) are closed to it; the EIP Atom feeds and the Paradigm feed do not exist; none is worked around. Discovery uses `rss.arxiv.org` (cs.AI, cs.CR, cs.MA, filtered by keywords), Ethereum Research and Ethereum Magicians, the Ethereum Foundation blog (`/en/feed.xml`), IACR ePrint, SEC, CFTC and Federal Reserve press releases, the blogs of Stripe, Cloudflare, a16z crypto and Vitalik Buterin, and the feeds of CoinDesk, Cointelegraph, Decrypt and The Block (discovery only). Standards, protocols and GitHub repositories by path (`github.com/coinbase/x402`, `github.com/a2aproject/A2A`) are recognised as primary when a story links to them. `short` outlet names ("Ethereum Foundation", not "Ethereum Foundation blog") are what a sentence calls a source.
+8. **Minimum claims.** `minClaims` stays 3 (the design said 5; two of the five saved pages had 3). Tune it from the six explainers of Task 19.
+9. **The footer** says what is true: "Every factual sentence is traced to a passage of a source that the piece links; a sentence that rests on another outlet's reporting names the outlet; analysis is labelled. Nothing here is financial advice." (Task 7). The words "primary source" are dropped from reader-facing copy.
+10. **The ledger field** `gate.warnings` becomes `gate.notes` (Task 5), before any ledger is published. The code's own `GateResult.warnings` keeps its name.
+11. **Settings added** (all with defaults or none): `modelCheckRevisions` 1, `shortlistPerSource` 3, `maxPageChars` 150000, `profile` (none by default; `desk.config.yml` sets `explainer`).
+12. **A hold is rehearsed** by raising the least number of sections to 99 in the private copy of the rehearsal repository (Task 20): the run holds after its first draft, whatever the model writes, for two calls.
+
+## Owner-only items
+
+The go for the paid runs of Tasks 18 and 19 (about US$0.3 and US$0.9, up to US$1.2 together); the extra names of projects, exchanges and wallets for `sources.yml` after Task 12 (the starter list is mine, the industry is yours); the six pages of Task 19; the floors of Task 18; the wording of the footer, of the limitation notes and of the policy phrases; whether a legal read is wanted before going live; the key's rotation and the Console spend cap; the merge of both branches.
+
+## Results (written by the controller as the tasks that measure are done)
+
+- Task 18, the model check on 90 sentences: *not run yet.*
+- Task 19, six explainers: *not run yet.*
+
+## Plan 3c (written after this plan is done)
+
+The digest: `SelectArtifact` with several stories and a format, Select with the format rule (`explainerDays`, `digestMinItems`), Fetch and Extract per story (one Extract call per page, the outlet taken from the page, global claim numbers, a cap of claims per item), the compose prompt and profile for a digest, hold records and the "covered" list for several sources, one attribution per item, `G6_SECONDARY_SHARE`, the "Reported by" label, the `format` field on the draft, the ledger and the front matter and its chip on the site, the demo world with a second and third story, and a live trial of a digest.
+
+## Known limits of this plan
+
+It was written from reading the code (read-only maps of the limitation notes, the model check, the sources and the one-story pipeline, and the files each task changes), and from one read-only fetch of the candidate feeds; it was not replayed mechanically, and the tests it gives were not run. Line numbers are about; a test written here against a helper it cites by name (`start`, `stageContext`, `candidate`, `setup`, `recordedRun`) is written from the helper as read, and the implementer adapts it if the helper differs. Reading chain data and source code (the bases for them), JSON APIs, PDFs, JavaScript-only sites and Unicode currency symbols are out of scope. The rule "a heading cannot hold a number" and the exact outlet string in every attributed sentence (G6) stay; Plan 3c designs one attribution per item.
