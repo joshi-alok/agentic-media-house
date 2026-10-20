@@ -36,8 +36,7 @@ describe('the ledger records the notes of the gate', () => {
     const gate = runGate(piece, defaultContext({ config: { bodyWords: { min: 5000, max: 6000 }, bannedPhrases: ['begun shipping'] } }));
     const { ledger } = renderDraft(piece.draft, piece.claims, { runId: 'run-1', gate });
     expect(ledger.gate.warnings.map((note) => note.code)).toEqual(gate.warnings.map((note) => note.code));
-    expect(ledger.gate.warnings.length).toBeGreaterThanOrEqual(2);
-    expect(ledger.gate.warnings[0]?.code).toBe('G2_BODY_LENGTH');
+    expect(ledger.gate.warnings.map((note) => note.code)).toEqual(['G2_BODY_LENGTH', 'G9_BANNED_PHRASE', 'G9_BANNED_PHRASE']);
   });
 
   it('writes no place for a note that has none, not even an empty one', () => {

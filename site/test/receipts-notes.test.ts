@@ -33,6 +33,14 @@ describe('receiptsView: the notes', () => {
     ]);
   });
 
+  it('does not change the warnings of the ledger it is given', () => {
+    const ledger = ledgerOf();
+    ledger.gate.warnings = [{ code: 'G9_BANNED_PHRASE', where: 'delve' }, { code: 'G9_BANNED_PHRASE', where: 'delve' }];
+    const before = structuredClone(ledger.gate.warnings);
+    receiptsView(ledger);
+    expect(ledger.gate.warnings).toEqual(before);
+  });
+
   it('shows a code it has no words for as it is', () => {
     const ledger = ledgerOf();
     ledger.gate.warnings = [{ code: 'G9_SOMETHING_NEW' }];

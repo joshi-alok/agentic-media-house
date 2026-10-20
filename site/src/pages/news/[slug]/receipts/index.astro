@@ -50,7 +50,7 @@ const holdText = view.gate.holdReasons.length === 0 ? 'none' : view.gate.holdRea
               {view.gate.notes.map((note) => (
                 <li>
                   {note.label} <span class="mono">({note.code})</span>
-                  {note.count > 1 && <span> &times; {note.count}</span>}
+                  {note.count > 1 && <span>, found {plural(note.count, 'time', 'times')}</span>}
                 </li>
               ))}
             </ul>
