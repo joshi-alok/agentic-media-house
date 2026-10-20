@@ -56,8 +56,8 @@ primary:
         short: Vitalik Buterin's blog
         url: "https://vitalik.eth.limo/"
         feed: "https://vitalik.eth.limo/feed.xml"
-        status: verified
-        note: "The feed is read (176 items) but 0 are on a primary page: its items link to vitalik.ca, not to the host of url (vitalik.eth.limo), so Discover would drop every one of them; vitalik.ca did not resolve from the machine of the check (checked 2026-10-21). Change url to the host the items link to, after checking it with sources-check."
+        status: blocked
+        note: "The feed at vitalik.eth.limo is read (176 items), but every item links to vitalik.ca, which did not resolve (ENOTFOUND) when checked. The Desk keeps only items whose link is a page of the entry's own host, so the feed would yield nothing (checked 2026-10-20, UTC). Re-check with desk sources-check, and set url to the host the items link to if it resolves."
       - name: a16z crypto
         short: a16z crypto
         url: "https://a16zcrypto.com/"
