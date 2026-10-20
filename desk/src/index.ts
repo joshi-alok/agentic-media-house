@@ -36,4 +36,5 @@ export * from './run/retract';
 export * from './run/target';
 export * from './run/lock';
 export * from './run/spending';
+export * from './run/sources-check';
 export * from './sources';

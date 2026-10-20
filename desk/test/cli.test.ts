@@ -23,6 +23,7 @@ import { FAKE_BUCKET, FAKE_ENDPOINT, FAKE_KEY_ID, FAKE_SECRET, makeBucket } from
 import { START, clock } from './support/run';
 import { COMMITTED_STATE, filesBelow, makeSite } from './support/site';
 import { fileReply, scriptedTransport } from './support/transport';
+import type { Route } from './support/transport';
 
 // The command line, called as a function: `main(argv, deps)` with a clock, an environment, a git and a place to print that the test hands in. Nothing
 // is run as a program, nothing real is touched, and no command in these tests can reach a network or a model.
@@ -219,6 +220,23 @@ describe('parseArgs: replay, status and the rest', () => {
     expect(refused('status', 'now')).toBe('status takes no arguments, but was given "now"');
     expect(refused('status', '--config')).toBe('--config needs a value');
     expect(refused('status', '--config', 'a', '--config', 'b')).toBe('--config is given twice');
+  });
+
+  it('reads sources-check, which takes no argument and two options: the flag --items and --config', () => {
+    expect(parsed('sources-check')).toEqual({ command: 'sources-check', items: false, config: undefined });
+    expect(parsed('sources-check', '--items', '--config', 'desk.yml')).toEqual({ command: 'sources-check', items: true, config: 'desk.yml' });
+    expect(parsed('sources-check', '--config', 'desk.yml', '--items')).toEqual({ command: 'sources-check', items: true, config: 'desk.yml' });
+    expect(refused('sources-check', 'now')).toBe('sources-check takes no arguments, but was given "now"');
+    expect(refused('sources-check', '--dry')).toBe('unknown option --dry for sources-check');
+    expect(refused('sources-check', '--urls', 'u.txt')).toBe('unknown option --urls for sources-check');
+    expect(refused('sources-check', '--items', '--items')).toBe('--items is given twice');
+    expect(refused('sources-check', '--config')).toBe('--config needs a value');
+  });
+
+  it('does not give --items to the other commands', () => {
+    expect(refused('status', '--items')).toBe('unknown option --items for status');
+    expect(refused('tune', '--urls', 'u', '--items')).toBe('unknown option --items for tune');
+    expect(refused('run', '--items')).toBe('unknown option --items for run');
   });
 
   it('reads --config, the path of a file of settings, for run and for replay', () => {
@@ -1249,3 +1267,96 @@ describe('main: retract', () => {
   });
 });
 
+
+describe('main: sources-check', () => {
+  // Every entry of the registry of the made-up world that has an address: one newsroom page, a standards page, an events page, and two outlets' feeds. The transport answers from the
+  // fixtures, so that no site is asked; the fetcher is the real one, so robots.txt, the pace (none, here) and the user agent are the Desk's own.
+  const ALLOW = { type: 'text/plain', body: 'User-agent: *\nAllow: /\n' };
+  const HOSTS = ['fixture-robotics.example', 'standards.example', 'expo.example', 'mercer-wire.example', 'gantry-daily.example'];
+  const readable = (): Record<string, Route> => ({
+    ...Object.fromEntries(HOSTS.map((host) => [`https://${host}/robots.txt`, ALLOW])),
+    'https://fixture-robotics.example/news': fileReply('pages/fixture-robotics-news.html'),
+    'https://standards.example/robotics': fileReply('pages/fixture-robotics-news.html'),
+    'https://expo.example/': fileReply('pages/fixture-robotics-news.html'),
+    'https://mercer-wire.example/feed.xml': fileReply('feeds/mercer-wire.rss.xml'),
+    'https://gantry-daily.example/atom.xml': fileReply('feeds/gantry-daily.atom.xml'),
+  });
+
+  function checking(routes: Record<string, Route>, overrides: Partial<CliDeps> = {}) {
+    const { transport, sent } = scriptedTransport(routes);
+    const made = setup({ transport, ...overrides });
+    // No pause between two requests to a host: the settings of the tests are those of the defaults otherwise, and a test would wait for each.
+    if (made.deps.config !== undefined) made.deps.config = { ...made.deps.config, requestIntervalMs: 0 };
+    return { ...made, sent };
+  }
+
+  it('lists the command in the usage text, with its options, and says that it writes nothing and needs no key', () => {
+    expect(USAGE).toContain('desk sources-check [--items] [--config <path>]');
+    expect(USAGE).toContain('sources-check  fetch every entry of sources.yml as the Desk fetches');
+    expect(USAGE).toContain('it writes nothing and needs no key');
+    expect(USAGE).toContain('--items lists under each feed its newest stories');
+  });
+
+  it('prints one line for each entry that has an address and the count, and exits 0 when every one could be read, asking no model and writing nothing', async () => {
+    const { call, out, err, cwd, git, sent } = checking(readable());
+    const before = filesBelow(cwd);
+    expect(await call('sources-check')).toBe(0);
+    expect(err).toEqual([]);
+    expect(out).toHaveLength(6);
+    expect(out[0]).toMatch(/^ok +Fixture Robotics +company-newsroom +page, \d+ characters of text$/);
+    expect(out[3]).toMatch(/^ok +Mercer Wire +tier2 +feed: 3 items, 3 with a keyword, 0 on a primary page, newest 2026-10-04$/);
+    expect(out.at(-1)).toBe('5 of 5 entries can be read; 0 were not tried');
+    expect(filesBelow(cwd)).toEqual(before);
+    expect(git.commits).toEqual([]);
+    expect(sent.every((request) => request.headers['User-Agent'] === TEST_AGENT)).toBe(true);
+  });
+
+  it('with --items, lists under each feed its newest stories', async () => {
+    const { call, out } = checking(readable());
+    expect(await call('sources-check', '--items')).toBe(0);
+    expect(out).toContain('    2026-10-04  Fixture Robotics starts FX-1 deliveries to Brindle\'s second plant  https://mercer-wire.example/robotics/fx-1-reaches-second-brindle-plant');
+    expect(out.length).toBeGreaterThan(6);
+    expect(out.at(-1)).toBe('5 of 5 entries can be read; 0 were not tried');
+  });
+
+  it('exits 1 when an entry cannot be read, and its line says why: a page that is not there, a feed that robots.txt closes', async () => {
+    const routes = readable();
+    routes['https://standards.example/robotics'] = { status: 404, body: 'gone' };
+    routes['https://gantry-daily.example/robots.txt'] = { type: 'text/plain', body: 'User-agent: *\nDisallow: /atom.xml\n' };
+    const { call, out, err } = checking(routes);
+    expect(await call('sources-check')).toBe(1);
+    expect(err).toEqual([]);
+    expect(out).toHaveLength(6);
+    expect(out[1]).toMatch(/^error +Safety Standards Board +standard /);
+    expect(out[4]).toMatch(/^robots +Gantry Daily +tier2 .*robots\.txt/);
+    expect(out.at(-1)).toBe('3 of 5 entries can be read; 0 were not tried');
+  });
+
+  it('is refused with exit code 2 while the user agent links to a placeholder address, and asks nobody', async () => {
+    const { call, out, err, sent } = checking(readable(), { config: undefined });
+    expect(await call('sources-check')).toBe(2);
+    expect(out).toEqual([]);
+    expect(err).toEqual([
+      'desk: the user agent "AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)" links to agenticmediahouse.example, which is a placeholder address: a check of live sources needs a user agent that links to the real /method page of the Desk; set userAgent in a file of settings and pass it with --config <path>',
+    ]);
+    expect(sent).toEqual([]);
+  });
+
+  it('exits 2 for a file of settings that cannot be read, and 2 with the usage for a mistake in the arguments', async () => {
+    const { call, out, err } = checking(readable());
+    expect(await call('sources-check', '--config', 'no-such-file.yml')).toBe(2);
+    expect(out).toEqual([]);
+    expect(err[0]).toContain('no-such-file.yml');
+    err.length = 0;
+    expect(await call('sources-check', 'now')).toBe(2);
+    expect(err).toEqual(['desk: sources-check takes no arguments, but was given "now"', USAGE]);
+  });
+
+  it('exits 1 when sources.yml cannot be read, and says so', async () => {
+    const { call, err, cwd, out } = checking(readable());
+    writeFileSync(path.join(cwd, 'sources.yml'), 'primary: [not, a, registry]\n');
+    expect(await call('sources-check')).toBe(1);
+    expect(out).toEqual([]);
+    expect(err[0]).toMatch(/^the sources cannot be read: /);
+  });
+});

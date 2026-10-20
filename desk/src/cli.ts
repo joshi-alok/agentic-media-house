@@ -45,13 +45,14 @@ import { DEMO_DATE, demoFetcher, demoRegistry } from './demo/world';
 import { runDesk } from './run/orchestrate';
 import type { RunResult, Stages } from './run/orchestrate';
 import { replayRun } from './run/replay';
+import { checkSources, formatSourceCheck } from './run/sources-check';
 import { TUNE_DEFAULT_CALLS, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRefused, parseUrlList, runTune } from './run/tune';
 
-// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status`, `desk retract <slug>`, `desk tune`, `desk push` and `desk pack-artifact`. The arguments are read by hand, with no library, and a
+// The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status`, `desk sources-check`, `desk retract <slug>`, `desk tune`, `desk push` and `desk pack-artifact`. The arguments are read by hand, with no library, and a
 // mistake in them is a usage error (exit code 2) that says what is wrong and writes nothing. Everything `main` needs from the outside, the clock, the
 // environment, git, where to print, is in `deps`, so that a test calls `main` with fakes and nothing real is touched. The exit codes are 0 for a run that
-// published, held or found no story, for a replay that came out equal and for a correction that was made, 1 for a run that failed, was refused or could not start, a
-// replay that differs and a correction that was refused or failed, and 2 for a usage error.
+// published, held or found no story, for a replay that came out equal, for a correction that was made and for a check of sources in which every source could be read, 1 for a run that failed, was refused or could not start, a
+// replay that differs, a correction that was refused or failed and a check in which a source could not be read, and 2 for a usage error.
 
 export type { ClientKind, SourcesKind };
 
@@ -59,6 +60,7 @@ export type Parsed =
   | { command: 'run'; date: string | undefined; dry: boolean; client: ClientKind; sources: SourcesKind; forceNew: boolean; skipIfDone: boolean; cassettes: string | undefined; config: string | undefined }
   | { command: 'replay'; runDir: string; sources: SourcesKind | undefined; client: ClientKind | undefined; cassettes: string | undefined; config: string | undefined }
   | { command: 'status'; config: string | undefined }
+  | { command: 'sources-check'; items: boolean; config: string | undefined }
   | { command: 'retract'; slug: string; reason: string; kind: CorrectionKind; dry: boolean }
   | { command: 'tune'; urls: string; trials: number; maxCalls: number; client: 'api' | 'fake'; config: string | undefined; profile: ProfileId | undefined }
   | { command: 'push'; runId: string | undefined; output: string | undefined; branchOnly: boolean; auditLog: string | undefined }
@@ -73,6 +75,7 @@ export const USAGE = [
   '  desk run [--date YYYY-MM-DD] [--dry] [--client fake|recorded|api] [--sources fixtures|live] [--force-new] [--skip-if-done] [--cassettes <folder>] [--config <path>]',
   '  desk replay <folder of a run> [--sources fixtures|live] [--client fake|recorded|api] [--cassettes <folder>] [--config <path>]',
   '  desk status [--config <path>]',
+  '  desk sources-check [--items] [--config <path>]',
   '  desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]',
   '  desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--profile brief|digest|explainer] [--config <path>]',
   '  desk push [--branch-only] [--run-id <id>] [--output <file>] [--audit-log <file>]',
@@ -98,6 +101,8 @@ export const USAGE = [
   '        said how a run was made needs --sources.',
   'status  print the last run (its outcome, its day and which try of the day it was), the number of holds, and the number of corrections and of retractions.',
   '        The desk state has all but the try, which is read from the record of the run in the folder of the runs, if it is there.',
+  'sources-check  fetch every entry of sources.yml as the Desk fetches (robots.txt honoured, at the pace of the settings), read each feed, and print whether it can be read; it writes nothing and needs no key.',
+  '        --items lists under each feed its newest stories that hold a keyword and link to a primary page, to choose pages from. It needs --config for the real user agent, as a live run does.',
   'retract record a correction (the default) or a retraction of a piece that is on the site: the note goes into the desk state, updatedAt of the piece is set to today',
   '        (UTC), and the two are committed in one commit. The reason is one line of at most 500 characters. Nothing is deleted: the page stays up with its notice. A piece',
   '        that was held is on its pull request until the owner merges it, and cannot be corrected before. --dry says what would be done and writes nothing.',
@@ -124,10 +129,11 @@ export const USAGE = [
   '        the user agent and the rest, as desk/src/config.ts lists them). A live run is refused while the user agent links to an .example address.',
 ].join('\n');
 
-const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract' | 'tune' | 'push' | 'pack-artifact', { flags: readonly string[]; valued: readonly string[] }>> = {
+const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'sources-check' | 'retract' | 'tune' | 'push' | 'pack-artifact', { flags: readonly string[]; valued: readonly string[] }>> = {
   run: { flags: ['--dry', '--force-new', '--skip-if-done'], valued: ['--date', '--client', '--sources', '--cassettes', '--config'] },
   replay: { flags: [], valued: ['--sources', '--client', '--cassettes', '--config'] },
   status: { flags: [], valued: ['--config'] },
+  'sources-check': { flags: ['--items'], valued: ['--config'] },
   retract: { flags: ['--dry'], valued: ['--reason', '--kind'] },
   tune: { flags: [], valued: ['--urls', '--trials', '--max-calls', '--client', '--config', '--profile'] },
   push: { flags: ['--branch-only'], valued: ['--run-id', '--output', '--audit-log'] },
@@ -157,7 +163,7 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   const [command, ...rest] = argv;
   if (command === undefined) return fail('no command given');
   if (command === 'help' || command === '--help' || command === '-h') return { ok: true, args: { command: 'help' } };
-  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'retract' && command !== 'tune' && command !== 'push' && command !== 'pack-artifact') return fail(`unknown command "${command}"`);
+  if (command !== 'run' && command !== 'replay' && command !== 'status' && command !== 'sources-check' && command !== 'retract' && command !== 'tune' && command !== 'push' && command !== 'pack-artifact') return fail(`unknown command "${command}"`);
 
   const given = new Map<string, string | true>();
   const positional: string[] = [];
@@ -188,6 +194,10 @@ export function parseArgs(argv: readonly string[]): ParseResult {
   if (command === 'status') {
     if (positional.length > 0) return fail(`status takes no arguments, but was given "${positional[0]}"`);
     return { ok: true, args: { command: 'status', config: value('--config') } };
+  }
+  if (command === 'sources-check') {
+    if (positional.length > 0) return fail(`sources-check takes no arguments, but was given "${positional[0]}"`);
+    return { ok: true, args: { command: 'sources-check', items: given.has('--items'), config: value('--config') } };
   }
   if (command === 'retract') {
     if (positional.length === 0) return fail('retract needs the slug of a piece');
@@ -599,6 +609,37 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
 }
 
 /**
+ * `desk sources-check`: every entry of `sources.yml` is fetched as the Desk fetches (`sourcesOf('live', ...)`: robots.txt honoured, the pace and the user agent of the settings) and the result of
+ * each is printed. Exit code 0 when every entry that was tried could be read, 1 when some could not (the lines say which), 2 for a mistake in the arguments or a user agent that links to an
+ * `.example` address (a site that is asked by a user agent that points nowhere cannot find out who is asking). Nothing is written and no model is asked.
+ */
+async function sourcesCheckCommand(args: Extract<Parsed, { command: 'sources-check' }>, deps: CliDeps): Promise<number> {
+  const settings = settingsOf(deps, args.config);
+  if ('code' in settings) return settings.code;
+  const { config } = settings;
+  const placeholder = placeholderHost(config.userAgent);
+  if (placeholder !== undefined) {
+    deps.err(placeholderRefusal(config.userAgent, placeholder, 'a check of live sources'));
+    return 2;
+  }
+  let world: ReturnType<typeof sourcesOf>;
+  try {
+    world = sourcesOf('live', deps, config);
+  } catch (error) {
+    deps.err(`the sources cannot be read: ${describeError(error)}`);
+    return 1;
+  }
+  try {
+    const report = await checkSources(world.sources, world.fetcher);
+    for (const line of formatSourceCheck(report, { items: args.items })) deps.out(line);
+    return report.readable === report.tried ? 0 : 1;
+  } catch (error) {
+    deps.err(`the sources could not be checked: ${describeError(error)}`);
+    return 1;
+  }
+}
+
+/**
  * `desk push`: the commits of the run go to main of origin (`pushRun`). Pushed or nothing to push is exit code 0, and the line `pushed=true` is added to the file of `--output` when
  * they were pushed, which is how the step that starts the deploy knows that there is something to deploy. Commits that went to the rescue branch, and every error, are exit code 1.
  */
@@ -775,6 +816,8 @@ export async function main(argv: readonly string[], deps: CliDeps): Promise<numb
       return replayCommand(parsed.args, deps);
     case 'status':
       return statusCommand(parsed.args, deps);
+    case 'sources-check':
+      return sourcesCheckCommand(parsed.args, deps);
     case 'retract':
       return retractCommand(parsed.args, deps);
     case 'tune':
