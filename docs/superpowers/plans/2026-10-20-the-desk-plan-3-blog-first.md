@@ -53,6 +53,16 @@ These parts follow once Task 15 passes. They are listed so that the order is kno
 
 (Recorded by Task 15. Empty until the run has been made.)
 
+## Deviations decided during execution
+
+Recorded as they happen; each one is conservative and reversible, and each needs the owner's confirmation at the end.
+
+1. **A name that an analysis sentence brings in is a blocker, not a note** (`G7_ANALYSIS_NEW_NAME` is not in `NOTE_CODES`). Found by the quality review of Task 3: the model check (G10) judges fact sentences and headings only, so a note here would leave an invented party in an analysis sentence checked by nothing. Consequences: Task 4 keeps the opening-word clause of G7 (it now reports `G7_ANALYSIS_NEW_NAME`) and deletes only the two first-word rules for fact sentences; the seeded count after Task 4 is `58 of 58`, not `57 of 57`; the compose prompt (Task 11) and the method text (Task 14) say that analysis may not name what no fact names. To revisit when a model reads analysis (Plan 3b, verifier calibration).
+2. **Follow-ups the reviews raised, to close before or in Plan 3b** (none blocks Plan 3):
+   - the labelled verifier set has no case whose only defect is an invented company or product, and the heading carve-out of the verify prompt ("a heading that only names what the section is about is entailed") is the likeliest leak: add sentence and heading cases, and a prompt line that a name no passage contains is `not_entailed`;
+   - the share of analysis is a note and G10 does not judge analysis: decide whether G10 should judge analysis ("not contradicted by the cited claims") or whether a high share cap stays a blocker;
+   - the dead branch `if (where === 'opening')` and its stale comments in `desk/src/stages/verify.ts` (cleaned in Task 9), and the test that keeps it alive with an empty list of note codes.
+
 ## Known limits of this plan
 
 It was written from reading the code, not replayed mechanically as Plans 1 to 2b were. Where a change makes tests fail in files that this plan could not list line by line, the task gives the **rule** to apply and the `grep` that finds the files; apply the rule, never weaken a test that guards a blocker, and if a failing test is in neither the list nor the rule, stop and ask. The transcript of what each task changed is its commit.

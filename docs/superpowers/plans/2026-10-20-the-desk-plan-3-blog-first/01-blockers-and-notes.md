@@ -6,8 +6,8 @@
 |---|---|
 | 1 | `NOTE_CODES` and `severityOf`; `runGateWith` splits what the checks report into `failures` (blockers) and `warnings` (notes); the stored gate report accepts `warnings`; the seeded harness counts a note as caught. Nothing is a note yet. |
 | 2 | Length and shape become notes: the opening, the takeaways, the body, a question or a long heading, the share of analysis. |
-| 3 | Capitalised names, amounts without a figure and filler phrases become notes; the code `G7_ANALYSIS_NEW_NAME` is split off `G7_ANALYSIS_NEW_VALUE`. |
-| 4 | The two first-word rules (`G2_SENTENCE_START`, `G4_INITIAL_WORD_UNSUPPORTED`, and the opening-word clause of G7) are deleted with their tests, cases and labels. |
+| 3 | Capitalised names in fact sentences and headings, amounts without a figure and filler phrases become notes; the code `G7_ANALYSIS_NEW_NAME` is split off `G7_ANALYSIS_NEW_VALUE` and **stays a blocker** (no model reads analysis; corrected after the review of Task 3). |
+| 4 | The two first-word rules for fact sentences (`G2_SENTENCE_START`, `G4_INITIAL_WORD_UNSUPPORTED`) are deleted with their tests, cases and labels; the opening-word clause of G7 stays and reports `G7_ANALYSIS_NEW_NAME`. |
 | 5 | G6 stops asking for a hold (`TIER2_ATTRIBUTION` becomes a retired reason); analysis may stand in the opening and the takeaways; the owner-released fixture is built the way the hold flow builds it. |
 | 6 | The ledger records the notes (`gate.warnings`), the renderer writes them, the fixtures are regenerated. |
 | 7 | The receipts page lists the notes in words. |
@@ -589,13 +589,15 @@ git commit -m "feat(gate): capitalised names, amounts without a figure and fille
 
 ---
 
-### Task 4: The first-word rules are deleted
+### Task 4: The first-word rules for fact sentences are deleted
+
+> **Deviation from the first draft of this plan (decided during execution, after the review of Task 3).** The model check (G10) judges fact sentences and headings only; it does not read analysis. So a name that an analysis sentence brings in is checked by no model, and `G7_ANALYSIS_NEW_NAME` is a **blocker**, not a note (Task 3 was corrected after its review). For the same reason the **opening-word clause of G7 stays**, with one change: it now reports `G7_ANALYSIS_NEW_NAME` instead of `G7_ANALYSIS_NEW_VALUE`. Only the two rules for **fact** sentences (`G2_SENTENCE_START`, `G4_INITIAL_WORD_UNSUPPORTED`) are deleted, because there the model check is the judge. Everything below is written with that change.
 
 **Files:**
 - Modify: `gate/src/checks/g2-structure.ts`, `gate/src/checks/g4-values.ts`, `gate/src/checks/g7-analysis.ts`, `site/src/lib/reasons.ts`, `site/src/lib/method.ts`, `evals/src/cases/claims.ts`, `evals/src/cases/frontmatter-structure.ts`, `evals/src/cases/sourcing-analysis.ts`
 - Modify (tests): `gate/test/g2-structure.test.ts`, `gate/test/g4-values.test.ts`, `gate/test/g7-analysis.test.ts`, `evals/test/seeded.test.ts`, `desk/test/adversarial.test.ts`, `desk/test/stages/compose.test.ts`, `desk/test/stages/verify.test.ts`, `site/test/known-limits.test.ts`, `site/test/method.test.ts`
 
-Three rules read the first word of a sentence: `G2_SENTENCE_START` (it exists only so that the other two can read a capital letter), `G4_INITIAL_WORD_UNSUPPORTED` and the opening-word clause of G7. They make a model rewrite a good sentence because it opens with an ordinary capitalised noun. The model check judges a name at the start of a sentence like any other. The rule for the first word of a **heading** (`G4_HEADING_NAME`, a note) stays.
+Three rules read the first word of a sentence: `G2_SENTENCE_START` (it exists only so that the other rules can read a capital letter), `G4_INITIAL_WORD_UNSUPPORTED` and the opening-word clause of G7. The first two are deleted: they make a model rewrite a good fact sentence because it opens with an ordinary capitalised noun, and the model check judges a name at the start of a fact sentence like any other. The opening-word clause of G7 **stays** (no model reads analysis), and reports `G7_ANALYSIS_NEW_NAME`. The rule for the first word of a **heading** (`G4_HEADING_NAME`, a note) stays.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -642,18 +644,18 @@ Expected: FAIL on "has no rule about the first letter of a sentence" (`expected 
 - delete the block `if (tokens.initialWord !== undefined && !openingWordAccepted(tokens.initialWord, claimWords(cited), ctx.nameAllowList)) { fail('G4_INITIAL_WORD_UNSUPPORTED', ...); }` in the loop over sentences (the use of `openingWordAccepted` and `claimWords` in the heading part stays);
 - in the doc comment replace the paragraph "The first word of a sentence is not a name token ... would only have its second word checked." with: `The first word of a sentence is not read as a name, because every sentence starts with a capital letter; the model check judges a name that opens a sentence like any other.`
 
-`gate/src/checks/g7-analysis.ts`:
-- delete the `if (tokens.initialWord !== undefined && !openingWordAccepted(...)) { fail(...) }` clause, the line `const cited = ...`, the line `const byId = ...`, the import `import { claimWords, openingWordAccepted } from '../grounding';`, and `claims` from the parameter (`({ draft }, ctx)`);
-- delete from the doc comment the sentences "The first word of an analysis sentence has its own rule: ... and the label of a claim, ground nothing: they are what a model wrote."
+`gate/src/checks/g7-analysis.ts` (the opening-word clause STAYS; two changes only):
+- the opening-word clause reports `G7_ANALYSIS_NEW_NAME` instead of `G7_ANALYSIS_NEW_VALUE`: give the local helper `fail` a `code` parameter (default `'G7_ANALYSIS_NEW_VALUE'`, so every figure keeps its code) and pass `'G7_ANALYSIS_NEW_NAME'` at the opening-word call; the message text is unchanged;
+- fix the doc comment so that it says what is true: names (an opening word among them) are `G7_ANALYSIS_NEW_NAME`, numbers, number words and dates are `G7_ANALYSIS_NEW_VALUE`.
 
-`site/src/lib/reasons.ts`: delete the lines `G2_SENTENCE_START: ...` and `G4_INITIAL_WORD_UNSUPPORTED: ...`.
+`site/src/lib/reasons.ts`: delete the lines `G2_SENTENCE_START: ...` and `G4_INITIAL_WORD_UNSUPPORTED: ...`; change the label of `G7_ANALYSIS_NEW_VALUE` from "number, date or name of its own" to "number, date or amount of its own" (its exact words must stay unique and at most 70 characters).
 
-`evals`: delete the two cases with `code: 'G4_INITIAL_WORD_UNSUPPORTED'` in `evals/src/cases/claims.ts`, the case with `code: 'G2_SENTENCE_START'` (`lowercase-sentence-start`) in `evals/src/cases/frontmatter-structure.ts`, and the case `analysis-invented-initial-word` in `evals/src/cases/sourcing-analysis.ts`. In `evals/test/seeded.test.ts` delete the row for `lowercase-sentence-start` in the expected list (about line 195).
+`evals`: delete the two cases with `code: 'G4_INITIAL_WORD_UNSUPPORTED'` in `evals/src/cases/claims.ts` and the case with `code: 'G2_SENTENCE_START'` (`lowercase-sentence-start`) in `evals/src/cases/frontmatter-structure.ts`. The case `analysis-invented-initial-word` in `evals/src/cases/sourcing-analysis.ts` STAYS, with `code: 'G7_ANALYSIS_NEW_NAME'`. In `evals/test/seeded.test.ts` delete the row for `lowercase-sentence-start` in the expected list (about line 195).
 
 `site/src/lib/method.ts` (the minimal change that keeps the page true; Task 14 rewrites the rest):
 - in the G2 text delete `every sentence starts with a capital letter or a digit (an opening quotation mark or bracket may come first), and `;
 - in the G4 text delete the clause `a sentence may open with a capitalised word only if it is an ordinary function word or a word of the quoted passage, the names or the outlet of a claim the sentence cites (the text and the label of a claim are written by a model and count for nothing); `;
-- in the G7 text delete `, and must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites` and the `and` before it so the sentence still reads;
+- the G7 text is NOT changed (analysis still must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites);
 - in `KNOWN_LIMITS` delete the `strict` entry that begins "A sentence cannot open with a name that starts with a lowercase letter", and change the `strict` entry that begins "The only evidence for a capitalised word that opens a sentence or a heading" to begin "The only evidence for a capitalised word that opens a section heading" (the rest of the sentence is unchanged).
 
 - [ ] **Step 4: Fix what fails**
@@ -662,21 +664,21 @@ Run: `npm test`. Expected failures, and the change for each:
 
 - `gate/test/g2-structure.test.ts`: delete `describe('G2_SENTENCE_START', ...)` (about lines 484 to 620) and the mention of the code in the comment of the helper at line 13; every other test in the file that passes a draft with a lowercase start expecting the code is deleted with it.
 - `gate/test/g4-values.test.ts`: delete the tests that expect `G4_INITIAL_WORD_UNSUPPORTED` (about lines 430 to 580 and 994) and the helper that filters for it. A test that mixes the code with another (`['G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED']`) keeps only the other code.
-- `gate/test/g7-analysis.test.ts`: delete the tests about the opening word of an analysis sentence (`grep -n "opening word\|initial" gate/test/g7-analysis.test.ts` finds them).
-- `desk/test/adversarial.test.ts`: remove `'G4_INITIAL_WORD_UNSUPPORTED'` and `'G2_SENTENCE_START'` from every list of reasons (about lines 186 to 194, 245, 299, 311, 326, 349, 643 to 647); a row whose only defect was one of them is deleted, because its defect is judged by the model check now (the rows moved in Task 3 cover that).
+- `gate/test/g7-analysis.test.ts`: the tests about the opening word of an analysis sentence (`grep -n "opening word\|initial" gate/test/g7-analysis.test.ts` finds them) are NOT deleted: they now expect the code `G7_ANALYSIS_NEW_NAME` (and keep their messages). Add one test that pins the new split: an analysis sentence that opens with an invented company gives `G7_ANALYSIS_NEW_NAME`, one that opens with an invented number gives `G7_ANALYSIS_NEW_VALUE`.
+- `desk/test/adversarial.test.ts`: remove `'G4_INITIAL_WORD_UNSUPPORTED'` and `'G2_SENTENCE_START'` from every list of reasons (about lines 186 to 194, 245, 299, 311, 326, 349, 643 to 647). The row "an invented name at the start of a sentence" (about lines 183 to 190) was held by `G4_INITIAL_WORD_UNSUPPORTED` alone; it must NOT be deleted and must NOT end in `publish`: move it to the group of the matrix whose verifier is scripted to say `not_entailed` for that sentence (use `idOf`, as the scenario "a sentence that the verifier rejects although the gate passes it" does, about lines 214 to 229) and expect the hold reason `G10_NOT_ENTAILED`. A row whose only defect was one of the deleted codes and that is not a name defect is deleted, because the rule is gone.
 - `desk/test/stages/compose.test.ts`: delete the rows for `G4_INITIAL_WORD_UNSUPPORTED` and `G2_SENTENCE_START`.
 - `desk/test/stages/verify.test.ts` (about line 645): the test that sends back a sentence for `G2_SENTENCE_START` is deleted.
 - `site/test/known-limits.test.ts`: change the counts in the first test (`strict` 3 to 2, the whole list 15 to 14), delete the test "is true of the strict limit about a sentence that opens with a lowercase name", and in the test about the evidence for an opening word change `'The only evidence for a capitalised word that opens a sentence or a heading'` to `'The only evidence for a capitalised word that opens a section heading'`. Remove `checkG2`, `startsWithCapitalOrDigit` from the imports if they are unused.
-- `site/test/method.test.ts`: delete the two tests "names the rules for the first word of a sentence and for headings" (keep its second expectation, `a section heading has no number, date or quotation`, in a test of its own), "says in G2 that every sentence starts with a capital letter or a digit", and the expectation in "says in G7 ..." about opening with an ordinary function word.
+- `site/test/method.test.ts`: delete the two tests "names the rules for the first word of a sentence and for headings" (keep its second expectation, `a section heading has no number, date or quotation`, in a test of its own) and "says in G2 that every sentence starts with a capital letter or a digit". The expectation in "says in G7 ..." about opening with an ordinary function word STAYS.
 
 Run: `npm run typecheck && npm test && npm run evals:seeded && npm run fixtures:check`
-Expected: all exit 0; the seeded count is now `57 of 57` (four cases deleted: two G4, one G2, one G7).
+Expected: all exit 0; the seeded count is now `58 of 58` (three cases deleted: two G4, one G2).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add gate desk site evals
-git commit -m "refactor(gate): the first word of a sentence is no longer read as a name by three rules, because they made a model rewrite good sentences for opening with a capitalised noun and the model check judges a name that opens a sentence like any other" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "refactor(gate): the first word of a fact sentence is no longer read as a name by two rules, because they made a model rewrite good sentences for opening with a capitalised noun and the model check judges a name that opens a fact sentence like any other; analysis keeps its rule, because no model reads analysis" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
 ---

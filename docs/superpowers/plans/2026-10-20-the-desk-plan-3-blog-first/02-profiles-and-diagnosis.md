@@ -11,7 +11,7 @@
 | 14 | The method page, the copy and the README say what the code does now (blockers and notes, another outlet publishes). |
 | 15 | The full check, the free rehearsal, **the paid run on the five pages (the owner's go)**, and the recorded result. |
 
-**Starting state:** Part 1 is done: ten codes are notes, the two first-word rules are gone, another outlet publishes, the ledger and the receipts page carry the notes, the suite is green with `57 of 57` seeded defects caught.
+**Starting state:** Part 1 is done: ten codes are notes, the two first-word rules for fact sentences are gone (analysis keeps its own), another outlet publishes, the ledger and the receipts page carry the notes, the suite is green with `58 of 58` seeded defects caught.
 
 **Rules for every task in this part:** those of Part 1 (run from the repository root, test first, ASCII only in source files, the whole suite green after every task, one commit per task with the trailer as the second `-m`, rule R1 for tests that expected a failure that is now a note). Tasks 10 to 14 use no network and no key. Task 15 does, and waits.
 
@@ -212,7 +212,7 @@ describe('composeRules: what blocks and what is noted', () => {
     expect(text).toContain('- (noted) Do not use these phrases anywhere');
   });
 
-  it('has no rule about the first word of a sentence', () => {
+  it('has no rule about the first word of a fact sentence', () => {
     const text = composeRules().join('\n');
     expect(text).not.toContain('starts with a capital letter');
     expect(text).not.toContain('plain words');
@@ -328,7 +328,7 @@ export function composeRules(config: GateConfig = GATE): string[] {
     '- (blocks) Never use analysis in the title or the description.',
     `- (noted) At most ${analysisPercent} per cent of the sentences of the piece may be analysis.`,
     '- (blocks) An analysis sentence may not contain a number or a date that no fact sentence of the piece contains.',
-    '- (noted) An analysis sentence names nothing that no fact sentence names.',
+    '- (blocks) An analysis sentence names nothing that no fact sentence of the piece names. It starts with an ordinary word, or with a word that a claim it cites contains: no model reads analysis, so the Desk checks it by code.',
     '- (blocks) An analysis sentence may cite only claims from a primary source.',
     '',
     'Claims from another outlet:',
@@ -803,8 +803,8 @@ Expected: FAIL: `notes` is not a field of a rule, and the old sentences are stil
     {
       id: 'G7',
       name: 'Analysis',
-      text: `Analysis, the Desk's own reading of the facts, is labelled, stays out of the title and the description, and may not bring in a number (written in digits or words) or a date that no factual sentence contains.`,
-      notes: `Analysis is at most ${share} percent of the body's sentences, and it names nothing that no factual sentence names; a piece that goes over, or names something new, is noted and published.`,
+      text: `Analysis, the Desk's own reading of the facts, is labelled, stays out of the title and the description, may not bring in a number (written in digits or words), a date or a name that no factual sentence contains, and must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites.`,
+      notes: `Analysis is at most ${share} percent of the body's sentences; a piece that goes over is noted and published.`,
     },
   ```
   ```ts
@@ -817,7 +817,7 @@ Expected: FAIL: `notes` is not a field of a rule, and the old sentences are stil
   ```
 - `KNOWN_LIMITS`: the `strict` entry that begins "The name check is strict on purpose" becomes
   `'The name check is strict on purpose: it reads every capitalised word as a name, so an ordinary capitalised word, such as a noun that opens a section heading, is noted. A note costs nothing, and the model check reads each sentence for a name that slipped through.'`;
-  the `unchecked` entry about analysis becomes `'Analysis sentences, up to a fifth of the sentences of the body by default, are checked by code for where they stand and for the numbers and dates they bring in, and by no model: whatever else an analysis sentence says passes, and the page labels it Analysis.'`;
+  the `unchecked` entry about analysis becomes `'Analysis sentences, up to a fifth of the sentences of the body by default, are checked by code for where they stand and for the numbers, dates and names they bring in, and by no model: whatever else an analysis sentence says passes, and the page labels it Analysis.'`;
   add after the three `unchecked` entries a fourth:
 
   ```ts
@@ -878,7 +878,7 @@ This is the task the whole plan is for. It has three parts: a full offline check
 - [ ] **Step 1: The full offline check**
 
 Run: `npm run verify`
-Expected: exits 0. It runs the typecheck, every test, the seeded evals (`57 of 57`), the fixture check, the demo, the production build and audit, the fixture build and audit, and Lighthouse (100 in every category on the measured pages). Report the totals. If anything fails, stop and fix it in the task that caused it; do not go on.
+Expected: exits 0. It runs the typecheck, every test, the seeded evals (`58 of 58`), the fixture check, the demo, the production build and audit, the fixture build and audit, and Lighthouse (100 in every category on the measured pages). Report the totals. If anything fails, stop and fix it in the task that caused it; do not go on.
 
 - [ ] **Step 2: The free rehearsal**
 
