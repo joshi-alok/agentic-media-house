@@ -26,7 +26,7 @@ const BASIS_MEANING: Readonly<Record<Basis, string>> = {
 /** What each status says about how far a capability has got, for the verifier to judge a claim's status against its passage. */
 const STATUS_MEANING: Readonly<Record<Status, string>> = {
   demonstrated: 'the passage says it was shown or demonstrated',
-  deployed: 'the passage says a customer is using it',
+  deployed: 'the passage says it is live in production or used by people outside the team',
   planned: 'the passage says it will happen, or is due',
   unspecified: 'the passage does not say how far it has got',
 };

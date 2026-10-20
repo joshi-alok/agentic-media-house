@@ -10,8 +10,8 @@ describe('the prompts say what the publication is', () => {
     ['extract', extractSystem()],
     ['verify', verifySystem()],
     ['compose', composeSystem()],
-  ])('%s: AI agents in crypto, no robotics', (_name, prompt) => {
-    expect(prompt).not.toMatch(/robot/i);
+  ])('%s: AI agents in crypto, no robotics, no datasheet, no press release', (_name, prompt) => {
+    expect(prompt).not.toMatch(/robot|FX-1|datasheet|press release/i);
   });
 
   it('the compose prompt says there is no price, no market call and no advice', () => {

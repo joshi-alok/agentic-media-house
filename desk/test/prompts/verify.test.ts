@@ -48,6 +48,7 @@ describe('verifySystem', () => {
   it('says what every basis and every status means, so that a label can be judged against a passage', () => {
     for (const basis of BASES) expect(VERIFY_INSTRUCTIONS).toMatch(new RegExp(`^- ${basis}: the passage `, 'm'));
     for (const status of STATUSES) expect(VERIFY_INSTRUCTIONS).toMatch(new RegExp(`^- ${status}: the passage `, 'm'));
+    expect(VERIFY_INSTRUCTIONS).toContain('- deployed: the passage says it is live in production or used by people outside the team.');
   });
 
   it('says what the reply is: a verdict for every item and a judgement of the labels of every claim, and no others', () => {

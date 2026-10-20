@@ -43,9 +43,13 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('A name: "normalised" is "raw" in lowercase with single spaces.');
   });
 
+  it('says that a status of deployed means live in production or used by people outside the team', () => {
+    expect(EXTRACT_INSTRUCTIONS).toContain('deployed if it says it is live in production or used by people outside the team, planned if it says it will happen');
+  });
+
   it('says that the text and the label may hold no number, date or capitalised word that the quote lacks, and no word that says how much', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('may contain only numbers, dates and capitalised words that appear in the quote');
-    expect(EXTRACT_INSTRUCTIONS).toContain('write "the arm", not "the FX-1", when the quote only says "the arm"');
+    expect(EXTRACT_INSTRUCTIONS).toContain('write "the protocol", not "x402", when the quote only says "the protocol"');
     expect(EXTRACT_INSTRUCTIONS).toContain('("twice", "half", "doubled")');
   });
 
@@ -81,7 +85,8 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('List in "values" every name that the text of the claim contains');
     expect(EXTRACT_INSTRUCTIONS).toContain('with kind "name" and "raw" exactly as the quote writes it');
     expect(EXTRACT_INSTRUCTIONS).toContain('The piece may use a name only if a claim it cites lists it');
-    expect(EXTRACT_INSTRUCTIONS).toContain('A name that ends in a number, such as "ERC-8004" or "x402", is listed as a name ("ERC-8004") and its number is listed too as a number ("8004").');
+    expect(EXTRACT_INSTRUCTIONS).toContain('A name that mixes letters and digits, such as "ERC-8004" or "x402", is listed as one name ("ERC-8004"); do not list its digits as a number.');
+    expect(EXTRACT_INSTRUCTIONS).not.toContain('its number is listed too as a number');
     expect(EXTRACT_INSTRUCTIONS).toContain('("x402", "Ethereum Foundation")');
   });
 

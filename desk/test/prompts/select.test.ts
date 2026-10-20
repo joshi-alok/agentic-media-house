@@ -34,6 +34,11 @@ describe('selectSystem', () => {
     expect(SELECT_INSTRUCTIONS).toContain('judge from titles alone');
   });
 
+  it('says that a candidate is from an outlet or a project, and not from a company only', () => {
+    expect(SELECT_INSTRUCTIONS).toContain('the outlet or project it is from');
+    expect(SELECT_INSTRUCTIONS).not.toContain('the outlet or company it is from');
+  });
+
   it('names the block that holds a title the way the user message writes it, and the headings of the bar the way the user message writes them', () => {
     expect(SELECT_INSTRUCTIONS).toContain('The title is the text of a block that starts with <source id="..."> and has the same id as the candidate.');
     const message = buildSelectUser([A], BAR, RUN_DATE);
@@ -49,7 +54,7 @@ describe('selectSystem', () => {
       '- Prefer a story from a tier 1 candidate over one from a tier 2 candidate, and a story that reports something new over one that repeats a story.',
       '- On a quiet day choose the smaller true thing rather than inflating the biggest available thing.',
       '- If no candidate is good enough, choose none. No story is a valid answer, and it is better than a weak story.',
-      '- Never choose a story whose point is a price, a market move or a token to buy.',
+      '- Never choose a story whose point is the price of a token, a market move or a token to buy.',
     ]) {
       expect(SELECT_INSTRUCTIONS).toContain(rule);
     }
