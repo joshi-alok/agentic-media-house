@@ -39,7 +39,7 @@ export interface GateResult {
   route: Route;
   /** The blockers: what the draft is sent back for. */
   failures: Failure[];
-  /** The notes: what was found and does not block (see `NOTE_CODES`). They are recorded in the ledger and never go back to the composer. */
+  /** The notes: what was found and does not block (see `NOTE_CODES`). They never go back to the composer; the ledger will record them (Plan 3, Task 6). */
   warnings: Failure[];
   holdReasons: string[];
   /** All nine ids are always present. A check is 'fail' when it produced a blocker. */
@@ -49,14 +49,14 @@ export interface GateResult {
 /**
  * Run `checks`, split what they report into blockers and notes by the severity of each code, and decide the route: any blocker means 'revise';
  * otherwise any hold reason means 'hold'; otherwise 'publish'. Every check runs, so one revision round gets every blocker at once. An error
- * thrown by a check is not caught: the run fails and nothing publishes. `notes` is the list of codes that do not block; the default is the
+ * thrown by a check is not caught: the run fails and nothing publishes. `noteCodes` is the list of codes that do not block; the default is the
  * gate's own list, and a test may pass another.
  */
-export function runGateWith(checks: readonly Check[], input: GateInput, ctx: GateContext, notes: readonly string[] = NOTE_CODES): GateResult {
+export function runGateWith(checks: readonly Check[], input: GateInput, ctx: GateContext, noteCodes: readonly string[] = NOTE_CODES): GateResult {
   const outputs = checks.map((check) => check(input, ctx));
   const found = outputs.flatMap((output) => output.failures);
-  const failures = found.filter((item) => severityOf(item.code, notes) === 'blocker');
-  const warnings = found.filter((item) => severityOf(item.code, notes) === 'note');
+  const failures = found.filter((item) => severityOf(item.code, noteCodes) === 'blocker');
+  const warnings = found.filter((item) => severityOf(item.code, noteCodes) === 'note');
   const holdReasons = outputs.flatMap((output) => output.holdReasons);
 
   const summary = Object.fromEntries(CHECK_IDS.map((id) => [id, 'pass'])) as Record<CheckId, CheckResult>;

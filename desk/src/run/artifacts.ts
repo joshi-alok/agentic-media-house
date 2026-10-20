@@ -129,10 +129,10 @@ export const ExtractArtifact = z
   });
 export type ExtractArtifact = z.infer<typeof ExtractArtifact>;
 
-/** What the gate said of a draft, as the record keeps it: the route, every failure with its code, the reasons to hold, and the result of each check. */
 /** One finding of the gate as the record keeps it: the check, the code, the message for the composer and where it was found. */
 const GateFinding = z.strictObject({ check: z.enum(CHECK_IDS), code: text, message: text, where: z.string().optional() });
 
+/** What the gate said of a draft, as the record keeps it: the route, every failure with its code, the notes (findings that did not block the draft), the reasons to hold, and the result of each check. */
 export const GateReport = z.strictObject({
   route: z.enum(ROUTES),
   failures: z.array(GateFinding),
