@@ -18,8 +18,9 @@
 #
 # Two tiers, and the distinction is the whole editorial model:
 #
-#   TIER 1 (primary)   — what we WRITE FROM. The company's own announcement,
-#                        the paper, the filing, the standard, the results sheet.
+#   TIER 1 (primary)   — what we WRITE FROM. The project's or company's own
+#                        post, announcement or documentation, the paper, the
+#                        filing, the standard or proposal.
 #   TIER 2 (secondary) — what we use to DISCOVER. Other outlets' feeds tell us
 #                        something happened. They are never the sole source for
 #                        a claim, and never the thing we paraphrase.

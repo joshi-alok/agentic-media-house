@@ -70,7 +70,7 @@ The checkout may already have a remote called `origin` that points at the addres
 gh auth status
 git remote -v
 git remote remove origin
-gh repo create joshi-alok/agentic-media-house --public --description "A robotics news site whose every factual sentence traces to a primary source. The pipeline that writes it is in this repository."
+gh repo create joshi-alok/agentic-media-house --public --description "A publication about AI agents in crypto whose every factual sentence traces to a passage of a source. The pipeline that writes it is in this repository."
 gh repo view joshi-alok/agentic-media-house --json visibility,isEmpty --jq '.visibility + " " + (.isEmpty | tostring)'
 git remote add origin https://github.com/joshi-alok/agentic-media-house.git
 ```

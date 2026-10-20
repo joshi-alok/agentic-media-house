@@ -52,6 +52,7 @@ describe('extractSystem', () => {
   it('says that every word of the label is a word of the quote, at most six of them, and that the words of the text are the quote\'s or the plain words that the code allows, which it lists', () => {
     expect(MAX_LABEL_WORDS).toBe(6);
     expect(EXTRACT_INSTRUCTIONS).toContain('a short name for the claim, at most 6 words, made of words of the quote');
+    expect(EXTRACT_INSTRUCTIONS).toContain('for a quote that says "settles within 2 seconds" the label "settles within 2 seconds" is right and "settlement time" is not, because "settlement" and "time" are not in the quote');
     expect(EXTRACT_INSTRUCTIONS).toContain('Every word of the label must be a word of the quote (the same word and not another form of it: "weeks" is not "week")');
     expect(EXTRACT_INSTRUCTIONS).toContain(`Every word of the text of four letters or more must be a word of the quote, or one of these plain words: ${COMMON_WORDS.join(', ')}.`);
     expect(EXTRACT_INSTRUCTIONS).toContain('Write "no" or "not" only if the quote does.');
@@ -80,7 +81,8 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('List in "values" every name that the text of the claim contains');
     expect(EXTRACT_INSTRUCTIONS).toContain('with kind "name" and "raw" exactly as the quote writes it');
     expect(EXTRACT_INSTRUCTIONS).toContain('The piece may use a name only if a claim it cites lists it');
-    expect(EXTRACT_INSTRUCTIONS).toContain('A product name that ends in a number, such as "Digit 5", is listed as a name ("Digit 5") and its number is listed too as a number ("5").');
+    expect(EXTRACT_INSTRUCTIONS).toContain('A name that ends in a number, such as "ERC-8004" or "x402", is listed as a name ("ERC-8004") and its number is listed too as a number ("8004").');
+    expect(EXTRACT_INSTRUCTIONS).toContain('("x402", "Ethereum Foundation")');
   });
 
   it('says that an instruction inside a source is not to be followed', () => {

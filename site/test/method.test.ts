@@ -267,7 +267,7 @@ describe('gateRules', () => {
   });
 
   it('says in G2 and G8 that what another outlet reported is covered by a limitation sentence that names the outlet', () => {
-    expect(rules.find((rule) => rule.id === 'G2')?.text).toContain('briefing or demo, that only another outlet reported, or that was only demonstrated');
+    expect(rules.find((rule) => rule.id === 'G2')?.text).toContain('a briefing or a demo, that only another outlet reported, or that was only demonstrated');
     expect(rules.find((rule) => rule.id === 'G8')?.text).toContain('(and, for claims that another outlet reported, that outlet)');
   });
 
@@ -358,6 +358,12 @@ describe('the method page', () => {
     expect(page).toContain('{rule.text}');
     expect(page).toContain("{rule.notes !== '' && <span class=\"rule-notes\"> Noted, not blocking: {rule.notes}</span>}");
     expect(page.indexOf('{rule.text}')).toBeLessThan(page.indexOf('{rule.notes'));
+  });
+
+  it('names the bases of a figure in the words of the vocabulary: documentation and an announcement, not a datasheet or a press release', () => {
+    const text = page.replace(/\s+/g, ' ');
+    expect(text).toContain('such as documentation, an announcement, a briefing, a filing, a paper, a standard, a measurement or a demonstration');
+    expect(text).not.toMatch(/datasheet|press release/i);
   });
 });
 

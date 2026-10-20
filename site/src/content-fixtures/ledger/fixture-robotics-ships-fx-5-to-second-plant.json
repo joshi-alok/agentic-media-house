@@ -1440,7 +1440,7 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "What is cited here was demonstrated; the source does not report it in commercial deployment.",
+      "text": "What is cited here was demonstrated; the source does not report it live in production.",
       "claimIds": [
         "c-27",
         "c-28"

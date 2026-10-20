@@ -91,8 +91,9 @@ describe('KNOWN_LIMITS', () => {
   });
 
   it('shows that a lone "one" is not read although "one" with a unit is, and that "half" is refused although other fractions are unseen', () => {
-    expect(withText(unseen, 'The word "one" on its own').text).toContain('"one kilogram" is read as 1 kg');
-    expect(extractTokens('The plant shipped one robot.').numbers).toEqual([]);
+    expect(withText(unseen, 'The word "one" on its own').text).toContain('so "one transaction" is compared with no claim, although "one kilogram" is read as 1 kg');
+    expect(withText(unseen, 'The word "one" on its own').example).toBe('The wallet signed one transaction.');
+    expect(extractTokens('The wallet signed one transaction.').numbers).toEqual([]);
     expect(extractTokens('The plant shipped one kilogram of grease.').numbers).toEqual([{ raw: 'one kilogram', value: '1', unit: 'kg' }]);
     expect(extractTokens('The plant shipped a half of the arms.').uncheckable).toEqual(['half']);
     expect(extractTokens('A third of the arms shipped.').uncheckable).toEqual([]);

@@ -23,7 +23,7 @@ export const BASIS_NOTES: Readonly<Record<Basis, string>> = {
 
 /** What a claim's `status` tells the reader about how far the capability has got. */
 export const STATUS_NOTES: Readonly<Record<Status, string>> = {
-  demonstrated: 'What is cited here was demonstrated; the source does not report it in commercial deployment.',
+  demonstrated: 'What is cited here was demonstrated; the source does not report it live in production.',
   deployed: 'The company states that what is cited here is deployed; no independent confirmation was available.',
   planned: 'What is cited here is planned, not delivered.',
   unspecified: 'The source does not say whether what is cited here has been demonstrated or deployed.',

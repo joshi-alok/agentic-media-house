@@ -1,6 +1,6 @@
 # Agentic Media House
 
-Agentic Media House is a robotics news site, and the Desk is the pipeline that will write it. A piece will publish without a human only when a code-based gate finds no blocker (every number, date and quotation of a factual sentence traces to a quoted span of a source, and every factual sentence cites a claim) and an independent model check agrees that each factual sentence says what its sources say. Rules about length, shape, capitalised names and filler are notes: they are recorded on the receipts page of the piece and do not stop it. Anything the gate or the model check cannot clear will be held for the owner. This repository holds the gate, the ledger format, the renderer, the site and the Desk itself. The Desk is built and tested offline, with scripted models; it has not yet run against live sources or a live model, and nothing it writes has been published (see Which parts are live and The desk workspace).
+Agentic Media House is a publication about AI agents in crypto, and the Desk is the pipeline that will write it. A piece will publish without a human only when a code-based gate finds no blocker (every number, date and quotation of a factual sentence traces to a quoted span of a source, and every factual sentence cites a claim) and an independent model check agrees that each factual sentence says what its sources say. Rules about length, shape, capitalised names and filler are notes: they are recorded on the receipts page of the piece and do not stop it. Anything the gate or the model check cannot clear will be held for the owner. This repository holds the gate, the ledger format, the renderer, the site and the Desk itself. The Desk is built and tested offline, with scripted models; it has not yet run against live sources or a live model, and nothing it writes has been published (see Which parts are live and The desk workspace).
 
 The full design is in [`docs/superpowers/specs/2026-10-04-the-desk-design.md`](docs/superpowers/specs/2026-10-04-the-desk-design.md).
 
@@ -21,7 +21,7 @@ The workspace packages export their TypeScript source directly, so there is no b
 
 `sources.yml` is the tiered registry of where stories come from.
 
-- Tier 1 (primary) sources are what the Desk writes from: a company's own announcement, a paper, a filing, a standard, a results sheet.
+- Tier 1 (primary) sources are what the Desk writes from: a project's, a company's or a researcher's own post, announcement or documentation, a paper, a filing, a standard or a proposal.
 - Tier 2 (secondary) sources are what the Desk discovers from: other outlets' feeds that say something happened. The Desk never states a fact on their authority: a claim that only a tier 2 source gives may appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece may rest entirely on another outlet's reporting and be published without a human when the gate and the model check clear it.
 
 If a story has no reachable tier-1 source, that fact goes in the piece. It is never quietly laundered through a competitor's reporting.

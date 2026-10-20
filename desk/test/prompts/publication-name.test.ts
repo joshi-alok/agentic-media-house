@@ -8,14 +8,14 @@ import { verifySystem } from '../../src/prompts/verify';
 // A model is told whom it works for. The name comes from the gate's constant, so that it is spelled in one place,
 // and no prompt may carry a name that the publication no longer has.
 
-// What the prompt says the publication is: the writer of a piece is told that it works for a publication whose every factual sentence traces to a source (the
-// piece is whatever kind its profile says, so it is not called news), and the other stages that it is a robotics news site.
+// What the prompt says the publication is: every stage is told that it works for a publication about AI agents in crypto (the piece is whatever kind its
+// profile says, so the publication is not called news).
 const PROMPTS = [
-  ['select', selectSystem, 'a robotics news site'],
-  ['extract', extractSystem, 'a robotics news site'],
-  ['compose', composeSystem, 'a publication whose every factual sentence'],
-  ['revise', reviseSystem, 'a publication whose every factual sentence'],
-  ['verify', verifySystem, 'a robotics news site'],
+  ['select', selectSystem, 'a publication about AI agents in crypto'],
+  ['extract', extractSystem, 'a publication about AI agents in crypto'],
+  ['compose', composeSystem, 'a publication about AI agents in crypto'],
+  ['revise', reviseSystem, 'a publication about AI agents in crypto'],
+  ['verify', verifySystem, 'a publication about AI agents in crypto'],
 ] as const;
 
 describe.each(PROMPTS)('the %s prompt', (_stage, system, what) => {

@@ -30,7 +30,9 @@ export interface GateConfig {
 
 /** Filler and hype that the house style does not allow. Compared in lowercase. */
 export const DEFAULT_BANNED_PHRASES: readonly string[] = [
-  "in today's fast-moving world of robotics",
+  "in today's fast-moving world of crypto",
+  'in the ever-changing world of web3',
+  'the future of finance is here',
   'game-changer',
   'game changer',
   'revolutionary',

@@ -104,7 +104,7 @@ export const checkG2: Check = ({ draft, claims }, ctx) => {
     const ids = [...new Set(needs.map((need) => need.claim.id))].join(', ');
     fail(
       'G2_LIMITATIONS_MISSING',
-      `claims ${ids} need a note on what could not be verified (they rest on a datasheet, press release, briefing or demo, or are only demonstrated or planned), but there is no "What we couldn't verify" section`,
+      `claims ${ids} need a note on what could not be verified (they rest on documentation, an announcement, a briefing or a demo, or are only demonstrated or planned), but there is no "What we couldn't verify" section`,
       'limitations',
     );
   } else {

@@ -119,6 +119,14 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain(`The description is at most ${GATE.descriptionMax} characters.`);
   });
 
+  // The publication does not call the price of a token, tell where it will go or tell the reader what to buy: the writer is told so, in the draft and in the revision.
+  it('says in a rule that blocks that there is no price prediction, no market call, no advice and no ticker with a dollar sign', () => {
+    const line =
+      '- (blocks) Write no price prediction, no market call and no advice to buy, sell or hold. Do not say where a price will go, do not call a token or a project a good or bad investment, and do not write a ticker with a dollar sign.';
+    expect(composeRules()).toContain(line);
+    for (const prompt of [COMPOSE_INSTRUCTIONS, REVISE_INSTRUCTIONS]) expect(prompt).toContain(line);
+  });
+
   it('lists every banned phrase of the gate', () => {
     for (const phrase of GATE.bannedPhrases) expect(COMPOSE_INSTRUCTIONS).toContain(phrase);
   });
@@ -373,7 +381,7 @@ describe('composeRules: what blocks and what is noted', () => {
 
   it('opens the prompt of the draft and the prompt of the revision with the same line', () => {
     expect(REVISE_INSTRUCTIONS.split('\n')[0]).toBe(COMPOSE_INSTRUCTIONS.split('\n')[0]);
-    expect(COMPOSE_INSTRUCTIONS.split('\n')[0]).toContain('a publication whose every factual sentence traces to a passage of a source.');
+    expect(COMPOSE_INSTRUCTIONS.split('\n')[0]).toContain('a publication about AI agents in crypto whose every factual sentence traces to a passage of a source.');
   });
 
   it('has no rule about the first word of a fact sentence', () => {

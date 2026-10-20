@@ -78,7 +78,7 @@ describe('renderLimitation', () => {
   });
 
   it.each<[Status, string]>([
-    ['demonstrated', 'What is cited here was demonstrated; the source does not report it in commercial deployment.'],
+    ['demonstrated', 'What is cited here was demonstrated; the source does not report it live in production.'],
     ['deployed', 'The company states that what is cited here is deployed; no independent confirmation was available.'],
     ['planned', 'What is cited here is planned, not delivered.'],
     ['unspecified', 'The source does not say whether what is cited here has been demonstrated or deployed.'],

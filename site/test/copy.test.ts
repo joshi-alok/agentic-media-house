@@ -98,9 +98,9 @@ describe('receiptsIntro', () => {
 
 describe('disclosure', () => {
   const OFF =
-    'Agentic Media House will be written by an automated pipeline, the Desk. A piece will be published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece will have a receipts page that shows the trace.';
+    "Agentic Media House will be written by an automated pipeline, the Desk. Every factual sentence will be traced to a passage of a source that the piece links; a sentence that rests on another outlet's reporting names the outlet; analysis is labelled. Nothing here is financial advice.";
   const ON =
-    'Agentic Media House is written by an automated pipeline, the Desk. A piece is published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece has a receipts page that shows the trace.';
+    "Agentic Media House is written by an automated pipeline, the Desk. Every factual sentence is traced to a passage of a source that the piece links; a sentence that rests on another outlet's reporting names the outlet; analysis is labelled. Nothing here is financial advice.";
 
   it.each(CASES)('is in the present tense only when the Desk publishes (%s)', (_name, live) => {
     expect(disclosure(live)).toBe(live.publishing ? ON : OFF);
@@ -109,17 +109,17 @@ describe('disclosure', () => {
   it.each([NONE, ALL])('names the pipeline and the rule, and claims no second model, human review or editor', (live) => {
     const text = disclosure(live);
     expect(text).toContain('automated pipeline');
-    expect(text).toContain('every factual sentence');
-    expect(text).toContain('primary source');
+    expect(text).toContain('Every factual sentence');
+    expect(text).toContain('a passage of a source that the piece links');
     expect(text).not.toMatch(/second model|verifier|independent|review|human|editor/i);
     expect(text.length).toBeLessThan(400);
   });
 });
 
 describe('siteDescription', () => {
-  const OFF = 'A robotics news site built so that every factual sentence links to the passage of a primary source it rests on. An automated pipeline will write it.';
-  const WRITTEN = 'Robotics news written by an automated pipeline. Every factual sentence links to the passage of a primary source that it rests on.';
-  const DAILY = 'Daily robotics news written by an automated pipeline. Every factual sentence links to the passage of a primary source that it rests on.';
+  const OFF = 'A publication about AI agents in crypto, built so that every factual sentence links to the passage of a source it rests on. An automated pipeline will write it.';
+  const WRITTEN = 'Writing on AI agents in crypto by an automated pipeline. Every factual sentence links to the passage of a source that it rests on.';
+  const DAILY = 'Daily writing on AI agents in crypto by an automated pipeline. Every factual sentence links to the passage of a source that it rests on.';
 
   it.each(CASES)('claims a running service, and a daily one, only when they are live (%s)', (_name, live) => {
     expect(siteDescription(live)).toBe(!live.publishing ? OFF : live.scheduler ? DAILY : WRITTEN);
@@ -136,9 +136,9 @@ describe('siteDescription', () => {
 
 describe('deskIntro', () => {
   const OFF =
-    'Agentic Media House is a robotics news site, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace will be public on its receipts page. What the code cannot trace will not be published.';
+    'Agentic Media House is a publication about AI agents in crypto, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a source that the piece links, and the trace will be public on its receipts page. What the code cannot trace will not be published.';
   const ON =
-    'Agentic Media House is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot trace is not published.';
+    'Agentic Media House is a publication about AI agents in crypto. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a source that the piece links, and the trace is public. What the code cannot trace is not published.';
 
   it.each(CASES)('is in the present tense only when the Desk publishes (%s)', (_name, live) => {
     expect(deskIntro(live)).toBe(live.publishing ? ON : OFF);
@@ -406,7 +406,7 @@ describe('statusPageIntro', () => {
 
 describe('sourcesText', () => {
   const TIERS =
-    "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
+    "A tier 1 source is a primary one: a project's, a company's or a researcher's own post, announcement or documentation, a paper, a regulatory filing, a standard or a proposal.";
   const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting will be published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting as its own: every fact from it will be attributed to the outlet by name.`;
   const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting is published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting as its own: every fact from it is attributed to the outlet by name.`;
 

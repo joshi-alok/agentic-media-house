@@ -305,6 +305,12 @@ describe('G2_LIMITATIONS_MISSING', () => {
     expect(out.failures[0]?.message).toContain('c-1');
   });
 
+  it('says in the failure what the claims rest on in the words of the vocabulary, because the Desk and the model read it', () => {
+    const message = resultAfter(noLimitations).failures[0]?.message;
+    expect(message).toContain('(they rest on documentation, an announcement, a briefing or a demo, or are only demonstrated or planned)');
+    expect(message).not.toMatch(/datasheet|press release/i);
+  });
+
   it.each(['docs', 'announcement', 'briefing', 'demo', 'reported'] as const)('treats a %s claim as needing limitations', (basis) => {
     const change = (g: GateInput) => {
       needNothing(g);

@@ -25,7 +25,7 @@ export const HOLD_REASONS = ['TIER2_ATTRIBUTION'] as const;
  * The basis of a claim says which of the two it is. A claim that rests only on
  * another outlet has the basis `reported`, and no other claim has it: a tier-2
  * claim with any other basis (G6_TIER2_BASIS) would borrow the standing of a
- * filing or a datasheet, and a tier-1 claim with the basis `reported`
+ * filing or a standard, and a tier-1 claim with the basis `reported`
  * (G6_TIER1_REPORTED) would hide a primary source behind the label of a secondary
  * one. Each such claim is reported once, wherever a sentence cites it, a
  * limitation sentence included.

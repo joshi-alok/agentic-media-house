@@ -39,7 +39,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G2',
       name: 'Structure',
-      text: `There are at least 2 sections, every section has a heading, no heading is one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn't verify"), and every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
+      text: `There are at least 2 sections, every section has a heading, no heading is one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn't verify"), and every claim the piece cites that rests on a project's own documentation, an announcement, a briefing or a demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
       notes: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words, and a heading is at most ${headingMax} characters and not a question. These are targets for the kind of piece. A piece outside them is noted and published all the same, and its receipts page lists what was outside.`,
     },
     {
@@ -127,8 +127,8 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'unseen',
-    text: 'The word "one" on its own is not read as a number, so "one robot" is compared with no claim, although "one kilogram" is read as 1 kg.',
-    example: 'The plant shipped one robot.',
+    text: 'The word "one" on its own is not read as a number, so "one transaction" is compared with no claim, although "one kilogram" is read as 1 kg.',
+    example: 'The wallet signed one transaction.',
   },
   {
     kind: 'unseen',

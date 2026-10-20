@@ -13,16 +13,16 @@ import { releaseNote } from './receipts';
 
 /** The description of the site for search results and the feed. */
 export function siteDescription(live: Live = LIVE): string {
-  const rule = 'Every factual sentence links to the passage of a primary source that it rests on.';
-  if (!live.publishing) return 'A robotics news site built so that every factual sentence links to the passage of a primary source it rests on. An automated pipeline will write it.';
-  return live.scheduler ? `Daily robotics news written by an automated pipeline. ${rule}` : `Robotics news written by an automated pipeline. ${rule}`;
+  const rule = 'Every factual sentence links to the passage of a source that it rests on.';
+  if (!live.publishing) return 'A publication about AI agents in crypto, built so that every factual sentence links to the passage of a source it rests on. An automated pipeline will write it.';
+  return live.scheduler ? `Daily writing on AI agents in crypto by an automated pipeline. ${rule}` : `Writing on AI agents in crypto by an automated pipeline. ${rule}`;
 }
 
 /** The disclosure in the footer of every page. It names no second model, human or editor, because the method page describes those as plans. */
 export function disclosure(live: Live = LIVE): string {
   return live.publishing
-    ? `${PUBLICATION_NAME} is written by an automated pipeline, the Desk. A piece is published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece has a receipts page that shows the trace.`
-    : `${PUBLICATION_NAME} will be written by an automated pipeline, the Desk. A piece will be published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece will have a receipts page that shows the trace.`;
+    ? `${PUBLICATION_NAME} is written by an automated pipeline, the Desk. Every factual sentence is traced to a passage of a source that the piece links; a sentence that rests on another outlet's reporting names the outlet; analysis is labelled. Nothing here is financial advice.`
+    : `${PUBLICATION_NAME} will be written by an automated pipeline, the Desk. Every factual sentence will be traced to a passage of a source that the piece links; a sentence that rests on another outlet's reporting names the outlet; analysis is labelled. Nothing here is financial advice.`;
 }
 
 /** The introduction of a receipts page. */
@@ -38,8 +38,8 @@ export function receiptsIntro(live: Live = LIVE): string {
 /** The first paragraph of the method page. */
 export function deskIntro(live: Live = LIVE): string {
   return live.publishing
-    ? `${PUBLICATION_NAME} is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot trace is not published.`
-    : `${PUBLICATION_NAME} is a robotics news site, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace will be public on its receipts page. What the code cannot trace will not be published.`;
+    ? `${PUBLICATION_NAME} is a publication about AI agents in crypto. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a source that the piece links, and the trace is public. What the code cannot trace is not published.`
+    : `${PUBLICATION_NAME} is a publication about AI agents in crypto, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a source that the piece links, and the trace will be public on its receipts page. What the code cannot trace will not be published.`;
 }
 
 /** The parts that do not run, each with the flag that says it does, in the order the method page lists them. */
@@ -156,7 +156,7 @@ export function statusPageIntro(live: Live = LIVE): string {
 
 /** The paragraph on the method page about the two kinds of source. What the Desk does is in the tense of its flag; what the gate enforces is already true. */
 export function sourcesText(live: Live = LIVE): string {
-  const tiers = "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
+  const tiers = "A tier 1 source is a primary one: a project's, a company's or a researcher's own post, announcement or documentation, a paper, a regulatory filing, a standard or a proposal.";
   return live.publishing
     ? `${tiers} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting is published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting as its own: every fact from it is attributed to the outlet by name.`
     : `${tiers} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting will be published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting as its own: every fact from it will be attributed to the outlet by name.`;

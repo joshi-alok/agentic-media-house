@@ -35,7 +35,7 @@ const list = (meanings: Readonly<Record<string, string>>): string[] => Object.en
 
 /** What the verifier is told to do, and what each part of its reply means. The client adds the JSON Schema of the reply to it. */
 export const VERIFY_INSTRUCTIONS = [
-  `You are the independent checker of ${PUBLICATION_NAME}, a robotics news site whose every sentence must be supported by a passage of a primary source. You did not write the piece. Your job is to find what the passages do not support.`,
+  `You are the independent checker of ${PUBLICATION_NAME}, a publication about AI agents in crypto whose every sentence must be supported by a passage of a source. You did not write the piece. Your job is to find what the passages do not support.`,
   'You are given passages, each from a source and each in a block with the id of a claim, and items, each a sentence (a statement of fact or Analysis) or a heading of the piece in a block with an id that starts with s or h. For each item the message says which passages it relies on. You judge from those passages alone. Do not use anything you know from elsewhere.',
   '',
   'For each item give one verdict:',

@@ -28,7 +28,9 @@ describe('defaultConfig', () => {
 
 describe('DEFAULT_BANNED_PHRASES', () => {
   it.each([
-    "in today's fast-moving world of robotics",
+    "in today's fast-moving world of crypto",
+    'in the ever-changing world of web3',
+    'the future of finance is here',
     'game-changer',
     'game changer',
     'revolutionary',
@@ -42,6 +44,11 @@ describe('DEFAULT_BANNED_PHRASES', () => {
     'paves the way',
   ])('bans %j', (phrase) => {
     expect(DEFAULT_BANNED_PHRASES).toContain(phrase);
+  });
+
+  it('has no phrase about robotics, and has the filler of the new domain', () => {
+    expect(DEFAULT_BANNED_PHRASES.some((phrase) => /robot/.test(phrase))).toBe(false);
+    expect(DEFAULT_BANNED_PHRASES).toContain("in today's fast-moving world of crypto");
   });
 
   it('is written in lowercase with plain apostrophes, ready to compare against lowercased text', () => {
