@@ -621,7 +621,7 @@ describe('reviseReplySchema', () => {
     expect(schema.safeParse({ replacements: [] }).success).toBe(true);
   });
 
-  // The model check reads fact sentences and headings and never analysis, so a fact that it rejected must not come back as analysis.
+  // The model check judges analysis by a looser rule than a fact, so a fact sentence that it rejected must not come back as analysis.
   it('accepts a fact for a fact, analysis for analysis and a fact for analysis, and refuses analysis for a fact', () => {
     const opinion = { kind: 'analysis', text: 'An opinion.', claimIds: [] };
     expect(schema.safeParse({ replacements: [{ id: 's3', sentence }] }).success).toBe(true);

@@ -92,7 +92,8 @@ export interface KnownLimit {
    * `unseen`: the reader finds no number, date, name or amount in the example, so no claim is compared with it.
    * `misread`: the reader finds a number in the example that is not the amount the sentence means.
    * `strict`: the gate notes or refuses the example although the sentence may be fine.
-   * `unchecked`: the example is text that a model writes and no rule reads, or a name that a rule only notes: it passes whatever it says.
+   * `unchecked`: the example passes the checks of code whatever it says: text that a model writes and no rule reads, a name that a rule only notes, or an analysis sentence that
+   * only the model check judges (and a model can miss).
    */
   kind: 'unseen' | 'misread' | 'strict' | 'unchecked';
   text: string;
@@ -175,8 +176,8 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'unchecked',
-    text: 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in, and then by the model check, which refuses one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support. The page labels it Analysis.',
-    example: 'The arm never fails and is the safest on the market.',
+    text: 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in, and then by the model check, which refuses one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support. A model can miss one, and a judgement or a consequence that the passages plainly support is allowed by design, so an analysis sentence can still be wrong in a way that no rule sees; the page labels it Analysis.',
+    example: 'The delivery schedule matters more than the price.',
   },
   {
     kind: 'unchecked',

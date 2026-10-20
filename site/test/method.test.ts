@@ -465,7 +465,7 @@ describe('the README: blockers and notes, and another outlet', () => {
     expect(start).toBeGreaterThan(0);
     // The strings that desk/test/readme.test.ts pins stay.
     expect(bullet).toContain('**Analysis sentences.**');
-    expect(bullet).toContain('the model check (G10) then judges each of them beside the passages of the claims it cites, and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support');
+    expect(bullet).toContain('the model check (G10) then judges each of them beside the passages of the claims it cites (all the claims the piece cites, when it cites none), and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support');
     expect(bullet).not.toContain('is never asked about them');
     expect(bullet).not.toContain('Nothing reads what else an analysis sentence says');
     expect(bullet).toContain('where they stand (not in the title or the description)');

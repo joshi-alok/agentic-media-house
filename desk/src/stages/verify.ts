@@ -76,7 +76,7 @@ export function problemsOf(draft: Draft, gate: GateResult, failures: readonly Ve
  * The reply that the composer must give to a revision: for some of the items it was sent, a new sentence or a new heading, by id. The reply
  * need not cover every item (an item it leaves out stays as it is, and fails again), but it may not rewrite an item it was not sent, rewrite one
  * twice, or give a heading a sentence or a sentence a heading. A fact stays a fact: the model check judges an analysis sentence by a looser rule than a fact
- * (it only has to add nothing that the passages do not support), and the gate limits analysis differently, so a claim that the model check rejected as a fact
+ * (it only has to add nothing that the passages do not support), and the gate limits analysis differently, so a fact sentence that the model check rejected
  * could otherwise be rewritten as analysis and be judged by that looser rule. Analysis may become a fact (the model check then holds it to the stricter rule).
  * Strict at every level.
  */
