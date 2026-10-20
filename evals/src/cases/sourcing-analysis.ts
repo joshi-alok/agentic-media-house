@@ -63,12 +63,12 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
     },
   },
   {
-    id: 'analysis-in-opening',
+    id: 'analysis-in-title',
     check: 'G7',
     code: 'G7_ANALYSIS_PLACEMENT',
-    description: "A sentence of the opening paragraph is the Desk's own analysis.",
+    description: "The title is the Desk's own analysis.",
     apply: (base) => {
-      base.draft.opening[1] = toAnalysis(base.draft.opening[1]!);
+      base.draft.title = toAnalysis(base.draft.title);
       return base;
     },
   },

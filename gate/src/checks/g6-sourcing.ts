@@ -6,14 +6,13 @@ import { normaliseQuotes } from '../text';
 export const G6_CODES = ['G6_TIER2_UNATTRIBUTED', 'G6_TIER2_IN_ANALYSIS', 'G6_TIER2_BASIS', 'G6_TIER1_REPORTED'] as const;
 
 /**
- * Every reason a check can ask for a hold, as opposed to a failure. A piece with
- * a hold reason and no failure goes to the owner instead of being revised. The
- * site gives each reason a label, and a test there fails if one has none.
+ * Every reason a check can ask for a hold, as opposed to a failure. A piece with a hold reason and no failure goes to the owner instead of being
+ * revised. The site gives each reason a label, and a test there fails if one has none.
+ *
+ * TIER2_ATTRIBUTION is retired: no check asks for it any more, because a claim of another outlet that is written as an attribution publishes (the
+ * piece says whose reporting it is). It stays in the list so that a hold recorded before 2026-10-20 still has its label on the holds page.
  */
 export const HOLD_REASONS = ['TIER2_ATTRIBUTION'] as const;
-
-/** Why a piece that cites a tier-2 claim, even a properly attributed one, can never publish by itself. */
-const HOLD_TIER2 = HOLD_REASONS[0];
 
 /**
  * G6, sourcing: a claim from a tier-2 outlet (another publication's reporting)
@@ -21,10 +20,7 @@ const HOLD_TIER2 = HOLD_REASONS[0];
  * marked `attributed` and must name the outlet ("Mercer Wire reports that ...").
  * An analysis sentence may not cite one at all.
  *
- * A piece whose tier-2 citations are all properly attributed passes this
- * check but asks for a hold, once: the owner decides. The hold reason is
- * withheld while G6 still has a failure, because the piece goes back for
- * revision first.
+ * A piece whose tier-2 citations are all properly attributed passes this check; the article labels each such sentence, and the piece publishes.
  *
  * The basis of a claim says which of the two it is. A claim that rests only on
  * another outlet has the basis `reported`, and no other claim has it: a tier-2
@@ -40,7 +36,6 @@ const HOLD_TIER2 = HOLD_REASONS[0];
 export const checkG6: Check = ({ draft, claims }) => {
   const byId = new Map(claims.map((claim) => [claim.id, claim]));
   const failures: Failure[] = [];
-  let tier2Facts = 0;
 
   for (const located of allSentences(draft)) {
     const { sentence } = located;
@@ -61,7 +56,6 @@ export const checkG6: Check = ({ draft, claims }) => {
       continue;
     }
 
-    tier2Facts++;
     const text = normaliseQuotes(sentence.text).toLowerCase();
     const outlets = [...new Set(tier2.map((claim) => claim.source.outlet?.trim() ?? ''))];
     const unnamed = outlets.filter((outlet) => outlet === '' || !text.includes(normaliseQuotes(outlet).toLowerCase()));
@@ -99,5 +93,5 @@ export const checkG6: Check = ({ draft, claims }) => {
     }
   }
 
-  return { failures, holdReasons: failures.length === 0 && tier2Facts > 0 ? [HOLD_TIER2] : [] };
+  return { failures, holdReasons: [] };
 };

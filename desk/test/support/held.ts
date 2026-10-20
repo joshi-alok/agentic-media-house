@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Claim } from '@robywire/gate';
-import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
+import { GOLDEN_CLAIMS, GOLDEN_DRAFT, TIER2_OUTLET, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { HeldArtifact } from '../../src/run/artifacts';
 import { DryTarget } from '../../src/run/target';
 import { runCompose } from '../../src/stages/compose';
@@ -39,10 +39,22 @@ export function verdicts(scratch: () => string) {
     return { ...made, claims, verified };
   }
 
-  /** A piece that cites another outlet: the gate holds it for the owner, and the verifier clears it. */
+  /**
+   * A piece that cites another outlet, written as an attribution ("Mercer Wire reports that ..."): the gate clears it, because another outlet no longer forces a
+   * hold, and the model check holds it: the verifier says that the attributed sentence is not entailed, in every pass, and the composer does not mend it. The
+   * hold is a real one of the model check (G10_NOT_ENTAILED), and the held draft has the tier-2 claim, its outlet and the attributed sentence.
+   */
   async function tier2() {
     const variant = makeTier2Variant(cloneGolden());
-    return verdictOn({ reply: replyFromDraft(variant.draft), claims: variant.claims, verifier: (plan) => [verifierReply(plan)] });
+    return verdictOn({
+      reply: replyFromDraft(variant.draft),
+      claims: variant.claims,
+      revisions: [{ replacements: [] }, { replacements: [] }],
+      verifier: (plan) => {
+        const attributed = plan.sentences.find((item) => item.text.startsWith(TIER2_OUTLET))?.id as string;
+        return [0, 1, 2].map(() => verifierReply(plan, { verdicts: { [attributed]: 'not_entailed' } }));
+      },
+    });
   }
 
   /** A piece with a number that its claims do not say, which the composer does not mend in two rounds: the gate holds it with a failure of G4. */

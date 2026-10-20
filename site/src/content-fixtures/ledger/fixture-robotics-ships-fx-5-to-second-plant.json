@@ -1462,7 +1462,7 @@
       "G9": "pass"
     },
     "holdReasons": [
-      "TIER2_ATTRIBUTION"
+      "G10_AMBIGUOUS"
     ]
   },
   "release": "owner",

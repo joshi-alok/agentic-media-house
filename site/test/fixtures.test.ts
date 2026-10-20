@@ -69,17 +69,24 @@ describe('fixtureFiles: a fixture must be publishable', () => {
     const broken = fixturePieces();
     broken[1]!.input.draft.takeaways[0]!.claimIds = [];
     expect(() => fixtureFiles(broken)).toThrow(
-      'generate-fixtures: the fixture fixture-robotics-ships-fx-2-to-second-plant does not publish (route revise: G3_NO_CLAIM',
+      'generate-fixtures: the fixture fixture-robotics-ships-fx-2-to-second-plant is not cleared by the gate (route revise: G3_NO_CLAIM',
     );
   });
 
-  it('stops when the piece that should be held is cleared by the gate, or fails it', () => {
-    const cleared = fixturePieces();
-    cleared[4] = { ...cleared[0]!, slug: HELD_SLUG, runId: 'fixture-run-5', route: 'hold' };
-    expect(() => fixtureFiles(cleared)).toThrow(`generate-fixtures: the fixture ${HELD_SLUG} does not hold (route publish: none)`);
+  it('stops when the piece that the owner released is not cleared by the gate either', () => {
     const failing = fixturePieces();
     failing[4]!.input.draft.takeaways[0]!.claimIds = [];
-    expect(() => fixtureFiles(failing)).toThrow(`generate-fixtures: the fixture ${HELD_SLUG} does not hold (route revise: G3_NO_CLAIM`);
+    expect(() => fixtureFiles(failing)).toThrow(`generate-fixtures: the fixture ${HELD_SLUG} is not cleared by the gate (route revise: G3_NO_CLAIM`);
+  });
+
+  it('writes a piece that the gate clears and the owner released as a hold, with the reason of the model check, as the hold flow writes it', () => {
+    const released = fixturePieces();
+    released[4] = { ...released[0]!, slug: HELD_SLUG, runId: 'fixture-run-5', route: 'hold' };
+    const ledger = LedgerEntry.parse(JSON.parse(fixtureFiles(released).get(`ledger/${HELD_SLUG}.json`) as string));
+    expect(ledger.release).toBe('owner');
+    expect(ledger.gate.route).toBe('hold');
+    expect(ledger.gate.holdReasons).toEqual(['G10_AMBIGUOUS']);
+    expect(ledger.gate.checks).toEqual({ G1: 'pass', G2: 'pass', G3: 'pass', G4: 'pass', G5: 'pass', G6: 'pass', G7: 'pass', G8: 'pass', G9: 'pass' });
   });
 });
 
@@ -167,11 +174,11 @@ describe('fixtureFiles: how each piece was released', () => {
     expect(SLUGS.slice(0, 4).map((slug) => ledgerOf(slug).release)).toEqual(['auto', 'auto', 'auto', 'auto']);
   });
 
-  it('says the owner released the fifth, which the gate held for resting on another outlet', () => {
+  it('says the owner released the fifth, which was held because the model check could not tell if a sentence was supported', () => {
     const ledger = ledgerOf(HELD_SLUG);
     expect(ledger.release).toBe('owner');
     expect(ledger.gate.route).toBe('hold');
-    expect(ledger.gate.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+    expect(ledger.gate.holdReasons).toEqual(['G10_AMBIGUOUS']);
   });
 });
 
@@ -230,8 +237,8 @@ describe('fixtureFiles: the desk state', () => {
     expect(state.lastRun).toEqual({ at: '2026-10-04T04:41:12Z', outcome: 'published', runId: 'fixture-run-1', slug: GOLDEN_SLUG });
   });
 
-  it('records two holds, with a gate code and the tier-2 reason: the first on a day with no piece, the second released by the owner the same day', () => {
-    expect(state.holds.map((hold) => hold.reasons)).toEqual([['G4_NUMBER_UNSUPPORTED'], ['TIER2_ATTRIBUTION']]);
+  it('records two holds, with a gate code and the reason of the model check: the first on a day with no piece, the second released by the owner the same day', () => {
+    expect(state.holds.map((hold) => hold.reasons)).toEqual([['G4_NUMBER_UNSUPPORTED'], ['G10_AMBIGUOUS']]);
     expect(state.holds.map((hold) => hold.at.slice(0, 10))).toEqual(['2026-09-30', '2026-09-29']);
     expect(state.holds[0]!.prUrl).toBe('https://github.example/agentic-media-house/agentic-media-house/pull/12');
     expect(state.holds[1]!.prUrl).toBeUndefined();

@@ -10,8 +10,8 @@ import { afterOpeners, startsWithCapitalOrDigit } from '../text';
 /** Every failure code G7 can report. */
 export const G7_CODES = ['G7_ANALYSIS_PLACEMENT', 'G7_ANALYSIS_SHARE', 'G7_ANALYSIS_NEW_VALUE', 'G7_ANALYSIS_NEW_NAME'] as const;
 
-/** Parts of the piece where analysis is not allowed: the parts a reader takes as plain fact. */
-const NO_ANALYSIS: readonly LedgerSection[] = ['title', 'description', 'opening', 'takeaways'];
+/** Parts of the piece where analysis is not allowed: the title and the description, which are fact by contract. */
+const NO_ANALYSIS: readonly LedgerSection[] = ['title', 'description'];
 
 /** The sentences the share is measured over: everything below the title and the description. */
 const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitations'];
@@ -23,7 +23,7 @@ const MAX_FIRST_WORD = 40;
  * G7, analysis rules. Analysis is the Desk's own reading of the facts, and it
  * is kept on a short lead.
  *
- * - It may appear only in the sections of the body (G7_ANALYSIS_PLACEMENT).
+ * - It may not appear in the title or the description (G7_ANALYSIS_PLACEMENT).
  * - It may be at most `analysisShareCap` of the body's sentences
  *   (G7_ANALYSIS_SHARE). The body here is the opening, the takeaways, the
  *   sections and the limitations.
@@ -59,7 +59,7 @@ export const checkG7: Check = ({ draft, claims }, ctx) => {
     failures.push({
       check: 'G7',
       code: 'G7_ANALYSIS_PLACEMENT',
-      message: `the analysis sentence at ${where} is not allowed there: analysis belongs in the sections of the body`,
+      message: `the analysis sentence at ${where} is not allowed there: the title and the description state facts only`,
       where,
     });
   }

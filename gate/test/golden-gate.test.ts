@@ -201,7 +201,7 @@ describe('runGate on the golden piece with one thing wrong', () => {
 });
 
 describe('runGate when the piece rests on a tier-2 claim', () => {
-  it('holds a properly attributed piece: nothing failed, but it may not publish by itself', () => {
+  it('publishes a properly attributed piece: another outlet no longer forces a hold', () => {
     const result = api.runGate(
       mutate(cloneGolden(), (g) => {
         makeTier2(g);
@@ -210,30 +210,41 @@ describe('runGate when the piece rests on a tier-2 claim', () => {
       api.defaultContext(),
     );
     expect(result.failures).toEqual([]);
-    expect(result.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
-    expect(result.route).toBe('hold');
-    expect(Object.values(result.checks).every((value) => value === 'pass')).toBe(true);
+    expect(result.holdReasons).toEqual([]);
+    expect(result.route).toBe('publish');
   });
 
-  it('sends an unattributed piece back for revision instead: a failure beats a hold', () => {
+  it('sends an unattributed piece back for revision: that is still a blocker', () => {
     const result = api.runGate(mutate(cloneGolden(), makeTier2), api.defaultContext());
     expect(result.route).toBe('revise');
     expect(result.checks.G6).toBe('fail');
-    expect(result.holdReasons).toEqual([]);
   });
 
-  it('revises, and still lists the hold reason, when a properly attributed piece also has a failure elsewhere', () => {
+  it('keeps the retired hold reason in the list, so an old hold still has its label', () => {
+    expect(api.HOLD_REASONS).toEqual(['TIER2_ATTRIBUTION']);
+  });
+});
+
+describe('runGate: where analysis may stand', () => {
+  it('lets analysis stand in the takeaways', () => {
     const result = api.runGate(
       mutate(cloneGolden(), (g) => {
-        makeTier2(g);
-        attribute(g);
-        g.draft.sections[0]!.heading = '';
+        const takeaway = g.draft.takeaways[0]!;
+        g.draft.takeaways[0] = { kind: 'analysis', text: takeaway.text, claimIds: takeaway.claimIds };
       }),
       api.defaultContext(),
     );
-    expect(result.route).toBe('revise');
-    expect(result.checks.G2).toBe('fail');
-    expect(result.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+    expect(result.failures.map((item) => item.code)).not.toContain('G7_ANALYSIS_PLACEMENT');
+  });
+
+  it('still keeps analysis out of the title and the description', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.title = { kind: 'analysis', text: g.draft.title.text, claimIds: g.draft.title.claimIds };
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures.map((item) => item.code)).toContain('G7_ANALYSIS_PLACEMENT');
   });
 });
 

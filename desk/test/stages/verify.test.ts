@@ -358,22 +358,22 @@ describe('runVerify: a draft that is never mended is held', () => {
   });
 });
 
-describe('runVerify: a piece that cites another outlet is never published by itself', () => {
-  it('is held after the verifier has passed it, with nothing sent back', async () => {
+describe('runVerify: a piece that cites another outlet, written as an attribution', () => {
+  it('is published when it is clean: the gate clears it and the verifier passes it, with nothing sent back', async () => {
     const tier2 = makeTier2Variant(cloneGolden());
     const { ctx, fake, composed, logs } = await start(() => undefined, { claims: tier2.claims, base: replyFromDraft(tier2.draft) });
-    expect(composed.gate.route).toBe('hold');
+    expect(composed.gate.route).toBe('publish');
     fake.script('verify', verifierReply(verifyPlanOf(composed.draft, tier2.claims)));
     const result = await runVerify(ctx, tier2.claims, composed);
-    expect(result.outcome).toBe('hold');
-    expect(result.gate.route).toBe('hold');
-    expect(result.gate.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+    expect(result.outcome).toBe('publish');
+    expect(result.gate.route).toBe('publish');
+    expect(result.gate.holdReasons).toEqual([]);
     expect(result.verifier.passed).toBe(true);
     expect(result.rounds).toBe(0);
     expect(callsOf(fake, 'verify')).toHaveLength(1);
     expect(callsOf(fake, 'compose')).toHaveLength(1);
-    expect((await readArtifact(ctx.runDir, '06-verify', VerifyArtifact)).outcome).toBe('hold');
-    expect(logs.filter((line) => line.startsWith('verify: round'))).toEqual(['verify: round 0: the gate says hold, the model check passed']);
+    expect((await readArtifact(ctx.runDir, '06-verify', VerifyArtifact)).outcome).toBe('publish');
+    expect(logs.filter((line) => line.startsWith('verify: round'))).toEqual(['verify: round 0: the gate says publish, the model check passed']);
   });
 });
 

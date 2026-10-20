@@ -8,9 +8,9 @@ import { allSentences, citedClaims } from '../src/sentences';
 import { claimById, mutate } from './helpers';
 
 // The tier-2 variant is the golden piece with one fact that another outlet
-// reported, written the way check G6 demands. The gate does not publish such a
-// piece by itself; it holds it for the owner. The site's fifth fixture piece
-// is made from it, and the renderer tests use it.
+// reported, written the way check G6 demands. The gate publishes such a piece:
+// the article labels the sentence, and another outlet no longer forces a hold.
+// The site's fifth fixture piece is made from it, and the renderer tests use it.
 
 const attributedSentence = (input: ReturnType<typeof cloneGolden>) =>
   allSentences(input.draft).find((item) => item.sentence.kind === 'fact' && item.sentence.text.startsWith(TIER2_OUTLET))?.sentence;
@@ -18,11 +18,11 @@ const attributedSentence = (input: ReturnType<typeof cloneGolden>) =>
 describe('makeTier2Variant', () => {
   const variant = makeTier2Variant(cloneGolden());
 
-  it('passes every check and asks for a hold, because it rests on another outlet', () => {
+  it('passes every check and publishes, because the claim of another outlet is written as an attribution', () => {
     const result = runGate(variant, defaultContext());
     expect(result.failures).toEqual([]);
-    expect(result.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
-    expect(result.route).toBe('hold');
+    expect(result.holdReasons).toEqual([]);
+    expect(result.route).toBe('publish');
   });
 
   it('turns the investor count into a tier-2 claim of the outlet, with the basis reported, on a .example address with a hash of its own', () => {
@@ -87,7 +87,7 @@ describe('makeTier2Variant', () => {
       ],
     });
     const result = makeTier2Variant(second);
-    expect(runGate(result, defaultContext()).route).toBe('hold');
+    expect(runGate(result, defaultContext()).route).toBe('publish');
     expect(claimById(result.claims, 'c-19').source.retrievedAt).toBe('2026-09-30T04:30:00Z');
   });
 

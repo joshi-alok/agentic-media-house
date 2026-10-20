@@ -22,9 +22,9 @@ const ATTRIBUTED_SENTENCE = `${TIER2_OUTLET} reports that 7 investors took part 
  * marked `attributed`. A reported claim needs a limitation sentence, so the
  * limitations are built again from the claims the piece cites.
  *
- * Nothing fails in the gate, but a piece that rests on another outlet is never
- * published by itself: the gate asks for a hold (TIER2_ATTRIBUTION) and the
- * owner decides. `base` is never changed.
+ * Nothing fails in the gate and it publishes the piece. The fixture generator
+ * stands it for a held draft that the owner released, with a hold of the model
+ * check, so the site has an owner-released example. `base` is never changed.
  */
 export function makeTier2Variant(base: GateInput): GateInput {
   const copy = structuredClone(base);

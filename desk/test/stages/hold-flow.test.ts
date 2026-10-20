@@ -108,7 +108,7 @@ describe('runHold with a forge: the piece is sent to the owner', () => {
     expect(result.files).toEqual([STATE]);
     expect(await readDeskState(path.join(repoDir, STATE))).toEqual({
       lastRun: { at: HOLD_RUN.at, outcome: 'held', runId: HOLD_RUN.runId, slug },
-      holds: [{ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], prUrl: result.pullRequest?.url, slug }],
+      holds: [{ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['G10_NOT_ENTAILED'], prUrl: result.pullRequest?.url, slug }],
       corrections: [],
     });
     expect(git(repoDir, 'diff', '--name-only', `main~1`, 'main')).toBe(STATE);
@@ -128,7 +128,7 @@ describe('runHold with a forge: the piece is sent to the owner', () => {
     const result = await runHold(ctx, target, claims, verified, HOLD_RUN, forge);
     expect(existsSync(result.file)).toBe(true);
     expect(logs).toContain(`hold: ${slug} is sent to the owner as the draft pull request https://github.example/agentic-media-house/pull/1 (branch ${branch})`);
-    expect(logs.at(-1)).toMatch(/^hold: .* is held for TIER2_ATTRIBUTION, written to /);
+    expect(logs.at(-1)).toMatch(/^hold: .* is held for G10_NOT_ENTAILED, written to /);
   });
 
   it('sends a piece that was held by the model check, which the gate cleared, in the same way', async () => {
@@ -314,7 +314,7 @@ describe('runHold with a forge: what is not sent', () => {
     expect(result.note).toContain('c-99');
     expect(forge.calls).toEqual([]);
     expect(branchesIn(repoDir)).toEqual(['main']);
-    expect((await readDeskState(path.join(repoDir, STATE))).holds).toEqual([{ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], slug }]);
+    expect((await readDeskState(path.join(repoDir, STATE))).holds).toEqual([{ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['G10_NOT_ENTAILED'], slug }]);
     expect(subjectsOf(repoDir)).toEqual([`desk: hold ${slug}`, 'start']);
     expect(existsSync(result.file)).toBe(true);
   });
@@ -336,6 +336,6 @@ describe('runHold with a forge: what is not sent', () => {
     expect(result.note).toBeNull();
     expect(branchesIn(repoDir)).toEqual(['main']);
     expect(subjectsOf(repoDir)).toEqual([`desk: hold ${slug}`, 'start']);
-    expect((await readDeskState(path.join(repoDir, STATE))).holds[0]).toEqual({ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['TIER2_ATTRIBUTION'], slug });
+    expect((await readDeskState(path.join(repoDir, STATE))).holds[0]).toEqual({ at: HOLD_RUN.at, categories: verified.draft.categories, reasons: ['G10_NOT_ENTAILED'], slug });
   });
 });

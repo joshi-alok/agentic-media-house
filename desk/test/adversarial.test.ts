@@ -202,17 +202,6 @@ const BAD: Scenario[] = [
     rounds: 2,
   },
   {
-    name: 'a claim of another outlet that is attributed and verified, which still goes to the owner',
-    script: () =>
-      told({
-        claims: [...DEMO_CLAIMS, REPORTED],
-        piece: reply((copy) => { copy.takeaways[3] = { kind: 'fact', text: 'Mercer Wire reports that the arm is priced from $38,000.', claimIds: ['c-8'], attributed: true }; }),
-        verify: [clearingVerifier],
-      }),
-    reasons: ['TIER2_ATTRIBUTION'],
-    rounds: 0,
-  },
-  {
     name: 'a claim whose quotation is not in the source, which the piece then cites',
     script: () => told({ claims: [...DEMO_CLAIMS, NOT_ON_THE_PAGE], piece: reply((copy) => { copy.takeaways[3] = fact('The FX-1 weighs 38 kg.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
@@ -665,6 +654,27 @@ describe('the adversarial matrix: the ways to end that are not bad', () => {
     expect(result.outcome).toBe('published');
     expect(contentOf(made.repoDir)).toHaveLength(4);
     expect(made.git.commits).toHaveLength(1);
+  });
+
+  it('ends published a claim of another outlet that is written as an attribution when the script is clean, so the scenario of the claim stated as fact is held for what is wrong in it and not for the outlet', async () => {
+    const made = setupRun(scratch, {
+      fake: told({
+        claims: [...DEMO_CLAIMS, REPORTED],
+        piece: reply((copy) => { copy.takeaways[3] = { kind: 'fact', text: 'Mercer Wire reports that the arm is priced from $38,000.', claimIds: ['c-8'], attributed: true }; }),
+        verify: [clearingVerifier],
+        revisions: [],
+      }),
+    });
+    const result = await made.run();
+    expect(result.outcome).toBe('published');
+    expect(contentOf(made.repoDir)).toHaveLength(4);
+    expect(made.git.commits).toHaveLength(1);
+    const verified = await readArtifact(result.dir, '06-verify', VerifyArtifact);
+    expect(verified.outcome).toBe('publish');
+    expect(verified.rounds).toBe(0);
+    expect(verified.gate.failures).toEqual([]);
+    expect(verified.gate.holdReasons).toEqual([]);
+    expect((await readDeskState(path.join(made.repoDir, STATE))).holds).toEqual([]);
   });
 
   it('ends published a composer that fixes its draft when it is sent back once, so the scenarios above are held for what is wrong in them and not for the revision', async () => {

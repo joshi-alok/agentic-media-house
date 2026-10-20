@@ -65,15 +65,13 @@ describe('G7_ANALYSIS_PLACEMENT', () => {
   it.each([
     ['the title', (g: GateInput) => (g.draft.title = asAnalysis(g.draft.title)), 'title'],
     ['the description', (g: GateInput) => (g.draft.description = asAnalysis(g.draft.description)), 'description'],
-    ['the opening', (g: GateInput) => (g.draft.opening[1] = asAnalysis(g.draft.opening[1]!)), 'opening, sentence 2'],
-    ['the takeaways', (g: GateInput) => (g.draft.takeaways[3] = asAnalysis(g.draft.takeaways[3]!)), 'takeaways, sentence 4'],
   ])('fails an analysis sentence in %s', (_name, change, where) => {
     const output = run((g) => void change(g));
     expect(output.failures).toEqual([
       {
         check: 'G7',
         code: 'G7_ANALYSIS_PLACEMENT',
-        message: `the analysis sentence at ${where} is not allowed there: analysis belongs in the sections of the body`,
+        message: `the analysis sentence at ${where} is not allowed there: the title and the description state facts only`,
         where,
       },
     ]);
@@ -82,9 +80,16 @@ describe('G7_ANALYSIS_PLACEMENT', () => {
   it('reports each misplaced sentence, in document order', () => {
     const output = run((g) => {
       g.draft.title = asAnalysis(g.draft.title);
-      g.draft.opening[0] = asAnalysis(g.draft.opening[0]!);
+      g.draft.description = asAnalysis(g.draft.description);
     });
-    expect(output.failures.map((failure) => failure.where)).toEqual(['title', 'opening, sentence 1']);
+    expect(output.failures.map((failure) => failure.where)).toEqual(['title', 'description']);
+  });
+
+  it.each([
+    ['the opening', (g: GateInput) => (g.draft.opening[1] = asAnalysis(g.draft.opening[1]!))],
+    ['the takeaways', (g: GateInput) => (g.draft.takeaways[3] = asAnalysis(g.draft.takeaways[3]!))],
+  ])('allows analysis in %s: a blog needs a voice there, and only the title and the description are closed to it', (_name, change) => {
+    expect(codes(run((g) => void change(g)))).not.toContain('G7_ANALYSIS_PLACEMENT');
   });
 
   it('allows analysis in the sections of the body', () => {
@@ -208,7 +213,7 @@ describe('G7_ANALYSIS_NEW_VALUE: numbers', () => {
 
   it('reads an analysis sentence in the wrong place for new values as well as for placement', () => {
     const output = run((g) => {
-      g.draft.opening[1] = { kind: 'analysis', text: 'That is 22% more than before.', claimIds: [] };
+      g.draft.description = { kind: 'analysis', text: 'That is 22% more than before.', claimIds: [] };
     });
     expect(codes(output)).toEqual(['G7_ANALYSIS_PLACEMENT', 'G7_ANALYSIS_NEW_VALUE']);
   });

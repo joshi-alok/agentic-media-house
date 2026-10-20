@@ -23,6 +23,12 @@ const metaFor = (input: GateInput, extra: Partial<RenderMeta> = {}): RenderMeta 
 });
 const render = (input: GateInput, extra: Partial<RenderMeta> = {}) => renderDraft(input.draft, input.claims, metaFor(input, extra));
 
+/**
+ * The gate result of a piece that was held: the gate itself clears the tier-2 variant, so the hold is made the way the hold flow makes it (a gate result
+ * with the route hold and the reasons of the hold), here for a model check that could not tell.
+ */
+const heldGate = (input: GateInput): GateResult => ({ ...passed(input), route: 'hold', holdReasons: ['G10_AMBIGUOUS'] });
+
 /** The frontmatter text and the body of a rendered piece. */
 function splitMdx(mdx: string): { frontmatter: string; body: string } {
   const match = /^---\n([\s\S]*?)\n---\n\n([\s\S]*)$/.exec(mdx);
@@ -245,13 +251,13 @@ describe('renderDraft: the ledger', () => {
     expect('release' in ledger).toBe(false);
     expect(render(golden, { release: 'auto' }).ledger.release).toBe('auto');
     const tier2 = makeTier2Variant(cloneGolden());
-    expect(render(tier2, { release: 'owner' }).ledger.release).toBe('owner');
-    expect(LedgerEntry.parse(render(tier2, { release: 'owner' }).ledger).release).toBe('owner');
+    expect(render(tier2, { gate: heldGate(tier2), release: 'owner' }).ledger.release).toBe('owner');
+    expect(LedgerEntry.parse(render(tier2, { gate: heldGate(tier2), release: 'owner' }).ledger).release).toBe('owner');
   });
 
   it('refuses a release the route of the gate contradicts: the page would say something false', () => {
     const tier2 = makeTier2Variant(cloneGolden());
-    expect(() => render(tier2, { release: 'auto' })).toThrow('renderDraft: release "auto" needs a gate route of publish, but the route is hold');
+    expect(() => render(tier2, { gate: heldGate(tier2), release: 'auto' })).toThrow('renderDraft: release "auto" needs a gate route of publish, but the route is hold');
     expect(() => render(golden, { release: 'owner' })).toThrow('renderDraft: release "owner" is for a piece the gate did not clear, but the route is publish');
   });
 

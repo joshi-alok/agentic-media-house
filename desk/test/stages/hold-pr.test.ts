@@ -18,7 +18,10 @@ import { makeSite } from '../support/site';
 const scratch = useScratch();
 const made = verdicts(scratch);
 
-/** The three ways that a piece is held, each as the Hold stage keeps it. */
+/**
+ * The three ways that a piece is held, each as the Hold stage keeps it. A piece that cites another outlet is held by the model check, which does not clear
+ * the sentence that attributes the claim: the gate clears it, because another outlet no longer forces a hold.
+ */
 const KINDS = {
   'cites another outlet': () => made.tier2(),
   'fails a check of the gate': () => made.gateFailure(),
@@ -118,6 +121,10 @@ describe('holdPrBody', () => {
   it('says what was held, why, what each check said, and how to publish or discard it: a piece that cites another outlet', async () => {
     const held = await heldBy('cites another outlet');
     const slug = held.draft.slug;
+    // The one sentence that the model check did not clear is the one that attributes the claim to the other outlet.
+    const failed = (held.history.at(-1) as HeldArtifact['history'][number]).verifierFailures;
+    expect(failed).toHaveLength(1);
+    expect(held.reasons).toEqual(['G10_NOT_ENTAILED']);
     expect(holdPrBody(held)).toBe(
       [
         `# Held by the Desk: \`${slug}\``,
@@ -126,7 +133,7 @@ describe('holdPrBody', () => {
         '',
         '## Why it was held',
         '',
-        "- `TIER2_ATTRIBUTION`: Rests on another outlet's reporting",
+        `- \`G10_NOT_ENTAILED\`: ${REASON_LABELS.G10_NOT_ENTAILED}`,
         '',
         '## The piece',
         '',
@@ -136,7 +143,7 @@ describe('holdPrBody', () => {
         '| Day | `2026-10-05` |',
         `| Categories | ${held.draft.categories.map((category) => `\`${category}\``).join(', ')} |`,
         '| Run | `2026-10-05-043100` |',
-        '| Rounds of revision | 0 |',
+        '| Rounds of revision | 2 |',
         `| The article | \`site/src/content/news/${slug}.mdx\` |`,
         `| Its ledger | \`site/src/content/ledger/${slug}.json\` |`,
         '',
@@ -152,12 +159,18 @@ describe('holdPrBody', () => {
         '',
         '## What the model check said',
         '',
-        'The model check (`claude-sonnet-5-5`) passed the last draft.',
+        'The model check (`claude-sonnet-5-5`) did not pass the last draft.',
         '',
         'Its notes:',
         '',
         '```text',
         ...held.verifier.notes,
+        '```',
+        '',
+        'What it did not clear:',
+        '',
+        '```text',
+        ...failed.map((failure) => `${failure.id} (${failure.kind}, ${failure.code}): ${failure.reason}`),
         '```',
         '',
         '## To publish it',
@@ -198,10 +211,17 @@ describe('holdPrBody', () => {
 
   it('says in the Desk\'s own words that it has no words for a code that the holds page does not know, and never repeats the code as if it were an explanation', async () => {
     const held = structuredClone(await heldBy('cites another outlet'));
-    held.reasons = ['TIER2_ATTRIBUTION', 'G99_NOT_A_CODE'];
+    held.reasons = ['G10_NOT_ENTAILED', 'G99_NOT_A_CODE'];
     expect(holdPrBody(held)).toContain('- `G99_NOT_A_CODE`: no plain words are written for this code');
     held.reasons = ['constructor'];
     expect(holdPrBody(held)).toContain('- `constructor`: no plain words are written for this code');
+  });
+
+  it('still gives the words for the retired reason of a hold recorded before the gate stopped holding for another outlet', async () => {
+    // Plain data, not the output of a stage: no check asks for TIER2_ATTRIBUTION any more, but an old hold has it, and its pull request is written again from the held draft.
+    const held = structuredClone(await heldBy('cites another outlet'));
+    held.reasons = ['TIER2_ATTRIBUTION'];
+    expect(holdPrBody(held)).toContain(`- \`TIER2_ATTRIBUTION\`: ${REASON_LABELS.TIER2_ATTRIBUTION}`);
   });
 
   it('is the same text every time', async () => {
