@@ -53,9 +53,14 @@ describe('desk.config.yml', () => {
     }
   });
 
-  it('keeps the runs in the folder that the workflow uploads from, and no other setting changes how a run behaves', () => {
+  it('writes a piece as an explainer', () => {
+    expect(SETTINGS.profile).toBe('explainer');
+    expect(loadConfig(FILE).profile).toBe('explainer');
+  });
+
+  it('keeps the runs in the folder that the workflow uploads from, and sets no other setting that changes how a run behaves than the kind of piece', () => {
     expect(loadConfig(FILE).runDir).toBe('runs');
-    expect(Object.keys(SETTINGS).sort()).toEqual(['budget', 'evidence', 'maxAttemptsPerDay', 'runDir', 'userAgent']);
+    expect(Object.keys(SETTINGS).sort()).toEqual(['budget', 'evidence', 'maxAttemptsPerDay', 'profile', 'runDir', 'userAgent']);
   });
 
   it('has nothing in it that is shaped like a secret, and no setting that is named like one or that describes the bucket', () => {

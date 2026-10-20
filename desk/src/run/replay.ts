@@ -148,6 +148,7 @@ export async function replayRun(runDir: string, options: ReplayOptions): Promise
         evidence: options.evidence,
         runDir: folder,
         published,
+        ...(record.profile === undefined ? {} : { profile: record.profile }),
         log: (line) => void log.push(line),
       };
       const extracted = await runExtract(ctx, snapshots, selected);

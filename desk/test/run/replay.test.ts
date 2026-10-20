@@ -40,6 +40,15 @@ describe('replayRun: a run that is replayed as it was', () => {
     expect(REPLAYED).toEqual(['04-extract', '05-compose', '06-verify']);
   });
 
+  it('takes the profile from the record of the run and not from the settings it is given', async () => {
+    const { dir, replay } = await recordedRun({ config: { profile: 'brief' } });
+    expect(recordOf(dir).profile).toBe('brief');
+    const { profile: _profile, ...settings } = replay.config;
+    const report = await replayRun(dir, { ...replay, config: settings });
+    expect(report.error).toBeNull();
+    expect(report.equal).toBe(true);
+  });
+
   it('replays a piece that was revised and held, with the replies of the revisions that were recorded', async () => {
     const { dir, replay, result } = await recordedRun({ fake: unentailed() });
     expect(result.outcome).toBe('held');

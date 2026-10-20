@@ -871,3 +871,36 @@ describe('runDesk: the evidence store', () => {
     });
   });
 });
+
+describe('runDesk: the profile of the settings', () => {
+  /** A Discover that notes the profile its context has and then stops the run. */
+  const noting = (seen: (string | undefined)[]): Partial<Stages> => ({
+    discover: async (ctx) => {
+      seen.push(ctx.profile);
+      throw new Error('stop');
+    },
+  });
+
+  it('gives every stage the profile of the settings', async () => {
+    const seen: (string | undefined)[] = [];
+    const { run } = setup({ config: { profile: 'explainer' }, stages: noting(seen) });
+    await run();
+    expect(seen).toEqual(['explainer']);
+  });
+
+  it('gives none when the settings name none', async () => {
+    const seen: (string | undefined)[] = [];
+    const { run } = setup({ stages: noting(seen) });
+    await run();
+    expect(seen).toEqual([undefined]);
+  });
+
+  it('writes the profile into the record of the run, and nothing when there is none', async () => {
+    const withProfile = setup({ config: { profile: 'explainer' }, stages: noting([]), dry: true });
+    await withProfile.run();
+    expect(recordOf(withProfile.dir).profile).toBe('explainer');
+    const without = setup({ stages: noting([]), dry: true });
+    await without.run();
+    expect(recordOf(without.dir)).not.toHaveProperty('profile');
+  });
+});

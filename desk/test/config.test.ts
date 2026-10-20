@@ -150,6 +150,12 @@ describe('loadConfig with a file', () => {
     loadConfig(configFile('recencyHours: 1\nbudget:\n  maxCalls: 1\n'));
     expect(loadConfig()).toEqual(defaultConfig());
   });
+
+  it('has no profile by default, and takes one of the three kinds of piece', () => {
+    expect(defaultConfig().profile).toBeUndefined();
+    expect(loadConfig(configFile('profile: explainer\n')).profile).toBe('explainer');
+    expect(loadConfig(configFile('profile: brief\n')).profile).toBe('brief');
+  });
 });
 
 describe('loadConfig refuses a mistake, and says where it is', () => {
@@ -184,6 +190,10 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
     expect(failure('maxRevisionRounds: -1\n')).toBe('desk config <file>: maxRevisionRounds: Too small: expected number to be >=0');
     expect(failure('modelCheckRevisions: -1\n')).toBe('desk config <file>: modelCheckRevisions: Too small: expected number to be >=0');
     expect(failure('requestIntervalMs: -5\n')).toBe('desk config <file>: requestIntervalMs: Too small: expected number to be >=0');
+  });
+
+  it('refuses a profile that is not one of the three', () => {
+    expect(failure('profile: tabloid\n')).toMatch(/^desk config <file>: profile: /);
   });
 
   it('a user agent that does not link to the /method page', () => {

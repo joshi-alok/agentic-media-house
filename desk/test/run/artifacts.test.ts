@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { defaultContext, runGate } from '@robywire/gate';
+import { PROFILE_IDS, defaultContext, runGate } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -531,6 +531,27 @@ describe('RunRecord: how the run was made', () => {
       const { [key]: _left, ...rest } = runRecord();
       expect(problem(RunRecord, rest), key).toContain(`${key}:`);
     }
+  });
+});
+
+describe('RunRecord: the profile', () => {
+  it('may name the profile the run was written with, one of the three kinds of piece, and may leave it out: a record from before there was one has none', () => {
+    for (const profile of PROFILE_IDS) expect(problem(RunRecord, { ...runRecord(), profile }), profile).toBe('');
+    expect(runRecord()).not.toHaveProperty('profile');
+    expect(problem(RunRecord, runRecord())).toBe('');
+  });
+
+  it('refuses a profile that is not one of the three', () => {
+    for (const profile of ['tabloid', '', null]) expect(problem(RunRecord, { ...runRecord(), profile }), String(profile)).toContain('profile:');
+  });
+
+  it('is a field of the record from before records said how a run was made, too', async () => {
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = runRecord();
+    expect(problem(LegacyRunRecord, { ...before, profile: 'explainer' })).toBe('');
+    const dir = freshDir();
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'run.json'), JSON.stringify({ ...before, profile: 'explainer' }));
+    expect((await readRunRecord(path.join(dir, 'run.json'))).profile).toBe('explainer');
   });
 });
 

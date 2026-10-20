@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CHECK_IDS, CHECK_RESULTS, Claim, Draft, ROUTES, RUN_OUTCOMES } from '@robywire/gate';
+import { CHECK_IDS, CHECK_RESULTS, Claim, Draft, PROFILE_IDS, ROUTES, RUN_OUTCOMES } from '@robywire/gate';
 import { z } from 'zod';
 import { DeskConfig } from '../config';
 import { describeIssues } from '../issues';
@@ -250,6 +250,8 @@ const RECORD_FIELDS = {
     .nullable(),
   dry: z.boolean(),
   models: DeskConfig.shape.models,
+  /** The profile the run was written with; absent for a run that had none, and for a record from before there was one. A replay takes it from here. */
+  profile: z.enum(PROFILE_IDS).optional(),
   budget: z.strictObject({
     limit: DeskConfig.shape.budget,
     spent: z.strictObject({ calls: count, inputTokens: count, outputTokens: count }),

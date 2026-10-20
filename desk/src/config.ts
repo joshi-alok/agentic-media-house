@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { PROFILE_IDS } from '@robywire/gate';
 import { parse } from 'yaml';
 import { z } from 'zod';
 import { describeIssues } from './issues';
@@ -59,6 +60,12 @@ export const DeskConfig = z.strictObject({
   shortlistPerSource: count,
   /** Extract: fewer surviving claims than this ends the run with no story. */
   minClaims: count,
+  /**
+   * The kind of piece the run writes: it sets the ranges the writer is asked for and the gate holds the piece to as notes (opening, takeaways, body, share of analysis), and, for
+   * `explainer`, that the piece is written from one primary page. Absent: the defaults of the gate and no rule about the page, which is what the tests and the demo use. The file of settings of the
+   * daily run names one.
+   */
+  profile: z.enum(PROFILE_IDS).optional(),
   /** Verify: how many times a draft goes back to the composer before it is held (`modelCheckRevisions` adds rounds for a rejection by the model check). */
   maxRevisionRounds: z.number().int().nonnegative(),
   /**

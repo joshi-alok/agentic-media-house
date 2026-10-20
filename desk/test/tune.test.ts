@@ -270,6 +270,31 @@ describe('main: tune, the profile', () => {
   });
 });
 
+describe('main: tune, the profile of the settings', () => {
+  it('uses the profile of the settings when no flag is given, and prints it', async () => {
+    const client = story();
+    const made = tuning([RELEASE], { deps: { tuneClient: client } });
+    made.deps.config = { ...made.deps.config!, profile: 'brief' };
+    expect(await made.call('--client', 'fake')).toBe(0);
+    expect(made.out).toContain('profile: brief');
+    expect(made.record().profile).toBe('brief');
+    expect(client.calls.find((request) => request.role === 'compose')!.system).toContain('The piece is about 150 to 500 words in all');
+  });
+
+  it('lets --profile win over the profile of the settings', async () => {
+    const made = tuning([RELEASE], { deps: { tuneClient: story() } });
+    made.deps.config = { ...made.deps.config!, profile: 'brief' };
+    expect(await made.call('--client', 'fake', '--profile', 'explainer')).toBe(0);
+    expect(made.out).toContain('profile: explainer');
+    expect(made.out).not.toContain('profile: brief');
+    expect(made.record().profile).toBe('explainer');
+  });
+
+  it('says in the usage that the profile of the settings is used without the flag, and the defaults of the gate without that', () => {
+    expect(USAGE).toContain('without it the profile of the settings is used, and without that the defaults of the gate');
+  });
+});
+
 describe('rowLines: the words and the notes of a draft', () => {
   const row: TuneRow = {
     url: 'https://a.example/x',

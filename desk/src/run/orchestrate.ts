@@ -242,6 +242,7 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
         evidence: options.evidence,
         runDir: dir,
         published: await loadPublishedIndex(options.ledgerDir, undefined, { holds: (await readDeskState(options.stateFile)).holds, date }),
+        ...(config.profile === undefined ? {} : { profile: config.profile }),
         log,
       };
       stage = 'discover';
@@ -315,6 +316,7 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
       sources: options.sourcesKind,
       attempt: day.attempt,
       models: { ...config.models },
+      ...(config.profile === undefined ? {} : { profile: config.profile }),
       budget: { limit: { ...config.budget }, spent: options.model.spent() },
       artifacts: await artifactsIn(dir),
       log: lines,

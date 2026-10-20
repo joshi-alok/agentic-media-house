@@ -110,7 +110,7 @@ export const USAGE = [
   '        (robots.txt honoured, at the pace of the settings) and sent through Extract, Compose and Verify with --client api (the default; it needs ANTHROPIC_API_KEY) or --client fake (a model',
   '        that proposes no claims: it tries the fetching and the sorting of the pages and costs nothing). --trials N runs the model steps N times on each page (1 to 10, 1 unless told otherwise),',
   '        and --max-calls M stops the whole invocation, with exit code 1, when it has made M model calls (1 to 200, 40 unless told otherwise); each trial is also held to the budget of the settings.',
-  '        --profile judges the drafts against the ranges of a kind of piece (brief, digest or explainer) instead of the defaults of the gate, and tells the writer the same ranges.',
+  '        --profile judges the drafts against the ranges of a kind of piece (brief, digest or explainer) instead of the defaults of the gate, and tells the writer the same ranges; without it the profile of the settings is used, and without that the defaults of the gate.',
   '        For each page and trial it prints the claims proposed, dropped (with the rule that dropped them) and kept, what the gate said of the draft, what the model check said of its sentences,',
   '        and the tokens (dollars too when the settings have prices). Nothing is published or committed: it writes only below runs/tune/<stamp>/, and keeps the pages there, never in the bucket.',
   'push    push to main of origin the commits that this checkout has and origin/main has not (what a run committed), after a fetch, and say what it did. Nothing ahead is not an error and exits 0.',
@@ -580,8 +580,9 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
   }
   const now = deps.now();
   const stamp = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
+  const profile = args.profile ?? config.profile;
   deps.out(`tune: ${listed.urls.length} ${listed.urls.length === 1 ? 'address' : 'addresses'}, ${args.trials} ${args.trials === 1 ? 'trial' : 'trials'} each, at most ${args.maxCalls} model calls, client ${args.client}`);
-  if (args.profile !== undefined) deps.out(`profile: ${args.profile}`);
+  if (profile !== undefined) deps.out(`profile: ${profile}`);
   deps.out(`folder: ${shownPath(deps.cwd, path.join(config.runDir, 'tune', stamp))}`);
   try {
     const { record } = await runTune({
@@ -596,7 +597,7 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
       buildClient,
       date: now.toISOString().slice(0, 10),
       stamp,
-      ...(args.profile === undefined ? {} : { profile: args.profile }),
+      ...(profile === undefined ? {} : { profile }),
       out: (line) => deps.out(line),
     });
     if (record.stopped === null) return 0;
