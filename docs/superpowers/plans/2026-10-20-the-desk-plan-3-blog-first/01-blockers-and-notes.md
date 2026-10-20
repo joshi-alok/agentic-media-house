@@ -923,9 +923,12 @@ git commit -m "feat(gate): the ledger of a piece lists the notes of the gate by 
 
 ### Task 7: The receipts page lists the notes
 
+> **Changed after the review of Task 6.** The gate emits one finding per name and per phrase hit, so a real piece can carry dozens of identical notes with the same `where`; and `where` means a place for most codes but the configured phrase for `G9_BANNED_PHRASE`. So the receipts page **groups the notes by code with a count** and does not print `where`. The task also closes the test gaps and the stale comments that the review of Task 6 found.
+
 **Files:**
 - Create: `site/test/receipts-notes.test.ts`
 - Modify: `site/src/lib/receipts.ts`, `site/src/pages/news/[slug]/receipts/index.astro`
+- Modify (tests and comments of Task 6): `gate/test/ledger-notes.test.ts`, `desk/test/stages/hold-pr.test.ts`, `gate/src/gate.ts` (one comment), `gate/src/severity.ts` (one comment), `gate/src/schemas.ts` (one comment)
 
 - [ ] **Step 1: Write the failing test**
 
@@ -946,16 +949,37 @@ describe('receiptsView: the notes', () => {
     expect(receiptsView(ledgerOf()).gate.notes).toEqual([]);
   });
 
-  it('turns each note into its code, its words and its place', () => {
+  it('turns a note into its code, its words and how many times it was found', () => {
     const ledger = ledgerOf();
     ledger.gate.warnings = [{ code: 'G2_BODY_LENGTH', where: 'body' }];
-    expect(receiptsView(ledger).gate.notes).toEqual([{ code: 'G2_BODY_LENGTH', label: 'The piece was too short or too long', where: 'body' }]);
+    expect(receiptsView(ledger).gate.notes).toEqual([{ code: 'G2_BODY_LENGTH', label: 'The piece was too short or too long', count: 1 }]);
   });
 
-  it('leaves out the place of a note that has none, and shows a code it has no words for as it is', () => {
+  it('groups the findings of one code, in the order in which each code first came up, and counts them', () => {
+    const ledger = ledgerOf();
+    ledger.gate.warnings = [
+      { code: 'G2_BODY_LENGTH', where: 'body' },
+      { code: 'G9_BANNED_PHRASE', where: 'delve' },
+      { code: 'G9_BANNED_PHRASE', where: 'game-changer' },
+      { code: 'G9_BANNED_PHRASE', where: 'delve' },
+      { code: 'G2_BODY_LENGTH' },
+    ];
+    expect(receiptsView(ledger).gate.notes).toEqual([
+      { code: 'G2_BODY_LENGTH', label: 'The piece was too short or too long', count: 2 },
+      { code: 'G9_BANNED_PHRASE', label: 'A banned filler phrase was used', count: 3 },
+    ]);
+  });
+
+  it('shows a code it has no words for as it is', () => {
     const ledger = ledgerOf();
     ledger.gate.warnings = [{ code: 'G9_SOMETHING_NEW' }];
-    expect(receiptsView(ledger).gate.notes).toEqual([{ code: 'G9_SOMETHING_NEW', label: 'G9_SOMETHING_NEW' }]);
+    expect(receiptsView(ledger).gate.notes).toEqual([{ code: 'G9_SOMETHING_NEW', label: 'G9_SOMETHING_NEW', count: 1 }]);
+  });
+
+  it('never shows where a note was found: that is a place for most codes and a phrase for one', () => {
+    const ledger = ledgerOf();
+    ledger.gate.warnings = [{ code: 'G9_BANNED_PHRASE', where: 'delve' }];
+    expect(JSON.stringify(receiptsView(ledger).gate.notes)).not.toContain('delve');
   });
 });
 ```
@@ -970,19 +994,26 @@ Expected: FAIL: `Cannot read properties of undefined` (no `notes` in the gate su
 `site/src/lib/receipts.ts`: add the type, the field and its value.
 
 ```ts
-/** A finding of the gate that did not block the piece: its code, the same in plain English, and where it was found. */
+/** A kind of finding of the gate that did not block the piece: its code, the same in plain English, and how many times it was found. */
 export interface GateNote {
   code: string;
   label: string;
-  where?: string;
+  count: number;
+}
+
+/** The notes of a ledger, one for each code, in the order in which each code first comes up, with the number of findings. */
+function notesOf(ledger: LedgerEntry): GateNote[] {
+  const notes: GateNote[] = [];
+  for (const { code } of ledger.gate.warnings) {
+    const found = notes.find((note) => note.code === code);
+    if (found === undefined) notes.push({ code, label: reasonLabel(code), count: 1 });
+    else found.count += 1;
+  }
+  return notes;
 }
 ```
 
-In `GateSummary` add `notes: GateNote[];` after `holdReasons`, and in `receiptsView` add to the `gate` object:
-
-```ts
-      notes: ledger.gate.warnings.map(({ code, where }) => (where === undefined ? { code, label: reasonLabel(code) } : { code, label: reasonLabel(code), where })),
-```
+In `GateSummary` add `notes: GateNote[];` after `holdReasons`, and in `receiptsView` add to the `gate` object `notes: notesOf(ledger),`.
 
 `site/src/pages/news/[slug]/receipts/index.astro`: after the paragraph that starts `Hold reasons:` add
 
@@ -995,6 +1026,7 @@ In `GateSummary` add `notes: GateNote[];` after `holdReasons`, and in `receiptsV
               {view.gate.notes.map((note) => (
                 <li>
                   {note.label} <span class="mono">({note.code})</span>
+                  {note.count > 1 && <span> &times; {note.count}</span>}
                 </li>
               ))}
             </ul>
@@ -1003,19 +1035,71 @@ In `GateSummary` add `notes: GateNote[];` after `holdReasons`, and in `receiptsV
       }
 ```
 
-- [ ] **Step 4: Run, then everything**
+- [ ] **Step 4: Close the gaps that the review of Task 6 found**
 
-Run: `npm test --workspace @robywire/site -- test/receipts-notes.test.ts`
+Append to `gate/test/ledger-notes.test.ts` (inside the existing `describe`, using its imports; add `GateResult` to the type imports from `'../src'` if the typecheck asks):
+
+```ts
+  it('keeps the notes in the order in which the gate found them, and keeps the repeats', () => {
+    const piece = cloneGolden();
+    const gate = runGate(piece, defaultContext({ config: { bodyWords: { min: 5000, max: 6000 }, bannedPhrases: ['begun shipping'] } }));
+    const { ledger } = renderDraft(piece.draft, piece.claims, { runId: 'run-1', gate });
+    expect(ledger.gate.warnings.map((note) => note.code)).toEqual(gate.warnings.map((note) => note.code));
+    expect(ledger.gate.warnings.length).toBeGreaterThanOrEqual(2);
+    expect(ledger.gate.warnings[0]?.code).toBe('G2_BODY_LENGTH');
+  });
+
+  it('writes no place for a note that has none, not even an empty one', () => {
+    const piece = cloneGolden();
+    const gate = { ...runGate(piece, defaultContext()), warnings: [{ check: 'G2' as const, code: 'G2_BODY_LENGTH', message: 'a message that must not be stored' }] };
+    const { ledger } = renderDraft(piece.draft, piece.claims, { runId: 'run-1', gate });
+    expect(ledger.gate.warnings).toStrictEqual([{ code: 'G2_BODY_LENGTH' }]);
+    expect(JSON.stringify(ledger)).not.toContain('must not be stored');
+  });
+
+  it('refuses a note that has a place and no code', () => {
+    const piece = cloneGolden();
+    const { ledger } = renderDraft(piece.draft, piece.claims, { runId: 'run-1', gate: runGate(piece, defaultContext()) });
+    expect(LedgerEntry.safeParse({ ...ledger, gate: { ...ledger.gate, warnings: [{ where: 'body' }] } }).success).toBe(false);
+  });
+```
+
+Add to `desk/test/stages/hold-pr.test.ts` one test next to the other `renderHeldPiece` tests (build the `HeldArtifact` the way the drift-guard test of that file does):
+
+```ts
+  it('carries the notes of the gate into the ledger of a released hold, by code and place only, and has none when the held record is older than notes', () => {
+    // A held artifact whose gate has one note with a message: the ledger keeps the code and the place, not the message.
+    const withNote = heldWith({ warnings: [{ check: 'G2', code: 'G2_BODY_LENGTH', message: 'a message that must not be stored', where: 'body' }] });
+    const { ledger } = renderHeldPiece(withNote);
+    expect(ledger.gate.warnings).toStrictEqual([{ code: 'G2_BODY_LENGTH', where: 'body' }]);
+    expect(JSON.stringify(ledger)).not.toContain('must not be stored');
+    // A held record written before notes existed has no `warnings` at all.
+    const older = heldWith({});
+    delete (older.gate as { warnings?: unknown }).warnings;
+    expect(renderHeldPiece(older).ledger.gate.warnings).toEqual([]);
+  });
+```
+
+where `heldWith` is a small local helper that takes the `HeldArtifact` built for the drift-guard test of the same file and overrides fields of its `gate` (write it in the file if it has no such helper; keep it three lines).
+
+Update three comments so that they say what is true now (no code change):
+- `gate/src/gate.ts` (`GateResult.warnings`): "They never go back to the composer; the ledger records them as `gate.warnings` (code and place only) and the receipts page lists them."
+- `gate/src/severity.ts` (`NOTE_CODES`): "...and the ledger and the receipts page list them, so what a soft rule would have cost is public."
+- `gate/src/schemas.ts` (`LedgerEntry.gate.warnings`): add "`where` is a place (`body`, `section "<heading>", sentence 3`) for most codes and the configured phrase for G9_BANNED_PHRASE."
+
+- [ ] **Step 5: Run, then everything**
+
+Run: `npm test --workspace @robywire/site -- test/receipts-notes.test.ts` and `npm test --workspace @robywire/gate -- test/ledger-notes.test.ts` and `npm test --workspace @robywire/desk -- test/stages/hold-pr.test.ts`
 Expected: PASS.
 
 Run: `npm run typecheck && npm test && npm run evals:seeded && npm run fixtures:check && npm run build:fixtures && npm run audit`
 Expected: all exit 0 (the fixture pieces have no notes, so the built pages are unchanged; the audit confirms it).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add site
-git commit -m "feat(site): the receipts page lists the notes of the gate in plain words, with their codes" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git add site gate desk
+git commit -m "feat(site): the receipts page lists the notes of the gate in plain words with their codes and how many times each came up, and the tests and comments of the ledger notes say what is true" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 ```
 
 ---
