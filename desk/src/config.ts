@@ -77,6 +77,8 @@ export const DeskConfig = z.strictObject({
   requestIntervalMs: z.number().int().nonnegative(),
   /** Fetch: the most bytes read from one page. */
   maxBytes: count,
+  /** Fetch: the most characters of one page that go on to be read. A longer text is cut at a paragraph and the artifact says so. */
+  maxPageChars: count,
   budget: Budget,
   models: Models,
   /** Where each run writes its artifacts. Kept out of git. */
@@ -105,6 +107,7 @@ export function defaultConfig(): DeskConfig {
     userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
     requestIntervalMs: 1000,
     maxBytes: 2_000_000,
+    maxPageChars: 150_000,
     budget: { maxCalls: 24, maxInputTokens: 400_000, maxOutputTokens: 60_000 },
     models: {
       select: 'claude-haiku-4-5-20251001',

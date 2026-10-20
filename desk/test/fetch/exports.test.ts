@@ -104,6 +104,8 @@ const VALUES = [
   'ExtractError',
   'MAX_DEPTH',
   'extractPage',
+  'readPage',
+  'cutText',
   'FeedError',
   'normaliseFeedDate',
   'parseFeed',

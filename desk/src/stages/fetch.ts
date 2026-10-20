@@ -1,4 +1,4 @@
-import { EvidenceError, FetchArtifact, extractPage, writeArtifact } from '../index';
+import { EvidenceError, FetchArtifact, cutText, readPage, writeArtifact } from '../index';
 import type { FetchDocument, SelectArtifact } from '../index';
 import { describeFailure, isSourceFailure } from './context';
 import type { StageContext } from './context';
@@ -51,7 +51,8 @@ function staleOrUndated(publishedAt: string | undefined, ctx: Pick<StageContext,
  * with `stale-or-undated`, and the result is `no-story` with that reason. Any other error ends the run, and that
  * includes a failure of the evidence store: the Desk does not go on without the evidence it will cite.
  *
- * The text is extracted once, by `extractPage`, and is what the store keeps and what the next stage quotes from. The size recorded
+ * The text is read once, by `readPage` (html through the html reader, plain text and markdown as text), and is cut at `maxPageChars` at the last paragraph before the limit; the document
+ * says `truncated` when it was cut, and the log says so. That text is what the store keeps and what the next stage quotes from. The size recorded
  * is that of the text in UTF-8 bytes, and the time is that of the fetch.
  */
 export async function runFetch(ctx: StageContext, selected: SelectArtifact): Promise<FetchResult> {
@@ -69,7 +70,10 @@ export async function runFetch(ctx: StageContext, selected: SelectArtifact): Pro
   for (const target of targets) {
     try {
       const page = await ctx.fetcher.get(target.url);
-      const { title, text, publishedAt } = extractPage(page.body, page.finalUrl);
+      const read = readPage(page);
+      const { title, publishedAt } = read;
+      const { text, cut } = cutText(read.text, ctx.config.maxPageChars);
+      if (cut) ctx.log(`fetch: ${target.url} is longer than ${ctx.config.maxPageChars} characters and was cut to ${text.length}`);
       if (text === '') {
         failures.push({ ...target, reason: 'the page has no text to read' });
         ctx.log(`fetch: ${target.url} has no text to read`);
@@ -92,6 +96,7 @@ export async function runFetch(ctx: StageContext, selected: SelectArtifact): Pro
         retrievedAt: page.retrievedAt,
         bytes: Buffer.byteLength(text, 'utf8'),
         title: title.slice(0, MAX_TITLE_LENGTH),
+        ...(cut ? { truncated: true as const } : {}),
       };
       documents.push(document);
       snapshots.push({ ...document, text });

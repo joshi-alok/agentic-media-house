@@ -1,6 +1,6 @@
 import { BEATS } from '@robywire/gate';
 import { z } from 'zod';
-import { SelectArtifact, extractPage, isTier1, writeArtifact } from '../index';
+import { SelectArtifact, isTier1, readPage, writeArtifact } from '../index';
 import type { Candidate, DiscoverArtifact } from '../index';
 import { buildSelectUser, selectSystem } from '../prompts/select';
 import { describeFailure, isSourceFailure } from './context';
@@ -70,15 +70,15 @@ export function shortlistOf(candidates: Candidate[], ctx: Pick<StageContext, 'da
 
 /**
  * The primary source of a story, by code: the candidate's own address when it is already a primary source (a company's own page), otherwise the
- * first link of the candidate's page, in the order of the page, whose address is one. The links are those that `extractPage` reads, which
- * are the links of the story itself and not those of its navigation, footer or sidebar. A page that cannot be fetched or read gives no
+ * first link of the candidate's page, in the order of the page, whose address is one. The links are those that `readPage` reads, which
+ * for an html page are the links of the story itself and not those of its navigation, footer or sidebar. A page that cannot be fetched or read gives no
  * source, and the reason.
  */
 async function findTier1(ctx: StageContext, chosen: Candidate): Promise<{ url: string } | { why: string }> {
   if (isTier1(chosen.url, ctx.sources)) return { url: chosen.url };
   try {
     const page = await ctx.fetcher.get(chosen.url);
-    const link = extractPage(page.body, page.finalUrl).links.find((candidate) => isTier1(candidate.url, ctx.sources));
+    const link = readPage(page).links.find((candidate) => isTier1(candidate.url, ctx.sources));
     return link === undefined ? { why: 'the page of the story has no link to a primary source' } : { url: link.url };
   } catch (error) {
     if (!isSourceFailure(error)) throw error;

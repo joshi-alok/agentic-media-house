@@ -87,13 +87,15 @@ export const FetchDocument = z.strictObject({
   /** The address after redirects. */
   finalUrl: httpUrl,
   tier,
-  /** The SHA-256 of the extracted text, which is the name of the snapshot in the evidence store. */
+  /** The SHA-256 of the stored text (the extracted text, cut when `truncated`), which is the name of the snapshot in the evidence store. */
   hash: z.string().regex(/^[0-9a-f]{64}$/, 'hash must be 64 lowercase hex characters'),
   retrievedAt: isoDateTime,
-  /** The size of the extracted text in UTF-8 bytes. */
+  /** The size of the stored text in UTF-8 bytes. */
   bytes: z.number().int().nonnegative(),
   /** The title of the page; empty when the page has none. */
   title: z.string(),
+  /** True only when the text was cut at `maxPageChars`: what was stored and read is the beginning of the page. */
+  truncated: z.literal(true).optional(),
 });
 export type FetchDocument = z.infer<typeof FetchDocument>;
 

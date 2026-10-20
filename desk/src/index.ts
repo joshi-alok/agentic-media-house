@@ -18,6 +18,7 @@ export * from './fetch/address';
 export * from './fetch/http';
 export * from './fetch/url';
 export * from './fetch/extract-text';
+export * from './fetch/read-page';
 export * from './fetch/feeds';
 export * from './run/evidence';
 export * from './run/r2-evidence';

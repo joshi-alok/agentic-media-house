@@ -50,6 +50,7 @@ describe('defaultConfig', () => {
       userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
       requestIntervalMs: 1000,
       maxBytes: 2_000_000,
+      maxPageChars: 150_000,
       budget: { maxCalls: 24, maxInputTokens: 400_000, maxOutputTokens: 60_000 },
       models: { select: 'claude-haiku-4-5-20251001', extract: 'claude-sonnet-5-5', compose: 'claude-sonnet-5-5', verify: 'claude-sonnet-5-5' },
       runDir: 'runs',
@@ -170,7 +171,7 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
     expect(failure('recencyHours: soon\n')).toBe('desk config <file>: recencyHours: Invalid input: expected number, received string');
   });
 
-  it.each(['recencyHours', 'shortlistMax', 'minClaims', 'maxAttemptsPerDay', 'maxBytes', 'budget:\n  maxInputTokens', 'budget:\n  maxOutputTokens'])('%s of zero', (key) => {
+  it.each(['recencyHours', 'shortlistMax', 'minClaims', 'maxAttemptsPerDay', 'maxBytes', 'maxPageChars', 'budget:\n  maxInputTokens', 'budget:\n  maxOutputTokens'])('%s of zero', (key) => {
     expect(failure(`${key}: 0\n`)).toContain('Too small: expected number to be >0');
   });
 
