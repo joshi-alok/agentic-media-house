@@ -213,8 +213,8 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     code: 'G2_LIMITATION_COVERAGE',
     description: 'A claim that needs a limitation is left out of the limitation sentence that describes its group.',
     apply: (base) => {
-      const datasheet = limitationCiting(base, 'c-12');
-      datasheet.claimIds = datasheet.claimIds.filter((id) => id !== 'c-12');
+      const docsNote = limitationCiting(base, 'c-12');
+      docsNote.claimIds = docsNote.claimIds.filter((id) => id !== 'c-12');
       return base;
     },
   },

@@ -14,8 +14,8 @@ import { PLACE, provenance } from './words';
 const BASIS_MEANING: Readonly<Record<Basis, string>> = {
   docs: "the passage is from a project's own documentation or its own post",
   announcement: "the passage is a project's or a company's own announcement",
-  briefing: 'the passage says the company gave the figure in a briefing',
-  demo: 'the passage describes a demonstration',
+  briefing: 'the passage says the project gave the figure in a briefing',
+  demo: 'the passage describes a demonstration or a test',
   paper: "the passage is from the authors' paper",
   filing: 'the passage is from a regulatory filing',
   standard: 'the passage is from a published standard',

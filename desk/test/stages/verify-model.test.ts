@@ -158,14 +158,14 @@ describe('aggregateVerdicts', () => {
 
   it('fails a claim whose basis is not supported, and one whose status is not, and says which', () => {
     const reply = verifierReply(PLAN);
-    reply.labels[0] = { id: 'c-1', basisSupported: false, statusSupported: true, reason: 'It is not a press release.' };
+    reply.labels[0] = { id: 'c-1', basisSupported: false, statusSupported: true, reason: 'It is not an announcement.' };
     reply.labels[1] = { id: 'c-2', basisSupported: true, statusSupported: false, reason: 'It is not planned.' };
     const { verifier, failures } = aggregateVerdicts(MODEL, PLAN, reply);
     expect(failures).toEqual([
-      { id: 'c-1', kind: 'label', code: 'unsupported', reason: 'the basis "announcement" is not supported: It is not a press release.' },
+      { id: 'c-1', kind: 'label', code: 'unsupported', reason: 'the basis "announcement" is not supported: It is not an announcement.' },
       { id: 'c-2', kind: 'label', code: 'unsupported', reason: 'the status "unspecified" is not supported: It is not planned.' },
     ]);
-    expect(verifier.notes).toEqual(['claim c-1: the basis "announcement" is not supported: It is not a press release.', 'claim c-2: the status "unspecified" is not supported: It is not planned.']);
+    expect(verifier.notes).toEqual(['claim c-1: the basis "announcement" is not supported: It is not an announcement.', 'claim c-2: the status "unspecified" is not supported: It is not planned.']);
   });
 
   it('fails twice a claim whose basis and status are both unsupported', () => {

@@ -42,7 +42,7 @@ describe('isCurrent', () => {
 
   it('is false for another page, including one whose address only starts the same way', () => {
     expect(isCurrent('/topics/payments-commerce/', '/topics/wallets-keys/')).toBe(false);
-    expect(isCurrent('/topics/home/', '/topics/wallets-keys/')).toBe(false);
+    expect(isCurrent('/topics/wallets/', '/topics/wallets-keys/')).toBe(false);
     expect(isCurrent('/method/', '/')).toBe(false);
   });
 
