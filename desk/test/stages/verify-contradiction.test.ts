@@ -27,10 +27,11 @@ describe('VerifyReply', () => {
     expect(parsed.success).toBe(false);
   });
 
-  it('refuses more than eight things missing in one item, and an empty one', () => {
+  it('refuses more than eight things missing in one item, and an empty item in the list, or one of only spaces', () => {
     const entry = (missing: string[]) => ({ verdicts: [{ id: 's0', reason: 'r', missing, verdict: 'not_entailed' }], labels: [] });
     expect(VerifyReply.safeParse(entry(Array.from({ length: 9 }, () => 'x'))).success).toBe(false);
     expect(VerifyReply.safeParse(entry(['']))).toHaveProperty('success', false);
+    expect(VerifyReply.safeParse(entry(['   '])).success).toBe(false);
     expect(VerifyReply.safeParse(entry(['a date'])).success).toBe(true);
   });
 });

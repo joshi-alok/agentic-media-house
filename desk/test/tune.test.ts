@@ -304,7 +304,7 @@ describe('main: tune, what the model check found', () => {
   const faultFinding = (request: Parameters<typeof clearingVerifier>[0]) => {
     const clear = clearingVerifier(request);
     return {
-      verdicts: clear.verdicts.flatMap((verdict, at) => (at === 0 ? [{ ...verdict, missing: ['what the passages do not say'], verdict: 'not_entailed' as const }] : at === 1 ? [{ ...verdict, verdict: 'ambiguous' as const }] : at === 2 ? [] : [verdict])),
+      verdicts: clear.verdicts.flatMap((verdict, at) => (at === 0 ? [{ ...verdict, reason: 'The passages do not say it.', missing: ['what the passages do not say'], verdict: 'not_entailed' as const }] : at === 1 ? [{ ...verdict, verdict: 'ambiguous' as const }] : at === 2 ? [] : [verdict])),
       labels: clear.labels.map((label, at) => (at === 0 ? { ...label, basisSupported: false } : label)),
     };
   };
