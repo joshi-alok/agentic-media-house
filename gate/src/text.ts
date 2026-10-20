@@ -116,6 +116,21 @@ export function startsWithCapitalOrDigit(text: string): boolean {
   return /^[\p{Lu}\p{Nd}]/u.test(afterOpeners(text));
 }
 
+/** `text` and `phrase` already folded (lowercase, plain quotes): does `phrase` occur in `text` as whole words, with no letter or digit next to it on either side? */
+export function hasWholePhrase(text: string, phrase: string): boolean {
+  if (phrase === '') return false;
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(phrase, from);
+    if (at === -1) return false;
+    const before = text[at - 1];
+    const after = text[at + phrase.length];
+    const edge = (char: string | undefined) => char === undefined || !/[\p{L}\p{N}]/u.test(char);
+    if (edge(before) && edge(after)) return true;
+    from = at + 1;
+  }
+}
+
 /** Jaccard similarity of two sets: shared items over all items. Two empty sets score 0. */
 export function jaccard<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): number {
   let shared = 0;

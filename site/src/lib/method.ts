@@ -81,7 +81,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G9',
       name: 'Hygiene',
-      text: `The page address is not already in use, and the title is not a near-duplicate of a title published in the last ${config.titleWindowDays} days (its words overlap theirs by ${overlap} percent or more, counting shared words over all words).`,
+      text: `The page address is not already in use, and the title is not a near-duplicate of a title published in the last ${config.titleWindowDays} days (its words overlap theirs by ${overlap} percent or more, counting shared words over all words); the piece makes no price prediction, no market call and no advice to buy, sell or hold, and writes no ticker with a dollar sign: the gate refuses a fixed list of phrases (matched by whole words) and any word of two to ten letters after a dollar sign, in the title, the description, every factual or analysis sentence and every heading.`,
       notes: 'None of the banned filler phrases should appear in the title, description, headings, body or limitations; one that does is noted and the piece is published.',
     },
   ];

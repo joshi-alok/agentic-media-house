@@ -51,6 +51,7 @@ export const REASON_LABELS: Readonly<Record<string, string>> = {
   G9_SLUG_COLLISION: 'The page address was already in use',
   G9_TITLE_DUPLICATE: 'The title was too close to a recent one',
   G9_BANNED_PHRASE: 'A banned filler phrase was used',
+  G9_POLICY_PHRASE: 'A price prediction, advice to buy or sell, or a ticker was written',
   TIER2_ATTRIBUTION: "Rests on another outlet's reporting",
   G10_NOT_ENTAILED: 'A sentence said more than its sources say',
   G10_AMBIGUOUS: 'The model check could not tell if a sentence was supported',

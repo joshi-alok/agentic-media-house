@@ -186,6 +186,9 @@ describe('the cases that rewrite sources and limitation sentences', () => {
     ['tier2-claim-wrong-basis', 'G6_TIER2_BASIS'],
     ['primary-claim-called-reported', 'G6_TIER1_REPORTED'],
     ['limitation-two-outlets', 'G8_LIMITATION_GROUP'],
+    ['policy-price-target', 'G9_POLICY_PHRASE'],
+    ['policy-buy-advice', 'G9_POLICY_PHRASE'],
+    ['policy-cashtag', 'G9_POLICY_PHRASE'],
   ])('%s breaks the rule it names and no other', (id, code) => {
     const only = SEEDED_CASES.filter((item) => item.id === id);
     expect(runSeeded(ALL_CHECKS, only).cases.map((item) => item.gotCodes)).toEqual([[code]]);

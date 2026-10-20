@@ -104,6 +104,31 @@ describe('gateRules', () => {
     expect(text('G9')).toContain('in the last 14 days');
   });
 
+  // G9 blocks a price prediction, advice and a cashtag. The rule says what is read and how, and a test below runs the gate to show that it is true.
+  it('says in G9 that a price prediction, advice to buy, sell or hold and a ticker with a dollar sign block, by whole words, in what the Desk writes in its own voice', () => {
+    const g9 = rules.find((rule) => rule.id === 'G9')?.text ?? '';
+    expect(g9).toContain('the piece makes no price prediction, no market call and no advice to buy, sell or hold, and writes no ticker with a dollar sign');
+    expect(g9).toContain('a fixed list of phrases (matched by whole words) and any word of two to ten letters after a dollar sign');
+    expect(g9).toContain('in the title, the description, every factual or analysis sentence and every heading');
+    expect(g9).not.toContain('every sentence');
+  });
+
+  it('is true of G9: a price prediction in a fact sentence and a cashtag in a heading send the piece back, and the same words in a limitation sentence are not read', () => {
+    const predicted = cloneGolden();
+    predicted.draft.opening[0] = { kind: 'fact', text: 'The analysts set a price target for the token.', claimIds: ['c-1'] };
+    const tagged = cloneGolden();
+    tagged.draft.sections[0]!.heading = 'What holders of $ETH saw';
+    for (const piece of [predicted, tagged]) {
+      const result = runGate(piece, defaultContext());
+      expect(result.failures.map((failure) => failure.code)).toContain('G9_POLICY_PHRASE');
+      expect(result.route).toBe('revise');
+      expect(result.checks.G9).toBe('fail');
+    }
+    const limited = cloneGolden();
+    limited.draft.limitations[0]!.text = 'You should buy this; it is not financial advice.';
+    expect(runGate(limited, defaultContext()).failures.map((failure) => failure.code)).not.toContain('G9_POLICY_PHRASE');
+  });
+
   it('does not give a range of length as a rule that blocks: the text of G2 has no word count, and the notes say that a piece outside is published all the same', () => {
     const g2 = rules.find((rule) => rule.id === 'G2')!;
     expect(g2.text).not.toMatch(/\d+ to \d+ words/);

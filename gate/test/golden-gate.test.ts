@@ -38,6 +38,7 @@ describe('the public API of @robywire/gate', () => {
     'normaliseQuotes',
     'stripQuoted',
     'quotedSegments',
+    'hasWholePhrase',
     'sentenceWords',
     'jaccard',
     'parseNumberToken',
@@ -56,6 +57,7 @@ describe('the public API of @robywire/gate', () => {
     'describeLocation',
     // configuration
     'DEFAULT_BANNED_PHRASES',
+    'DEFAULT_POLICY_PHRASES',
     'DEFAULT_NAME_ALLOW_LIST',
     // profiles
     'PROFILES',

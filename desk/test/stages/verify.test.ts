@@ -728,6 +728,17 @@ describe('problemsOf', () => {
     expect(problems.map((problem) => problem.id)).toEqual(['h1']);
   });
 
+  it('points a price prediction, a cashtag and advice at the sentence, the title or the heading that has it, so that the composer is sent only that', () => {
+    const PREDICTION = 'The analysts set a price target for the token.';
+    const sentence = problemsFor((draft) => { draft.takeaways[1] = { kind: 'fact', text: PREDICTION, claimIds: ['c-8'] }; });
+    expect(sentence.problems.filter((problem) => problem.reason.startsWith('G9_POLICY_PHRASE: ')).map((problem) => problem.id)).toEqual([idOf(sentence.draft, PREDICTION)]);
+    const title = problemsFor((draft) => { draft.title = { kind: 'fact', text: 'Holders of $eth see a change', claimIds: ['c-1'] }; });
+    expect(title.problems.filter((problem) => problem.reason.startsWith('G9_POLICY_PHRASE: ')).map((problem) => problem.id)).toEqual(['s0']);
+    const heading = problemsFor((draft) => { draft.sections[1]!.heading = 'What you should buy now'; });
+    expect(heading.problems.filter((problem) => problem.reason.startsWith('G9_POLICY_PHRASE: ')).map((problem) => problem.id)).toEqual(['h1']);
+    expect(heading.unattached.some((reason) => reason.startsWith('G9_POLICY_PHRASE: '))).toBe(false);
+  });
+
   it('gives a sentence that failed twice two problems with its id', () => {
     const { problems } = problemsFor((draft) => { draft.takeaways[1] = { kind: 'fact', text: 'The datasheet lists a 15 kg rated payload and a 3 m maximum reach.', claimIds: ['c-8'] }; });
     const id = problems[0]?.id;

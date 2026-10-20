@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_BANNED_PHRASES, DEFAULT_NAME_ALLOW_LIST, defaultConfig, defaultContext } from '../src/config';
+import { DEFAULT_BANNED_PHRASES, DEFAULT_NAME_ALLOW_LIST, DEFAULT_POLICY_PHRASES, defaultConfig, defaultContext } from '../src/config';
 
 describe('defaultConfig', () => {
   it('holds the thresholds from the design spec', () => {
@@ -14,6 +14,7 @@ describe('defaultConfig', () => {
       titleSimilarityThreshold: 0.6,
       titleWindowDays: 14,
       bannedPhrases: DEFAULT_BANNED_PHRASES,
+      policyPhrases: DEFAULT_POLICY_PHRASES,
     });
   });
 
@@ -56,6 +57,48 @@ describe('DEFAULT_BANNED_PHRASES', () => {
       expect(phrase, phrase).toBe(phrase.toLowerCase());
       expect(phrase, phrase).not.toMatch(/[^\x20-\x7E]/);
     }
+  });
+});
+
+describe('DEFAULT_POLICY_PHRASES', () => {
+  it.each([
+    'price target',
+    'price targets',
+    'price prediction',
+    'price predictions',
+    'price forecast',
+    'price forecasts',
+    'will skyrocket',
+    'will moon',
+    'to the moon',
+    'buy the dip',
+    'guaranteed returns',
+    'guaranteed profit',
+    'risk-free returns',
+    'you should buy',
+    'you should sell',
+    'we recommend buying',
+    'we recommend selling',
+    'is a strong buy',
+    'is a strong sell',
+    'load up on',
+    'not financial advice',
+  ])('refuses %j', (phrase) => {
+    expect(DEFAULT_POLICY_PHRASES).toContain(phrase);
+  });
+
+  it('is written in lowercase with plain characters, ready to compare against lowercased text, and lists no phrase twice', () => {
+    for (const phrase of DEFAULT_POLICY_PHRASES) {
+      expect(phrase, phrase).toBe(phrase.toLowerCase());
+      expect(phrase, phrase).not.toMatch(/[^\x20-\x7E]/);
+    }
+    expect(new Set(DEFAULT_POLICY_PHRASES).size).toBe(DEFAULT_POLICY_PHRASES.length);
+  });
+
+  it('is copied into each new config, so one caller cannot change the phrases of another', () => {
+    const first = defaultConfig();
+    expect(first.policyPhrases).not.toBe(DEFAULT_POLICY_PHRASES);
+    expect(first.policyPhrases).not.toBe(defaultConfig().policyPhrases);
   });
 });
 

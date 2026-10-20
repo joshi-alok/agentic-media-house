@@ -1,6 +1,6 @@
 {
-  "total": 59,
-  "caught": 59,
+  "total": 62,
+  "caught": 62,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -415,6 +415,27 @@
       "check": "G9",
       "code": "G9_BANNED_PHRASE",
       "description": "A section heading says 'revolutionary'.",
+      "caught": true
+    },
+    {
+      "id": "policy-price-target",
+      "check": "G9",
+      "code": "G9_POLICY_PHRASE",
+      "description": "A fact sentence says the analysts set a price target.",
+      "caught": true
+    },
+    {
+      "id": "policy-buy-advice",
+      "check": "G9",
+      "code": "G9_POLICY_PHRASE",
+      "description": "A section heading tells the reader what to buy.",
+      "caught": true
+    },
+    {
+      "id": "policy-cashtag",
+      "check": "G9",
+      "code": "G9_POLICY_PHRASE",
+      "description": "A fact sentence writes a ticker with a dollar sign.",
       "caught": true
     }
   ]

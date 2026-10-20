@@ -26,6 +26,11 @@ export interface GateConfig {
   titleWindowDays: number;
   /** G9: phrases that must not appear anywhere in the piece. Lowercase, plain apostrophes. */
   bannedPhrases: readonly string[];
+  /**
+   * G9: phrases of the Desk's own voice that are never allowed: a price prediction, a market call, advice to buy, sell or hold. Lowercase, plain apostrophes.
+   * Unlike the banned phrases they are matched by whole words and they block.
+   */
+  policyPhrases: readonly string[];
 }
 
 /** Filler and hype that the house style does not allow. Compared in lowercase. */
@@ -44,6 +49,31 @@ export const DEFAULT_BANNED_PHRASES: readonly string[] = [
   "it's worth noting",
   'in the realm of',
   'paves the way',
+];
+
+/** What the publication never says in its own voice. Compared in lowercase, by whole words (see `G9_POLICY_PHRASE`). */
+export const DEFAULT_POLICY_PHRASES: readonly string[] = [
+  'price target',
+  'price targets',
+  'price prediction',
+  'price predictions',
+  'price forecast',
+  'price forecasts',
+  'will skyrocket',
+  'will moon',
+  'to the moon',
+  'buy the dip',
+  'guaranteed returns',
+  'guaranteed profit',
+  'risk-free returns',
+  'you should buy',
+  'you should sell',
+  'we recommend buying',
+  'we recommend selling',
+  'is a strong buy',
+  'is a strong sell',
+  'load up on',
+  'not financial advice',
 ];
 
 const MONTHS = [
@@ -84,6 +114,7 @@ export function defaultConfig(): GateConfig {
     titleSimilarityThreshold: 0.6,
     titleWindowDays: 14,
     bannedPhrases: DEFAULT_BANNED_PHRASES,
+    policyPhrases: [...DEFAULT_POLICY_PHRASES],
   };
 }
 

@@ -113,4 +113,34 @@ export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
       return base;
     },
   },
+  {
+    id: 'policy-price-target',
+    check: 'G9',
+    code: 'G9_POLICY_PHRASE',
+    description: 'A fact sentence says the analysts set a price target.',
+    apply: (base) => {
+      base.draft.opening[0] = { kind: 'fact', text: 'The analysts set a price target for the token.', claimIds: ['c-1'] };
+      return base;
+    },
+  },
+  {
+    id: 'policy-buy-advice',
+    check: 'G9',
+    code: 'G9_POLICY_PHRASE',
+    description: 'A section heading tells the reader what to buy.',
+    apply: (base) => {
+      base.draft.sections[0]!.heading = 'What you should buy now';
+      return base;
+    },
+  },
+  {
+    id: 'policy-cashtag',
+    check: 'G9',
+    code: 'G9_POLICY_PHRASE',
+    description: 'A fact sentence writes a ticker with a dollar sign.',
+    apply: (base) => {
+      base.draft.opening[0] = { kind: 'fact', text: 'The change reached holders of $eth.', claimIds: ['c-1'] };
+      return base;
+    },
+  },
 ];
