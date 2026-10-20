@@ -84,7 +84,7 @@ describe('receiptsView: the gate summary', () => {
     expect(view.gate.route).toBe('publish');
     expect(view.gate.holdReasons).toEqual([]);
     const held = structuredClone(golden);
-    held.gate = { route: 'hold', checks: { ...held.gate.checks, G6: 'fail' }, holdReasons: ['TIER2_ATTRIBUTION'] };
+    held.gate = { route: 'hold', checks: { ...held.gate.checks, G6: 'fail' }, holdReasons: ['TIER2_ATTRIBUTION'], warnings: [] };
     const heldView = receiptsView(held);
     expect(heldView.gate.route).toBe('hold');
     expect(heldView.gate.holdReasons).toEqual([{ code: 'TIER2_ATTRIBUTION', label: "Rests on another outlet's reporting" }]);
@@ -119,7 +119,7 @@ describe('routeText', () => {
   it('is part of the gate summary', () => {
     expect(view.gate.routeText).toBe(routeText(view.gate.route));
     const held = structuredClone(golden);
-    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'] };
+    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'], warnings: [] };
     delete held.release;
     expect(receiptsView(held).gate.routeText).toBe('The gate held this draft for the owner.');
   });
@@ -157,7 +157,7 @@ describe('receiptsView: how the piece was released', () => {
 
   it('has the note for owner', () => {
     const held = structuredClone(without);
-    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'] };
+    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'], warnings: [] };
     expect(receiptsView({ ...held, release: 'owner' }).releaseNote).toBe('Held by the gate, then released by the owner.');
   });
 });

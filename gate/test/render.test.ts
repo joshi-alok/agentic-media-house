@@ -243,7 +243,7 @@ describe('renderDraft: the ledger', () => {
   });
 
   it('records the gate result from the meta, without a verifier unless one is given', () => {
-    expect(ledger.gate).toEqual({ route: result.route, checks: result.checks, holdReasons: result.holdReasons });
+    expect(ledger.gate).toEqual({ route: result.route, checks: result.checks, holdReasons: result.holdReasons, warnings: [] });
     expect('verifier' in ledger).toBe(false);
   });
 

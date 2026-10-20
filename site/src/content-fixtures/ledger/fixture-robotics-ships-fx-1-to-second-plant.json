@@ -1449,7 +1449,8 @@
       "G8": "pass",
       "G9": "pass"
     },
-    "holdReasons": []
+    "holdReasons": [],
+    "warnings": []
   },
   "release": "auto",
   "sources": [

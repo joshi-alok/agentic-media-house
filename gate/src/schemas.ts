@@ -167,6 +167,9 @@ export const LedgerEntry = z.object({
     route: z.enum(ROUTES),
     checks: z.record(z.enum(CHECK_IDS), z.enum(CHECK_RESULTS)),
     holdReasons: z.array(z.string()),
+    // The notes of the gate: findings that did not block the piece, by code and place. The receipts page lists them in words.
+    // A ledger written before notes existed has none.
+    warnings: z.array(z.object({ code: z.string().min(1), where: z.string().optional() })).default([]),
   }),
   // How the piece came to be published; set by the pipeline. The receipts page says it in words.
   release: z.enum(RELEASES).optional(),

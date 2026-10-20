@@ -130,7 +130,12 @@ export function renderDraft(draft: Draft, claims: readonly Claim[], meta: Render
     claims: structuredClone(cited),
     order,
     sentences,
-    gate: { route: meta.gate.route, checks: { ...meta.gate.checks }, holdReasons: [...meta.gate.holdReasons] },
+    gate: {
+      route: meta.gate.route,
+      checks: { ...meta.gate.checks },
+      holdReasons: [...meta.gate.holdReasons],
+      warnings: meta.gate.warnings.map(({ code, where }) => (where === undefined ? { code } : { code, where })),
+    },
     ...(release === undefined ? {} : { release }),
     ...(meta.verifier === undefined ? {} : { verifier: structuredClone(meta.verifier) }),
     sources: [...sources.values()].sort((a, b) => byText(a.url, b.url)),
