@@ -60,9 +60,9 @@ export const DeskConfig = z.strictObject({
   /** Verify: how many times a draft goes back to the composer before it is held (`modelCheckRevisions` adds rounds for a rejection by the model check). */
   maxRevisionRounds: z.number().int().nonnegative(),
   /**
-   * Verify: how many more times a draft goes back to the composer when the model check rejects the draft of the last round. The rounds of `maxRevisionRounds`
-   * are for any failure; this one is for the model check alone, because the model check is the only layer that reads meaning and a rejection found when the
-   * rounds are spent has had no answer. A blocker of the gate that is still standing in the last round does not get it.
+   * Verify: after the `maxRevisionRounds` rounds, a draft that has no blocker of the gate and that the model check rejects goes back up to this many more times; a draft
+   * with a blocker of the gate, including one that a revision of these rounds brings, is held. The model check is the only layer that reads meaning, and a rejection found
+   * when the rounds are spent has had no answer.
    */
   modelCheckRevisions: z.number().int().nonnegative(),
   /** Run: how many runs one day may have, the first and every one after it (a day that failed is run again, and `--force-new` runs a day again). The run after the last is refused. */

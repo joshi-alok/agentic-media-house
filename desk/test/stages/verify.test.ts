@@ -856,4 +856,44 @@ describe('runVerify: the extra round for a rejection by the model check', () => 
     expect(callsOf(fake, 'compose')).toHaveLength(1);
     expect(callsOf(fake, 'verify')).toHaveLength(0);
   });
+
+  it('gives as many extra rounds as the setting says: two, when the model check rejects the first revision too and clears the second', async () => {
+    const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 2) });
+    const id = idOf(composed.draft, SENTENCE);
+    const fails = () => verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } });
+    fake.script('verify', fails(), fails(), CLEARS());
+    fake.script('compose', rewriting(id, REWRITTEN), rewriting(id, { ...REWRITTEN, text: 'The company says the arm is built for tote picking.' }));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('publish');
+    expect(result.rounds).toBe(2);
+    expect(callsOf(fake, 'compose')).toHaveLength(3);
+    expect(callsOf(fake, 'verify')).toHaveLength(3);
+  });
+
+  it('gives no further round to an extra round that breaks the gate: the blocker that it brings holds the piece', async () => {
+    const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 2) });
+    const id = idOf(composed.draft, SENTENCE);
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } }));
+    fake.script('compose', rewriting(id, BAD_TAKEAWAY));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('hold');
+    expect(result.rounds).toBe(1);
+    expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G4_NUMBER_UNSUPPORTED']);
+    expect(callsOf(fake, 'compose')).toHaveLength(2);
+    expect(callsOf(fake, 'verify')).toHaveLength(1);
+  });
+
+  it('gives the extra round to a draft that the gate sent back first: a blocker mended in an ordinary round, then a rejection by the model check', async () => {
+    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: withRounds(1, 1) });
+    const bad = idOf(composed.draft, INVENTED);
+    const id = idOf(composed.draft, SENTENCE);
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } }), CLEARS());
+    fake.script('compose', rewriting(bad, GOOD_TAKEAWAY), rewriting(id, REWRITTEN));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('publish');
+    expect(result.rounds).toBe(2);
+    expect(callsOf(fake, 'compose')).toHaveLength(3);
+    expect(callsOf(fake, 'verify')).toHaveLength(2);
+    expect(result.history.map((pass) => [pass.round, pass.gate.route, pass.sent])).toEqual([[0, 'revise', [bad]], [1, 'publish', [id]], [2, 'publish', []]]);
+  });
 });

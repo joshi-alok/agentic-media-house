@@ -296,13 +296,13 @@ The command measures; **you judge**. For each page, open `runs/tune/<stamp>/evid
 - **The model check.** Does the verifier clear the sentences that are really supported, and flag the ones that are not? Read three of each. A verifier that clears everything is as bad as one that flags everything.
 - **The piece.** Would you publish it? Could a reader check every sentence against its quotation?
 
-Then widen: all the pages, one trial (`--max-calls 40`), and last `--trials 3` on the two most interesting pages, to see how much the answers differ from one try to the next. Stay inside the US$10 of the plan, and write down the cost of every invocation. A page that says `too few claims` is a result, not a failure: a day with no story is a valid day.
+Then widen: all the pages, one trial (`--max-calls 50`), and last `--trials 3` on the two most interesting pages, to see how much the answers differ from one try to the next. Stay inside the US$10 of the plan, and write down the cost of every invocation. A page that says `too few claims` is a result, not a failure: a day with no story is a valid day.
 
 ```bash
-ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-urls.txt --config desk.config.yml --max-calls 40
+ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-urls.txt --config desk.config.yml --max-calls 50
 ```
 
-**Expect:** a block for each page, and the total; `total: N pages, N trials, M of 40 model calls, ...` with M not above 40. Report what you found to the owner: the table, your judgement of each page, and the cost.
+**Expect:** a block for each page, and the total; `total: N pages, N trials, M of 50 model calls, ...` with M not above 50. Report what you found to the owner: the table, your judgement of each page, and the cost.
 
 ### 20. Measure the verifier on the real model (outward: it spends money)
 

@@ -32,6 +32,12 @@ function failure(yaml: string): string {
 }
 
 describe('defaultConfig', () => {
+  it('has a budget of calls that holds the worst case of a piece that the model check holds', () => {
+    // Select, Extract, Compose, a revision and a model check for each round, and one more model check: the worst case of a hold by the model check, without retries.
+    const { budget, maxRevisionRounds, modelCheckRevisions } = defaultConfig();
+    expect(budget.maxCalls).toBeGreaterThanOrEqual(3 + 2 * (maxRevisionRounds + modelCheckRevisions) + 1);
+  });
+
   it('holds the settings of the design', () => {
     expect(defaultConfig()).toEqual({
       recencyHours: 72,

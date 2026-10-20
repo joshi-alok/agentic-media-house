@@ -201,10 +201,12 @@ export interface VerifyResult {
  * Judge the draft that Compose wrote, send back what fails, and say whether the piece may be published.
  *
  * Each round: the gate's verdict on the draft (its notes never block, never go back to the composer and never keep the model check from running;
- * Compose gave it for the first; later it is run again); when the gate found no failure, the model check (`runVerifier`; a draft that code has sent back is not shown to the model). A draft with no failure of either is done. Otherwise, when
- * rounds are left (`config.maxRevisionRounds`, and, after them, `config.modelCheckRevisions` more for a draft that only the model check rejects) and there is something that a rewritten sentence or heading can mend (`problemsOf`), `reviseDraft` makes a new draft and the
- * next round judges it; when there is not, the draft is held. A failure that no sentence can mend (the number of sections, the categories, the basis of a claim)
- * is not sent anywhere: it is recorded, and the draft is held when the rounds that could mend the rest are over.
+ * Compose gave it for the first; later it is run again); when the gate found no failure, the model check (`runVerifier`; a draft that code has sent
+ * back is not shown to the model). A draft with no failure of either is done. Otherwise, when rounds are left (`config.maxRevisionRounds`, and, after
+ * them, `config.modelCheckRevisions` more for a draft that only the model check rejects) and there is something that a rewritten sentence or heading
+ * can mend (`problemsOf`), `reviseDraft` makes a new draft and the next round judges it; when there is not, the draft is held. A failure that no
+ * sentence can mend (the number of sections, the categories, the basis of a claim) is not sent anywhere: it is recorded, and the draft is held when
+ * the rounds that could mend the rest are over.
  *
  * The outcome is `publish` only for a draft that the gate routes to `publish` and the model check passed. When the model check never saw the last draft,
  * `verifier` says so and is not passed.
