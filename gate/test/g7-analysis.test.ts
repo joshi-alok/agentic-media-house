@@ -353,12 +353,12 @@ describe('G7_ANALYSIS_NEW_NAME: names', () => {
   });
 });
 
-describe('G7_ANALYSIS_NEW_VALUE: the opening word', () => {
+describe('G7_ANALYSIS_NEW_NAME: the opening word', () => {
   it('fails an analysis sentence that opens with a name no claim it cites contains, and says which', () => {
     expect(run(saying('Harlow reported something similar.')).failures).toEqual([
       {
         check: 'G7',
-        code: 'G7_ANALYSIS_NEW_VALUE',
+        code: 'G7_ANALYSIS_NEW_NAME',
         message: `the analysis sentence at ${ANALYSIS_AT} introduces the opening word "Harlow", which is neither an ordinary opening word nor a word of the quoted passage, the names or the outlet of any claim it cites`,
         where: ANALYSIS_AT,
       },
@@ -383,12 +383,12 @@ describe('G7_ANALYSIS_NEW_VALUE: the opening word', () => {
     ['a word that only the title has', 'Robotics is a field where such gaps are normal.'],
     ['a name that a fact sentence states and the claims it cites do not have', 'Corvane reported something similar.'],
   ])('refuses an opening with %s', (_name, text) => {
-    expect(codes(run(saying(text)))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(codes(run(saying(text)))).toEqual(['G7_ANALYSIS_NEW_NAME']);
   });
 
   it('takes the word from the claims that the analysis sentence cites, and from no other claim', () => {
     expect(codes(run((g) => { saying('Corvane reported something similar.')(g); analysisSentence(g).claimIds = ['c-21', 'c-18']; }))).toEqual([]);
-    expect(codes(run((g) => { saying('Corvane reported something similar.')(g); analysisSentence(g).claimIds = []; }))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(codes(run((g) => { saying('Corvane reported something similar.')(g); analysisSentence(g).claimIds = []; }))).toEqual(['G7_ANALYSIS_NEW_NAME']);
   });
 
   it('does not take the word from the text or the label of a claim it cites', () => {
@@ -396,13 +396,13 @@ describe('G7_ANALYSIS_NEW_VALUE: the opening word', () => {
       saying('Harlow reported something similar.')(g);
       change(g.claims.find((claim) => claim.id === 'c-21')!);
     };
-    expect(codes(run(made((claim) => { claim.text = 'harlow averaged 940 picks an hour.'; })))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
-    expect(codes(run(made((claim) => { claim.label = 'harlow pick rate'; })))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(codes(run(made((claim) => { claim.text = 'harlow averaged 940 picks an hour.'; })))).toEqual(['G7_ANALYSIS_NEW_NAME']);
+    expect(codes(run(made((claim) => { claim.label = 'harlow pick rate'; })))).toEqual(['G7_ANALYSIS_NEW_NAME']);
     expect(codes(run(made((claim) => { claim.values.push({ kind: 'name', raw: 'Harlow', normalised: 'harlow' }); })))).toEqual([]);
   });
 
   it('takes the allow-list from the context', () => {
-    expect(codes(run(saying('Harlow reported something similar.')))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(codes(run(saying('Harlow reported something similar.')))).toEqual(['G7_ANALYSIS_NEW_NAME']);
     expect(run(saying('Harlow reported something similar.'), { nameAllowList: ['harlow'] })).toEqual({ failures: [], holdReasons: [] });
   });
 
@@ -412,14 +412,25 @@ describe('G7_ANALYSIS_NEW_VALUE: the opening word', () => {
       addAnalysis(g, 1);
       findSentence(g.draft, (sentence) => sentence.text === 'That is a plain reading of the figures.').text = 'Harlow also did.';
     });
-    expect(codes(second)).toEqual(['G7_ANALYSIS_NEW_VALUE', 'G7_ANALYSIS_NEW_VALUE']);
+    expect(codes(second)).toEqual(['G7_ANALYSIS_NEW_NAME', 'G7_ANALYSIS_NEW_NAME']);
 
     const limitation = run(saying('Measurement was not independent.'));
-    expect(codes(limitation)).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(codes(limitation)).toEqual(['G7_ANALYSIS_NEW_NAME']);
   });
 
   it('reports the opening word before the other new values of the sentence', () => {
     const output = run(saying('Harlow saw 22% less.'));
     expect(output.failures.map((failure) => failure.message.match(/introduces the (.*?),/)?.[1])).toEqual(['opening word "Harlow"', 'number "22%"']);
+    expect(codes(output)).toEqual(['G7_ANALYSIS_NEW_NAME', 'G7_ANALYSIS_NEW_VALUE']);
+  });
+
+  it('gives an invented company at the start the code of a name and an invented number at the start the code of a value', () => {
+    const company = run(saying('Harlow Logistics reported something similar.'));
+    expect(codes(company)).toEqual(['G7_ANALYSIS_NEW_NAME']);
+    expect(company.failures[0]!.message).toContain('opening word "Harlow"');
+
+    const number = run(saying('22% fewer picks is normal for a figure quoted as an upper limit.'));
+    expect(codes(number)).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(number.failures[0]!.message).toContain('number "22%"');
   });
 });

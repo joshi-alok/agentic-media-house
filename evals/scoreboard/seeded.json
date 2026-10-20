@@ -1,6 +1,6 @@
 {
-  "total": 61,
-  "caught": 61,
+  "total": 58,
+  "caught": 58,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -145,13 +145,6 @@
       "caught": true
     },
     {
-      "id": "lowercase-sentence-start",
-      "check": "G2",
-      "code": "G2_SENTENCE_START",
-      "description": "A sentence starts with a lowercase letter, so the first-word rule would not read its first word.",
-      "caught": true
-    },
-    {
       "id": "limitation-uncovered-claim",
       "check": "G2",
       "code": "G2_LIMITATION_COVERAGE",
@@ -219,20 +212,6 @@
       "check": "G4",
       "code": "G4_NAME_UNSUPPORTED",
       "description": "A sentence names a company that no claim it cites mentions.",
-      "caught": true
-    },
-    {
-      "id": "invented-name-at-sentence-start",
-      "check": "G4",
-      "code": "G4_INITIAL_WORD_UNSUPPORTED",
-      "description": "A sentence opens with a company, Harlow Logistics, that the claim it cites never mentions.",
-      "caught": true
-    },
-    {
-      "id": "initial-word-from-claim-label",
-      "check": "G4",
-      "code": "G4_INITIAL_WORD_UNSUPPORTED",
-      "description": "A claim carries a lowercase invented name, harlow, in its text and its label, which a model writes, and a sentence that cites it opens with that name; the quoted passage of the claim does not have it.",
       "caught": true
     },
     {
@@ -343,7 +322,7 @@
     {
       "id": "analysis-invented-initial-word",
       "check": "G7",
-      "code": "G7_ANALYSIS_NEW_VALUE",
+      "code": "G7_ANALYSIS_NEW_NAME",
       "description": "An analysis sentence opens with a company, Harlow, that no fact sentence mentions.",
       "caught": true
     },

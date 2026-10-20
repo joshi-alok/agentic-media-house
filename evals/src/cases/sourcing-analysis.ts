@@ -97,7 +97,7 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
   {
     id: 'analysis-invented-initial-word',
     check: 'G7',
-    code: 'G7_ANALYSIS_NEW_VALUE',
+    code: 'G7_ANALYSIS_NEW_NAME',
     description: 'An analysis sentence opens with a company, Harlow, that no fact sentence mentions.',
     apply: (base) => {
       sentenceWith(base, 'The measured rate sits below').text =

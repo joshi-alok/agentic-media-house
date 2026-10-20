@@ -313,3 +313,21 @@ describe('runGate: names and filler are notes, figures are not', () => {
     expect(number.route).toBe('revise');
   });
 });
+
+describe('runGate: the first word of a sentence', () => {
+  it('does not read a capitalised noun at the start of a sentence as a name', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.takeaways[0] = { kind: 'fact', text: 'Output at Tarnmoor rose to 40 arms in the second plant.', claimIds: ['c-1'] };
+      }),
+      api.defaultContext(),
+    );
+    expect(result.warnings.map((item) => item.code)).not.toContain('G4_INITIAL_WORD_UNSUPPORTED');
+    expect(result.failures.map((item) => item.code)).not.toContain('G4_INITIAL_WORD_UNSUPPORTED');
+  });
+
+  it('has no rule about the first letter of a sentence', () => {
+    expect(api.ALL_FAILURE_CODES).not.toContain('G2_SENTENCE_START');
+    expect(api.ALL_FAILURE_CODES).not.toContain('G4_INITIAL_WORD_UNSUPPORTED');
+  });
+});

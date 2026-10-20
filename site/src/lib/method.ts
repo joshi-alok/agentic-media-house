@@ -35,7 +35,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G2',
       name: 'Structure',
-      text: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words in at least 2 sections, every section has a heading of at most ${headingMax} characters that is not a question and is not one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn't verify"), every sentence starts with a capital letter or a digit (an opening quotation mark or bracket may come first), and every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
+      text: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words in at least 2 sections, every section has a heading of at most ${headingMax} characters that is not a question and is not one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn't verify"), every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
     },
     {
       id: 'G3',
@@ -45,7 +45,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G4',
       name: 'Values',
-      text: `The reader of the gate finds the numbers, dates and capitalised names in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a sentence may open with a capitalised word only if it is an ordinary function word or a word of the quoted passage, the names or the outlet of a claim the sentence cites (the text and the label of a claim are written by a model and count for nothing); a section heading has no number, date or quotation and no capitalised word that is not in the quoted passage, the names or the outlet of a claim cited in that section; and every value a claim lists is really in its quoted passage, as a whole word or number (a 2 is not found inside "12 weeks" or "2.3").`,
+      text: `The reader of the gate finds the numbers, dates and capitalised names in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a section heading has no number, date or quotation and no capitalised word that is not in the quoted passage, the names or the outlet of a claim cited in that section; and every value a claim lists is really in its quoted passage, as a whole word or number (a 2 is not found inside "12 weeks" or "2.3").`,
     },
     {
       id: 'G5',
@@ -149,12 +149,7 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'strict',
-    text: 'A sentence cannot open with a name that starts with a lowercase letter, such as iRobot or xAI: every sentence must start with a capital letter or a digit, so the sentence has to be reworded.',
-    example: 'iRobot shipped the arm.',
-  },
-  {
-    kind: 'strict',
-    text: 'The only evidence for a capitalised word that opens a sentence or a heading is the quoted passage of a claim, the names that claim lists and its outlet: the text and the label of a claim are written by a model and count for nothing, so a word that only they have sends the draft back, although it may be an ordinary word.',
+    text: 'The only evidence for a capitalised word that opens a section heading is the quoted passage of a claim, the names that claim lists and its outlet: the text and the label of a claim are written by a model and count for nothing, so a word that only they have sends the draft back, although it may be an ordinary word.',
     example: 'Rollout began in the spring.',
   },
   {

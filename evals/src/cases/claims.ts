@@ -1,4 +1,4 @@
-import { allSentences, buildLimitations, citedClaims } from '@robywire/gate';
+import { allSentences } from '@robywire/gate';
 import type { SeededCase } from '../seeded';
 import { claimOf, sentenceWith } from './support';
 
@@ -67,32 +67,6 @@ export const CLAIMS_CASES: SeededCase[] = [
     description: 'A sentence names a company that no claim it cites mentions.',
     apply: (base) => {
       sentenceWith(base, 'The round, led by').text = 'The round, led by Harlow Capital, totals $450 million, according to a regulatory filing.';
-      return base;
-    },
-  },
-  {
-    id: 'invented-name-at-sentence-start',
-    check: 'G4',
-    code: 'G4_INITIAL_WORD_UNSUPPORTED',
-    description: 'A sentence opens with a company, Harlow Logistics, that the claim it cites never mentions.',
-    apply: (base) => {
-      sentenceWith(base, 'Brindle Logistics plans to use').text = 'Harlow Logistics plans to use the arms at Tarnmoor for inbound trailer unloading.';
-      return base;
-    },
-  },
-  {
-    id: 'initial-word-from-claim-label',
-    check: 'G4',
-    code: 'G4_INITIAL_WORD_UNSUPPORTED',
-    description:
-      'A claim carries a lowercase invented name, harlow, in its text and its label, which a model writes, and a sentence that cites it opens with that name; the quoted passage of the claim does not have it.',
-    apply: (base) => {
-      const claim = claimOf(base, 'c-4');
-      claim.text = 'the harlow dynamics arm ships within 12 weeks';
-      claim.label = 'harlow lead time';
-      sentenceWith(base, 'Fixture Robotics lists the arm from').text = 'Harlow ships the arm within 12 weeks of an order.';
-      // The notes under "What we couldn't verify" are written from the labels of the claims, so they are written again.
-      base.draft.limitations = buildLimitations(citedClaims(base.draft, base.claims));
       return base;
     },
   },

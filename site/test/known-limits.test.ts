@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildLimitations,
-  checkG2,
   citedClaims,
   claimWords,
   defaultConfig,
@@ -10,7 +9,6 @@ import {
   isSentenceStarter,
   openingWordAccepted,
   runGate,
-  startsWithCapitalOrDigit,
 } from '@robywire/gate';
 import type { GateInput } from '@robywire/gate';
 import { cloneGolden } from '@robywire/gate/fixtures';
@@ -45,9 +43,9 @@ describe('KNOWN_LIMITS', () => {
     expect(text).toContain('The name check is strict on purpose');
     expect(unseen).toHaveLength(7);
     expect(misread).toHaveLength(2);
-    expect(strict).toHaveLength(3);
+    expect(strict).toHaveLength(2);
     expect(unchecked).toHaveLength(3);
-    expect(KNOWN_LIMITS).toHaveLength(15);
+    expect(KNOWN_LIMITS).toHaveLength(14);
   });
 
   it.each(KNOWN_LIMITS.map((limit) => [limit.text.slice(0, 40), limit] as const))('is written as plain sentences: %s', (_name, limit) => {
@@ -119,7 +117,7 @@ describe('KNOWN_LIMITS', () => {
   });
 
   it('is true of the strict limit about the evidence for an opening word: a word that only the text or the label of a claim has is refused, and the same word in the quoted passage is accepted', () => {
-    const limit = withText(strict, 'The only evidence for a capitalised word that opens a sentence or a heading');
+    const limit = withText(strict, 'The only evidence for a capitalised word that opens a section heading');
     expect(limit.text).toContain('the text and the label of a claim are written by a model and count for nothing');
     expect(extractTokens(limit.example).initialWord).toBe('Rollout');
     const claim = structuredClone(cloneGolden().claims[0]!);
@@ -134,18 +132,6 @@ describe('KNOWN_LIMITS', () => {
   it('says what the strictness costs and what it buys', () => {
     const limit = withText(strict, 'The name check is strict on purpose');
     expect(limit.text).toContain('A false alarm costs a revision round; a name that slipped through would cost a wrong claim.');
-  });
-
-  it('is true of the strict limit about a sentence that opens with a lowercase name: the sentence rule of G2 refuses it, and the reader sees no name in it', () => {
-    const limit = withText(strict, 'A sentence cannot open with a name that starts with a lowercase letter');
-    expect(limit.text).toContain('iRobot or xAI');
-    expect(limit.text).toContain('every sentence must start with a capital letter or a digit');
-    expect(startsWithCapitalOrDigit(limit.example)).toBe(false);
-    expect(extractTokens(limit.example)).not.toHaveProperty('initialWord');
-    const input = cloneGolden();
-    input.draft.takeaways[0]!.text = limit.example;
-    const refused = checkG2(input, defaultContext()).failures.map((failure) => failure.code);
-    expect(refused).toEqual(['G2_SENTENCE_START']);
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CHECKS, ALL_FAILURE_CODES, CHECK_IDS, allSentences, checkG3, checkG4, runGateWith } from '@robywire/gate';
+import { ALL_CHECKS, ALL_FAILURE_CODES, CHECK_IDS, checkG3, checkG4, runGateWith } from '@robywire/gate';
 import { cloneGolden } from '@robywire/gate/fixtures';
 import { sentenceWith } from '../src/cases/support';
 import { runSeeded } from '../src/run';
@@ -174,26 +174,6 @@ describe('runSeeded', () => {
   it('reports a baseline that does not publish', () => {
     const failing = () => ({ failures: [{ check: 'G1' as const, code: 'G1_TITLE_EMPTY', message: 'always' }], holdReasons: [] });
     expect(runSeeded([failing]).baselinePasses).toBe(false);
-  });
-});
-
-describe('the case lowercase-sentence-start', () => {
-  it('changes one sentence and one letter of it: the first letter is made lowercase and nothing else is touched', () => {
-    const item = SEEDED_CASES.find((candidate) => candidate.id === 'lowercase-sentence-start')!;
-    const before = allSentences(cloneGolden().draft);
-    const after = allSentences(item.apply(cloneGolden()).draft);
-    const changed = after.filter((located, at) => located.sentence.text !== before[at]!.sentence.text);
-    expect(changed).toHaveLength(1);
-    const original = before[changed[0]!.index]!.sentence.text;
-    expect(original).toMatch(/^[A-Z]/);
-    expect(changed[0]!.sentence.text).toBe(`${original.charAt(0).toLowerCase()}${original.slice(1)}`);
-  });
-
-  it('breaks the sentence rule and nothing else: the first-word rule of G4 reads only capitalised words, so G2 has to refuse the sentence', () => {
-    const only = SEEDED_CASES.filter((item) => item.id === 'lowercase-sentence-start');
-    expect(runSeeded(ALL_CHECKS, only).cases).toEqual([
-      { id: 'lowercase-sentence-start', check: 'G2', code: 'G2_SENTENCE_START', caught: true, gotCodes: ['G2_SENTENCE_START'] },
-    ]);
   });
 });
 

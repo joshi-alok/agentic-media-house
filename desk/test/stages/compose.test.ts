@@ -113,8 +113,6 @@ describe('runCompose: a script that breaks a rule is caught, with the gate\'s ow
     ['a number must be a value of a cited claim', (reply) => { reply.takeaways[1] = { kind: 'fact', text: 'The datasheet lists a 15 kg rated payload and a 1.4 m maximum reach.', claimIds: ['c-8', 'c-9'] }; }, 'G4_NUMBER_UNSUPPORTED'],
     ['a number written in words is checked as a number', (reply) => { reply.takeaways[1] = { kind: 'fact', text: 'The datasheet lists a twenty kilograms rated payload and a 1.4 m maximum reach.', claimIds: ['c-8', 'c-9'] }; }, 'G4_NUMBER_UNSUPPORTED'],
     ['a date must be a value of a cited claim', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Brindle Logistics plant to receive FX-1 arms, from 3 October 2026.', claimIds: ['c-1'] }; }, 'G4_DATE_UNSUPPORTED'],
-    ['a made-up name at the start of a sentence is not accepted', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Harlow Logistics plans a plant at Tarnmoor.', claimIds: ['c-1'] }; }, 'G4_INITIAL_WORD_UNSUPPORTED'],
-    ['every sentence starts with a capital letter or a digit', (reply) => { (reply.opening[0] as { text: string }).text = `f${(reply.opening[0] as { text: string }).text.slice(1)}`; }, 'G2_SENTENCE_START'],
     ['a quotation is word for word in a cited claim', (reply) => { reply.takeaways[2] = { kind: 'fact', text: 'Brindle Logistics said "we saved a fortune" at Ashvale.', claimIds: ['c-20'] }; }, 'G5_QUOTE_NOT_VERBATIM'],
     ['a heading has no number', (reply) => { section(reply, 0).heading = 'What shipped in 2026'; }, 'G4_HEADING_NUMBER'],
     ['a heading has no quotation', (reply) => { section(reply, 0).heading = 'What "shipped"'; }, 'G4_HEADING_QUOTE'],

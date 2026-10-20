@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_CHECKS } from '../src/checks';
 import { checkG2 } from '../src/checks/g2-structure';
-import { checkG4 } from '../src/checks/g4-values';
 import { defaultContext } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import { runGate } from '../src/gate';
 import type { GateInput } from '../src/gate';
 import { LIMITATIONS_HEADING, TAKEAWAYS_HEADING, renderDraft } from '../src/render';
 import { countWords } from '../src/text';
-import { allSentences, claimById, findSentence, mutate } from './helpers';
+import { allSentences, claimById, mutate } from './helpers';
 
-/** `count` words ending in a full stop, the first with a capital letter, as every sentence must start (G2_SENTENCE_START). */
+/** `count` words ending in a full stop, the first with a capital letter. */
 const sentenceOf = (count: number) => `${['Word', ...Array.from({ length: count - 1 }, () => 'word')].join(' ')}.`;
 
 /** The body as G2 defines it: opening, takeaways, sections and limitations. Not the title, description or headings. */
@@ -478,149 +477,6 @@ describe('G2_LIMITATION_COVERAGE', () => {
       g.draft.limitations[0]!.claimIds = [...g.draft.limitations[0]!.claimIds, 'c-999'];
     });
     expect(out.failures).toEqual([]);
-  });
-});
-
-describe('G2_SENTENCE_START', () => {
-  const MESSAGE_END = 'every sentence must start with a capital letter or a digit (after any opening quotation mark or bracket), so that the first-word rule can read it';
-
-  /** Sets the text of the first key takeaway, a sentence that cites a claim and whose length does not matter to any other rule. */
-  const takeawayIs = (text: string) => (g: GateInput) => {
-    g.draft.takeaways[0]!.text = text;
-  };
-
-  /** Turns the first letter of the sentence at `index` (document order, as allSentences numbers them) to lowercase. */
-  const lowerAt = (index: number) => (g: GateInput) => {
-    const { sentence } = allSentences(g.draft)[index]!;
-    sentence.text = sentence.text.replace(/^./u, (first) => first.toLowerCase());
-  };
-
-  const golden = cloneGolden();
-  const firstHeading = golden.draft.sections[0]!.heading;
-  const indexOfFirst = (section: string) => allSentences(golden.draft).findIndex((item) => item.section === section);
-
-  it('passes every sentence of the golden piece, the title, the description, the opening, the takeaways, the body and the limitations', () => {
-    expect(allSentences(golden.draft)).toHaveLength(46);
-    expect(codesAfter(() => {})).toEqual([]);
-  });
-
-  it('fails a sentence that starts in lowercase, and says where it is and what it starts with', () => {
-    const out = resultAfter(takeawayIs('harlow logistics plans a plant.'));
-    expect(out.failures).toEqual([
-      {
-        check: 'G2',
-        code: 'G2_SENTENCE_START',
-        message: `the sentence at takeaways, sentence 1 starts with "harlow": ${MESSAGE_END}`,
-        where: 'takeaways, sentence 1',
-      },
-    ]);
-    expect(out.holdReasons).toEqual([]);
-  });
-
-  it.each([
-    ['title', 'title'],
-    ['description', 'description'],
-    ['opening', 'opening, sentence 1'],
-    ['takeaways', 'takeaways, sentence 1'],
-    ['body', `section "${firstHeading}", sentence 1`],
-    ['limitations', 'limitations, sentence 1'],
-  ])('checks the sentences of the %s: the first one in lowercase fails, at %s', (section, where) => {
-    const out = resultAfter(lowerAt(indexOfFirst(section)));
-    expect(out.failures.map((failure) => [failure.code, failure.where])).toEqual([['G2_SENTENCE_START', where]]);
-  });
-
-  it('checks analysis sentences as it checks facts', () => {
-    const out = resultAfter((g) => {
-      const sentence = findSentence(g.draft, (candidate) => candidate.kind === 'analysis');
-      sentence.text = sentence.text.replace(/^./u, (first) => first.toLowerCase());
-    });
-    expect(out.failures.map((failure) => failure.code)).toEqual(['G2_SENTENCE_START']);
-    expect(out.failures[0]!.where).toMatch(/^section "/);
-  });
-
-  it('reports each sentence that fails, once, in the order of the piece', () => {
-    const last = allSentences(golden.draft).length - 1;
-    const out = resultAfter((g) => {
-      lowerAt(last)(g);
-      lowerAt(0)(g);
-      lowerAt(indexOfFirst('body'))(g);
-    });
-    expect(out.failures.map((failure) => failure.where)).toEqual(['title', `section "${firstHeading}", sentence 1`, 'limitations, sentence 9']);
-  });
-
-  it('reports it after the other failures of G2', () => {
-    const out = resultAfter((g) => {
-      lowerAt(0)(g);
-      g.draft.sections = g.draft.sections.slice(0, 1);
-    });
-    expect(out.failures.map((failure) => failure.code)).toEqual(['G2_BODY_LENGTH', 'G2_SECTIONS_MIN', 'G2_SENTENCE_START']);
-  });
-
-  it.each([
-    ['a digit', '7 investors took part in the round.'],
-    ['a capital letter', 'Investors took part in the round.'],
-    ['a letter and a digit', '3D printing helped the round.'],
-    ['a capital letter of another alphabet', '\u00C9clair Robotics took part in the round.'],
-    ['a digit of another script', '\u0663 investors took part in the round.'],
-    ['spaces and then a capital letter', '  Investors took part in the round.'],
-    ['a straight quotation mark and then a capital letter', '"Investors took part," said the company.'],
-    ['a curly quotation mark and then a capital letter', '\u201CInvestors took part,\u201D said the company.'],
-    ['a low quotation mark and then a capital letter', '\u201EInvestors took part,\u201F said the company.'],
-    ['a single quotation mark and then a capital letter', '\u2018Investors took part\u2019 was the line.'],
-    ['an opening bracket and then a capital letter', '(Investors took part in the round.)'],
-    ['a square bracket and then a capital letter', '[Investors] took part in the round.'],
-    ['a quotation mark, a bracket and then a digit', '"(7 investors) took part," said the company.'],
-  ])('passes a sentence that starts with %s', (_name, text) => {
-    expect(codesAfter(takeawayIs(text))).toEqual([]);
-  });
-
-  it.each([
-    ['a lowercase letter', 'investors took part in the round.'],
-    ['a lowercase name that starts a sentence', 'iRobot took part in the round.'],
-    ['a lowercase letter after a straight quotation mark', '"investors took part," said the company.'],
-    ['a lowercase letter after a curly quotation mark', '\u201Cinvestors took part,\u201D said the company.'],
-    ['a lowercase letter after a bracket', '(investors took part in the round.)'],
-    ['a lowercase letter after a quotation mark and a bracket', '"(investors) took part," said the company.'],
-    ['spaces and then a lowercase letter', '  investors took part in the round.'],
-    ['a lowercase letter of another alphabet', '\u00E9clair Robotics took part in the round.'],
-    ['a currency sign', '$2 million was raised.'],
-    ['a dash', '- Investors took part in the round.'],
-    ['a full stop', '...Investors took part in the round.'],
-    ['a closing bracket', ') Investors took part in the round.'],
-  ])('fails a sentence that starts with %s', (_name, text) => {
-    expect(codesAfter(takeawayIs(text))).toEqual(['G2_SENTENCE_START']);
-  });
-
-  it('names the first word after the opening quotation marks and brackets, as written, up to 40 characters', () => {
-    const message = (text: string) => resultAfter(takeawayIs(text)).failures[0]!.message;
-    expect(message('"(harlow) logistics plans a plant."')).toContain('starts with "harlow)"');
-    expect(message(`${'x'.repeat(60)} plans a plant.`)).toContain(`starts with "${'x'.repeat(40)}"`);
-  });
-
-  it('fails a sentence that has no first character, and says so', () => {
-    for (const text of ['', '   ', '""', '"("']) {
-      const out = resultAfter(takeawayIs(text));
-      expect(out.failures, JSON.stringify(text)).toEqual([
-        {
-          check: 'G2',
-          code: 'G2_SENTENCE_START',
-          message: 'the sentence at takeaways, sentence 1 has no first character: every sentence must start with a capital letter or a digit',
-          where: 'takeaways, sentence 1',
-        },
-      ]);
-    }
-  });
-
-  it('stops what the first-word rule of G4 cannot see: a made-up name in lowercase at the start of a sentence', () => {
-    const input = mutate(cloneGolden(), takeawayIs('harlow logistics plans a second plant.'));
-    // G4 finds no first word and no name in that sentence, so it reports nothing ...
-    expect(checkG4(input, defaultContext()).failures).toEqual([]);
-    // ... and G2 is the check that refuses it.
-    expect(checkG2(input, defaultContext()).failures.map((failure) => failure.code)).toEqual(['G2_SENTENCE_START']);
-  });
-
-  it('does not read the headings, which are not sentences: G4 has its own rule for them', () => {
-    expect(codesAfter((g) => (g.draft.sections[0]!.heading = 'what shipped'))).toEqual([]);
   });
 });
 

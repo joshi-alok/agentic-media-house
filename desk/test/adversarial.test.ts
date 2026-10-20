@@ -181,20 +181,6 @@ const BAD: Scenario[] = [
     rounds: 2,
   },
   {
-    name: 'an invented name at the start of a sentence',
-    script: () => told({ piece: reply((copy) => { copy.opening[1] = fact('Harlow Dynamics announced on 1 October 2026 that deliveries have started.', 'c-2'); }) }),
-    gate: 'G4_INITIAL_WORD_UNSUPPORTED',
-    reasons: ['G4_INITIAL_WORD_UNSUPPORTED'],
-    rounds: 2,
-  },
-  {
-    name: 'a lowercase opening',
-    script: () => told({ piece: reply((copy) => { copy.opening[0] = fact('fixture Robotics has begun shipping FX-1 warehouse arms to Brindle Logistics for its second plant, at Tarnmoor.', 'c-1'); }) }),
-    gate: 'G2_SENTENCE_START',
-    reasons: ['G2_SENTENCE_START'],
-    rounds: 2,
-  },
-  {
     name: 'a wrong number written out in words',
     script: () => told({ piece: reply((copy) => { copy.takeaways[1] = fact('Fixture Robotics lists the FX-1 from $38,000 per arm, with delivery within fourteen weeks of an order.', 'c-4'); }) }),
     gate: 'G4_NUMBER_UNSUPPORTED',
@@ -242,7 +228,7 @@ const BAD: Scenario[] = [
     name: 'a claim whose label carries a name that is not in its quotation, which the piece then cites',
     script: () => told({ claims: [...DEMO_CLAIMS, MADE_UP_NAME], piece: reply((copy) => { copy.takeaways[3] = fact('Fixture Robotics lists the FX-1 from $38,000 per arm.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -266,6 +252,26 @@ const BAD: Scenario[] = [
         expect(verified.history.map((pass) => pass.verifierFailures.map((failure) => failure.id))).toEqual([[id], [id], [id]]);
       },
     };
+  })(),
+  (() => {
+    // A made-up company at the start of a sentence: the gate does not read the first word of a fact sentence as a name, and the date in the sentence is in the claim, so the
+    // gate passes it, and only the verifier can tell that the company is not in the claim.
+    const invented = fact('Harlow Dynamics announced on 1 October 2026 that deliveries have started.', 'c-2');
+    const piece = reply((copy) => { copy.opening[1] = invented; });
+    const id = idOf(piece, invented.text);
+    const rejecting = verifier((copy) => { copy.verdicts = copy.verdicts.map((verdict) => (verdict.id === id ? { ...verdict, verdict: 'not_entailed' as const } : verdict)); });
+    return {
+      name: 'an invented name at the start of a sentence, which only the model check judges',
+      script: () => told({ piece, verify: [rejecting, rejecting, rejecting] }),
+      reasons: ['G10_NOT_ENTAILED'],
+      rounds: 2,
+      check: async ({ dir }: { dir: string }) => {
+        const verified = await readArtifact(dir, '06-verify', VerifyArtifact);
+        expect(verified.history.map((pass) => pass.gate.route)).toEqual(['publish', 'publish', 'publish']);
+        expect(verified.history.map((pass) => pass.gate.failures)).toEqual([[], [], []]);
+        expect(verified.history.map((pass) => pass.verifierFailures.map((failure) => failure.id))).toEqual([[id], [id], [id]]);
+      },
+    } satisfies Scenario;
   })(),
   (() => {
     // A composer that is sent back twice and each time writes another wrong number.
@@ -296,7 +302,7 @@ const BAD: Scenario[] = [
     name: 'a figure that is only a part of a longer figure of its quotation: 2 in 12 weeks',
     script: () => told({ claims: [...DEMO_CLAIMS, PART_OF_A_FIGURE], piece: reply((copy) => { copy.takeaways[3] = fact('Fixture Robotics promises delivery within 2 weeks of an order.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -308,7 +314,7 @@ const BAD: Scenario[] = [
     name: 'a lowercase invented name in the text and the label of a claim, which a capitalised opening then uses',
     script: () => told({ claims: [...DEMO_CLAIMS, LOWERCASE_NAME], piece: reply((copy) => { copy.takeaways[3] = fact('Harlow ships the arm within 12 weeks of an order.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -323,7 +329,7 @@ const BAD: Scenario[] = [
     name: 'a claim whose label has a word that its quotation does not have',
     script: () => told({ claims: [...DEMO_CLAIMS, MADE_UP_WORD], piece: reply((copy) => { copy.takeaways[3] = fact('Fixture Robotics lists the FX-1 from $38,000 per arm.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -346,7 +352,7 @@ const BAD: Scenario[] = [
     fetcher: worldWith({ [DEMO_URLS.release]: releasePage(`<p style="display:none">${HIDDEN_SENTENCE}</p><p hidden>${HIDDEN_SENTENCE}</p>`) }),
     script: () => told({ claims: [...DEMO_CLAIMS, HIDDEN_QUOTE], piece: reply((copy) => { copy.takeaways[3] = fact(HIDDEN_SENTENCE, 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -640,11 +646,9 @@ describe('the adversarial matrix: the table', () => {
   it('catches every one of the checks of the gate that the scenarios are about, by the code that the gate gives it', () => {
     expect([...new Set(BAD.flatMap((scenario) => (scenario.gate === undefined ? [] : [scenario.gate])))].sort()).toEqual([
       'G2_HEADING_RESERVED',
-      'G2_SENTENCE_START',
       'G3_NO_CLAIM',
       'G3_UNKNOWN_CLAIM',
       'G4_HEADING_NUMBER',
-      'G4_INITIAL_WORD_UNSUPPORTED',
       'G4_NUMBER_UNSUPPORTED',
       'G5_QUOTE_NOT_VERBATIM',
       'G6_TIER2_UNATTRIBUTED',

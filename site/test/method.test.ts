@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import board from '@robywire/evals/scoreboard';
-import { ALL_FAILURE_CODES, BASES, CHECK_IDS, LIMITATIONS_HEADING, LIMITATION_MAX_CLAIMS, SAFE_BASES, TAKEAWAYS_HEADING, defaultConfig, extractTokens, startsWithCapitalOrDigit } from '@robywire/gate';
+import { ALL_FAILURE_CODES, BASES, CHECK_IDS, LIMITATIONS_HEADING, LIMITATION_MAX_CLAIMS, SAFE_BASES, TAKEAWAYS_HEADING, defaultConfig, extractTokens } from '@robywire/gate';
 import { LIVE } from '../src/lib/live';
 import { LIMITS_HEADING, PIPELINE_STAGES, SCOREBOARD_INTRO, gateRules, scoreboardHeadline } from '../src/lib/method';
 
@@ -81,8 +81,7 @@ describe('gateRules', () => {
       expect(g4).toContain('each one it finds must appear among the values of a claim that sentence cites');
     });
 
-    it('names the rules for the first word of a sentence and for headings, which Part A of this milestone added', () => {
-      expect(g4).toContain('a sentence may open with a capitalised word only if it is an ordinary function word or a word of the quoted passage, the names or the outlet of a claim the sentence cites (the text and the label of a claim are written by a model and count for nothing)');
+    it('names the rule for headings', () => {
       expect(g4).toContain('a section heading has no number, date or quotation');
     });
   });
@@ -105,13 +104,6 @@ describe('gateRules', () => {
   it('says in G8 that a limitation sentence covers at most four claims, and the code agrees', () => {
     expect(rules.find((rule) => rule.id === 'G8')?.text).toContain('through a fixed template, covers at most four claims, cites each claim once');
     expect(LIMITATION_MAX_CLAIMS).toBe(4);
-  });
-
-  it('says in G2 that every sentence starts with a capital letter or a digit, and the code agrees', () => {
-    expect(rules.find((rule) => rule.id === 'G2')?.text).toContain('every sentence starts with a capital letter or a digit (an opening quotation mark or bracket may come first)');
-    expect(startsWithCapitalOrDigit('7 investors took part.')).toBe(true);
-    expect(startsWithCapitalOrDigit('"The arm," said Jane.')).toBe(true);
-    expect(startsWithCapitalOrDigit('harlow logistics plans a plant.')).toBe(false);
   });
 
   it('says in G2 that no section has one of the two headings that the Desk writes itself, and the gate agrees', () => {

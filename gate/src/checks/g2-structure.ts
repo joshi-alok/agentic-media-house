@@ -1,8 +1,8 @@
 import type { Check, Failure } from '../gate';
 import { needsBasisLimitation, needsStatusLimitation } from '../limitations';
 import { LIMITATIONS_HEADING, TAKEAWAYS_HEADING } from '../render/body';
-import { allSentences, citedClaims, describeLocation } from '../sentences';
-import { afterOpeners, countWords, normaliseQuotes, startsWithCapitalOrDigit } from '../text';
+import { allSentences, citedClaims } from '../sentences';
+import { countWords, normaliseQuotes } from '../text';
 
 /** Every failure code G2 can report. */
 export const G2_CODES = [
@@ -16,7 +16,6 @@ export const G2_CODES = [
   'G2_HEADING_RESERVED',
   'G2_LIMITATIONS_MISSING',
   'G2_LIMITATION_COVERAGE',
-  'G2_SENTENCE_START',
 ] as const;
 
 const MIN_SECTIONS = 2;
@@ -33,9 +32,6 @@ const RESERVED_HEADINGS: ReadonlyMap<string, string> = new Map([
   [headingKey(LIMITATIONS_HEADING), 'the notes that code writes from the claims'],
 ]);
 
-/** The longest first word a G2_SENTENCE_START message quotes. */
-const MAX_FIRST_WORD = 40;
-
 /**
  * G2, structure: the opening paragraph, the key takeaways and the whole body
  * are the right length; there are at least two sections; every heading is
@@ -45,13 +41,6 @@ const MAX_FIRST_WORD = 40;
  * rests on a company's own claims has a "What we couldn't verify" section
  * that covers each claim that needs a note (G2_LIMITATION_COVERAGE).
  * What a heading may say is G4's question (G4_HEADING_*).
- *
- * Every sentence of the piece (the title, the description, the opening, the
- * takeaways, the section paragraphs and the limitations, of every kind) starts
- * with an uppercase letter or a digit, once any opening quotation marks and
- * brackets are skipped (G2_SENTENCE_START). The first-word rule of G4 and G7
- * looks for a capitalised first word, so a sentence that opened in lowercase
- * ("harlow logistics plans a plant.") would not be read by it.
  *
  * The body is the opening, the takeaways, every section paragraph and the
  * limitations. The title, the description and the headings are not counted.
@@ -129,20 +118,6 @@ export const checkG2: Check = ({ draft, claims }, ctx) => {
         );
       }
     }
-  }
-
-  for (const located of sentences) {
-    const { text } = located.sentence;
-    if (startsWithCapitalOrDigit(text)) continue;
-    const where = describeLocation(located);
-    const first = afterOpeners(text).split(/\s/u)[0]!.slice(0, MAX_FIRST_WORD);
-    fail(
-      'G2_SENTENCE_START',
-      first === ''
-        ? `the sentence at ${where} has no first character: every sentence must start with a capital letter or a digit`
-        : `the sentence at ${where} starts with "${first}": every sentence must start with a capital letter or a digit (after any opening quotation mark or bracket), so that the first-word rule can read it`,
-      where,
-    );
   }
 
   return { failures, holdReasons: [] };

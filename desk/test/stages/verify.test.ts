@@ -640,11 +640,6 @@ describe('problemsOf', () => {
     expect(draft.title.kind).toBe('analysis');
   });
 
-  it('points a lowercase opening at its sentence', () => {
-    const { problems } = problemsFor((draft) => { draft.opening[0] = { kind: 'fact', text: 'fixture Robotics has begun shipping its FX-1 warehouse arm to a second plant run by Brindle Logistics, at Tarnmoor.', claimIds: ['c-1'] }; });
-    expect(problems.map((problem) => [problem.id, problem.reason.split(':')[0]])).toEqual([['s2', 'G2_SENTENCE_START']]);
-  });
-
   it('points a failure of the opening as a whole at every sentence of the opening', () => {
     // The length of the opening is a note and never a failure, and no blocker is reported for the opening as a whole. The gate is run with no
     // notes, so that this failure, which a check can still report, shows where problemsOf sends a failure whose place is the opening.
@@ -679,7 +674,7 @@ describe('problemsOf', () => {
   });
 
   it('gives a sentence that failed twice two problems with its id', () => {
-    const { problems } = problemsFor((draft) => { draft.takeaways[1] = { kind: 'fact', text: 'the datasheet lists a 15 kg rated payload.', claimIds: ['c-8'] }; });
+    const { problems } = problemsFor((draft) => { draft.takeaways[1] = { kind: 'fact', text: 'The datasheet lists a 15 kg rated payload and a 3 m maximum reach.', claimIds: ['c-8'] }; });
     const id = problems[0]?.id;
     expect(problems.length).toBeGreaterThanOrEqual(2);
     expect(problems.every((problem) => problem.id === id)).toBe(true);
