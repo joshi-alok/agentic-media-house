@@ -5,6 +5,7 @@ import { defaultContext } from '../src/config';
 import type { ContextOverrides } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import type { CheckOutput, GateInput } from '../src/gate';
+import { runGate } from '../src/gate';
 import type { Sentence } from '../src/schemas';
 import { findSentence, mutate } from './helpers';
 
@@ -372,7 +373,8 @@ describe('G7_ANALYSIS_NEW_NAME: the opening word', () => {
     ['a name with a possessive ending', "Ashvale's rate is below the maximum."],
     ['an ordinary word that the quoted passage of a claim it cites has', 'Picks fell below the maximum.'],
     ['a word on the allow-list', 'Monday brought a similar rate.'],
-    ['a lowercase word', 'harlow reported something similar.'],
+    ['a quotation mark and then a capital letter', '"Picks" fell below the maximum.'],
+    ['a bracket and then a capital letter', '(Picks) fell below the maximum.'],
     ['a number', '940 picks is below the maximum.'],
   ])('allows an opening with %s', (_name, text) => {
     expect(run(saying(text))).toEqual({ failures: [], holdReasons: [] });
@@ -432,5 +434,92 @@ describe('G7_ANALYSIS_NEW_NAME: the opening word', () => {
     const number = run(saying('22% fewer picks is normal for a figure quoted as an upper limit.'));
     expect(codes(number)).toEqual(['G7_ANALYSIS_NEW_VALUE']);
     expect(number.failures[0]!.message).toContain('number "22%"');
+  });
+});
+
+describe('G7_ANALYSIS_NEW_NAME: an analysis sentence that does not start with a capital letter or a digit', () => {
+  // The rule for the opening word reads only a word that starts with a capital letter, and no model reads analysis. A sentence that starts in lowercase
+  // ("harlow reported something similar.") would have its first word read by nothing, so it is refused.
+  it('fails an analysis sentence that starts with a lowercase name, and says where it is and what it starts with', () => {
+    expect(run(saying('harlow reported something similar.')).failures).toEqual([
+      {
+        check: 'G7',
+        code: 'G7_ANALYSIS_NEW_NAME',
+        message: `the analysis sentence at ${ANALYSIS_AT} starts with "harlow", not with a capital letter or a digit, so its first word cannot be read as a name: start it with a capital letter or a digit`,
+        where: ANALYSIS_AT,
+      },
+    ]);
+  });
+
+  it('sends the draft back', () => {
+    const result = runGate(mutate(cloneGolden(), saying('harlow reported something similar.')), defaultContext());
+    expect(result.failures.map((failure) => failure.code)).toEqual(['G7_ANALYSIS_NEW_NAME']);
+    expect(result.route).toBe('revise');
+  });
+
+  it.each([
+    ['a lowercase word that is not a name', 'picks fell below the maximum.'],
+    ['a lowercase letter after a quotation mark', '"picks" fell below the maximum.'],
+    ['a lowercase letter after a bracket', '(picks) fell below the maximum.'],
+    ['spaces and then a lowercase letter', '  picks fell below the maximum.'],
+    ['a dash', '- Picks fell below the maximum.'],
+    ['a full stop', '...Picks fell below the maximum.'],
+    ['a closing bracket', ') Picks fell below the maximum.'],
+  ])('fails an analysis sentence that starts with %s', (_name, text) => {
+    expect(codes(run(saying(text)))).toEqual(['G7_ANALYSIS_NEW_NAME']);
+  });
+
+  it('names the first word after the opening quotation marks and brackets, as written, up to 40 characters', () => {
+    const message = (text: string) => run(saying(text)).failures[0]!.message;
+    expect(message('"(harlow) reported something similar."')).toContain('starts with "harlow)"');
+    expect(message(`${'x'.repeat(60)} reported something similar.`)).toContain(`starts with "${'x'.repeat(40)}"`);
+  });
+
+  it('fails an analysis sentence that has no first character, and says so', () => {
+    for (const text of ['', '   ', '""']) {
+      expect(run(saying(text)).failures, JSON.stringify(text)).toEqual([
+        {
+          check: 'G7',
+          code: 'G7_ANALYSIS_NEW_NAME',
+          message: `the analysis sentence at ${ANALYSIS_AT} has no first character, so no name can be read in it: start it with a capital letter or a digit`,
+          where: ANALYSIS_AT,
+        },
+      ]);
+    }
+  });
+
+  it.each([
+    ['a digit', '940 picks is below the maximum.'],
+    ['a capital letter', 'Picks fell below the maximum.'],
+    ['a quotation mark and then a capital letter', '"Picks" fell below the maximum.'],
+    ['a curly quotation mark and then a capital letter', '\u201CPicks\u201D fell below the maximum.'],
+    ['a bracket and then a digit', '(940) picks is below the maximum.'],
+  ])('passes an analysis sentence that starts with %s', (_name, text) => {
+    expect(run(saying(text))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('reports it once, and not also as an opening word', () => {
+    const output = run(saying('harlow saw 22% less.'));
+    expect(codes(output)).toEqual(['G7_ANALYSIS_NEW_NAME', 'G7_ANALYSIS_NEW_VALUE']);
+  });
+
+  it('reads analysis sentences only: a fact sentence that starts in lowercase is the business of the model check', () => {
+    const lowercase = run((g) => {
+      findSentence(g.draft, (sentence) => sentence.kind === 'fact').text = 'harlow announced that deliveries have started.';
+    });
+    expect(lowercase).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('reads an analysis sentence wherever it stands, each at its own place', () => {
+    const output = run((g) => {
+      saying('harlow reported something similar.')(g);
+      addAnalysis(g, 1);
+      findSentence(g.draft, (sentence) => sentence.text === 'That is a plain reading of the figures.').text = 'it is plain.';
+    });
+    expect(output.failures.map((failure) => [failure.code, failure.where])).toEqual([
+      ['G7_ANALYSIS_NEW_NAME', ANALYSIS_AT],
+      ['G7_ANALYSIS_NEW_NAME', expect.stringMatching(/^section "/)],
+    ]);
+    expect(new Set(output.failures.map((failure) => failure.where)).size).toBe(2);
   });
 });

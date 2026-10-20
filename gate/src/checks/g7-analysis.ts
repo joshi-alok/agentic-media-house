@@ -5,6 +5,7 @@ import type { DateToken, NumberToken } from '../tokens';
 import { extractTokens } from '../tokens';
 import { claimWords, openingWordAccepted } from '../grounding';
 import { allSentences, describeLocation } from '../sentences';
+import { afterOpeners, startsWithCapitalOrDigit } from '../text';
 
 /** Every failure code G7 can report. */
 export const G7_CODES = ['G7_ANALYSIS_PLACEMENT', 'G7_ANALYSIS_SHARE', 'G7_ANALYSIS_NEW_VALUE', 'G7_ANALYSIS_NEW_NAME'] as const;
@@ -14,6 +15,9 @@ const NO_ANALYSIS: readonly LedgerSection[] = ['title', 'description', 'opening'
 
 /** The sentences the share is measured over: everything below the title and the description. */
 const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitations'];
+
+/** The longest first word that the message about the start of a sentence quotes. */
+const MAX_FIRST_WORD = 40;
 
 /**
  * G7, analysis rules. Analysis is the Desk's own reading of the facts, and it
@@ -39,6 +43,11 @@ const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitat
  *   a whole word (any case) of the quoted passage, the name values or the outlet of
  *   a claim that the analysis sentence cites. The words of the fact sentences, and the
  *   text and the label of a claim, ground nothing: they are what a model wrote.
+ * - It starts with a capital letter or a digit, once any opening quotation marks and brackets
+ *   are skipped (G7_ANALYSIS_NEW_NAME). The rule for the opening word reads only a word that
+ *   starts with a capital letter, and no model reads analysis, so an analysis sentence that
+ *   began in lowercase ("harlow reported something similar.") would have its first word read
+ *   by nothing. There is no such rule for a fact sentence: the model check judges it.
  */
 export const checkG7: Check = ({ draft, claims }, ctx) => {
   const sentences = allSentences(draft);
@@ -83,44 +92,49 @@ export const checkG7: Check = ({ draft, claims }, ctx) => {
 
   for (const item of analysis) {
     const where = describeLocation(item);
-    const tokens = extractTokens(item.sentence.text);
-    const fail = (what: string, why = 'which no fact sentence contains', code = 'G7_ANALYSIS_NEW_VALUE') =>
-      failures.push({
-        check: 'G7',
-        code,
-        message: `the analysis sentence at ${where} introduces the ${what}, ${why}`,
-        where,
-      });
+    const { text } = item.sentence;
+    const tokens = extractTokens(text);
+    const fail = (code: (typeof G7_CODES)[number], message: string) => failures.push({ check: 'G7', code, message, where });
+    /** The message for a number, a date, a name or an opening word that the analysis brings in. */
+    const introduces = (what: string, why = 'which no fact sentence contains') =>
+      `the analysis sentence at ${where} introduces the ${what}, ${why}`;
+
+    if (!startsWithCapitalOrDigit(text)) {
+      const first = afterOpeners(text).split(/\s/u)[0]!.slice(0, MAX_FIRST_WORD);
+      fail(
+        'G7_ANALYSIS_NEW_NAME',
+        first === ''
+          ? `the analysis sentence at ${where} has no first character, so no name can be read in it: start it with a capital letter or a digit`
+          : `the analysis sentence at ${where} starts with "${first}", not with a capital letter or a digit, so its first word cannot be read as a name: start it with a capital letter or a digit`,
+      );
+    }
 
     const cited = [...new Set(item.sentence.claimIds)].flatMap((id) => byId.get(id) ?? []);
     if (tokens.initialWord !== undefined && !openingWordAccepted(tokens.initialWord, claimWords(cited), ctx.nameAllowList)) {
       fail(
-        `opening word "${tokens.initialWord}"`,
-        'which is neither an ordinary opening word nor a word of the quoted passage, the names or the outlet of any claim it cites',
         'G7_ANALYSIS_NEW_NAME',
+        introduces(
+          `opening word "${tokens.initialWord}"`,
+          'which is neither an ordinary opening word nor a word of the quoted passage, the names or the outlet of any claim it cites',
+        ),
       );
     }
     for (const token of new Map(tokens.numbers.map((number) => [number.raw, number])).values()) {
       if (!numbers.some((fact) => fact.value === token.value && (token.unit === undefined || fact.unit === token.unit))) {
-        fail(`number "${token.raw}"`);
+        fail('G7_ANALYSIS_NEW_VALUE', introduces(`number "${token.raw}"`));
       }
     }
     for (const word of tokens.uncheckable) {
-      fail(`number word "${word}"`);
+      fail('G7_ANALYSIS_NEW_VALUE', introduces(`number word "${word}"`));
     }
     for (const token of new Map(tokens.dates.map((date) => [date.raw, date])).values()) {
       if (!dates.some((fact) => dateMatches(token, fact.iso))) {
-        fail(`date "${token.raw}"`);
+        fail('G7_ANALYSIS_NEW_VALUE', introduces(`date "${token.raw}"`));
       }
     }
     for (const name of tokens.names) {
       if (!names.has(name) && !ctx.nameAllowList.has(name)) {
-        failures.push({
-          check: 'G7',
-          code: 'G7_ANALYSIS_NEW_NAME',
-          message: `the analysis sentence at ${where} introduces the name "${name}", which no fact sentence contains`,
-          where,
-        });
+        fail('G7_ANALYSIS_NEW_NAME', introduces(`name "${name}"`));
       }
     }
   }

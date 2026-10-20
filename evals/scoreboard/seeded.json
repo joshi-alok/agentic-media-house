@@ -1,6 +1,6 @@
 {
-  "total": 58,
-  "caught": 58,
+  "total": 59,
+  "caught": 59,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -324,6 +324,13 @@
       "check": "G7",
       "code": "G7_ANALYSIS_NEW_NAME",
       "description": "An analysis sentence opens with a company, Harlow, that no fact sentence mentions.",
+      "caught": true
+    },
+    {
+      "id": "analysis-lowercase-opening",
+      "check": "G7",
+      "code": "G7_ANALYSIS_NEW_NAME",
+      "description": "An analysis sentence starts with a lowercase name, harlow, so the rule for the opening word cannot read it.",
       "caught": true
     },
     {

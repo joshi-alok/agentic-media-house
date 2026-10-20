@@ -254,9 +254,9 @@ const BAD: Scenario[] = [
     };
   })(),
   (() => {
-    // A made-up company at the start of a sentence: the gate does not read the first word of a fact sentence as a name, and the date in the sentence is in the claim, so the
-    // gate passes it, and only the verifier can tell that the company is not in the claim.
-    const invented = fact('Harlow Dynamics announced on 1 October 2026 that deliveries have started.', 'c-2');
+    // A made-up company at the start of a sentence, named by one word, so that this is the only name in it: the gate does not read the first word of a fact sentence as a name, and
+    // the date in the sentence is in the claim, so the gate passes it with no failure and no note, and only the verifier can tell that the company is not in the claim.
+    const invented = fact('Harlow announced on 1 October 2026 that deliveries have started.', 'c-2');
     const piece = reply((copy) => { copy.opening[1] = invented; });
     const id = idOf(piece, invented.text);
     const rejecting = verifier((copy) => { copy.verdicts = copy.verdicts.map((verdict) => (verdict.id === id ? { ...verdict, verdict: 'not_entailed' as const } : verdict)); });
@@ -269,6 +269,8 @@ const BAD: Scenario[] = [
         const verified = await readArtifact(dir, '06-verify', VerifyArtifact);
         expect(verified.history.map((pass) => pass.gate.route)).toEqual(['publish', 'publish', 'publish']);
         expect(verified.history.map((pass) => pass.gate.failures)).toEqual([[], [], []]);
+        // No note either: the one word that opens the sentence is the only name in it, so nothing else in the sentence is flagged.
+        expect(verified.history.map((pass) => pass.gate.warnings)).toEqual([[], [], []]);
         expect(verified.history.map((pass) => pass.verifierFailures.map((failure) => failure.id))).toEqual([[id], [id], [id]]);
       },
     } satisfies Scenario;

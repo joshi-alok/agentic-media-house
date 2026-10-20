@@ -106,9 +106,10 @@ export function afterOpeners(text: string): string {
 
 /**
  * Does a sentence start with an uppercase letter (of any alphabet) or a digit, once the opening quotation marks
- * and brackets in front are skipped? The first-word rule of G4 looks for a capitalised first word, so a sentence
- * that opens in lowercase would not be read by it: G2 requires this of every sentence. A text with nothing
- * after the openers has no first character, so it does not.
+ * and brackets in front are skipped? G7 requires this of every analysis sentence: its rule for the opening word
+ * looks for a capitalised first word, so an analysis sentence that opens in lowercase would not be read by it,
+ * and no model reads analysis. A fact sentence has no such rule, because the model check judges it. A text
+ * with nothing after the openers has no first character, so it does not.
  */
 export function startsWithCapitalOrDigit(text: string): boolean {
   return /^[\p{Lu}\p{Nd}]/u.test(afterOpeners(text));

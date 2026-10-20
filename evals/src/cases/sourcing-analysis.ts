@@ -106,6 +106,17 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'analysis-lowercase-opening',
+    check: 'G7',
+    code: 'G7_ANALYSIS_NEW_NAME',
+    description: 'An analysis sentence starts with a lowercase name, harlow, so the rule for the opening word cannot read it.',
+    apply: (base) => {
+      sentenceWith(base, 'The measured rate sits below').text =
+        'harlow also found that the measured rate sits below the datasheet maximum, which is normal for a figure quoted as an upper limit.';
+      return base;
+    },
+  },
+  {
     id: 'analysis-new-name',
     check: 'G7',
     code: 'G7_ANALYSIS_NEW_NAME',
