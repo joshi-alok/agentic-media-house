@@ -15,8 +15,8 @@ import type { VerifierFailure } from './verify-model';
 // it costs nothing; only a draft that it clears is shown to the verifier model. A draft that fails either is sent back to the
 // composer with only the sentences and headings that failed and the reasons, and the replacements are put into the draft in the
 // place of the sentences they replace; then the whole draft is judged again. This goes on for at most `config.maxRevisionRounds`
-// rounds. A draft that is clean at the end is `publish`, and a draft that is not clean at the end is `hold`: nothing is ever published on the
-// strength of a draft that was not cleared.
+// rounds, and, after them, for at most `config.modelCheckRevisions` more for a draft that only the model check rejects. A draft that is clean at
+// the end is `publish`, and a draft that is not clean at the end is `hold`: nothing is ever published on the strength of a draft that was not cleared.
 
 /** What was found wrong with one sentence or heading of a draft: its id (`s3`, the sentence, or `h1`, the heading of a section) and why. */
 export interface Problem {
@@ -202,7 +202,7 @@ export interface VerifyResult {
  *
  * Each round: the gate's verdict on the draft (its notes never block, never go back to the composer and never keep the model check from running;
  * Compose gave it for the first; later it is run again); when the gate found no failure, the model check (`runVerifier`; a draft that code has sent back is not shown to the model). A draft with no failure of either is done. Otherwise, when
- * rounds are left (`config.maxRevisionRounds`) and there is something that a rewritten sentence or heading can mend (`problemsOf`), `reviseDraft` makes a new draft and the
+ * rounds are left (`config.maxRevisionRounds`, and, after them, `config.modelCheckRevisions` more for a draft that only the model check rejects) and there is something that a rewritten sentence or heading can mend (`problemsOf`), `reviseDraft` makes a new draft and the
  * next round judges it; when there is not, the draft is held. A failure that no sentence can mend (the number of sections, the categories, the basis of a claim)
  * is not sent anywhere: it is recorded, and the draft is held when the rounds that could mend the rest are over.
  *
@@ -223,7 +223,10 @@ export async function runVerify(ctx: StageContext, claims: Claim[], composed: Co
     verifier = checked?.verifier;
     const clean = checked?.verifier.passed === true;
     const { problems, unattached } = problemsOf(draft, gate, checked?.failures ?? []);
-    const send = !clean && round < ctx.config.maxRevisionRounds && problems.length > 0;
+    // The rounds are for any failure; a rejection by the model check after them gets `modelCheckRevisions` more.
+    const rejected = checked !== undefined && !checked.verifier.passed;
+    const allowed = round < ctx.config.maxRevisionRounds || (rejected && round < ctx.config.maxRevisionRounds + ctx.config.modelCheckRevisions);
+    const send = !clean && allowed && problems.length > 0;
     const ids = [...new Set(problems.map((problem) => problem.id))];
     history.push({ round, gate: structuredClone(gate), verifier: verifier ?? null, verifierFailures: structuredClone(checked?.failures ?? []), sent: send ? ids : [] });
     const noteWords = gate.warnings.length === 0 ? '' : `, ${gate.warnings.length} ${gate.warnings.length === 1 ? 'note' : 'notes'}`;

@@ -19,12 +19,14 @@ import { verifierReply } from './verifier';
 /** The run that holds in these tests. */
 export const HOLD_RUN = { runId: '2026-10-05-043100', at: '2026-10-05T04:31:00.000Z' };
 
-/** How many times a draft that is never mended goes back to the composer: the limit of the configuration, so that a change of the limit does not break the helpers below. */
+/** How many times a draft that the gate holds goes back to the composer: the limit of the configuration, so that a change of the limit does not break the helpers below. */
 const ROUNDS = defaultConfig().maxRevisionRounds;
-/** What the composer says to each revision when it mends nothing: one reply for each round. */
-const UNMENDED = () => Array.from({ length: ROUNDS }, () => ({ replacements: [] }));
-/** One verifier reply for each time the draft is judged when it is sent back in every round: the first draft and the draft after each round. */
-const PASSES = <T>(reply: () => T): T[] => Array.from({ length: ROUNDS + 1 }, reply);
+/** How many times a draft that the model check holds goes back: those rounds, and the ones that only a rejection by the model check gets. */
+const MODEL_CHECK_ROUNDS = ROUNDS + defaultConfig().modelCheckRevisions;
+/** What the composer says to each revision when it mends nothing: one reply for each of `rounds`. */
+const UNMENDED = (rounds: number) => Array.from({ length: rounds }, () => ({ replacements: [] }));
+/** One verifier reply for each time the draft is judged when it is sent back in each of `rounds`: the first draft and the draft after each round. */
+const PASSES = <T>(rounds: number, reply: () => T): T[] => Array.from({ length: rounds + 1 }, reply);
 
 /** A fact that cites two claims and says a payload that the claims do not say: the gate cannot match its number to them. */
 export const INVENTED = (kilograms: number) => ({ kind: 'fact' as const, text: `The datasheet lists a ${kilograms} kg rated payload and a 1.4 m maximum reach.`, claimIds: ['c-8', 'c-9'] });
@@ -57,19 +59,19 @@ export function verdicts(scratch: () => string) {
     return verdictOn({
       reply: replyFromDraft(variant.draft),
       claims: variant.claims,
-      revisions: UNMENDED(),
+      revisions: UNMENDED(MODEL_CHECK_ROUNDS),
       verifier: (plan) => {
         const attributed = plan.sentences.find((item) => item.text.startsWith(TIER2_OUTLET))?.id as string;
-        return PASSES(() => verifierReply(plan, { verdicts: { [attributed]: 'not_entailed' } }));
+        return PASSES(MODEL_CHECK_ROUNDS, () => verifierReply(plan, { verdicts: { [attributed]: 'not_entailed' } }));
       },
     });
   }
 
-  /** A piece with a number that its claims do not say, which the composer does not mend in two rounds: the gate holds it with a failure of G4. */
+  /** A piece with a number that its claims do not say, which the composer does not mend in the rounds that it has: the gate holds it with a failure of G4. */
   async function gateFailure() {
     const reply = replyFromDraft();
     reply.takeaways[1] = INVENTED(15);
-    return verdictOn({ reply, revisions: UNMENDED() });
+    return verdictOn({ reply, revisions: UNMENDED(ROUNDS) });
   }
 
   /** A piece that the gate clears and the model check does not: the verifier finds a sentence ambiguous and a claim's label not supported, in every pass. */
@@ -78,8 +80,8 @@ export function verdicts(scratch: () => string) {
     const sentence = plan.sentences[3]?.id as string;
     const claim = plan.claims[0]?.id as string;
     return verdictOn({
-      revisions: UNMENDED(),
-      verifier: () => PASSES(() => verifierReply(plan, { verdicts: { [sentence]: 'ambiguous' }, unsupported: [claim], omit: [plan.sentences[5]?.id as string] })),
+      revisions: UNMENDED(MODEL_CHECK_ROUNDS),
+      verifier: () => PASSES(MODEL_CHECK_ROUNDS, () => verifierReply(plan, { verdicts: { [sentence]: 'ambiguous' }, unsupported: [claim], omit: [plan.sentences[5]?.id as string] })),
     });
   }
 

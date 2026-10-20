@@ -38,6 +38,7 @@ describe('defaultConfig', () => {
       shortlistMax: 15,
       minClaims: 3,
       maxRevisionRounds: 2,
+      modelCheckRevisions: 1,
       maxAttemptsPerDay: 3,
       userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
       requestIntervalMs: 1000,
@@ -124,8 +125,8 @@ describe('loadConfig with a file', () => {
   });
 
   it('accepts a setting at the edge of what is allowed', () => {
-    const config = loadConfig(configFile('maxRevisionRounds: 0\nrequestIntervalMs: 0\nminClaims: 1\nmaxAttemptsPerDay: 1\nrunDir: r\n'));
-    expect([config.maxRevisionRounds, config.requestIntervalMs, config.minClaims, config.maxAttemptsPerDay, config.runDir]).toEqual([0, 0, 1, 1, 'r']);
+    const config = loadConfig(configFile('maxRevisionRounds: 0\nmodelCheckRevisions: 0\nrequestIntervalMs: 0\nminClaims: 1\nmaxAttemptsPerDay: 1\nrunDir: r\n'));
+    expect([config.maxRevisionRounds, config.modelCheckRevisions, config.requestIntervalMs, config.minClaims, config.maxAttemptsPerDay, config.runDir]).toEqual([0, 0, 0, 1, 1, 'r']);
   });
 
   it('takes the number of tries that a day may have from the file', () => {
@@ -173,6 +174,7 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
 
   it('a negative number of revision rounds, or a negative pause between requests', () => {
     expect(failure('maxRevisionRounds: -1\n')).toBe('desk config <file>: maxRevisionRounds: Too small: expected number to be >=0');
+    expect(failure('modelCheckRevisions: -1\n')).toBe('desk config <file>: modelCheckRevisions: Too small: expected number to be >=0');
     expect(failure('requestIntervalMs: -5\n')).toBe('desk config <file>: requestIntervalMs: Too small: expected number to be >=0');
   });
 

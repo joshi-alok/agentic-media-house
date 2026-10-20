@@ -57,8 +57,14 @@ export const DeskConfig = z.strictObject({
   shortlistMax: count,
   /** Extract: fewer surviving claims than this ends the run with no story. */
   minClaims: count,
-  /** Verify: how many times a draft goes back to the composer before it is held. */
+  /** Verify: how many times a draft goes back to the composer before it is held (`modelCheckRevisions` adds rounds for a rejection by the model check). */
   maxRevisionRounds: z.number().int().nonnegative(),
+  /**
+   * Verify: how many more times a draft goes back to the composer when the model check rejects the draft of the last round. The rounds of `maxRevisionRounds`
+   * are for any failure; this one is for the model check alone, because the model check is the only layer that reads meaning and a rejection found when the
+   * rounds are spent has had no answer. A blocker of the gate that is still standing in the last round does not get it.
+   */
+  modelCheckRevisions: z.number().int().nonnegative(),
   /** Run: how many runs one day may have, the first and every one after it (a day that failed is run again, and `--force-new` runs a day again). The run after the last is refused. */
   maxAttemptsPerDay: count,
   /** Fetch: what the Desk calls itself to every site. It must link to the /method page, which says who the Desk is. */
@@ -91,6 +97,7 @@ export function defaultConfig(): DeskConfig {
     shortlistMax: 15,
     minClaims: 3,
     maxRevisionRounds: 2,
+    modelCheckRevisions: 1,
     maxAttemptsPerDay: 3,
     userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
     requestIntervalMs: 1000,

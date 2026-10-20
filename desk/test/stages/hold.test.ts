@@ -5,6 +5,7 @@ import type { Claim } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT, TIER2_OUTLET } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
 import { REASON_LABELS } from '../../../site/src/lib/reasons';
+import { defaultConfig } from '../../src/config';
 import { HeldArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
 import { FakeGit } from '../../src/run/git';
@@ -104,7 +105,7 @@ describe('runHold: a piece that cites another outlet, which the gate clears and 
       reasons: ['G10_NOT_ENTAILED'],
       draft: verified.draft,
       claims: citedClaims(verified.draft, claims),
-      rounds: 2,
+      rounds: defaultConfig().maxRevisionRounds + defaultConfig().modelCheckRevisions,
       gate: verified.gate,
       verifier: verified.verifier,
       history: verified.history,
@@ -185,8 +186,8 @@ describe('runHold: a draft that the gate or the model check did not clear', () =
     const sentence = plan.sentences[3]?.id as string;
     const claim = plan.claims[0]?.id as string;
     const { ctx, claims, verified } = await verdictOn({
-      revisions: [{ replacements: [] }, { replacements: [] }],
-      verifier: () => [0, 1, 2].map(() => verifierReply(plan, { verdicts: { [sentence]: 'ambiguous' }, unsupported: [claim], omit: [plan.sentences[5]?.id as string] })),
+      revisions: [{ replacements: [] }, { replacements: [] }, { replacements: [] }],
+      verifier: () => [0, 1, 2, 3].map(() => verifierReply(plan, { verdicts: { [sentence]: 'ambiguous' }, unsupported: [claim], omit: [plan.sentences[5]?.id as string] })),
     });
     const { target } = setup();
     const result = await runHold(ctx, target, claims, verified, RUN);

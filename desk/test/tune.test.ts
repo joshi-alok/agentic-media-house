@@ -312,17 +312,17 @@ describe('main: tune, what the model check found', () => {
   it('counts, for the first draft that the model was shown, the sentences that were not entailed, ambiguous and not judged, and the labels that were not supported, and says that the piece is held after the rounds of revision', async () => {
     const reading = new FakeClient()
       .script('extract', { claims: DEMO_CLAIMS })
-      .script('compose', DEMO_REPLY, { replacements: [] }, { replacements: [] })
-      .script('verify', faultFinding, faultFinding, faultFinding);
+      .script('compose', DEMO_REPLY, { replacements: [] }, { replacements: [] }, { replacements: [] })
+      .script('verify', faultFinding, faultFinding, faultFinding, faultFinding);
     const { call, out, record } = tuning([RELEASE], { deps: { tuneClient: reading } });
     expect(await call('--client', 'fake')).toBe(0);
     expect(out).toContain('  model check: round 0 judged 35 items: entailed 32, not entailed 1, ambiguous 1, missing 1; label problems 1 (7 claims)');
-    expect(out).toContain('  verify: hold after 2 revision rounds; the gate says publish; 628 words');
+    expect(out).toContain('  verify: hold after 3 revision rounds; the gate says publish; 628 words');
     expect(record().rows[0]).toMatchObject({
       status: 'judged',
       modelCheck: { round: 0, judged: 35, entailed: 32, notEntailed: 1, ambiguous: 1, missing: 1, claims: 7, labelProblems: 1 },
-      verdict: { outcome: 'hold', rounds: 2, route: 'publish', codes: {} },
-      usage: { calls: 7 },
+      verdict: { outcome: 'hold', rounds: 3, route: 'publish', codes: {} },
+      usage: { calls: 9 },
     });
   });
 });

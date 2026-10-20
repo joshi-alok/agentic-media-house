@@ -278,7 +278,7 @@ https://<host in sources.yml>/<path of one page>
 
 ### 18. Run the first trial (outward: it spends money)
 
-Start with **one page, one trial, at most 10 calls**. A page goes through Extract (1 call), Compose (1 call) and Verify (1 call for the model check, and 2 more for each round of revision), so one trial is 3 to 7 calls. `--config desk.config.yml` gives the real user agent; the bucket is not used. The key is read from its file for this one command.
+Start with **one page, one trial, at most 10 calls**. A page goes through Extract (1 call), Compose (1 call) and Verify (1 call for the model check, and 2 more for each round of revision, counting the one extra round that a draft gets when the model check rejects it in the last round), so one trial is 3 to 9 calls. `--config desk.config.yml` gives the real user agent; the bucket is not used. The key is read from its file for this one command.
 
 ```bash
 grep -m 1 '^https' runs/tune-urls.txt > runs/tune-first.txt

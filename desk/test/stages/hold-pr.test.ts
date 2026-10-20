@@ -184,6 +184,8 @@ describe('holdPrBody', () => {
     const failed = (held.history.at(-1) as HeldArtifact['history'][number]).verifierFailures;
     expect(failed).toHaveLength(1);
     expect(held.reasons).toEqual(['G10_NOT_ENTAILED']);
+    // The model check holds it in the extra round that only its rejection gets, so the rounds that the run did are more than `maxRevisionRounds`.
+    expect(held.rounds).toBe(defaultConfig().maxRevisionRounds + defaultConfig().modelCheckRevisions);
     expect(holdPrBody(held)).toBe(
       [
         `# Held by the Desk: \`${slug}\``,
@@ -202,7 +204,7 @@ describe('holdPrBody', () => {
         '| Day | `2026-10-05` |',
         `| Categories | ${held.draft.categories.map((category) => `\`${category}\``).join(', ')} |`,
         '| Run | `2026-10-05-043100` |',
-        `| Rounds of revision | ${defaultConfig().maxRevisionRounds} |`,
+        `| Rounds of revision | ${held.rounds} |`,
         `| The article | \`site/src/content/news/${slug}.mdx\` |`,
         `| Its ledger | \`site/src/content/ledger/${slug}.json\` |`,
         '',
