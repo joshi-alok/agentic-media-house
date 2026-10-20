@@ -414,6 +414,8 @@ export function buildLimitations(citedClaims: readonly Claim[]): LimitationSente
 
 The golden piece (`gate/src/fixtures/golden.ts`) is the base of hundreds of tests, and its limitation notes were 192 words in nine sentences. The five new notes are 68 words, so the body falls from 692 words and 44 sentences to 568 words and 40, below the 600 to 850 of the default range (a `G2_BODY_LENGTH` note on the golden piece) and with a higher share of analysis (3 of 40 instead of 3 of 44). The fixture changes, not the range and not the tests: add four fact sentences to the body so that the golden piece again has 44 body sentences and 640 to 720 words (the band `golden-draft.test.ts` asserts). Cite only claims the body already cites (so the five limitation groups do not move), never `c-19`, and for a capitalised name the claim that lists it; add no paragraph and no section; every sentence is true to the quoted passage of its claim and uses only the values the claim lists. Adapt the tests that locate a sentence by number if one moves. Then the seeded case `long-body` is caught again.
 
+**What the same cause also moved (found when Task 1 was executed, all done in its commit):** the demo story (`desk/src/demo/story.ts`) fell from 628 to 583 words because its limitation notes also shrank, so seven of its fact sentences were made 45 words longer, using only words the cited claims support, to keep it at 628 words and 35 judged items (the tests of `desk/test/tune.test.ts` pin both, and its token constants `THREE_CALLS_IN` and `THREE_CALLS_OUT` follow the length of the text); the seeded case `short-body` now cuts the last paragraph of every section; the seeded case `long-body` pads with 60 repetitions so that it stays over 850 words for any golden body from 600 to 720 words. A later task that rewords a note, or that changes what a scripted reply says, can move these numbers again: re-run the suite, and if `desk/test/tune.test.ts` fails on a token count, change `THREE_CALLS_IN` or `THREE_CALLS_OUT`, never the meaning of an assertion.
+
 - [ ] **Step 6: Regenerate and run everything**
 
 ```bash
@@ -594,6 +596,8 @@ Run: `npm test --workspace @robywire/desk -- test/stages/verify-contradiction.te
 Expected: PASS (after Step 5, because the helper `verifierReply` must write `missing`; run it again then).
 
 - [ ] **Step 5: Give every scripted reply a list of what is missing**
+
+(Found in Task 1: the scripted replies are also priced by their length. `desk/test/tune.test.ts` pins `THREE_CALLS_IN` and `THREE_CALLS_OUT`, derived from the length of the messages and of the replies; a reply with a `missing` list is longer, so update those two constants and nothing else in that file.)
 
 - `desk/test/support/verifier.ts`: in the `verdicts` map write `missing: verdicts[item.id] === 'not_entailed' ? ['what the passages do not say'] : []` between `reason` and `verdict`'s position (the key order in an object literal is not checked, but write them in the order of the schema).
 - `desk/src/demo/story.ts:210`: `({ id, reason: 'The passages say it.', missing: [], verdict: 'entailed' as const })`.

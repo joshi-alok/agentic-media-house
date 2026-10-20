@@ -169,6 +169,8 @@ console.log(`${changed} files changed`);
 
 - [ ] **Step 5: Do by hand what a script cannot see (unquoted keys and words)**
 
+(Found in Task 1, to save you the search: the script does not touch an unquoted property, so `gate/test/g8-limitations.test.ts` (`BASIS_NOTES.datasheet` near line 21, and a message that reads `c-1: press-release, c-8: datasheet` near line 205) and the `it.each` table of notes in `gate/test/limitations.test.ts` (about lines 66 to 80, which restates the notes of `datasheet`, `press-release`, `briefing` and `demo`) need a hand edit; the new notes for `docs` and `announcement` are one word longer than the ones they replace, so the golden body (58 words over the minimum) and the demo story (28 words over it) keep their margin, but check `golden-draft.test.ts` and `desk/test/tune.test.ts` if a word count fails.)
+
 Run `npm run typecheck`. The compiler lists every table that is keyed by `Category` or `Basis` and now lacks a key. Fix each as follows; these are all of them as far as the code is read, and the compiler is the proof:
 
 - `gate/src/limitations.ts`, `BASIS_NOTES`: the keys `datasheet` and `'press-release'` become `docs` and `announcement`, with the sentences
