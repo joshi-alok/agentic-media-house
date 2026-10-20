@@ -168,6 +168,7 @@ export const LedgerEntry = z.object({
     checks: z.record(z.enum(CHECK_IDS), z.enum(CHECK_RESULTS)),
     holdReasons: z.array(z.string()),
     // The notes of the gate: findings that did not block the piece, by code and place. The receipts page lists them in words.
+    // `where` is a place (`body`, `section "<heading>", sentence 3`) for most codes and the configured phrase for G9_BANNED_PHRASE.
     // A ledger written before notes existed has none.
     warnings: z.array(z.object({ code: z.string().min(1), where: z.string().optional() })).default([]),
   }),

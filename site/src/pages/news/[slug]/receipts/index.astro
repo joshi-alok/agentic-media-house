@@ -43,6 +43,21 @@ const holdText = view.gate.holdReasons.length === 0 ? 'none' : view.gate.holdRea
         Hold reasons: {holdText}. What each check looks at is on the <a href="/method/">method page</a>.
       </p>
       {
+        view.gate.notes.length > 0 && (
+          <div class="gate-notes">
+            <p>Notes. The gate found these and they did not stop the piece:</p>
+            <ul>
+              {view.gate.notes.map((note) => (
+                <li>
+                  {note.label} <span class="mono">({note.code})</span>
+                  {note.count > 1 && <span> &times; {note.count}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      }
+      {
         view.verifier !== undefined && (
           <div class="gate-notes">
             <p>

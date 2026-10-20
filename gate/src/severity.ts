@@ -3,7 +3,7 @@ export const SEVERITIES = ['blocker', 'note'] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
 /**
- * The codes that never block a piece. A check still reports them, and the ledger and the receipts page will list them (Plan 3, Tasks 6 and 7), so
+ * The codes that never block a piece. A check still reports them, and the ledger and the receipts page list them, so
  * what a soft rule would have cost is public. Every other code is a blocker, and so is a code that is not known at all: a check that gains a code
  * and is left out of this list cannot publish a piece by being left out.
  *

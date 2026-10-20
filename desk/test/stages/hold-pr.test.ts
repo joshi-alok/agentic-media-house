@@ -34,6 +34,31 @@ const heldBy = async (kind: keyof typeof KINDS): Promise<HeldArtifact> => heldOf
 /** The ledger of the fifth fixture piece of the site: the piece that the owner released after a hold. The fixture generator writes it, and no stage of the Desk is run for it. */
 const FIXTURE_5_LEDGER = fileURLToPath(new URL('../../../site/src/content-fixtures/ledger/fixture-robotics-ships-fx-5-to-second-plant.json', import.meta.url));
 
+/** The held artifact of a released hold as the hold flow keeps it: the piece of the fifth fixture of the site (the tier-2 variant of the golden piece), held by the model check. */
+function releasedHold(): HeldArtifact {
+  const variant = makeTier2Variant(cloneGolden());
+  const gate = runGate(variant, defaultContext());
+  const verifier = { model: 'model-a', passed: false, notes: ['The model check could not tell if a sentence was supported.'] };
+  return HeldArtifact.parse({
+    date: '2026-10-05',
+    slug: variant.draft.slug,
+    runId: 'fixture-run-5',
+    reasons: ['G10_AMBIGUOUS'],
+    draft: variant.draft,
+    claims: variant.claims,
+    rounds: 0,
+    gate,
+    verifier,
+    history: [{ round: 0, gate, verifier, verifierFailures: [{ id: 's1', kind: 'sentence', code: 'ambiguous', reason: 'The passages do not say it.' }], sent: [] }],
+  });
+}
+
+/** `releasedHold()` with fields of its gate overridden. */
+const heldWith = (gate: Partial<HeldArtifact['gate']>): HeldArtifact => {
+  const held = releasedHold();
+  return { ...held, gate: { ...held.gate, ...gate } };
+};
+
 describe('outsideFences (the check that the tests below rely on)', () => {
   it('leaves out what is in a fenced block, and a block is closed only by a fence that is as long as the one that opened it', () => {
     const text = ['before', '```text', 'in', '```` not a closing fence: it has words', '````', 'after', '````text', 'in again', '```', 'still in', '````', 'end'].join('\n');
@@ -99,6 +124,18 @@ describe('renderHeldPiece', () => {
     odd.draft.slug = '../outside';
     expect(() => heldPieceFiles(odd)).toThrow('"../outside" is not a plain slug');
   });
+
+  it('carries the notes of the gate into the ledger of a released hold, by code and place only, and has none when the held record is older than notes', () => {
+    // A held artifact whose gate has one note with a message: the ledger keeps the code and the place, not the message.
+    const withNote = heldWith({ warnings: [{ check: 'G2', code: 'G2_BODY_LENGTH', message: 'a message that must not be stored', where: 'body' }] });
+    const { ledger } = renderHeldPiece(withNote);
+    expect(ledger.gate.warnings).toStrictEqual([{ code: 'G2_BODY_LENGTH', where: 'body' }]);
+    expect(JSON.stringify(ledger)).not.toContain('must not be stored');
+    // A held record written before notes existed has no `warnings` at all.
+    const older = heldWith({});
+    delete (older.gate as { warnings?: unknown }).warnings;
+    expect(renderHeldPiece(older).ledger.gate.warnings).toEqual([]);
+  });
 });
 
 describe('renderHeldPiece and the fixture of the site that stands for a released hold', () => {
@@ -107,21 +144,7 @@ describe('renderHeldPiece and the fixture of the site that stands for a released
   // side changes the shape of what it writes, one of them fails. Only the gate and the release are compared: the fixture has no model check (`verifier`) and its run
   // and its slug are its own.
   it('writes the gate and the release of a released hold as the fixture generator writes them', () => {
-    const variant = makeTier2Variant(cloneGolden());
-    const gate = runGate(variant, defaultContext());
-    const verifier = { model: 'model-a', passed: false, notes: ['The model check could not tell if a sentence was supported.'] };
-    const held = HeldArtifact.parse({
-      date: '2026-10-05',
-      slug: variant.draft.slug,
-      runId: 'fixture-run-5',
-      reasons: ['G10_AMBIGUOUS'],
-      draft: variant.draft,
-      claims: variant.claims,
-      rounds: 0,
-      gate,
-      verifier,
-      history: [{ round: 0, gate, verifier, verifierFailures: [{ id: 's1', kind: 'sentence', code: 'ambiguous', reason: 'The passages do not say it.' }], sent: [] }],
-    });
+    const held = releasedHold();
     const fixture = LedgerEntry.parse(JSON.parse(readFileSync(FIXTURE_5_LEDGER, 'utf8')));
     const { ledger } = renderHeldPiece(held);
     expect(fixture.release).toBeDefined();

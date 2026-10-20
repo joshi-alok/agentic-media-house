@@ -30,4 +30,27 @@ describe('the ledger records the notes of the gate', () => {
     const { ledger } = renderDraft(piece.draft, piece.claims, { runId: 'run-1', gate: runGate(piece, defaultContext()) });
     expect(LedgerEntry.safeParse({ ...ledger, gate: { ...ledger.gate, warnings: [{ code: '' }] } }).success).toBe(false);
   });
+
+  it('keeps the notes in the order in which the gate found them, and keeps the repeats', () => {
+    const piece = cloneGolden();
+    const gate = runGate(piece, defaultContext({ config: { bodyWords: { min: 5000, max: 6000 }, bannedPhrases: ['begun shipping'] } }));
+    const { ledger } = renderDraft(piece.draft, piece.claims, { runId: 'run-1', gate });
+    expect(ledger.gate.warnings.map((note) => note.code)).toEqual(gate.warnings.map((note) => note.code));
+    expect(ledger.gate.warnings.length).toBeGreaterThanOrEqual(2);
+    expect(ledger.gate.warnings[0]?.code).toBe('G2_BODY_LENGTH');
+  });
+
+  it('writes no place for a note that has none, not even an empty one', () => {
+    const piece = cloneGolden();
+    const gate = { ...runGate(piece, defaultContext()), warnings: [{ check: 'G2' as const, code: 'G2_BODY_LENGTH', message: 'a message that must not be stored' }] };
+    const { ledger } = renderDraft(piece.draft, piece.claims, { runId: 'run-1', gate });
+    expect(ledger.gate.warnings).toStrictEqual([{ code: 'G2_BODY_LENGTH' }]);
+    expect(JSON.stringify(ledger)).not.toContain('must not be stored');
+  });
+
+  it('refuses a note that has a place and no code', () => {
+    const piece = cloneGolden();
+    const { ledger } = renderDraft(piece.draft, piece.claims, { runId: 'run-1', gate: runGate(piece, defaultContext()) });
+    expect(LedgerEntry.safeParse({ ...ledger, gate: { ...ledger.gate, warnings: [{ where: 'body' }] } }).success).toBe(false);
+  });
 });

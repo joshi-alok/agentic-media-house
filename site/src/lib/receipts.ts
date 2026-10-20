@@ -32,12 +32,20 @@ export interface HoldReason {
   label: string;
 }
 
+/** A kind of finding of the gate that did not block the piece: its code, the same in plain English, and how many times it was found. */
+export interface GateNote {
+  code: string;
+  label: string;
+  count: number;
+}
+
 export interface GateSummary {
   route: Route;
   /** What the route means, in a sentence. The page never shows a route on its own. */
   routeText: string;
   checks: { id: CheckId; result: CheckResult }[];
   holdReasons: HoldReason[];
+  notes: GateNote[];
 }
 
 const ROUTE_TEXT: Record<Route, string> = {
@@ -57,6 +65,17 @@ export function releaseNote(release: Release | undefined): string | undefined {
   if (release === 'auto') return 'Published by the gate without a human.';
   if (release === 'owner') return 'Held by the gate, then released by the owner.';
   return undefined;
+}
+
+/** The notes of a ledger, one for each code, in the order in which each code first comes up, with the number of findings. */
+function notesOf(ledger: LedgerEntry): GateNote[] {
+  const notes: GateNote[] = [];
+  for (const { code } of ledger.gate.warnings) {
+    const found = notes.find((note) => note.code === code);
+    if (found === undefined) notes.push({ code, label: reasonLabel(code), count: 1 });
+    else found.count += 1;
+  }
+  return notes;
 }
 
 export interface ReceiptsView {
@@ -105,6 +124,7 @@ export function receiptsView(ledger: LedgerEntry): ReceiptsView {
       routeText: routeText(ledger.gate.route),
       checks: CHECK_IDS.map((id) => ({ id, result: ledger.gate.checks[id] })),
       holdReasons: ledger.gate.holdReasons.map((code) => ({ code, label: reasonLabel(code) })),
+      notes: notesOf(ledger),
     },
   };
   const note = releaseNote(ledger.release);
