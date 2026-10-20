@@ -1,5 +1,6 @@
 export const GATE_PACKAGE = '@robywire/gate';
 
+export * from './address';
 export * from './checks';
 export * from './config';
 export * from './constants';

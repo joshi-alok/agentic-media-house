@@ -116,3 +116,31 @@ export type CorrectionKind = (typeof CORRECTION_KINDS)[number];
 /** Status values in sources.yml. The desk sets `verified` once it has fetched a source. */
 export const SOURCE_STATUSES = ['verified', 'unverified', 'blocked', 'n/a'] as const;
 export type SourceStatus = (typeof SOURCE_STATUSES)[number];
+
+/**
+ * Hosts where many different people publish. An address on one of them is the page of a project only below a path that `sources.yml` names
+ * (`https://github.com/coinbase/x402`), never as a whole host: not every account on GitHub is the project.
+ */
+export const SHARED_HOSTS = [
+  'github.com',
+  'gist.github.com',
+  'raw.githubusercontent.com',
+  'medium.com',
+  'mirror.xyz',
+  'substack.com',
+  'hackmd.io',
+  'notion.site',
+  'paragraph.xyz',
+  'x.com',
+  'twitter.com',
+  'youtube.com',
+  'youtu.be',
+  'discord.com',
+  't.me',
+  'reddit.com',
+  'linkedin.com',
+  'facebook.com',
+  'warpcast.com',
+  'docs.google.com',
+  'drive.google.com',
+] as const;

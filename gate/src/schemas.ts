@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isBareSharedHost } from './address';
 import {
   BASES,
   CATEGORY_VOCAB,
@@ -233,42 +234,68 @@ export type DeskState = z.infer<typeof DeskState>;
 // The registry is edited by hand, so every object is strict: a typo such as
 // `statuss:` is an error, not a silently dropped key.
 
-// A tier-1 entry. The url must be a real http(s) URL unless the status is
-// "n/a", where it may be a sentence (the funding "company announcement" entry).
+// A tier-1 entry. The url must be a real http(s) URL unless the status is "n/a", where it may be a sentence (the funding "company announcement" entry).
+// An entry may also have a `feed` (RSS or Atom), which Discover reads instead of the page, the `keywords` that an item of the feed must have one of, and
+// its own `beats`; `short` is the name by which a sentence calls the source.
 const PrimaryEntry = z
   .strictObject({
     name: text,
+    short: text.optional(),
     url: text,
+    feed: httpUrl.optional(),
+    keywords: z.array(text).min(1).optional(),
+    beats: z.array(z.enum(CATEGORY_VOCAB)).min(1).optional(),
     status: z.enum(SOURCE_STATUSES),
     note: text.optional(),
   })
   .refine((entry) => entry.status === 'n/a' || httpUrl.safeParse(entry.url).success, {
     message: 'url must be an http(s) URL unless status is n/a',
     path: ['url'],
+  })
+  .refine((entry) => !isBareSharedHost(entry.url), {
+    message: 'an address on a host where many people publish (github.com, medium.com, ...) must name a path, such as https://github.com/owner/repo: the host alone is not one source',
+    path: ['url'],
   });
 
 // A tier-2 entry: used to discover stories, never to write from.
 const SecondaryEntry = z.strictObject({
   name: text,
+  short: text.optional(),
   feed: httpUrl,
+  keywords: z.array(text).min(1).optional(),
   status: z.enum(SOURCE_STATUSES),
   beats: z.array(z.enum(CATEGORY_VOCAB)).min(1),
   note: text.optional(),
 });
 
-export const SourcesRegistry = z.strictObject({
-  primary: z.strictObject({
-    companies: z.record(text, z.array(PrimaryEntry)),
-    research: z.array(PrimaryEntry),
-    standards: z.array(PrimaryEntry),
-    funding: z.array(PrimaryEntry),
-    events: z.array(PrimaryEntry),
-  }),
-  secondary: z.array(SecondaryEntry),
-  bar: z.strictObject({
-    publish_if_any: z.array(text),
-    do_not_publish: z.array(text),
-    quiet_day_fallback: z.array(text),
-  }),
-});
+export const SourcesRegistry = z
+  .strictObject({
+    primary: z.strictObject({
+      companies: z.record(text, z.array(PrimaryEntry)),
+      research: z.array(PrimaryEntry),
+      standards: z.array(PrimaryEntry),
+      funding: z.array(PrimaryEntry),
+      events: z.array(PrimaryEntry),
+    }),
+    secondary: z.array(SecondaryEntry),
+    bar: z.strictObject({
+      publish_if_any: z.array(text),
+      do_not_publish: z.array(text),
+      quiet_day_fallback: z.array(text),
+    }),
+  })
+  .superRefine((registry, context) => {
+    // A feed is read for stories, and a story with no beat is never selected: an entry with a feed has beats of its own or a group named for a beat.
+    const needBeats = (entry: z.infer<typeof PrimaryEntry>, path: (string | number)[], groupIsBeat: boolean) => {
+      if (entry.feed !== undefined && entry.beats === undefined && !groupIsBeat) {
+        context.addIssue({ code: 'custom', path: [...path, 'beats'], message: 'an entry with a feed needs beats: its own, or a group of companies named for a beat' });
+      }
+    };
+    for (const [group, entries] of Object.entries(registry.primary.companies)) {
+      entries.forEach((entry, at) => needBeats(entry, ['primary', 'companies', group, at], (CATEGORY_VOCAB as readonly string[]).includes(group)));
+    }
+    for (const key of ['research', 'standards', 'funding', 'events'] as const) {
+      registry.primary[key].forEach((entry, at) => needBeats(entry, ['primary', key, at], false));
+    }
+  });
 export type SourcesRegistry = z.infer<typeof SourcesRegistry>;

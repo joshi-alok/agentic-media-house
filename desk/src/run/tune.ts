@@ -92,7 +92,7 @@ const count = z.number().int().nonnegative();
 /** How many times each code came up: `{ 'quote-not-found': 2 }`. */
 const codes = z.record(z.string(), count);
 
-const KINDS = ['company-newsroom', 'arxiv', 'sec', 'standard', 'tier2', 'unknown'] as const satisfies readonly SourceKind[];
+const KINDS = ['company-newsroom', 'arxiv', 'sec', 'research', 'standard', 'tier2', 'unknown'] as const satisfies readonly SourceKind[];
 
 /** How a row ended: it went through the model check, it had too few claims to write from, the page could not be fetched or read, it is not a known kind of source, a step failed, or the budget ran out. */
 export const TUNE_STATUSES = ['judged', 'too-few-claims', 'not-fetched', 'unknown-kind', 'failed', 'stopped'] as const;
@@ -181,7 +181,7 @@ const formatDollars = (value: number): string => `$${value.toFixed(4)}`;
 
 // --- The table ---------------------------------------------------------------------
 
-const TIERS: Record<SourceKind, string> = { 'company-newsroom': 'tier 1', arxiv: 'tier 1', sec: 'tier 1', standard: 'tier 1', tier2: 'tier 2', unknown: 'no tier' };
+const TIERS: Record<SourceKind, string> = { 'company-newsroom': 'tier 1', arxiv: 'tier 1', sec: 'tier 1', research: 'tier 1', standard: 'tier 1', tier2: 'tier 2', unknown: 'no tier' };
 
 /** `quote-not-found 2, value-not-in-quote 1`, or `none`. */
 const listOf = (found: Record<string, number>): string => (Object.keys(found).length === 0 ? 'none' : Object.entries(found).map(([code, times]) => `${code} ${times}`).join(', '));

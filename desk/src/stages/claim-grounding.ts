@@ -48,16 +48,18 @@ const SHORT_NEGATIONS: ReadonlySet<string> = new Set(['no', 'not', 'nor', 'non']
 
 /**
  * What each kind of page may be the basis of, which is what the claim says its figure rests on. A project's or a company's own page is an
- * announcement, documentation, a briefing or a demonstration; an arXiv page is a paper; an SEC page is a filing; a standards
- * body's page is a standard; a page of another outlet is only ever reported. Nothing is allowed from a page of unknown kind,
- * and `measured` is allowed from none: a figure that a company says it measured is the company's claim, and the basis
- * `measured` would excuse the piece from saying so.
+ * announcement, documentation, a briefing or a demonstration; an arXiv page is a paper; an SEC page is a filing; a research
+ * page (a forum of proposals, an archive of papers) is a paper or the author's own documentation; a page of a standards body, a
+ * regulator or an open protocol is a standard, or, for a regulator's own statement, a filing; a page of another outlet is only
+ * ever reported. Nothing is allowed from a page of unknown kind, and `measured` is allowed from none: a figure that a company
+ * says it measured is the company's claim, and the basis `measured` would excuse the piece from saying so.
  */
 export const ALLOWED_BASES: Readonly<Record<SourceKind, readonly Basis[]>> = {
   'company-newsroom': ['announcement', 'docs', 'briefing', 'demo'],
   arxiv: ['paper'],
   sec: ['filing'],
-  standard: ['standard'],
+  research: ['paper', 'docs'],
+  standard: ['standard', 'filing'],
   tier2: ['reported'],
   unknown: [],
 };
@@ -67,7 +69,8 @@ export const KIND_WORDS: Readonly<Record<SourceKind, string>> = {
   'company-newsroom': 'a project or company page',
   arxiv: 'an arXiv page',
   sec: 'an SEC page',
-  standard: 'a standards body page',
+  research: 'a research page',
+  standard: 'a page of a standards body, a regulator or an open protocol',
   tier2: 'another outlet',
   unknown: 'an unknown kind of page',
 };

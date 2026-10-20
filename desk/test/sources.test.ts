@@ -28,8 +28,8 @@ describe('tier1Hosts', () => {
 describe('tier2Feeds', () => {
   it('lists the feeds of other outlets in the order of the file, with their beats, and leaves out the blocked one', () => {
     expect(tier2Feeds(fixtureRegistry())).toEqual([
-      { name: 'Mercer Wire', feed: 'https://mercer-wire.example/feed.xml', beats: ['payments-commerce', 'funding'] },
-      { name: 'Gantry Daily', feed: 'https://gantry-daily.example/atom.xml', beats: ['agent-infrastructure'] },
+      { name: 'Mercer Wire', feed: 'https://mercer-wire.example/feed.xml', beats: ['payments-commerce', 'funding'], keywords: [] },
+      { name: 'Gantry Daily', feed: 'https://gantry-daily.example/atom.xml', beats: ['agent-infrastructure'], keywords: [] },
     ]);
   });
 

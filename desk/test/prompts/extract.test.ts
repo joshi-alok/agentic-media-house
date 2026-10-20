@@ -122,8 +122,9 @@ describe('buildExtractUser', () => {
   it.each([
     ['arxiv', 'Source 1 is an arXiv page (tier 1). The basis of a claim from it is one of: paper.'],
     ['sec', 'Source 1 is an SEC page (tier 1). The basis of a claim from it is one of: filing.'],
-    ['standard', 'Source 1 is a standards body page (tier 1). The basis of a claim from it is one of: standard.'],
-  ] as const)('says what a page of kind %s is, and its one basis', (kind, line) => {
+    ['research', 'Source 1 is a research page (tier 1). The basis of a claim from it is one of: paper, docs.'],
+    ['standard', 'Source 1 is a page of a standards body, a regulator or an open protocol (tier 1). The basis of a claim from it is one of: standard, filing.'],
+  ] as const)('says what a page of kind %s is, and its bases', (kind, line) => {
     expect(outsideBlocks(buildExtractUser([{ tier: 1, kind, text: 'x' }]))).toContain(line);
   });
 

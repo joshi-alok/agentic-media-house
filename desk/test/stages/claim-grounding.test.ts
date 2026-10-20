@@ -557,7 +557,8 @@ describe('claimProblems: the basis', () => {
     'company-newsroom': ['announcement', 'docs', 'briefing', 'demo'],
     arxiv: ['paper'],
     sec: ['filing'],
-    standard: ['standard'],
+    research: ['paper', 'docs'],
+    standard: ['standard', 'filing'],
     tier2: ['reported'],
     unknown: [],
   };
@@ -615,7 +616,7 @@ describe('claimProblems: all the reasons at once', () => {
   });
 
   it('names the bases of every kind of source in one table', () => {
-    expect(Object.keys(ALLOWED_BASES).sort()).toEqual(['arxiv', 'company-newsroom', 'sec', 'standard', 'tier2', 'unknown']);
+    expect(Object.keys(ALLOWED_BASES).sort()).toEqual(['arxiv', 'company-newsroom', 'research', 'sec', 'standard', 'tier2', 'unknown']);
   });
 });
 
