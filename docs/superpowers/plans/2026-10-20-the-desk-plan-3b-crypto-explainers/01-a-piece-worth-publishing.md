@@ -819,6 +819,7 @@ describe('the prompt for an analysis item', () => {
   it('tells the verifier what entailed means for analysis', () => {
     expect(VERIFY_INSTRUCTIONS).toContain('An item shown as Analysis is the Desk\'s own reading, not a statement of a source.');
     expect(VERIFY_INSTRUCTIONS).toContain('adds no entity, event, figure, date, quotation or claim of fact that the passages it relies on do not support');
+    expect(VERIFY_INSTRUCTIONS).toContain('For an Analysis item, "missing" lists the entities, events, figures, dates, quotations or claims of fact that it adds');
   });
 });
 
@@ -885,6 +886,7 @@ Expected: FAIL (no `kind` on a sentence item).
 
 ```ts
   'An item shown as Analysis is the Desk\'s own reading, not a statement of a source. It is entailed if it adds no entity, event, figure, date, quotation or claim of fact that the passages it relies on do not support. A judgement, a comparison or a consequence that the passages plainly support is fine. It is not entailed if it brings in a new fact, makes a claim stronger than the passages do, presents a prediction as certain, or tells the reader to buy, sell or hold anything.',
+  'For an Analysis item, "missing" lists the entities, events, figures, dates, quotations or claims of fact that it adds and that the passages do not support; a judgement, a comparison or a consequence that the passages plainly support adds none, so "missing" is empty and the verdict is "entailed". (Found in the review of Task 2: without this line the rule "entailed only if missing is empty" would make a model reject every analysis sentence, because analysis says what no passage states.)',
 ```
 
 and change "each a sentence or a heading of the piece in a block with an id that starts with s or h" to "each a sentence (a statement of fact or Analysis) or a heading of the piece in a block with an id that starts with s or h".

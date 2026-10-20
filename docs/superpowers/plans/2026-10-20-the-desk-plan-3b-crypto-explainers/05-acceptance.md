@@ -295,6 +295,8 @@ The table is by label. Look at the items it got wrong, by id: `node -e` over `ru
 | A recall of a label under 0.80, or a precision under 0.85 | Stop. Do not choose floors. Report the table and the items it got wrong; the owner decides between changing the prompt of the model check (an ordinary task with a test first, and the measurement run again, about US$0.3) and turning the analysis check off (`verifyPlanOf` keeps `kind === 'fact'`, a one-line change that the tests of Task 4 show) |
 | An exit of 1, an error of the schema, or a reply that judges what was not asked | Stop and report the message; the harness fails closed, and the cause is in the prompt of Task 2 |
 
+Also count how often the Desk overruled the model's verdict: nothing records it, but the reason of the failure starts with `the verifier said entailed, but` or `the verifier said not entailed but named nothing` (in `runs/.../06-verify.json`, or in the notes the harness prints for a failed item); a verifier that is overruled often is a prompt to fix, and the second case is a confident rejection that was recoded to ambiguous. Report both counts.
+
 Write the result in the plan index under "Results" (the numbers, the cost, the floors chosen or the reason none), commit that with `docs: Plan 3b records the measure of the model check`.
 
 ---
