@@ -119,7 +119,9 @@ export type SourceStatus = (typeof SOURCE_STATUSES)[number];
 
 /**
  * Hosts where many different people publish. An address on one of them is the page of a project only below a path that `sources.yml` names
- * (`https://github.com/coinbase/x402`), never as a whole host: not every account on GitHub is the project.
+ * (`https://github.com/coinbase/x402`), never as a whole host: not every account on GitHub is the project. The hosts are written as `addressParts` gives them
+ * (lowercase, without `www.`). A subdomain is not covered by the entry of its parent, so one where people publish too is listed on its own (`gist.github.com`,
+ * `old.reddit.com`); `project.medium.com`, the publication of one project, is not listed.
  */
 export const SHARED_HOSTS = [
   'github.com',
@@ -143,4 +145,27 @@ export const SHARED_HOSTS = [
   'warpcast.com',
   'docs.google.com',
   'drive.google.com',
+  'sites.google.com',
+  'gitlab.com',
+  'codeberg.org',
+  'bitbucket.org',
+  'gist.githubusercontent.com',
+  'dev.to',
+  'hashnode.com',
+  'paragraph.com',
+  'bsky.app',
+  'lens.xyz',
+  'hey.xyz',
+  'farcaster.xyz',
+  'huggingface.co',
+  'notion.so',
+  'snapshot.org',
+  'mobile.twitter.com',
+  'm.youtube.com',
+  'old.reddit.com',
+  't.co',
+  'telegram.me',
+  'news.ycombinator.com',
+  'npmjs.com',
+  'pypi.org',
 ] as const;

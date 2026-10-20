@@ -1,5 +1,6 @@
-import { parseSources } from '@robywire/gate';
+import { addressParts, parseSources } from '@robywire/gate';
 import { describe, expect, it } from 'vitest';
+import { hostKey } from '../src/fetch/url';
 import { isTier1, outletName, sourceKind, tier1Feeds, tier1Hosts, tier1Newsrooms, tier2Feeds } from '../src/sources';
 
 const REGISTRY = parseSources(`
@@ -43,6 +44,25 @@ describe('tier1Feeds', () => {
       { name: 'arXiv', feed: 'https://rss.arxiv.org/rss/cs.AI', beats: ['agent-infrastructure'], keywords: ['blockchain'] },
       { name: 'ethresear.ch', feed: 'https://ethresear.ch/latest.rss', beats: ['protocols-standards'], keywords: [] },
     ]);
+  });
+
+  it('lists the entries of funding and events that have a feed after the companies, the research and the standards, with the beats of the entry', () => {
+    const registry = structuredClone(REGISTRY);
+    registry.primary.standards[0]!.feed = 'https://eips.ethereum.org/feed.xml';
+    registry.primary.standards[0]!.beats = ['protocols-standards'];
+    registry.primary.funding.push({ name: 'Funding wire', short: 'Funding', url: 'https://funding.example/', feed: 'https://funding.example/rss', beats: ['funding'], keywords: ['raises'], status: 'unverified' });
+    registry.primary.events.push({ name: 'Summit', url: 'https://summit.example/', feed: 'https://summit.example/rss', beats: ['policy-regulation'], status: 'unverified' });
+    registry.primary.events.push({ name: 'Summit, closed', url: 'https://closed-summit.example/', feed: 'https://closed-summit.example/rss', beats: ['policy-regulation'], status: 'blocked' });
+    expect(tier1Feeds(registry).map((feed) => [feed.name, feed.beats])).toEqual([
+      ['Ethereum Foundation', ['protocols-standards']],
+      ['Stripe', ['payments-commerce']],
+      ['arXiv', ['agent-infrastructure']],
+      ['ethresear.ch', ['protocols-standards']],
+      ['EIPs', ['protocols-standards']],
+      ['Funding', ['funding']],
+      ['Summit', ['policy-regulation']],
+    ]);
+    expect(tier1Feeds(registry).find((feed) => feed.name === 'Funding')?.keywords).toEqual(['raises']);
   });
 
   it('takes the beats of the entry before the beats of its group', () => {
@@ -126,5 +146,47 @@ describe('sourceKind', () => {
 describe('tier1Hosts', () => {
   it('holds the hosts of the companies, the research entries and the standards bodies that are not shared hosts', () => {
     expect(tier1Hosts(REGISTRY)).toEqual(new Set(['blog.ethereum.org', 'stripe.com', 'closed.example', 'newsroom-only.example', 'arxiv.org', 'ethresear.ch', 'eips.ethereum.org']));
+  });
+});
+
+describe('the two ways to compute a host', () => {
+  // `hostKey` (the Desk's fetch layer) and `addressParts` (the gate, which the schema and the path scopes use) must give one host for one address: the
+  // registry is checked with the one and read with the other.
+  const ADDRESSES = [
+    'https://example.org/a',
+    'https://Example.ORG/a',
+    'https://example.org:8443/a',
+    'https://www.example.org/a',
+    'https://www.www.example.org/a',
+    'https://example.org./a',
+    'https://www.example.org.:8443/a',
+    'https://user:secret@example.org/a',
+    'https://user@www.Example.org:8443/a',
+    'HTTPS://EXAMPLE.ORG/a',
+    'http://example.org',
+    'https://' + String.fromCharCode(0x00e9) + 'xample.org/a',
+    'https://xn--xample-9ua.org/a',
+    'https://[2001:db8::1]/a',
+    'https://[2001:db8::1]:8443/a',
+    'https://127.0.0.1:8080/a',
+    'https://github.com/coinbase/x402',
+    'ftp://example.org/a',
+    'mailto:someone@example.org',
+    '(look on the site)',
+    '/a/path/only',
+    '',
+  ];
+
+  it.each(ADDRESSES)('give the same host for %s', (address) => {
+    expect(addressParts(address)?.host ?? null, address).toBe(hostKey(address));
+  });
+});
+
+describe('the host of an address that is not an address', () => {
+  it('is none for both ways', () => {
+    for (const address of ['(look on the site)', '/a/path/only', 'ftp://example.org/a', '']) {
+      expect(hostKey(address), address).toBeNull();
+      expect(addressParts(address), address).toBeNull();
+    }
   });
 });

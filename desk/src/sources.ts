@@ -1,4 +1,4 @@
-import { CATEGORY_VOCAB, SHARED_HOSTS, addressParts } from '@robywire/gate';
+import { CATEGORY_VOCAB, addressParts, isSharedHost } from '@robywire/gate';
 import type { SourcesRegistry } from '@robywire/gate';
 import { hostKey } from './fetch/url';
 
@@ -40,7 +40,8 @@ export const outletName = (entry: { name: string; short?: string }): string => e
 
 /**
  * The groups of companies in `sources.yml` that are not named for a beat, and the beats they stand for. The registry of the Desk names its groups for beats,
- * so this is empty there; the made-up world of the tests names two groups for a field.
+ * so this is empty there; the made-up world of the tests names two groups for a field. The schema of the registry accepts a group as a beat only when it is in
+ * the vocabulary, so an entry with a `feed` in one of these groups must carry its own `beats`.
  */
 export const COMPANY_GROUP_BEATS: Readonly<Record<string, readonly string[]>> = {
   industrial: ['agent-infrastructure'],
@@ -104,7 +105,7 @@ interface Scope {
 function scopeOf(url: string): Scope | null {
   const parts = addressParts(url);
   if (parts === null) return null;
-  if (!(SHARED_HOSTS as readonly string[]).includes(parts.host)) return { host: parts.host, prefix: undefined };
+  if (!isSharedHost(parts.host)) return { host: parts.host, prefix: undefined };
   const prefix = parts.path.toLowerCase().replace(/\/+$/, '');
   // The whole of a shared host is never one source (the schema refuses the entry; a registry made by hand is not trusted either).
   return prefix === '' ? null : { host: parts.host, prefix };

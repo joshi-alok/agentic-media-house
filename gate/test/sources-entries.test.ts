@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ZodError } from 'zod';
 import { SHARED_HOSTS } from '../src/constants';
-import { addressParts, isBareSharedHost } from '../src/address';
+import { addressParts, isBareSharedHost, isSharedHost } from '../src/address';
 import { parseSources } from '../src/sources';
 
 const registry = (parts: { companies?: string; research?: string; standards?: string; secondary?: string }): string => `
@@ -49,9 +49,22 @@ describe('isBareSharedHost', () => {
     expect(isBareSharedHost('https://example.org/')).toBe(false);
   });
 
+  it('counts a path of slashes only as no path, as the desk does when it reads the path of an entry', () => {
+    for (const address of ['https://github.com//', 'https://github.com///', 'https://WWW.GitHub.com./']) expect(isBareSharedHost(address), address).toBe(true);
+    expect(isBareSharedHost('https://github.com//coinbase')).toBe(false);
+  });
+
   it('knows the hosts where many people publish', () => {
     for (const host of ['github.com', 'medium.com', 'substack.com', 'mirror.xyz', 'x.com']) expect(SHARED_HOSTS).toContain(host);
     for (const host of SHARED_HOSTS) expect(host).toBe(host.toLowerCase());
+  });
+});
+
+describe('isSharedHost', () => {
+  it('is true for a host of the list as addressParts gives it, and false for a subdomain of one, a lookalike and a host of no list', () => {
+    expect(isSharedHost('github.com')).toBe(true);
+    expect(isSharedHost('docs.google.com')).toBe(true);
+    for (const host of ['gist.github.io', 'notgithub.com', 'github.com.evil.example', 'project.medium.com', 'example.org', '']) expect(isSharedHost(host), host).toBe(false);
   });
 });
 
@@ -91,8 +104,31 @@ describe('a primary entry', () => {
     const entry = (url: string) => `\n    - { name: x402, url: "${url}", status: unverified }`;
     expect(paths(registry({ standards: entry('https://github.com/') }))).toEqual(['primary.standards.0.url']);
     expect(paths(registry({ standards: entry('https://medium.com') }))).toEqual(['primary.standards.0.url']);
+    expect(paths(registry({ standards: entry('https://github.com//') }))).toEqual(['primary.standards.0.url']);
     expect(() => parseSources(registry({ standards: entry('https://github.com/coinbase/x402') }))).not.toThrow();
     expect(() => parseSources(registry({ standards: entry('https://project.medium.com/') }))).not.toThrow();
+  });
+
+  it.each([...SHARED_HOSTS])('on %s, a host of SHARED_HOSTS, is refused with no path and accepted with one, on every list that holds entries', (host) => {
+    const entry = (url: string) => `\n    - { name: A project, url: "${url}", status: unverified }`;
+    for (const list of ['research', 'standards'] as const) {
+      for (const bare of [`https://${host}`, `https://${host}/`, `https://www.${host}/`]) expect(paths(registry({ [list]: entry(bare) })), bare).toEqual([`primary.${list}.0.url`]);
+      expect(() => parseSources(registry({ [list]: entry(`https://${host}/owner/project`) })), host).not.toThrow();
+    }
+    const company = (url: string) => `\n    misc:\n      - { name: A project, url: "${url}", status: unverified }`;
+    expect(paths(registry({ companies: company(`https://${host}/`) }))).toEqual(['primary.companies.misc.0.url']);
+    expect(() => parseSources(registry({ companies: company(`https://${host}/owner/project`) }))).not.toThrow();
+  });
+
+  it('lists the forges, the blog hosts, the social networks, the link shorteners and the package registries, besides the first hosts', () => {
+    const expected = [
+      'gitlab.com', 'codeberg.org', 'bitbucket.org', 'gist.githubusercontent.com', 'dev.to', 'hashnode.com', 'paragraph.com', 'bsky.app', 'lens.xyz', 'hey.xyz',
+      'farcaster.xyz', 'huggingface.co', 'notion.so', 'snapshot.org', 'mobile.twitter.com', 'm.youtube.com', 'old.reddit.com', 't.co', 'telegram.me',
+      'sites.google.com', 'news.ycombinator.com', 'npmjs.com', 'pypi.org',
+    ];
+    for (const host of expected) expect(SHARED_HOSTS, host).toContain(host);
+    expect(new Set(SHARED_HOSTS).size, 'no host twice').toBe(SHARED_HOSTS.length);
+    for (const host of SHARED_HOSTS) expect(host.startsWith('www.'), `${host} is written without www.`).toBe(false);
   });
 });
 

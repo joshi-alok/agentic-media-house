@@ -285,7 +285,9 @@ export const SourcesRegistry = z
     }),
   })
   .superRefine((registry, context) => {
-    // A feed is read for stories, and a story with no beat is never selected: an entry with a feed has beats of its own or a group named for a beat.
+    // A feed is read for stories, and a story with no beat is never selected: an entry with a feed has beats of its own or a group named for a beat. The schema
+    // accepts a group as a beat only when it is in the vocabulary, so an entry with a feed in a group that only the table of the Desk maps (`COMPANY_GROUP_BEATS`,
+    // the two groups of the made-up world of the tests) must carry its own `beats`.
     const needBeats = (entry: z.infer<typeof PrimaryEntry>, path: (string | number)[], groupIsBeat: boolean) => {
       if (entry.feed !== undefined && entry.beats === undefined && !groupIsBeat) {
         context.addIssue({ code: 'custom', path: [...path, 'beats'], message: 'an entry with a feed needs beats: its own, or a group of companies named for a beat' });
