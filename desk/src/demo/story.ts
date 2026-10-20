@@ -207,7 +207,7 @@ const blockIds = (message: string): string[] => [...message.matchAll(/<source id
 export function clearingVerifier(request: ModelRequest<unknown>): VerifyReply {
   const ids = blockIds(request.user);
   return {
-    verdicts: ids.filter((id) => /^[sh]\d+$/.test(id)).map((id) => ({ id, verdict: 'entailed' as const, reason: 'The passages say it.' })),
+    verdicts: ids.filter((id) => /^[sh]\d+$/.test(id)).map((id) => ({ id, reason: 'The passages say it.', missing: [], verdict: 'entailed' as const })),
     labels: ids.filter((id) => /^c-\d+$/.test(id)).map((id) => ({ id, basisSupported: true, statusSupported: true, reason: 'The passage supports the label.' })),
   };
 }

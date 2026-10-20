@@ -82,13 +82,21 @@ export function verifyPlanOf(draft: Draft, claims: readonly Claim[]): VerifyPlan
 }
 
 const reason = z.string().min(1).max(400);
+/** One thing an item says that no passage states, in a few words. */
+const unstated = z.string().min(1).max(200);
 
 /**
  * The reply that the verifier must give: a verdict for items and a judgement of the labels of claims. The ids are strings here, and
  * `aggregateVerdicts` refuses one that was not asked about or is given twice, because only the plan knows which ids there are.
  */
 export const VerifyReply = z.strictObject({
-  verdicts: z.array(z.strictObject({ id: z.string().min(1), verdict: z.enum(['entailed', 'not_entailed', 'ambiguous']), reason })).max(500),
+  verdicts: z
+    .array(
+      // The order of these fields is the order in which the model writes them: its reason first, then what no passage states, and the verdict last, so that the
+      // verdict follows from what the model has just said. `aggregateVerdicts` refuses a verdict that does not.
+      z.strictObject({ id: z.string().min(1), reason, missing: z.array(unstated).max(8), verdict: z.enum(['entailed', 'not_entailed', 'ambiguous']) }),
+    )
+    .max(500),
   labels: z.array(z.strictObject({ id: z.string().min(1), basisSupported: z.boolean(), statusSupported: z.boolean(), reason })).max(100),
 });
 export type VerifyReply = z.infer<typeof VerifyReply>;
@@ -100,7 +108,7 @@ export interface VerifierFailure {
   kind: 'sentence' | 'heading' | 'label';
   /** Why: the verdict (`not_entailed`, `ambiguous`), a label that is `unsupported`, or no verdict at all (`missing`). */
   code: 'not_entailed' | 'ambiguous' | 'unsupported' | 'missing';
-  /** The verifier's reason, or what the Desk found missing. */
+  /** The verifier's reason, followed by what it says no passage states; or, where the Desk overrules the verdict or finds none, what the Desk found. */
   reason: string;
 }
 
@@ -121,8 +129,8 @@ function noteOf(failure: VerifierFailure, plan: VerifyPlan): string {
 }
 
 /**
- * What the verifier's reply means. A sentence or a heading is cleared only by the verdict `entailed`; `not_entailed` and `ambiguous`
- * fail it, and so does a verdict that is missing. A claim is cleared only if both its basis and its status are judged supported;
+ * What the verifier's reply means. A sentence or a heading is cleared only by the verdict `entailed`, and only when its list of what the passages do not state is empty;
+ * `not_entailed` and `ambiguous` fail it, and so does a verdict that is missing. A claim is cleared only if both its basis and its status are judged supported;
  * a label that is not, or is missing, fails. The reply may not judge an id that the plan does not have, nor judge one twice: that is
  * a `schema` error of the model, which ends the run. `passed` is true only with no failure, and the notes say each failure (or, for a pass, what was
  * checked). Pure: the same plan and reply give the same outcome.
@@ -145,8 +153,20 @@ export function aggregateVerdicts(model: string, plan: VerifyPlan, reply: Verify
   const failures: VerifierFailure[] = [];
   for (const { item, kind } of items) {
     const verdict = verdicts.get(item.id);
-    if (verdict === undefined) failures.push({ id: item.id, kind, code: 'missing', reason: 'the verifier gave no verdict' });
-    else if (verdict.verdict !== 'entailed') failures.push({ id: item.id, kind, code: verdict.verdict, reason: verdict.reason });
+    if (verdict === undefined) {
+      failures.push({ id: item.id, kind, code: 'missing', reason: 'the verifier gave no verdict' });
+      continue;
+    }
+    const stated = verdict.missing.join('; ');
+    const withList = stated === '' ? verdict.reason : `${verdict.reason} Not stated: ${stated}`;
+    if (verdict.verdict === 'entailed') {
+      // The verdict must follow the list: an item that the verifier itself found things missing from is not entailed, whatever it went on to say.
+      if (stated !== '') failures.push({ id: item.id, kind, code: 'not_entailed', reason: `the verifier said entailed, but its own list of what the passages do not state is not empty: ${stated}` });
+    } else if (verdict.verdict === 'not_entailed' && stated === '') {
+      failures.push({ id: item.id, kind, code: 'ambiguous', reason: `the verifier said not entailed but named nothing that the passages do not state (${verdict.reason})` });
+    } else {
+      failures.push({ id: item.id, kind, code: verdict.verdict, reason: withList });
+    }
   }
   for (const claim of plan.claims) {
     const label = labels.get(claim.id);

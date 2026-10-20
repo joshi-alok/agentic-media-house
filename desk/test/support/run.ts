@@ -91,7 +91,7 @@ export const EMPTY_CONTENT = ['ledger/.gitkeep', 'news/.gitkeep'];
 export function unentailed(): FakeClient {
   const rejecting = (request: Parameters<typeof clearingVerifier>[0]) => {
     const reply = clearingVerifier(request);
-    return { ...reply, verdicts: reply.verdicts.map((verdict, at) => (at === 0 ? { ...verdict, verdict: 'not_entailed' as const } : verdict)) };
+    return { ...reply, verdicts: reply.verdicts.map((verdict, at) => (at === 0 ? { ...verdict, missing: ['what the passages do not say'], verdict: 'not_entailed' as const } : verdict)) };
   };
   return new FakeClient()
     .script('select', SELECT)

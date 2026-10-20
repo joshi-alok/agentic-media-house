@@ -233,7 +233,7 @@ describe('runVerify: a draft that the gate passes and the verifier does not', ()
     const blocks = blocksOf(user).filter((block) => !block.id.startsWith('c-'));
     expect(blocks.map((block) => block.id)).toEqual([id, `${id}-problems`]);
     expect(blocks[0]?.text).toBe(SENTENCE);
-    expect(blocks[1]?.text).toBe(`- the model check judged it not entailed by the passages it relies on: The passages do not say it (${id}).`);
+    expect(blocks[1]?.text).toBe(`- the model check judged it not entailed by the passages it relies on: The passages do not say it (${id}). Not stated: what the passages do not say`);
     expect(outsideBlocks(user)).toContain(`Item ${id} (a fact sentence, a section, citing c-1):`);
     expect(user).not.toContain('Fixture Robotics begins');
   });
@@ -253,7 +253,7 @@ describe('runVerify: a draft that the gate passes and the verifier does not', ()
     fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } }), CLEARS());
     fake.script('compose', rewriting(id, REWRITTEN));
     const result = await runVerify(ctx, claims, composed);
-    expect(result.history[0]?.verifier?.notes).toEqual([`section "What shipped", sentence 2 was judged not entailed: The passages do not say it (${id}).`]);
+    expect(result.history[0]?.verifier?.notes).toEqual([`section "What shipped", sentence 2 was judged not entailed: The passages do not say it (${id}). Not stated: what the passages do not say`]);
   });
 
   it('is held when the verifier fails a claim\'s label, which no sentence can mend, without asking the composer', async () => {
@@ -382,7 +382,7 @@ describe('runVerify: a piece that cites another outlet, written as an attributio
 describe('runVerify: what ends the run', () => {
   it('fails, and writes nothing, when the verifier judges something that was not asked about', async () => {
     const { ctx, fake, claims, composed } = await start();
-    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { extra: { verdicts: [{ id: 's999', verdict: 'entailed', reason: 'x' }] } }));
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { extra: { verdicts: [{ id: 's999', reason: 'x', missing: [], verdict: 'entailed' }] } }));
     await expect(runVerify(ctx, claims, composed)).rejects.toMatchObject({ name: 'ModelError', kind: 'schema' });
     expect(existsSync(path.join(ctx.runDir, '05-compose.json'))).toBe(false);
     expect(existsSync(path.join(ctx.runDir, '06-verify.json'))).toBe(false);

@@ -4,7 +4,7 @@ import type { VerifyPlan, VerifyReply } from '../../src/stages/verify-model';
 
 /**
  * The reply of a verifier that clears everything in `plan`, except what `verdicts` says (by item id) and `unsupported` lists (by claim id,
- * its basis and its status are not supported). `omit` leaves the ids out of the reply, and `extra` adds entries after the rest.
+ * its basis and its status are not supported). A `not_entailed` item lists one thing that the passages do not say, as the model check requires. `omit` leaves the ids out of the reply, and `extra` adds entries after the rest.
  */
 export function verifierReply(
   plan: VerifyPlan,
@@ -15,7 +15,12 @@ export function verifierReply(
     verdicts: [
       ...[...plan.sentences, ...plan.headings]
         .filter((item) => !omit.includes(item.id))
-        .map((item) => ({ id: item.id, verdict: verdicts[item.id] ?? ('entailed' as const), reason: verdicts[item.id] === undefined ? 'The passages say it.' : `The passages do not say it (${item.id}).` })),
+        .map((item) => ({
+          id: item.id,
+          reason: verdicts[item.id] === undefined ? 'The passages say it.' : `The passages do not say it (${item.id}).`,
+          missing: verdicts[item.id] === 'not_entailed' ? ['what the passages do not say'] : [],
+          verdict: verdicts[item.id] ?? ('entailed' as const),
+        })),
       ...(extra.verdicts ?? []),
     ],
     labels: [

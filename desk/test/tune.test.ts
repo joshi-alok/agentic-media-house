@@ -29,7 +29,7 @@ import { loadWorkflow, stepNamed } from './support/workflow';
 const tokensOfText = (text: string): number => Math.ceil(text.length / 4);
 const EXTRACT_PROMPT = tokensOfText(extractSystem());
 const THREE_CALLS_IN = 2639 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
-const THREE_CALLS_OUT = 2956; // the same calls: what the scripted model writes (the claims, the draft, the verdicts), so a change of the demo story or of the verifier reply changes it
+const THREE_CALLS_OUT = 3070; // the same calls: what the scripted model writes (the claims, the draft, the verdicts), so a change of the demo story or of the verifier reply changes it
 const ONE_EXTRACT_IN = 225 + EXTRACT_PROMPT; // an Extract call alone
 const TWO_EXTRACTS_IN = 375 + 2 * EXTRACT_PROMPT; // two pages, an Extract call for each
 const dollarsOf = (inputTokens: number, outputTokens: number): number => (inputTokens * 3 + outputTokens * 15) / 1_000_000;
@@ -304,7 +304,7 @@ describe('main: tune, what the model check found', () => {
   const faultFinding = (request: Parameters<typeof clearingVerifier>[0]) => {
     const clear = clearingVerifier(request);
     return {
-      verdicts: clear.verdicts.flatMap((verdict, at) => (at === 0 ? [{ ...verdict, verdict: 'not_entailed' as const }] : at === 1 ? [{ ...verdict, verdict: 'ambiguous' as const }] : at === 2 ? [] : [verdict])),
+      verdicts: clear.verdicts.flatMap((verdict, at) => (at === 0 ? [{ ...verdict, missing: ['what the passages do not say'], verdict: 'not_entailed' as const }] : at === 1 ? [{ ...verdict, verdict: 'ambiguous' as const }] : at === 2 ? [] : [verdict])),
       labels: clear.labels.map((label, at) => (at === 0 ? { ...label, basisSupported: false } : label)),
     };
   };

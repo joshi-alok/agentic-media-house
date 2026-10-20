@@ -86,27 +86,27 @@ describe('VerifyReply', () => {
   it.each([
     ['a field it does not know', { note: 'x' }],
     ['no verdicts', { verdicts: undefined }],
-    ['a verdict that is not one', { verdicts: [{ id: 's0', verdict: 'probably', reason: 'x' }] }],
-    ['a verdict with no reason', { verdicts: [{ id: 's0', verdict: 'entailed', reason: '' }] }],
-    ['a verdict with a field it does not know', { verdicts: [{ id: 's0', verdict: 'entailed', reason: 'x', score: 1 }] }],
-    ['a verdict with no id', { verdicts: [{ id: '', verdict: 'entailed', reason: 'x' }] }],
-    ['a reason of more than 400 characters', { verdicts: [{ id: 's0', verdict: 'entailed', reason: 'x'.repeat(401) }] }],
+    ['a verdict that is not one', { verdicts: [{ id: 's0', reason: 'x', missing: [], verdict: 'probably' }] }],
+    ['a verdict with no reason', { verdicts: [{ id: 's0', reason: '', missing: [], verdict: 'entailed' }] }],
+    ['a verdict with a field it does not know', { verdicts: [{ id: 's0', reason: 'x', missing: [], verdict: 'entailed', score: 1 }] }],
+    ['a verdict with no id', { verdicts: [{ id: '', reason: 'x', missing: [], verdict: 'entailed' }] }],
+    ['a reason of more than 400 characters', { verdicts: [{ id: 's0', reason: 'x'.repeat(401), missing: [], verdict: 'entailed' }] }],
     ['a label judgement that is not true or false', { labels: [{ id: 'c-1', basisSupported: 'yes', statusSupported: true, reason: 'x' }] }],
     ['a label judgement with no status', { labels: [{ id: 'c-1', basisSupported: true, reason: 'x' }] }],
-    ['501 verdicts', { verdicts: Array.from({ length: 501 }, () => ({ id: 's0', verdict: 'entailed', reason: 'x' })) }],
+    ['501 verdicts', { verdicts: Array.from({ length: 501 }, () => ({ id: 's0', reason: 'x', missing: [], verdict: 'entailed' })) }],
     ['101 label judgements', { labels: Array.from({ length: 101 }, () => ({ id: 'c-1', basisSupported: true, statusSupported: true, reason: 'x' })) }],
   ])('refuses %s', (_what, change) => {
     expect(VerifyReply.safeParse({ ...valid(), ...change }).success).toBe(false);
   });
 
   it('accepts an id of one character, which is for the plan to refuse, as it refuses every id it did not ask about', () => {
-    const reply = { verdicts: [{ id: 'x', verdict: 'entailed', reason: 'x' }], labels: [{ id: 'y', basisSupported: true, statusSupported: true, reason: 'x' }] };
+    const reply = { verdicts: [{ id: 'x', reason: 'x', missing: [], verdict: 'entailed' }], labels: [{ id: 'y', basisSupported: true, statusSupported: true, reason: 'x' }] };
     expect(VerifyReply.safeParse(reply).success).toBe(true);
   });
 
   it('accepts a reason of exactly 400 characters, 500 verdicts and 100 label judgements', () => {
-    expect(VerifyReply.safeParse({ ...valid(), verdicts: [{ id: 's0', verdict: 'entailed', reason: 'x'.repeat(400) }] }).success).toBe(true);
-    expect(VerifyReply.safeParse({ ...valid(), verdicts: Array.from({ length: 500 }, () => ({ id: 's0', verdict: 'entailed', reason: 'x' })) }).success).toBe(true);
+    expect(VerifyReply.safeParse({ ...valid(), verdicts: [{ id: 's0', reason: 'x'.repeat(400), missing: [], verdict: 'entailed' }] }).success).toBe(true);
+    expect(VerifyReply.safeParse({ ...valid(), verdicts: Array.from({ length: 500 }, () => ({ id: 's0', reason: 'x', missing: [], verdict: 'entailed' })) }).success).toBe(true);
     expect(VerifyReply.safeParse({ ...valid(), labels: Array.from({ length: 100 }, () => ({ id: 'c-1', basisSupported: true, statusSupported: true, reason: 'x' })) }).success).toBe(true);
   });
 });
@@ -124,9 +124,9 @@ describe('aggregateVerdicts', () => {
 
   it('fails a sentence that is not entailed, and says which and why', () => {
     const { verifier, failures } = aggregateVerdicts(MODEL, PLAN, verifierReply(PLAN, { verdicts: { s3: 'not_entailed' } }));
-    expect(failures).toEqual([{ id: 's3', kind: 'sentence', code: 'not_entailed', reason: 'The passages do not say it (s3).' }]);
+    expect(failures).toEqual([{ id: 's3', kind: 'sentence', code: 'not_entailed', reason: 'The passages do not say it (s3). Not stated: what the passages do not say' }]);
     expect(verifier.passed).toBe(false);
-    expect(verifier.notes).toEqual([`opening, sentence 2 was judged not entailed: The passages do not say it (s3).`]);
+    expect(verifier.notes).toEqual([`opening, sentence 2 was judged not entailed: The passages do not say it (s3). Not stated: what the passages do not say`]);
   });
 
   it('fails a sentence that is ambiguous, as it fails one that is not entailed', () => {
@@ -149,7 +149,7 @@ describe('aggregateVerdicts', () => {
       ['h1', 'heading', 'ambiguous'],
       ['h2', 'heading', 'missing'],
     ]);
-    expect(verifier.notes[0]).toBe('section "What shipped" was judged not entailed: The passages do not say it (h0).');
+    expect(verifier.notes[0]).toBe('section "What shipped" was judged not entailed: The passages do not say it (h0). Not stated: what the passages do not say');
     expect(verifier.notes[2]).toBe('section "What the filing shows" was not judged: the verifier gave no verdict');
   });
 
@@ -186,11 +186,11 @@ describe('aggregateVerdicts', () => {
   });
 
   it('refuses a verdict on an id that was not asked about, and an id given twice, as a reply that is not valid', () => {
-    const unknownItem = verifierReply(PLAN, { extra: { verdicts: [{ id: 's999', verdict: 'entailed', reason: 'x' }] } });
+    const unknownItem = verifierReply(PLAN, { extra: { verdicts: [{ id: 's999', reason: 'x', missing: [], verdict: 'entailed' }] } });
     expect(() => aggregateVerdicts(MODEL, PLAN, unknownItem)).toThrow('the verifier judged "s999", which is not a sentence or a heading it was given');
     const unknownClaim = verifierReply(PLAN, { extra: { labels: [{ id: 'c-99', basisSupported: true, statusSupported: true, reason: 'x' }] } });
     expect(() => aggregateVerdicts(MODEL, PLAN, unknownClaim)).toThrow('the verifier judged the labels of "c-99", which is not a claim it was given');
-    const twiceItem = verifierReply(PLAN, { extra: { verdicts: [{ id: 's0', verdict: 'entailed', reason: 'x' }] } });
+    const twiceItem = verifierReply(PLAN, { extra: { verdicts: [{ id: 's0', reason: 'x', missing: [], verdict: 'entailed' }] } });
     expect(() => aggregateVerdicts(MODEL, PLAN, twiceItem)).toThrow('the verifier judged "s0" more than once');
     const twiceClaim = verifierReply(PLAN, { extra: { labels: [{ id: 'c-1', basisSupported: true, statusSupported: true, reason: 'x' }] } });
     expect(() => aggregateVerdicts(MODEL, PLAN, twiceClaim)).toThrow('the verifier judged the labels of "c-1" more than once');
@@ -203,7 +203,7 @@ describe('aggregateVerdicts', () => {
   });
 
   it('does not accept the id of a claim as the id of an item, nor the id of an item as the id of a claim', () => {
-    const wrongKind = verifierReply(PLAN, { omit: ['s0'], extra: { verdicts: [{ id: 'c-1', verdict: 'entailed', reason: 'x' }] } });
+    const wrongKind = verifierReply(PLAN, { omit: ['s0'], extra: { verdicts: [{ id: 'c-1', reason: 'x', missing: [], verdict: 'entailed' }] } });
     expect(() => aggregateVerdicts(MODEL, PLAN, wrongKind)).toThrow('which is not a sentence or a heading it was given');
     const other = verifierReply(PLAN, { extra: { labels: [{ id: 's0', basisSupported: true, statusSupported: true, reason: 'x' }] } });
     expect(() => aggregateVerdicts(MODEL, PLAN, other)).toThrow('which is not a claim it was given');
@@ -245,7 +245,7 @@ describe('judgePlan', () => {
     const id = PLAN.sentences[2]?.id as string;
     const failing = await judgePlan(new FakeClient().script('verify', verifierReply(PLAN, { verdicts: { [id]: 'not_entailed' } })), MODEL, PLAN);
     expect(failing.outcome.failures.map((failure) => failure.id)).toEqual([id]);
-    const unknown = new FakeClient().script('verify', verifierReply(PLAN, { extra: { verdicts: [{ id: 's999', verdict: 'entailed', reason: 'x' }] } }));
+    const unknown = new FakeClient().script('verify', verifierReply(PLAN, { extra: { verdicts: [{ id: 's999', reason: 'x', missing: [], verdict: 'entailed' }] } }));
     await expect(judgePlan(unknown, MODEL, PLAN)).rejects.toMatchObject({ name: 'ModelError', kind: 'schema' });
   });
 
@@ -339,7 +339,7 @@ describe('runVerifier', () => {
   it('covers the headings: a heading that is not entailed fails the draft', async () => {
     const { outcome } = await check(verifierReply(PLAN, { verdicts: { h1: 'not_entailed' } }));
     expect(outcome.failures).toMatchObject([{ id: 'h1', kind: 'heading', code: 'not_entailed' }]);
-    expect(outcome.verifier.notes).toEqual(['section "What the customer reports" was judged not entailed: The passages do not say it (h1).']);
+    expect(outcome.verifier.notes).toEqual(['section "What the customer reports" was judged not entailed: The passages do not say it (h1). Not stated: what the passages do not say']);
   });
 
   it('covers the labels: a claim whose basis is not supported fails the draft', async () => {
@@ -350,7 +350,7 @@ describe('runVerifier', () => {
 
   it('ends the run when the verifier judges something that was not asked about', async () => {
     const made = stageContext(scratch);
-    made.fake.script('verify', verifierReply(PLAN, { extra: { verdicts: [{ id: 's999', verdict: 'entailed', reason: 'x' }] } }));
+    made.fake.script('verify', verifierReply(PLAN, { extra: { verdicts: [{ id: 's999', reason: 'x', missing: [], verdict: 'entailed' }] } }));
     await expect(runVerifier(made.ctx, GOLDEN_DRAFT, GOLDEN_CLAIMS)).rejects.toMatchObject({ name: 'ModelError', kind: 'schema' });
     expect(made.logs).toEqual([]);
   });

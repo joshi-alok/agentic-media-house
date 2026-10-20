@@ -229,7 +229,7 @@ const BAD: Scenario[] = [
     const distorted = fact('Tarnmoor has received 60 arms by 30 November 2026.', 'c-5');
     const piece = reply((copy) => { copy.takeaways[2] = distorted; });
     const id = idOf(piece, distorted.text);
-    const rejecting = verifier((copy) => { copy.verdicts = copy.verdicts.map((verdict) => (verdict.id === id ? { ...verdict, verdict: 'not_entailed' as const } : verdict)); });
+    const rejecting = verifier((copy) => { copy.verdicts = copy.verdicts.map((verdict) => (verdict.id === id ? { ...verdict, missing: ['what the passages do not say'], verdict: 'not_entailed' as const } : verdict)); });
     return {
       name: 'a sentence that the verifier rejects although the gate passes it',
       script: () => told({ piece, verify: [rejecting, rejecting, rejecting] }),
@@ -248,7 +248,7 @@ const BAD: Scenario[] = [
     const invented = fact('Harlow announced on 1 October 2026 that deliveries have started.', 'c-2');
     const piece = reply((copy) => { copy.opening[1] = invented; });
     const id = idOf(piece, invented.text);
-    const rejecting = verifier((copy) => { copy.verdicts = copy.verdicts.map((verdict) => (verdict.id === id ? { ...verdict, verdict: 'not_entailed' as const } : verdict)); });
+    const rejecting = verifier((copy) => { copy.verdicts = copy.verdicts.map((verdict) => (verdict.id === id ? { ...verdict, missing: ['what the passages do not say'], verdict: 'not_entailed' as const } : verdict)); });
     return {
       name: 'an invented name at the start of a sentence, which only the model check judges',
       script: () => told({ piece, verify: [rejecting, rejecting, rejecting] }),
@@ -376,7 +376,7 @@ const BAD: Scenario[] = [
   (() => {
     // A heading that asserts something and has no figure and no capitalised word: the gate has nothing to compare with a claim, which is a known limit of it,
     // and the model check is what stops it. The verifier here rejects the heading, as a verifier that reads it should.
-    const rejecting = verifier((copy) => { copy.verdicts = copy.verdicts.map((verdict) => (verdict.id === 'h1' ? { ...verdict, verdict: 'not_entailed' as const } : verdict)); });
+    const rejecting = verifier((copy) => { copy.verdicts = copy.verdicts.map((verdict) => (verdict.id === 'h1' ? { ...verdict, missing: ['what the passages do not say'], verdict: 'not_entailed' as const } : verdict)); });
     return {
       name: 'a heading that asserts something and names no figure, which only the model check can judge',
       script: () => told({ piece: reply((copy) => { (copy.sections[1] as { heading: string }).heading = 'the delivery is always on time'; }), verify: [rejecting, rejecting, rejecting] }),

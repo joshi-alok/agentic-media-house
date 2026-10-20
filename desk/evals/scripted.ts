@@ -26,7 +26,8 @@ export function scriptedVerifier(set: EvalSet, decide: (item: EvalItem) => Verdi
         .map((block) => {
           const item = set.items.find((candidate) => candidate.sentence === block.text);
           if (item === undefined) throw new Error(`the scripted verifier was asked about a sentence that is not in the set: ${JSON.stringify(block.text)}`);
-          return { id: block.id, verdict: decide(item), reason: 'Scripted.' };
+          const verdict = decide(item);
+          return { id: block.id, reason: 'Scripted.', missing: verdict === 'not_entailed' ? ['what the passages do not say'] : [], verdict };
         });
       const labels = blocks.filter((block) => /^c-\d+$/.test(block.id)).map((block) => ({ id: block.id, basisSupported: true, statusSupported: true, reason: 'Scripted.' }));
       const parsed = request.schema.safeParse({ verdicts, labels });
