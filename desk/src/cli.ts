@@ -1,7 +1,7 @@
 import { appendFile, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { CORRECTION_KINDS, loadSources } from '@robywire/gate';
-import type { CorrectionKind, SourcesRegistry } from '@robywire/gate';
+import { CORRECTION_KINDS, isProfileId, loadSources } from '@robywire/gate';
+import type { CorrectionKind, ProfileId, SourcesRegistry } from '@robywire/gate';
 import {
   BUILD_FAILED_FOLDER,
   CLIENT_KINDS,
@@ -60,7 +60,7 @@ export type Parsed =
   | { command: 'replay'; runDir: string; sources: SourcesKind | undefined; client: ClientKind | undefined; cassettes: string | undefined; config: string | undefined }
   | { command: 'status'; config: string | undefined }
   | { command: 'retract'; slug: string; reason: string; kind: CorrectionKind; dry: boolean }
-  | { command: 'tune'; urls: string; trials: number; maxCalls: number; client: 'api' | 'fake'; config: string | undefined }
+  | { command: 'tune'; urls: string; trials: number; maxCalls: number; client: 'api' | 'fake'; config: string | undefined; profile: ProfileId | undefined }
   | { command: 'push'; runId: string | undefined; output: string | undefined; branchOnly: boolean; auditLog: string | undefined }
   | { command: 'pack-artifact'; runDir: string; outDir: string }
   | { command: 'help' };
@@ -74,7 +74,7 @@ export const USAGE = [
   '  desk replay <folder of a run> [--sources fixtures|live] [--client fake|recorded|api] [--cassettes <folder>] [--config <path>]',
   '  desk status [--config <path>]',
   '  desk retract <slug> --reason <text> [--kind correction|retraction] [--dry]',
-  '  desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]',
+  '  desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--profile brief|digest|explainer] [--config <path>]',
   '  desk push [--branch-only] [--run-id <id>] [--output <file>] [--audit-log <file>]',
   '  desk pack-artifact <folder of a run> <folder for the pack>',
   '',
@@ -105,6 +105,7 @@ export const USAGE = [
   '        (robots.txt honoured, at the pace of the settings) and sent through Extract, Compose and Verify with --client api (the default; it needs ANTHROPIC_API_KEY) or --client fake (a model',
   '        that proposes no claims: it tries the fetching and the sorting of the pages and costs nothing). --trials N runs the model steps N times on each page (1 to 10, 1 unless told otherwise),',
   '        and --max-calls M stops the whole invocation, with exit code 1, when it has made M model calls (1 to 200, 40 unless told otherwise); each trial is also held to the budget of the settings.',
+  '        --profile judges the drafts against the ranges of a kind of piece (brief, digest or explainer) instead of the defaults of the gate, and tells the writer the same ranges.',
   '        For each page and trial it prints the claims proposed, dropped (with the rule that dropped them) and kept, what the gate said of the draft, what the model check said of its sentences,',
   '        and the tokens (dollars too when the settings have prices). Nothing is published or committed: it writes only below runs/tune/<stamp>/, and keeps the pages there, never in the bucket.',
   'push    push to main of origin the commits that this checkout has and origin/main has not (what a run committed), after a fetch, and say what it did. Nothing ahead is not an error and exits 0.',
@@ -128,7 +129,7 @@ const OPTIONS: Readonly<Record<'run' | 'replay' | 'status' | 'retract' | 'tune' 
   replay: { flags: [], valued: ['--sources', '--client', '--cassettes', '--config'] },
   status: { flags: [], valued: ['--config'] },
   retract: { flags: ['--dry'], valued: ['--reason', '--kind'] },
-  tune: { flags: [], valued: ['--urls', '--trials', '--max-calls', '--client', '--config'] },
+  tune: { flags: [], valued: ['--urls', '--trials', '--max-calls', '--client', '--config', '--profile'] },
   push: { flags: ['--branch-only'], valued: ['--run-id', '--output', '--audit-log'] },
   'pack-artifact': { flags: [], valued: [] },
 };
@@ -225,7 +226,9 @@ export function parseArgs(argv: readonly string[]): ParseResult {
     if (maxCalls === undefined) return fail(`--max-calls is a whole number from 1 to ${TUNE_MAX_CALLS}, not "${value('--max-calls')}"`);
     const client = value('--client') ?? 'api';
     if (client !== 'api' && client !== 'fake') return fail(`--client is api or fake for tune, not "${client}"`);
-    return { ok: true, args: { command: 'tune', urls, trials, maxCalls, client, config: value('--config') } };
+    const profile = value('--profile');
+    if (profile !== undefined && !isProfileId(profile)) return fail(`--profile is brief, digest or explainer, not "${profile}"`);
+    return { ok: true, args: { command: 'tune', urls, trials, maxCalls, client, config: value('--config'), profile: profile as ProfileId | undefined } };
   }
   const sourcesGiven = value('--sources');
   if (sourcesGiven !== undefined && !SOURCES.includes(sourcesGiven)) return fail(`--sources is fixtures or live, not "${sourcesGiven}"`);
@@ -568,6 +571,7 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
   const now = deps.now();
   const stamp = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15);
   deps.out(`tune: ${listed.urls.length} ${listed.urls.length === 1 ? 'address' : 'addresses'}, ${args.trials} ${args.trials === 1 ? 'trial' : 'trials'} each, at most ${args.maxCalls} model calls, client ${args.client}`);
+  if (args.profile !== undefined) deps.out(`profile: ${args.profile}`);
   deps.out(`folder: ${shownPath(deps.cwd, path.join(config.runDir, 'tune', stamp))}`);
   try {
     const { record } = await runTune({
@@ -582,6 +586,7 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
       buildClient,
       date: now.toISOString().slice(0, 10),
       stamp,
+      ...(args.profile === undefined ? {} : { profile: args.profile }),
       out: (line) => deps.out(line),
     });
     if (record.stopped === null) return 0;

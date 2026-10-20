@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { ROUTES } from '@robywire/gate';
-import type { Claim, Draft, SourcesRegistry } from '@robywire/gate';
+import { PROFILE_IDS, ROUTES, allSentences, countWords } from '@robywire/gate';
+import type { Claim, Draft, ProfileId, SourcesRegistry } from '@robywire/gate';
 import { z } from 'zod';
 import { ComposeArtifact, DeskConfig, LocalEvidenceStore, candidateId, canonicalUrl, extractPage, hostKey, readArtifact, refuseApiOnFixtures, sourceKind, tier2Feeds, writeJsonFile } from '../index';
 import type { BuiltClient, ClientKind, EvidenceStore, Fetcher, ModelClient, ModelRequest, ModelResponse, SelectArtifact, SourceKind, SourcesKind } from '../index';
@@ -108,11 +108,11 @@ export const TuneRow = z.strictObject({
   /** Extract: what the model proposed, what survived, and which rule dropped how many (a claim with two reasons is counted under both). */
   claims: z.strictObject({ proposed: count, survivors: count, dropped: codes }).nullable(),
   /** Compose: what the gate said of the draft that the composer wrote first. */
-  composed: z.strictObject({ route: z.enum(ROUTES), codes }).nullable(),
+  composed: z.strictObject({ route: z.enum(ROUTES), codes, notes: codes.optional(), words: count.optional() }).nullable(),
   /** Verify: what the model check said of the first draft that the gate cleared (a draft that the gate fails is not shown to the model). */
   modelCheck: z.strictObject({ round: count, judged: count, entailed: count, notEntailed: count, ambiguous: count, missing: count, claims: count, labelProblems: count }).nullable(),
   /** Verify: how it ended. */
-  verdict: z.strictObject({ outcome: z.enum(['publish', 'hold']), rounds: count, route: z.enum(ROUTES), codes }).nullable(),
+  verdict: z.strictObject({ outcome: z.enum(['publish', 'hold']), rounds: count, route: z.enum(ROUTES), codes, notes: codes.optional(), words: count.optional() }).nullable(),
   usage: z.strictObject({ calls: count, inputTokens: count, outputTokens: count }),
 });
 export type TuneRow = z.infer<typeof TuneRow>;
@@ -122,6 +122,7 @@ export const TuneRecord = z.strictObject({
   stamp: z.string().min(1),
   date: z.iso.date(),
   client: z.enum(['api', 'fake']),
+  profile: z.enum(PROFILE_IDS).optional(),
   trials: z.number().int().positive(),
   maxCalls: z.number().int().positive(),
   models: DeskConfig.shape.models,
@@ -140,6 +141,18 @@ function countBy(items: readonly string[]): Record<string, number> {
   for (const item of items) counts[item] = (counts[item] ?? 0) + 1;
   return counts;
 }
+
+/** The words of a draft as the gate counts the body: the opening, the takeaways, the sections and the limitations, not the title or the description. */
+const bodyWordsOf = (draft: Draft): number =>
+  allSentences(draft)
+    .filter((item) => item.section !== 'title' && item.section !== 'description')
+    .reduce((total, item) => total + countWords(item.sentence.text), 0);
+
+/** The notes and the words of a draft, as the fields of a row: the notes only when there are some. */
+const extrasOf = (draft: Draft, warnings: readonly { code: string }[]): { notes?: Record<string, number>; words: number } => ({
+  ...(warnings.length === 0 ? {} : { notes: countBy(warnings.map((finding) => finding.code)) }),
+  words: bodyWordsOf(draft),
+});
 
 // --- Prices ---------------------------------------------------------------------
 
@@ -187,10 +200,12 @@ export function rowLines(row: TuneRow, position: { page: number; pages: number; 
     stopped: 'stopped by the budget of model calls',
   };
   lines.push(`  result: ${results[row.status]}${row.note === null ? '' : `: ${row.note}`}`);
+  const extras = (found: { notes?: Record<string, number>; words?: number }): string =>
+    `${found.words === undefined ? '' : `; ${plural(found.words, 'word')}`}${found.notes === undefined ? '' : `; notes: ${listOf(found.notes)}`}`;
   if (row.claims !== null) {
     lines.push(`  claims proposed: ${row.claims.proposed}`, `  claims dropped: ${listOf(row.claims.dropped)}`, `  claims surviving: ${row.claims.survivors}`);
   }
-  if (row.composed !== null) lines.push(`  composed draft: the gate says ${row.composed.route}${row.composed.route === 'publish' ? '' : ` (${listOf(row.composed.codes)})`}`);
+  if (row.composed !== null) lines.push(`  composed draft: the gate says ${row.composed.route}${row.composed.route === 'publish' ? '' : ` (${listOf(row.composed.codes)})`}${extras(row.composed)}`);
   if (row.modelCheck !== null) {
     const check = row.modelCheck;
     lines.push(
@@ -200,7 +215,7 @@ export function rowLines(row: TuneRow, position: { page: number; pages: number; 
     lines.push('  model check: not asked (the gate found failures in every round)');
   }
   if (row.verdict !== null) {
-    lines.push(`  verify: ${row.verdict.outcome} after ${plural(row.verdict.rounds, 'revision round')}; the gate says ${row.verdict.route}${row.verdict.route === 'publish' ? '' : ` (${listOf(row.verdict.codes)})`}`);
+    lines.push(`  verify: ${row.verdict.outcome} after ${plural(row.verdict.rounds, 'revision round')}; the gate says ${row.verdict.route}${row.verdict.route === 'publish' ? '' : ` (${listOf(row.verdict.codes)})`}${extras(row.verdict)}`);
   }
   if (row.usage.calls > 0) {
     lines.push(`  tokens: ${row.usage.inputTokens} in, ${row.usage.outputTokens} out, ${plural(row.usage.calls, 'model call')}`);
@@ -230,6 +245,8 @@ export interface TuneOptions {
   /** The most model calls the whole invocation may make. */
   maxCalls: number;
   clientKind: ClientKind;
+  /** The kind of piece the drafts are judged against; none means the defaults of the gate. */
+  profile?: ProfileId;
   /** Where the pages come from. The command line says `live`; `refuseApiOnFixtures` refuses the api on the made-up world as it does for a run. */
   sourcesKind: SourcesKind;
   config: DeskConfig;
@@ -318,6 +335,7 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
     runDir: dir,
     published: emptyPublished(),
     log: () => undefined,
+    ...(options.profile === undefined ? {} : { profile: options.profile }),
   };
   const row = blank(page.snapshot.url, page.kind, trial);
   try {
@@ -331,9 +349,9 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
     } else {
       const claims = extracted.artifact.claims;
       const composed = await runCompose(ctx, claims);
-      row.composed = { route: composed.gate.route, codes: countBy(composed.gate.failures.map((failure) => failure.code)) };
+      row.composed = { route: composed.gate.route, codes: countBy(composed.gate.failures.map((failure) => failure.code)), ...extrasOf(composed.draft, composed.gate.warnings) };
       const verified = await runVerify(ctx, claims, composed);
-      row.verdict = { outcome: verified.outcome, rounds: verified.rounds, route: verified.gate.route, codes: countBy(verified.gate.failures.map((failure) => failure.code)) };
+      row.verdict = { outcome: verified.outcome, rounds: verified.rounds, route: verified.gate.route, codes: countBy(verified.gate.failures.map((failure) => failure.code)), ...extrasOf(verified.draft, verified.gate.warnings) };
       row.modelCheck = await modelCheckOf(dir, claims, verified);
     }
   } catch (error) {
@@ -401,6 +419,7 @@ export async function runTune(options: TuneOptions): Promise<TuneResult> {
       stamp: options.stamp,
       date: options.date,
       client: options.clientKind as 'api' | 'fake',
+      ...(options.profile === undefined ? {} : { profile: options.profile }),
       trials: options.trials,
       maxCalls: options.maxCalls,
       models: { ...options.config.models },

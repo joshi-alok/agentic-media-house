@@ -13,8 +13,8 @@ import { extractSystem } from '../src/prompts/extract';
 import { verifySystem } from '../src/prompts/verify';
 import { refuseApiOnFixtures } from '../src/run/spending';
 import { FakeGit } from '../src/run/git';
-import { TUNE_DEFAULT_CALLS, TUNE_FOLDER, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRecord, TuneRefused, runTune } from '../src/run/tune';
-import type { TuneOptions } from '../src/run/tune';
+import { TUNE_DEFAULT_CALLS, TUNE_FOLDER, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRecord, TuneRefused, rowLines, runTune } from '../src/run/tune';
+import type { TuneOptions, TuneRow } from '../src/run/tune';
 import { useScratch } from './support/context';
 import { publicLookup } from './support/lookup';
 import { COMMITTED_STATE, filesBelow, makeSite } from './support/site';
@@ -133,12 +133,22 @@ describe('parseArgs: tune', () => {
   });
 
   it('is in the usage, with the settings file like every command that reads the settings, and the two words that say what --client fake is and what writes where', () => {
-    expect(USAGE).toContain('desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]');
+    expect(USAGE).toContain('desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--profile brief|digest|explainer] [--config <path>]');
     expect(USAGE).toContain('--client fake (a model');
     expect(USAGE).toContain('proposes no claims');
     expect(USAGE).toContain('it writes only below runs/tune/<stamp>/');
     expect(USAGE).toContain('--trials N runs the model steps N times on each page (1 to 10, 1 unless told otherwise)');
     expect(USAGE).toContain('--max-calls M stops the whole invocation, with exit code 1, when it has made M model calls (1 to 200, 40 unless told otherwise)');
+  });
+
+  it('takes --profile, one of brief, digest and explainer, and none by default', () => {
+    expect(parseArgs(['tune', '--urls', 'u.txt'])).toMatchObject({ ok: true, args: { command: 'tune', profile: undefined } });
+    expect(parseArgs(['tune', '--urls', 'u.txt', '--profile', 'brief'])).toMatchObject({ ok: true, args: { command: 'tune', profile: 'brief' } });
+    expect(parseArgs(['tune', '--urls', 'u.txt', '--profile', 'news'])).toMatchObject({ ok: false });
+  });
+
+  it('says the profiles in the usage', () => {
+    expect(USAGE).toContain('desk tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--profile brief|digest|explainer] [--config <path>]');
   });
 });
 
@@ -156,9 +166,9 @@ describe('main: tune, the table', () => {
       '  claims proposed: 7',
       '  claims dropped: none',
       '  claims surviving: 7',
-      '  composed draft: the gate says publish',
+      '  composed draft: the gate says publish; 628 words',
       '  model check: round 0 judged 35 items: entailed 35, not entailed 0, ambiguous 0, missing 0; label problems 0 (7 claims)',
-      '  verify: publish after 0 revision rounds; the gate says publish',
+      '  verify: publish after 0 revision rounds; the gate says publish; 628 words',
       `  tokens: ${THREE_CALLS_IN} in, 2891 out, 3 model calls`,
       `total: 1 page, 1 trial, 3 of 40 model calls, ${THREE_CALLS_IN} tokens in, 2891 out`,
       'dollars: not shown, because the settings have no prices (see prices in desk/src/config.ts)',
@@ -231,6 +241,55 @@ describe('main: tune, the table', () => {
   });
 });
 
+describe('main: tune, the profile', () => {
+  it('prints the profile, says the words of each draft, and writes the profile in the record', async () => {
+    const { call, out, err, record } = tuning([RELEASE], { deps: { tuneClient: story() } });
+    expect(await call('--client', 'fake', '--profile', 'brief')).toBe(0);
+    expect(err).toEqual([]);
+    expect(out).toContain('profile: brief');
+    expect(out.join('\n')).toMatch(/composed draft: the gate says publish; \d+ words/);
+    expect(out.join('\n')).toMatch(/verify: publish after 0 revision rounds; the gate says publish; \d+ words/);
+    expect(record().profile).toBe('brief');
+    expect(record().rows[0]?.composed?.words).toBeGreaterThan(0);
+  });
+
+  it('prints no profile line, and keeps the profile out of the record, when none is given', async () => {
+    const { call, out, record } = tuning([RELEASE], { deps: { tuneClient: story() } });
+    expect(await call('--client', 'fake')).toBe(0);
+    expect(out.some((line) => line.startsWith('profile:'))).toBe(false);
+    expect(record().profile).toBeUndefined();
+  });
+});
+
+describe('rowLines: the words and the notes of a draft', () => {
+  const row: TuneRow = {
+    url: 'https://a.example/x',
+    trial: 1,
+    kind: 'company-newsroom',
+    status: 'judged',
+    note: null,
+    claims: { proposed: 5, survivors: 5, dropped: {} },
+    composed: { route: 'publish', codes: {}, notes: { G2_BODY_LENGTH: 1 }, words: 312 },
+    modelCheck: null,
+    verdict: { outcome: 'publish', rounds: 0, route: 'publish', codes: {}, notes: { G2_BODY_LENGTH: 1 }, words: 312 },
+    usage: { calls: 0, inputTokens: 0, outputTokens: 0 },
+  };
+  const position = { page: 1, pages: 1, trials: 1 };
+
+  it('says the words and the notes after the route of the gate', () => {
+    const lines = rowLines(row, position, undefined);
+    expect(lines).toContain('  composed draft: the gate says publish; 312 words; notes: G2_BODY_LENGTH 1');
+    expect(lines).toContain('  verify: publish after 0 revision rounds; the gate says publish; 312 words; notes: G2_BODY_LENGTH 1');
+  });
+
+  it('says nothing more than before for a row that has neither', () => {
+    const plain: TuneRow = { ...row, composed: { route: 'publish', codes: {} }, verdict: { outcome: 'publish', rounds: 0, route: 'publish', codes: {} } };
+    const lines = rowLines(plain, position, undefined);
+    expect(lines).toContain('  composed draft: the gate says publish');
+    expect(lines).toContain('  verify: publish after 0 revision rounds; the gate says publish');
+  });
+});
+
 describe('main: tune, what the model check found', () => {
   /** A verifier that finds fault: the first sentence is not entailed, the second is ambiguous, the third is not judged at all, and the basis of the first claim is not supported. */
   const faultFinding = (request: Parameters<typeof clearingVerifier>[0]) => {
@@ -249,7 +308,7 @@ describe('main: tune, what the model check found', () => {
     const { call, out, record } = tuning([RELEASE], { deps: { tuneClient: reading } });
     expect(await call('--client', 'fake')).toBe(0);
     expect(out).toContain('  model check: round 0 judged 35 items: entailed 32, not entailed 1, ambiguous 1, missing 1; label problems 1 (7 claims)');
-    expect(out).toContain('  verify: hold after 2 revision rounds; the gate says publish');
+    expect(out).toContain('  verify: hold after 2 revision rounds; the gate says publish; 628 words');
     expect(record().rows[0]).toMatchObject({
       status: 'judged',
       modelCheck: { round: 0, judged: 35, entailed: 32, notEntailed: 1, ambiguous: 1, missing: 1, claims: 7, labelProblems: 1 },
