@@ -242,21 +242,29 @@ describe('main: tune, the table', () => {
 });
 
 describe('main: tune, the profile', () => {
-  it('prints the profile, says the words of each draft, and writes the profile in the record', async () => {
-    const { call, out, err, record } = tuning([RELEASE], { deps: { tuneClient: story() } });
+  it('prints the profile, says the words and the notes of each draft, tells the writer the range, and writes the profile in the record', async () => {
+    const client = story();
+    const { call, out, err, record } = tuning([RELEASE], { deps: { tuneClient: client } });
     expect(await call('--client', 'fake', '--profile', 'brief')).toBe(0);
     expect(err).toEqual([]);
     expect(out).toContain('profile: brief');
     expect(out.join('\n')).toMatch(/composed draft: the gate says publish; \d+ words/);
     expect(out.join('\n')).toMatch(/verify: publish after 0 revision rounds; the gate says publish; \d+ words/);
+    // The body of the demo story is 628 words, above the 500 that a brief may have, so the gate notes it in the draft that was composed and in the one that was verified.
+    expect(out.find((line) => line.startsWith('  composed draft:'))!.endsWith('; 628 words; notes: G2_BODY_LENGTH 1')).toBe(true);
+    expect(out.find((line) => line.startsWith('  verify:'))!.endsWith('; 628 words; notes: G2_BODY_LENGTH 1')).toBe(true);
     expect(record().profile).toBe('brief');
     expect(record().rows[0]?.composed?.words).toBeGreaterThan(0);
+    expect(record().rows[0]?.composed?.notes).toEqual({ G2_BODY_LENGTH: 1 });
+    // The writer is told the same range as the gate holds the draft to.
+    expect(client.calls.find((request) => request.role === 'compose')!.system).toContain('The piece is about 150 to 500 words in all');
   });
 
   it('prints no profile line, and keeps the profile out of the record, when none is given', async () => {
     const { call, out, record } = tuning([RELEASE], { deps: { tuneClient: story() } });
     expect(await call('--client', 'fake')).toBe(0);
     expect(out.some((line) => line.startsWith('profile:'))).toBe(false);
+    expect(out.some((line) => line.includes('notes:'))).toBe(false);
     expect(record().profile).toBeUndefined();
   });
 });

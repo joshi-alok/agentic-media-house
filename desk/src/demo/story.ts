@@ -111,7 +111,8 @@ const analysis = (text: string, ...claimIds: string[]) => ({ kind: 'analysis' as
 
 /**
  * The piece that the composer writes from the seven claims: sentences that cite them, and nothing else (the slug, the date, the author and the
- * limitation sentences are written by code). It is 640 words of body in four sections, with three sentences of analysis, and the gate clears it.
+ * limitation sentences are written by code). It is 628 words of body as the gate counts them (the opening, the takeaways, the four sections and the limitations that
+ * code adds), with three sentences of analysis, and the gate clears it.
  */
 export const DEMO_REPLY: ComposeReply = {
   categories: ['humanoids'],
