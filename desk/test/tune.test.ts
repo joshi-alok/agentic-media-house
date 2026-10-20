@@ -8,7 +8,9 @@ import { DEMO_CLAIMS, DEMO_REPLY, clearingVerifier } from '../src/demo/story';
 import { DEMO_REGISTRY_YAML, DEMO_URLS, demoFetcher, demoRegistry } from '../src/demo/world';
 import { clientFromConfig } from '../src/model/factory';
 import { FakeClient } from '../src/model/fake';
+import { composeSystem } from '../src/prompts/compose';
 import { extractSystem } from '../src/prompts/extract';
+import { verifySystem } from '../src/prompts/verify';
 import { refuseApiOnFixtures } from '../src/run/spending';
 import { FakeGit } from '../src/run/git';
 import { TUNE_DEFAULT_CALLS, TUNE_FOLDER, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRecord, TuneRefused, runTune } from '../src/run/tune';
@@ -21,10 +23,12 @@ import { fileReply, scriptedTransport } from './support/transport';
 import type { Route } from './support/transport';
 import { loadWorkflow, stepNamed } from './support/workflow';
 
-// The fake client counts about one token for four characters of what it is sent. The system prompt of Extract is edited whenever a trial shows what to tell the
-// model, so the totals below are written as a part that does not change plus the tokens of that prompt, and not as numbers that every edit of it would break.
-const EXTRACT_PROMPT = Math.ceil(extractSystem().length / 4);
-const THREE_CALLS_IN = 5023 + EXTRACT_PROMPT; // Extract, Compose and the model check, once
+// The fake client counts about one token for four characters of what it is sent. The system prompts are edited whenever a trial shows what to tell the models,
+// so the totals below are written as a part that does not change (the messages of the pages and of the draft) plus the tokens of the prompts, and not as numbers
+// that every edit of a prompt would break.
+const tokensOfText = (text: string): number => Math.ceil(text.length / 4);
+const EXTRACT_PROMPT = tokensOfText(extractSystem());
+const THREE_CALLS_IN = 2575 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
 const ONE_EXTRACT_IN = 225 + EXTRACT_PROMPT; // an Extract call alone
 const TWO_EXTRACTS_IN = 375 + 2 * EXTRACT_PROMPT; // two pages, an Extract call for each
 const dollarsOf = (inputTokens: number, outputTokens: number): number => (inputTokens * 3 + outputTokens * 15) / 1_000_000;

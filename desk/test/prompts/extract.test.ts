@@ -68,6 +68,8 @@ describe('extractSystem', () => {
   it('asks for every fact that the page states plainly and not the first few, because the first real page gave 4 claims of the dozen it states, and to count the words of a label', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('List every fact that the page states plainly');
     expect(EXTRACT_INSTRUCTIONS).toContain('Do not stop after the first few');
+    expect(EXTRACT_INSTRUCTIONS).toContain('A long announcement states twenty or more separate facts');
+    expect(EXTRACT_INSTRUCTIONS).toContain('make one claim for each');
     expect(EXTRACT_INSTRUCTIONS).toContain(`Count the words of a label before you write it and aim for three to five: a label of more than ${MAX_LABEL_WORDS} words is dropped.`);
     // the coverage is asked for inside the limit and does not weaken any rule that the code checks
     expect(EXTRACT_INSTRUCTIONS.indexOf('List every fact')).toBeLessThan(EXTRACT_INSTRUCTIONS.indexOf(`List at most ${MAX_CLAIMS} claims.`));

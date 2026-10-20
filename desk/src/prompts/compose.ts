@@ -28,7 +28,7 @@ export const COMPOSE_RULES: readonly string[] = [
   'Facts:',
   '- Every fact sentence cites at least one claim. The title, the description, the opening and the takeaways are fact sentences.',
   '- Every number, date and name in a fact sentence must be one of the values of a claim that the sentence cites. A name is a capitalised word. Write a word that is not a name in lowercase, except at the start of a sentence. A claim licenses only the values listed for it, not every word of its text.',
-  '- Write figures as digits. Never use a word that states an amount without a figure: half, twice, double, doubled, tenfold, a third and the like. Give the figure and cite the claim that has it.',
+  '- Write figures as digits. Never use a word that states an amount without a figure: half, twice, double, doubled, tenfold, a third and the like. Give the figure and cite the claim that has it. If the claim states a period such as "the first half of 2027", write it as a quotation, word for word, in double quotation marks, or write the year alone.',
   '- A passage in double quotation marks must be word for word inside the quoted passage of a claim that the sentence cites. Do not use quotation marks for anything else.',
   '',
   'How a sentence starts:',

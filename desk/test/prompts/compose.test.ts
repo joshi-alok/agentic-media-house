@@ -275,4 +275,10 @@ describe('buildReviseUser', () => {
     expect(() => buildReviseUser([], [item()])).toThrow('buildReviseUser needs at least one claim');
     expect(() => buildReviseUser(claims, [])).toThrow('buildReviseUser needs at least one item');
   });
+
+  it('says how to write a period that holds a word of amount, such as the first half of a year: as a quotation, word for word, or as the year alone, because the second trial\'s piece was sent back for it in every round', () => {
+    const text = composeSystem();
+    expect(text).toContain('such as "the first half of 2027"');
+    expect(text).toContain('write it as a quotation, word for word, in double quotation marks, or write the year alone');
+  });
 });
