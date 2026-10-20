@@ -102,7 +102,7 @@ export const USAGE = [
   'status  print the last run (its outcome, its day and which try of the day it was), the number of holds, and the number of corrections and of retractions.',
   '        The desk state has all but the try, which is read from the record of the run in the folder of the runs, if it is there.',
   'sources-check  fetch every entry of sources.yml as the Desk fetches (robots.txt honoured, at the pace of the settings), read each feed, and print whether it can be read; it writes nothing and needs no key.',
-  '        --items lists under each feed its newest stories that hold a keyword and link to a primary page, to choose pages from. It needs --config for the real user agent, as a live run does.',
+  '        --items lists under each feed its newest stories: for a primary feed, those that hold a keyword and link to a primary page (the pages to choose from); for an outlet, those that hold a keyword. It needs --config for the real user agent, as a live run does.',
   'retract record a correction (the default) or a retraction of a piece that is on the site: the note goes into the desk state, updatedAt of the piece is set to today',
   '        (UTC), and the two are committed in one commit. The reason is one line of at most 500 characters. Nothing is deleted: the page stays up with its notice. A piece',
   '        that was held is on its pull request until the owner merges it, and cannot be corrected before. --dry says what would be done and writes nothing.',

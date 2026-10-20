@@ -1304,19 +1304,37 @@ describe('main: sources-check', () => {
     expect(err).toEqual([]);
     expect(out).toHaveLength(6);
     expect(out[0]).toMatch(/^ok +Fixture Robotics +company-newsroom +page, \d+ characters of text$/);
-    expect(out[3]).toMatch(/^ok +Mercer Wire +tier2 +feed: 3 items, 3 with a keyword, 0 on a primary page, newest 2026-10-04$/);
+    expect(out[3]).toMatch(/^ok +Mercer Wire +tier2 +feed: 3 items, no keyword filter, 0 on a primary page, newest 2026-10-04$/);
     expect(out.at(-1)).toBe('5 of 5 entries can be read; 0 were not tried');
     expect(filesBelow(cwd)).toEqual(before);
     expect(git.commits).toEqual([]);
     expect(sent.every((request) => request.headers['User-Agent'] === TEST_AGENT)).toBe(true);
   });
 
-  it('with --items, lists under each feed its newest stories', async () => {
-    const { call, out } = checking(readable());
+  it('with --items, lists under each feed its newest three stories, newest first, one line each: the date, the title and the address', async () => {
+    const story = (name: string, day: string): string => `<item><title>Mercer ${name}</title><link>https://mercer-wire.example/robotics/${name}</link><pubDate>2026-10-${day}T06:00:00Z</pubDate></item>`;
+    const routes = readable();
+    // Five stories, out of order: only the newest three are listed.
+    routes['https://mercer-wire.example/feed.xml'] = {
+      type: 'application/xml',
+      body: `<?xml version="1.0"?><rss version="2.0"><channel><title>Mercer</title>${[story('five', '05'), story('one', '01'), story('four', '04'), story('two', '02'), story('three', '03')].join('')}</channel></rss>`,
+    };
+    const { call, out, err } = checking(routes);
     expect(await call('sources-check', '--items')).toBe(0);
-    expect(out).toContain('    2026-10-04  Fixture Robotics starts FX-1 deliveries to Brindle\'s second plant  https://mercer-wire.example/robotics/fx-1-reaches-second-brindle-plant');
-    expect(out.length).toBeGreaterThan(6);
-    expect(out.at(-1)).toBe('5 of 5 entries can be read; 0 were not tried');
+    expect(err).toEqual([]);
+    expect(out).toHaveLength(11);
+    expect(out[3]).toMatch(/^ok +Mercer Wire +tier2 +feed: 5 items, no keyword filter, 0 on a primary page, newest 2026-10-05$/);
+    expect(out.slice(4, 7)).toEqual([
+      '    2026-10-05  Mercer five  https://mercer-wire.example/robotics/five',
+      '    2026-10-04  Mercer four  https://mercer-wire.example/robotics/four',
+      '    2026-10-03  Mercer three  https://mercer-wire.example/robotics/three',
+    ]);
+    expect(out[7]).toMatch(/^ok +Gantry Daily +tier2 +feed: 2 items, no keyword filter, 0 on a primary page, newest 2026-10-04$/);
+    expect(out.slice(8, 10)).toEqual([
+      '    2026-10-04  Fixture Robotics starts FX-1 deliveries to second Brindle plant  https://gantry-daily.example/2026/10/fx-1-second-brindle-plant',
+      '    2026-10-02  Brindle Logistics opens its second plant at Tarnmoor  https://gantry-daily.example/2026/10/brindle-opens-tarnmoor',
+    ]);
+    expect(out[10]).toBe('5 of 5 entries can be read; 0 were not tried');
   });
 
   it('exits 1 when an entry cannot be read, and its line says why: a page that is not there, a feed that robots.txt closes', async () => {
@@ -1350,6 +1368,28 @@ describe('main: sources-check', () => {
     err.length = 0;
     expect(await call('sources-check', 'now')).toBe(2);
     expect(err).toEqual(['desk: sources-check takes no arguments, but was given "now"', USAGE]);
+  });
+
+  it('reads the user agent from the file that --config names, relative to the folder the command is run in, and asks every site with it', async () => {
+    const { call, out, err, cwd, sent } = checking(readable(), { config: undefined });
+    writeFileSync(path.join(cwd, 'desk.yml'), `userAgent: "${TEST_AGENT}"\nrequestIntervalMs: 0\n`);
+    expect(await call('sources-check', '--config', 'desk.yml')).toBe(0);
+    expect(err).toEqual([]);
+    expect(out).toHaveLength(6);
+    expect(out.at(-1)).toBe('5 of 5 entries can be read; 0 were not tried');
+    expect(sent.length).toBeGreaterThan(5);
+    expect(sent.every((request) => request.headers['User-Agent'] === TEST_AGENT)).toBe(true);
+  });
+
+  it('exits 1 and says so when the check itself fails in a way that is no fetch or feed error: a place to print that breaks, say', async () => {
+    const { call, out, err } = checking(readable(), {
+      out: () => {
+        throw new Error('broken pipe');
+      },
+    });
+    expect(await call('sources-check')).toBe(1);
+    expect(out).toEqual([]);
+    expect(err).toEqual(['the sources could not be checked: broken pipe']);
   });
 
   it('exits 1 when sources.yml cannot be read, and says so', async () => {

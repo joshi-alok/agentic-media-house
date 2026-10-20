@@ -57,7 +57,7 @@ primary:
         url: "https://vitalik.eth.limo/"
         feed: "https://vitalik.eth.limo/feed.xml"
         status: blocked
-        note: "The feed at vitalik.eth.limo is read (176 items), but every item links to vitalik.ca, which did not resolve (ENOTFOUND) when checked. The Desk keeps only items whose link is a page of the entry's own host, so the feed would yield nothing (checked 2026-10-20, UTC). Re-check with desk sources-check, and set url to the host the items link to if it resolves."
+        note: "The feed at vitalik.eth.limo is read (176 items), but every item links to vitalik.ca, which did not resolve (ENOTFOUND) when checked and is not a page of any source of the registry. The Desk keeps an item of a primary feed only when its link is a page of a primary source of the registry (any entry, not only this one), so the feed would yield nothing (checked 2026-10-20). desk sources-check skips blocked entries: to re-check this one, set its status back to unverified, run desk sources-check, and set url to the host the items link to if it resolves."
       - name: a16z crypto
         short: a16z crypto
         url: "https://a16zcrypto.com/"
@@ -73,7 +73,7 @@ primary:
         beats: [agent-infrastructure, payments-commerce]
         keywords: [x402, stablecoin, stablecoins, pay per crawl, Web Bot Auth, NET Dollar, crypto, blockchain, payments, agentic payments]
         status: verified
-        note: "20 items, 0 with a keyword, 20 on a primary page (checked 2026-10-21). The keywords may need to change."
+        note: "20 items, 0 with a keyword, 20 on a primary page (checked 2026-10-20). The keywords may need to change."
       - name: Chainlink blog
         short: Chainlink
         url: "https://chain.link/blog"
@@ -111,7 +111,7 @@ primary:
       beats: [identity-trust, security-incidents]
       keywords: [agent, agents, agentic, blockchain, smart contract, smart contracts, wallet, wallets, account abstraction]
       status: verified
-      note: "100 items, 0 with a keyword, 100 on a primary page (checked 2026-10-21). The keywords may need to change."
+      note: "100 items, 0 with a keyword, 100 on a primary page (checked 2026-10-20). The keywords may need to change."
     - name: Ethereum Research
       short: Ethereum Research
       url: "https://ethresear.ch/"

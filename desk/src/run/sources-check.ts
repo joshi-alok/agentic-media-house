@@ -10,6 +10,8 @@ import { itemMatches } from '../stages/keywords';
 /** What was found in a feed. */
 export interface FeedFinding {
   items: number;
+  /** Does the entry have keywords? Without them every item counts as matching, and the report says that there is no filter rather than that every item holds a keyword. */
+  filtered: boolean;
   /** Items that hold a keyword of the entry (all of them when the entry has none). */
   matching: number;
   /** Items whose link is a page of a primary source (what Discover would keep of a primary feed). */
@@ -92,6 +94,7 @@ export async function checkSources(registry: SourcesRegistry, fetcher: Fetcher):
       const wanted = matching.filter((item) => entry.tier === 2 || isTier1(item.link, registry));
       const finding: FeedFinding = {
         items: parsed.items.length,
+        filtered: entry.keywords.length > 0,
         matching: matching.length,
         primary: parsed.items.filter((item) => isTier1(item.link, registry)).length,
         newest: dates.at(-1) ?? null,
@@ -111,16 +114,30 @@ export async function checkSources(registry: SourcesRegistry, fetcher: Fetcher):
   return { rows, tried, readable: rows.filter((row) => row.result === 'ok').length };
 }
 
-/** The report as lines to print: one for each entry (with `items`, the newest stories of a feed under it), then the count. */
+/** Text from outside (a title of a feed, a name, a message) as it may be printed: with no control character but the tab, so that a feed cannot write escape codes to the terminal. */
+const printable = (text: string): string => text.replace(/[\u0000-\u0008\u000a-\u001f\u007f]/g, '');
+
+/**
+ * The report as lines to print: one for each entry (with `items`, the newest stories of a feed under it), then the count. The columns (the result, the name, the kind) are as wide as the
+ * longest of the report plus one space, so that one column never runs into the next. A row that could not be read ends with the address that was tried (after two spaces), unless its detail starts with it.
+ */
 export function formatSourceCheck(report: SourceCheck, options: { items?: boolean } = {}): string[] {
-  const pad = (text: string, width: number): string => text.padEnd(width);
+  const widest = (texts: string[]): number => texts.reduce((most, text) => Math.max(most, text.length), 0) + 1;
+  const results = widest(report.rows.map((row) => row.result));
+  const names = widest(report.rows.map((row) => printable(row.name)));
+  const kinds = widest(report.rows.map((row) => row.kind));
   const lines = report.rows.flatMap((row) => {
-    const what =
-      row.feed !== null && row.result === 'ok'
-        ? `feed: ${row.feed.items} items, ${row.feed.matching} with a keyword, ${row.feed.primary} on a primary page, newest ${row.feed.newest === null ? 'unknown' : row.feed.newest.slice(0, 10)}`
-        : row.detail;
-    const line = `${pad(row.result, 10)}${pad(row.name, 32)}${pad(row.kind, 18)}${what}`;
-    const stories = options.items === true && row.feed !== null ? row.feed.latest.map((story) => `    ${story.publishedAt === null ? 'undated   ' : story.publishedAt.slice(0, 10)}  ${story.title}  ${story.link}`) : [];
+    let what: string;
+    if (row.feed !== null && row.result === 'ok') {
+      const holding = row.feed.filtered ? `${row.feed.matching} with a keyword` : 'no keyword filter';
+      what = `feed: ${row.feed.items} items, ${holding}, ${row.feed.primary} on a primary page, newest ${row.feed.newest === null ? 'unknown' : row.feed.newest.slice(0, 10)}`;
+    } else if (row.result === 'ok' || row.result === 'skipped' || row.detail.startsWith(row.target)) {
+      what = printable(row.detail);
+    } else {
+      what = `${printable(row.detail)}  ${printable(row.target)}`;
+    }
+    const line = `${row.result.padEnd(results)}${printable(row.name).padEnd(names)}${row.kind.padEnd(kinds)}${what}`;
+    const stories = options.items === true && row.feed !== null ? row.feed.latest.map((story) => `    ${story.publishedAt === null ? 'undated   ' : story.publishedAt.slice(0, 10)}  ${printable(story.title)}  ${printable(story.link)}`) : [];
     return [line, ...stories];
   });
   const skipped = report.rows.length - report.tried;
