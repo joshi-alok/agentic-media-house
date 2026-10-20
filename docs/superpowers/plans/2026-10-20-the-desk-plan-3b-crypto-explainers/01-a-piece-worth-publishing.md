@@ -410,6 +410,10 @@ export function buildLimitations(citedClaims: readonly Claim[]): LimitationSente
 - `site/test/method.test.ts`: change the test `says in G8 that a limitation sentence covers at most four claims, and the code agrees` to `says in G8 that a limitation sentence cites each claim once in ascending order` (`toContain('through a fixed template, cites each claim once')`), and delete the `LIMITATION_MAX_CLAIMS` import and expectation.
 - Anything else that fails: `grep -rn "LIMITATION_MAX_CLAIMS\|G8_LIMITATION_GROUP_SIZE\|BASIS_TEMPLATES\|STATUS_TEMPLATES" --include='*.ts' --include='*.astro' gate desk site evals` must print nothing outside `docs/` when you are done.
 
+- [ ] **Step 5b: Restore the body of the golden piece (found when the task was executed)**
+
+The golden piece (`gate/src/fixtures/golden.ts`) is the base of hundreds of tests, and its limitation notes were 192 words in nine sentences. The five new notes are 68 words, so the body falls from 692 words and 44 sentences to 568 words and 40, below the 600 to 850 of the default range (a `G2_BODY_LENGTH` note on the golden piece) and with a higher share of analysis (3 of 40 instead of 3 of 44). The fixture changes, not the range and not the tests: add four fact sentences to the body so that the golden piece again has 44 body sentences and 640 to 720 words (the band `golden-draft.test.ts` asserts). Cite only claims the body already cites (so the five limitation groups do not move), never `c-19`, and for a capitalised name the claim that lists it; add no paragraph and no section; every sentence is true to the quoted passage of its claim and uses only the values the claim lists. Adapt the tests that locate a sentence by number if one moves. Then the seeded case `long-body` is caught again.
+
 - [ ] **Step 6: Regenerate and run everything**
 
 ```bash
