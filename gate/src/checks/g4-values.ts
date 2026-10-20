@@ -46,14 +46,15 @@ const claimDate = (value: ClaimValue): string => parseDateToken(value.raw)?.iso 
  * canonical unit if the sentence gives one. A number written out in words
  * ("twelve kilograms") is read as a number and checked the same way; a claim may
  * list it as `raw: "twelve"` with `normalised: "12"`. Words that state an amount
- * with no value to compare ("half", "twice", "doubled", "tenfold") are rejected
- * with G4_NUMBER_WORD_UNCHECKABLE: write the figure as digits and cite a claim
- * for it (number-words.ts says what is read and lists the known limits).
+ * with no value to compare ("half", "twice", "doubled", "tenfold") are noted
+ * with G4_NUMBER_WORD_UNCHECKABLE, a note and not a blocker, and the model check
+ * judges the sentence: write the figure as digits and cite a claim for it
+ * (number-words.ts says what is read and lists the known limits).
  * A date matches a claim date at the precision the sentence uses. A name
  * matches when each of its words is a word of a cited claim's name value or
  * outlet, or is on the allow-list. Name detection is deliberately strict (see
- * `extractTokens`): a false positive only costs a revision round, a false
- * negative would let an invented name through.
+ * `extractTokens`): a name that no claim lists is a note (G4_NAME_UNSUPPORTED),
+ * not a blocker, and the model check judges whether the sentence is supported.
  *
  * The first word of a sentence is not a name token, because every sentence
  * starts with a capital letter. When it looks like a name it has a rule of its

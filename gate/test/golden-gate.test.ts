@@ -290,7 +290,7 @@ describe('runGate: names and filler are notes, figures are not', () => {
     expect(result.route).toBe('publish');
   });
 
-  it('lists a name that analysis brings in as a note of its own, and still sends back a number that analysis brings in', () => {
+  it('sends back a name that analysis brings in, as it sends back a number, because no model reads analysis', () => {
     const name = api.runGate(
       mutate(cloneGolden(), (g) => {
         findSentence(g.draft, (sentence) => sentence.text.includes('The measured rate sits below')).text =
@@ -298,8 +298,9 @@ describe('runGate: names and filler are notes, figures are not', () => {
       }),
       api.defaultContext(),
     );
-    expect(name.failures).toEqual([]);
-    expect(name.warnings.map((item) => item.code)).toEqual(['G7_ANALYSIS_NEW_NAME']);
+    expect(name.failures.map((item) => item.code)).toEqual(['G7_ANALYSIS_NEW_NAME']);
+    expect(name.warnings).toEqual([]);
+    expect(name.route).toBe('revise');
 
     const number = api.runGate(
       mutate(cloneGolden(), (g) => {

@@ -24,7 +24,8 @@ const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitat
  *   (G7_ANALYSIS_SHARE). The body here is the opening, the takeaways, the
  *   sections and the limitations.
  * - It may not introduce a number, date or name that no fact sentence of the
- *   piece contains (G7_ANALYSIS_NEW_VALUE). Numbers match by value, and by unit
+ *   piece contains. A new number, number word or date is G7_ANALYSIS_NEW_VALUE and a
+ *   new name is G7_ANALYSIS_NEW_NAME. Numbers match by value, and by unit
  *   when the analysis gives one; a date matches a fact date at the precision the
  *   analysis uses; names are the capitalised words `extractTokens` finds,
  *   except the first word of a sentence and the words on the allow-list.
@@ -32,7 +33,7 @@ const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitat
  *   stated: say it mid-sentence in a fact.
  *   Numbers written out in words count as numbers, and a word that states an
  *   amount with no value to compare ("half", "doubled") is always new.
- *   A new name is a note (G7_ANALYSIS_NEW_NAME), not a blocker: the model check judges meaning, and a word list cannot tell a name from an ordinary capitalised word.
+ *   A new name is a blocker like a new figure (G7_ANALYSIS_NEW_NAME): no model reads analysis, so code is the only judge of what it may name.
  *   The first word of an analysis sentence has its own rule: when it looks like a name
  *   it must be a function word from SENTENCE_STARTERS, a word on the allow-list, or
  *   a whole word (any case) of the quoted passage, the name values or the outlet of

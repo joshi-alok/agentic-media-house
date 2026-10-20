@@ -64,8 +64,8 @@ const ACRONYMS = ['ai', 'ceo', 'cto', 'us', 'uk', 'eu', 'un'];
 /**
  * Capitalised words that G4 accepts without a claim listing them as a name:
  * month and weekday names and a few common acronyms. Lowercase, because G4
- * compares lowercased name tokens. Add to it when a false positive keeps
- * sending good drafts back.
+ * compares lowercased name tokens. Add to it when a false positive is noted
+ * again and again, or keeps sending good analysis back.
  */
 export const DEFAULT_NAME_ALLOW_LIST: ReadonlySet<string> = new Set([...MONTHS, ...WEEKDAYS, ...ACRONYMS]);
 

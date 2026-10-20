@@ -32,7 +32,6 @@ describe('NOTE_CODES', () => {
       'G4_HEADING_NAME',
       'G4_NUMBER_WORD_UNCHECKABLE',
       'G7_ANALYSIS_SHARE',
-      'G7_ANALYSIS_NEW_NAME',
       'G9_BANNED_PHRASE',
     ]);
   });

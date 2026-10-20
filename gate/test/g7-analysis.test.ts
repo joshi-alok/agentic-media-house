@@ -317,9 +317,11 @@ describe('G7_ANALYSIS_NEW_NAME: names', () => {
   });
 
   it('does not read the first word as a name: it has its own rule, below', () => {
-    expect(run(saying('Ashvale reported something similar, as Harlow did.')).failures.map((failure) => failure.message)).toEqual([
+    const output = run(saying('Ashvale reported something similar, as Harlow did.'));
+    expect(output.failures.map((failure) => failure.message)).toEqual([
       `the analysis sentence at ${ANALYSIS_AT} introduces the name "harlow", which no fact sentence contains`,
     ]);
+    expect(codes(output)).toEqual(['G7_ANALYSIS_NEW_NAME']);
   });
 
   it('ignores names on the allow-list, and takes the allow-list from the context', () => {
@@ -339,6 +341,7 @@ describe('G7_ANALYSIS_NEW_NAME: names', () => {
   it('reports each new name once, and several names separately', () => {
     const output = run(saying('The rate sits below the maximum, as Harlow and Harlow and Quillon also found.'));
     expect(output.failures.map((failure) => failure.message.match(/name "([^"]+)"/)?.[1])).toEqual(['harlow', 'quillon']);
+    expect(codes(output)).toEqual(['G7_ANALYSIS_NEW_NAME', 'G7_ANALYSIS_NEW_NAME']);
   });
 
   it('does not read fact sentences, which G4 checks', () => {

@@ -58,7 +58,7 @@ const existing = (ids: readonly string[], known: ReadonlySet<string>): string[] 
 
 /**
  * What is to be judged in `draft`, whose claims are `claims`. Every fact sentence is an item. Analysis is the Desk's reading and
- * is not judged here (the gate limits what it may say), and the limitation sentences are written from templates and
+ * is not judged here; the gate limits what it may say: no new number, date or name. The limitation sentences are written from templates and
  * checked exactly by G8. Every heading of a section that has a sentence is an item, relying on the claims that the sentences of its
  * section cite: a section with no sentence has no heading on the page, so its heading is not judged. A claim that no sentence cites does not
  * matter, and a citation of a claim that does not exist is left out (G3 reports it).

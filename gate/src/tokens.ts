@@ -95,7 +95,8 @@ export function nameTokensOf(name: string): string[] {
  *    with `openingWordAccepted` instead.
  *
  * Name detection is deliberately strict: it reports any capitalised word, so
- * an ordinary capitalised word costs a revision round. It cannot see a name
+ * an ordinary capitalised word is noted in a fact sentence (G4) and sends analysis
+ * back (G7). It cannot see a name
  * that starts in lowercase (iRobot, xAI), an ordinal (first, second) or a vague
  * quantity (several, a couple); the model verifier covers those. An impossible date (31 February) is not
  * consumed, so its digits come out as numbers that no real date can support.
