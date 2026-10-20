@@ -1698,7 +1698,7 @@ import type { SourcesRegistry } from '@robywire/gate';
 import { FeedError, FetchError, isTier1, parseFeed, sourceKind } from '../index';
 import type { Fetcher, SourceKind } from '../index';
 import { readPage } from '../fetch/read-page';
-import { matchesKeywords, plainText } from '../stages/keywords';
+import { itemMatches } from '../stages/keywords';
 
 // A registry is a claim about the web. `checkSources` fetches each entry the way the Desk fetches (the fetcher it is given honours robots.txt and the pace of the
 // settings), reads each feed, and reports what it found, so that an entry that cannot be read is known before a run depends on it. It writes nothing and asks no model.
@@ -1784,7 +1784,7 @@ export async function checkSources(registry: SourcesRegistry, fetcher: Fetcher):
       }
       const parsed = parseFeed(page.body);
       const dates = parsed.items.flatMap((item) => (item.publishedAt === undefined ? [] : [item.publishedAt])).sort();
-      const matching = parsed.items.filter((item) => matchesKeywords(`${item.title} ${plainText(item.summary)}`, entry.keywords));
+      const matching = parsed.items.filter((item) => itemMatches(item, entry.keywords));
       const wanted = matching.filter((item) => entry.tier === 2 || isTier1(item.link, registry));
       const finding: FeedFinding = {
         items: parsed.items.length,
