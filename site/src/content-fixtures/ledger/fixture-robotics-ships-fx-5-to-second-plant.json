@@ -1148,6 +1148,31 @@
     {
       "index": 21,
       "section": "body",
+      "paragraph": 2,
+      "kind": "fact",
+      "text": "Tarnmoor, the second plant, is due to receive 60 arms by 30 November 2026, against 40 arms already running at Ashvale.",
+      "claimIds": [
+        "c-5",
+        "c-1",
+        "c-23"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 22,
+      "section": "body",
+      "paragraph": 2,
+      "kind": "fact",
+      "text": "The FX-5 is listed from $38,000 an arm, with delivery within 12 weeks of an order, and the company announced on 1 October 2026 that deliveries had started.",
+      "claimIds": [
+        "c-4",
+        "c-2"
+      ],
+      "heading": "What shipped"
+    },
+    {
+      "index": 23,
+      "section": "body",
       "paragraph": 0,
       "kind": "fact",
       "text": "At Ashvale, Brindle Logistics measured an 18% cut in cycle time on its tote-picking cells.",
@@ -1157,7 +1182,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 22,
+      "index": 24,
       "section": "body",
       "paragraph": 0,
       "kind": "fact",
@@ -1168,7 +1193,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 23,
+      "index": 25,
       "section": "body",
       "paragraph": 0,
       "kind": "fact",
@@ -1179,7 +1204,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 24,
+      "index": 26,
       "section": "body",
       "paragraph": 0,
       "kind": "fact",
@@ -1190,7 +1215,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 25,
+      "index": 27,
       "section": "body",
       "paragraph": 1,
       "kind": "fact",
@@ -1201,7 +1226,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 26,
+      "index": 28,
       "section": "body",
       "paragraph": 1,
       "kind": "analysis",
@@ -1213,7 +1238,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 27,
+      "index": 29,
       "section": "body",
       "paragraph": 1,
       "kind": "fact",
@@ -1225,7 +1250,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 28,
+      "index": 30,
       "section": "body",
       "paragraph": 1,
       "kind": "fact",
@@ -1236,7 +1261,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 29,
+      "index": 31,
       "section": "body",
       "paragraph": 2,
       "kind": "fact",
@@ -1247,7 +1272,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 30,
+      "index": 32,
       "section": "body",
       "paragraph": 2,
       "kind": "analysis",
@@ -1259,7 +1284,7 @@
       "heading": "What the customer reports"
     },
     {
-      "index": 31,
+      "index": 33,
       "section": "body",
       "paragraph": 0,
       "kind": "fact",
@@ -1271,7 +1296,7 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 32,
+      "index": 34,
       "section": "body",
       "paragraph": 0,
       "kind": "fact",
@@ -1282,7 +1307,7 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 33,
+      "index": 35,
       "section": "body",
       "paragraph": 0,
       "kind": "fact",
@@ -1294,7 +1319,7 @@
       "attributed": true
     },
     {
-      "index": 34,
+      "index": 36,
       "section": "body",
       "paragraph": 1,
       "kind": "fact",
@@ -1305,7 +1330,7 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 35,
+      "index": 37,
       "section": "body",
       "paragraph": 1,
       "kind": "fact",
@@ -1316,7 +1341,7 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 36,
+      "index": 38,
       "section": "body",
       "paragraph": 1,
       "kind": "analysis",
@@ -1328,25 +1353,40 @@
       "heading": "What the filing shows"
     },
     {
-      "index": 37,
+      "index": 39,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "The offering that the filing records raised USD 450 million, and its first sale took place on 29 September 2026.",
+      "claimIds": [
+        "c-17",
+        "c-16"
+      ],
+      "heading": "What the filing shows"
+    },
+    {
+      "index": 40,
+      "section": "body",
+      "paragraph": 1,
+      "kind": "fact",
+      "text": "Fixture Robotics expects to build 500 FX-5 arms in 2027 and said it will use the funds to expand FX-5 production.",
+      "claimIds": [
+        "c-6",
+        "c-7"
+      ],
+      "heading": "What the filing shows"
+    },
+    {
+      "index": 41,
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The 12 kilograms payload, 1.4 metres reach, 2.3 metres per second top speed and 0.05 mm repeatability figures come from the company's datasheet; no independent measurement was available.",
+      "text": "What is cited here comes from the company's datasheet; no independent measurement was available.",
       "claimIds": [
         "c-8",
         "c-9",
         "c-10",
-        "c-11"
-      ]
-    },
-    {
-      "index": 38,
-      "section": "limitations",
-      "paragraph": 0,
-      "kind": "limitation",
-      "text": "The 1.2k pick rate, 38 kg arm mass, 650 W power draw and ingress protection figures come from the company's datasheet; no independent measurement was available.",
-      "claimIds": [
+        "c-11",
         "c-12",
         "c-13",
         "c-14",
@@ -1354,38 +1394,20 @@
       ]
     },
     {
-      "index": 39,
+      "index": 42,
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The second plant, deliveries started, existing conveyor frames and $38,000 per arm figures come from a company press release; no independent measurement was available.",
+      "text": "What is cited here comes from a company press release; no independent measurement was available.",
       "claimIds": [
         "c-1",
         "c-2",
         "c-3",
-        "c-4"
-      ]
-    },
-    {
-      "index": 40,
-      "section": "limitations",
-      "paragraph": 0,
-      "kind": "limitation",
-      "text": "The 60 arms due at Tarnmoor, 500 FX-5 arms in 2027, expand FX-5 production and pilot-to-production time figures come from a company press release; no independent measurement was available.",
-      "claimIds": [
+        "c-4",
         "c-5",
         "c-6",
         "c-7",
-        "c-22"
-      ]
-    },
-    {
-      "index": 41,
-      "section": "limitations",
-      "paragraph": 0,
-      "kind": "limitation",
-      "text": "The 40 Ashvale installation, Ashvale go-live date, Tarnmoor use and third-site rollout figures come from a company press release; no independent measurement was available.",
-      "claimIds": [
+        "c-22",
         "c-23",
         "c-24",
         "c-25",
@@ -1393,24 +1415,14 @@
       ]
     },
     {
-      "index": 42,
-      "section": "limitations",
-      "paragraph": 0,
-      "kind": "limitation",
-      "text": "The trailer unloading and demo day were shown in a demonstration; the source does not describe independent testing.",
-      "claimIds": [
-        "c-27",
-        "c-28"
-      ]
-    },
-    {
       "index": 43,
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.",
+      "text": "What is cited here was shown in a demonstration; the source does not describe independent testing.",
       "claimIds": [
-        "c-19"
+        "c-27",
+        "c-28"
       ]
     },
     {
@@ -1418,10 +1430,9 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The trailer unloading and demo day were demonstrated; the source does not report them in commercial deployment.",
+      "text": "What is cited here is reported by Mercer Wire; it was not checked against a primary source.",
       "claimIds": [
-        "c-27",
-        "c-28"
+        "c-19"
       ]
     },
     {
@@ -1429,12 +1440,10 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The arms due at Tarnmoor, FX-5 arms in 2027, expand FX-5 production and Tarnmoor use are planned, not delivered.",
+      "text": "What is cited here was demonstrated; the source does not report it in commercial deployment.",
       "claimIds": [
-        "c-5",
-        "c-6",
-        "c-7",
-        "c-25"
+        "c-27",
+        "c-28"
       ]
     },
     {
@@ -1442,8 +1451,12 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "The third-site rollout is planned, not delivered.",
+      "text": "What is cited here is planned, not delivered.",
       "claimIds": [
+        "c-5",
+        "c-6",
+        "c-7",
+        "c-25",
         "c-26"
       ]
     }

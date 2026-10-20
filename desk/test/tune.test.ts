@@ -28,7 +28,7 @@ import { loadWorkflow, stepNamed } from './support/workflow';
 // that every edit of a prompt would break.
 const tokensOfText = (text: string): number => Math.ceil(text.length / 4);
 const EXTRACT_PROMPT = tokensOfText(extractSystem());
-const THREE_CALLS_IN = 2575 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
+const THREE_CALLS_IN = 2638 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
 const ONE_EXTRACT_IN = 225 + EXTRACT_PROMPT; // an Extract call alone
 const TWO_EXTRACTS_IN = 375 + 2 * EXTRACT_PROMPT; // two pages, an Extract call for each
 const dollarsOf = (inputTokens: number, outputTokens: number): number => (inputTokens * 3 + outputTokens * 15) / 1_000_000;
@@ -169,8 +169,8 @@ describe('main: tune, the table', () => {
       '  composed draft: the gate says publish; 628 words',
       '  model check: round 0 judged 35 items: entailed 35, not entailed 0, ambiguous 0, missing 0; label problems 0 (7 claims)',
       '  verify: publish after 0 revision rounds; the gate says publish; 628 words',
-      `  tokens: ${THREE_CALLS_IN} in, 2891 out, 3 model calls`,
-      `total: 1 page, 1 trial, 3 of 40 model calls, ${THREE_CALLS_IN} tokens in, 2891 out`,
+      `  tokens: ${THREE_CALLS_IN} in, 2954 out, 3 model calls`,
+      `total: 1 page, 1 trial, 3 of 40 model calls, ${THREE_CALLS_IN} tokens in, 2954 out`,
       'dollars: not shown, because the settings have no prices (see prices in desk/src/config.ts)',
     ]);
   });
@@ -181,9 +181,9 @@ describe('main: tune, the table', () => {
     // The folders of the settings are relative here, and are below the folder that the command is run in.
     priced.deps.config = { ...config, runDir: path.join(priced.cwd, 'runs'), evidenceDir: path.join(priced.cwd, 'evidence') };
     expect(await priced.call('--client', 'fake')).toBe(0);
-    expect(priced.out).toContain(`  dollars: $${dollarsOf(THREE_CALLS_IN, 2891).toFixed(4)}`);
-    expect(priced.out).toContain(`total dollars: $${dollarsOf(THREE_CALLS_IN, 2891).toFixed(4)}`);
-    expect(priced.record().dollars).toBeCloseTo(dollarsOf(THREE_CALLS_IN, 2891), 8);
+    expect(priced.out).toContain(`  dollars: $${dollarsOf(THREE_CALLS_IN, 2954).toFixed(4)}`);
+    expect(priced.out).toContain(`total dollars: $${dollarsOf(THREE_CALLS_IN, 2954).toFixed(4)}`);
+    expect(priced.record().dollars).toBeCloseTo(dollarsOf(THREE_CALLS_IN, 2954), 8);
   });
 
   it('does not make dollars of tokens when the three models differ, and says why', async () => {
@@ -199,7 +199,7 @@ describe('main: tune, the table', () => {
     const made = tuning([RELEASE], { deps: { tuneClient: story(), config: undefined } });
     writeFileSync(path.join(made.cwd, 'desk.yml'), `userAgent: "${TEST_AGENT}"\nrequestIntervalMs: 0\nprices:\n  inputPerMillion: 3\n  outputPerMillion: 15\n`);
     expect(await made.call('--client', 'fake', '--config', 'desk.yml')).toBe(0);
-    expect(made.out).toContain(`total dollars: $${dollarsOf(THREE_CALLS_IN, 2891).toFixed(4)}`);
+    expect(made.out).toContain(`total dollars: $${dollarsOf(THREE_CALLS_IN, 2954).toFixed(4)}`);
   });
 
   it('runs the model steps as many times as it is told on a page that is fetched once, a row to each trial', async () => {
@@ -207,7 +207,7 @@ describe('main: tune, the table', () => {
     expect(await call('--client', 'fake', '--trials', '2')).toBe(0);
     expect(out[0]).toBe('tune: 1 address, 2 trials each, at most 40 model calls, client fake');
     expect(out.filter((line) => line.startsWith('page '))).toEqual([`page 1 of 1, trial 1 of 2: ${RELEASE}`, `page 1 of 1, trial 2 of 2: ${RELEASE}`]);
-    expect(out).toContain(`total: 1 page, 2 trials, 6 of 40 model calls, ${2 * THREE_CALLS_IN} tokens in, 5782 out`);
+    expect(out).toContain(`total: 1 page, 2 trials, 6 of 40 model calls, ${2 * THREE_CALLS_IN} tokens in, 5908 out`);
     expect(sent.filter((request) => request.url === RELEASE)).toHaveLength(1);
   });
 
@@ -711,7 +711,7 @@ describe('main: tune, what it writes', () => {
     expect(page).toContain('Fixture Robotics has begun shipping FX-1 warehouse arms');
     expect(record()).toMatchObject({ stamp: '20261005-043100', date: '2026-10-05', client: 'fake', trials: 1, maxCalls: 40, stopped: null, dollars: null });
     expect(record().models).toEqual(defaultConfig().models);
-    expect(record().total).toEqual({ pages: 1, trials: 1, calls: 3, inputTokens: THREE_CALLS_IN, outputTokens: 2891 });
+    expect(record().total).toEqual({ pages: 1, trials: 1, calls: 3, inputTokens: THREE_CALLS_IN, outputTokens: 2954 });
     expect(existsSync(path.join(cwd, 'runs', '2026-10-05'))).toBe(false);
   });
 

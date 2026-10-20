@@ -74,7 +74,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G8',
       name: 'Limitations',
-      text: `The sentences under "What we couldn't verify" are never freely written: each describes a group of claims that share one basis or one status (and, for claims that another outlet reported, that outlet) through a fixed template, covers at most four claims, cites each claim once in ascending order, and the gate writes the sentence again and requires an exact match.`,
+      text: `The sentences under "What we couldn't verify" are never freely written: each describes a group of claims that share one basis or one status (and, for claims that another outlet reported, that outlet) through a fixed template, cites each claim once in ascending order, and the gate writes the sentence again and requires an exact match.`,
       notes: '',
     },
     {

@@ -60,7 +60,7 @@ describe('makeTier2Variant', () => {
 
   it('adds the sentence that says another outlet reported the figure, and keeps the others', () => {
     const texts = variant.draft.limitations.map((sentence) => sentence.text);
-    expect(texts).toContain('The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.');
+    expect(texts).toContain('What is cited here is reported by Mercer Wire; it was not checked against a primary source.');
     expect(texts).toHaveLength(cloneGolden().draft.limitations.length + 1);
   });
 

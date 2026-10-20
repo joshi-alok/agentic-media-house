@@ -203,7 +203,7 @@ describe('assembleDraft', () => {
     const draft = assembleDraft(replyFromDraft(tier2.draft), tier2.claims, ctx());
     const reported = draft.limitations.filter((sentence) => sentence.claimIds.includes('c-19'));
     expect(reported).toHaveLength(1);
-    expect(reported[0]?.text).toBe('The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.');
+    expect(reported[0]?.text).toBe('What is cited here is reported by Mercer Wire; it was not checked against a primary source.');
   });
 
   it('gives a draft that the gate clears for publication, as the golden piece is', () => {

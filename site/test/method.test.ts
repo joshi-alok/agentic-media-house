@@ -15,7 +15,6 @@ import {
   G8_CODES,
   G9_CODES,
   LIMITATIONS_HEADING,
-  LIMITATION_MAX_CLAIMS,
   LedgerEntry,
   NOTE_CODES,
   SAFE_BASES,
@@ -272,9 +271,8 @@ describe('gateRules', () => {
     expect(rules.find((rule) => rule.id === 'G8')?.text).toContain('(and, for claims that another outlet reported, that outlet)');
   });
 
-  it('says in G8 that a limitation sentence covers at most four claims, and the code agrees', () => {
-    expect(rules.find((rule) => rule.id === 'G8')?.text).toContain('through a fixed template, covers at most four claims, cites each claim once');
-    expect(LIMITATION_MAX_CLAIMS).toBe(4);
+  it('says in G8 that a limitation sentence cites each claim once in ascending order', () => {
+    expect(rules.find((rule) => rule.id === 'G8')?.text).toContain('through a fixed template, cites each claim once');
   });
 
   it('says in G2 that no section has one of the two headings that the Desk writes itself, and the gate agrees', () => {

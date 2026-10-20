@@ -59,7 +59,7 @@ const VALID_DRAFT = {
   limitations: [
     {
       kind: 'limitation',
-      text: "The 12 kg payload figure comes from the company's datasheet; no independent measurement was available.",
+      text: "What is cited here comes from the company's datasheet; no independent measurement was available.",
       claimIds: ['c-1'],
       template: 'basis',
     },

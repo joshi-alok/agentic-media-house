@@ -186,7 +186,6 @@ describe('the cases that rewrite sources and limitation sentences', () => {
     ['tier2-claim-wrong-basis', 'G6_TIER2_BASIS'],
     ['primary-claim-called-reported', 'G6_TIER1_REPORTED'],
     ['limitation-two-outlets', 'G8_LIMITATION_GROUP'],
-    ['limitation-group-too-large', 'G8_LIMITATION_GROUP_SIZE'],
   ])('%s breaks the rule it names and no other', (id, code) => {
     const only = SEEDED_CASES.filter((item) => item.id === id);
     expect(runSeeded(ALL_CHECKS, only).cases.map((item) => item.gotCodes)).toEqual([[code]]);
@@ -199,7 +198,7 @@ describe('the cases that rewrite sources and limitation sentences', () => {
     const without = (input: typeof before) => ({ ...input, draft: { ...input.draft, limitations: [] } });
     expect(without(after)).toEqual(without(before));
     const changed = after.draft.limitations.filter((sentence, at) => JSON.stringify(sentence) !== JSON.stringify(before.draft.limitations[at]));
-    expect(changed.map((sentence) => sentence.claimIds)).toEqual([['c-13', 'c-14', 'c-15']]);
+    expect(changed.map((sentence) => sentence.claimIds)).toEqual([['c-8', 'c-9', 'c-10', 'c-11', 'c-13', 'c-14', 'c-15']]);
   });
 });
 

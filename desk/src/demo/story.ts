@@ -135,14 +135,14 @@ export const DEMO_REPLY: ComposeReply = {
       paragraphs: [
         [
           fact('Fixture Robotics announced on 1 October 2026 that deliveries of its FX-1 warehouse arm have started.', 'c-2', 'c-1'),
-          fact('The arms are built for tote picking and trailer unloading, and they are going to Brindle Logistics for its second plant, at Tarnmoor.', 'c-1'),
+          fact('The arms are built for tote picking and trailer unloading, and they are going to Brindle Logistics for its second plant, at Tarnmoor, according to the announcement of the company.', 'c-1'),
           fact('The announcement is datelined Tarnmoor, which is also where the arms are being delivered.', 'c-2', 'c-1'),
-          fact('Deliveries to the second plant have begun, according to the company.', 'c-1', 'c-2'),
-          fact('Brindle Logistics is the customer that the company names for the second plant.', 'c-1'),
+          fact('Deliveries to the second plant have begun, according to the company, which announced them on 1 October 2026.', 'c-1', 'c-2'),
+          fact('Brindle Logistics is the customer that the company names for the second plant, and that plant is at Tarnmoor.', 'c-1'),
         ],
         [
           fact('The company said that the FX-1 mounts on existing conveyor frames and needs no new safety cage.', 'c-3'),
-          fact('A customer with conveyor frames in place can therefore fit the arm to them, as the company describes it.', 'c-3'),
+          fact('A customer with conveyor frames in place can therefore fit the arm to them, as the company describes it, without a new safety cage.', 'c-3'),
           analysis('The announcement gives a price and a delivery time but no measurement of how the arm performs.', 'c-3', 'c-4'),
         ],
       ],
@@ -152,7 +152,7 @@ export const DEMO_REPLY: ComposeReply = {
       paragraphs: [
         [
           fact('Fixture Robotics lists the FX-1 from $38,000 per arm.', 'c-4'),
-          fact('It says delivery takes place within 12 weeks of an order.', 'c-4'),
+          fact('It says delivery takes place within 12 weeks of an order, and the price is per arm.', 'c-4'),
           fact('The company gives the price per arm, so a buyer of one arm sees the figure that the company lists.', 'c-4'),
           analysis('A list price and a lead time are the terms a buyer needs first, though neither says what the arm achieves.', 'c-4'),
         ],
@@ -169,11 +169,11 @@ export const DEMO_REPLY: ComposeReply = {
           fact('Tarnmoor is due to receive 60 arms by 30 November 2026.', 'c-5'),
           fact('The delivery to Tarnmoor is therefore a schedule that the company has set, with 30 November 2026 as its end.', 'c-5'),
           fact('Fixture Robotics expects to build 500 FX-1 arms in 2027.', 'c-6'),
-          fact('The company expects the 2027 build to reach 500 arms.', 'c-6'),
+          fact('The company expects the 2027 build to reach 500 FX-1 arms, as it says in its announcement.', 'c-6'),
         ],
         [
           fact('Fixture Robotics said it will use the funds to expand FX-1 production.', 'c-7'),
-          fact('The expansion of FX-1 production is what the company says the funds are for.', 'c-7'),
+          fact('The expansion of FX-1 production is what the company says the funds are for, according to the announcement of the company.', 'c-7'),
           analysis('A plan to build more arms and a schedule of deliveries are both statements of intent, and neither is a delivered result.', 'c-5', 'c-6', 'c-7'),
         ],
       ],

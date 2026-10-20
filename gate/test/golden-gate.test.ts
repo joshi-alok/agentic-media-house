@@ -50,8 +50,8 @@ describe('the public API of @robywire/gate', () => {
     'nameTokensOf',
     'toNameToken',
     'renderLimitation',
-    'BASIS_TEMPLATES',
-    'STATUS_TEMPLATES',
+    'BASIS_NOTES',
+    'STATUS_NOTES',
     'allSentences',
     'describeLocation',
     // configuration

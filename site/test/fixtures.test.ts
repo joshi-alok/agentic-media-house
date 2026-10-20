@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { DeskState, LIMITATION_MAX_CLAIMS, LedgerEntry, NewsFrontmatter } from '@robywire/gate';
+import { DeskState, LedgerEntry, NewsFrontmatter } from '@robywire/gate';
 import { GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { fixtureFiles, fixturePieces, main, writeFixtures } from '../scripts/generate-fixtures';
 import { receiptsView } from '../src/lib/receipts';
@@ -152,18 +152,15 @@ describe('fixtureFiles: the pieces', () => {
 describe('fixtureFiles: the limitation sentences', () => {
   const ledgerOf = (slug: string) => LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`)));
 
-  it.each(SLUGS)('cover at most four claims each in %s', (slug) => {
-    const sentences = ledgerOf(slug).sentences.filter((sentence) => sentence.section === 'limitations');
-    expect(sentences.length).toBeGreaterThanOrEqual(9);
-    for (const sentence of sentences) expect(sentence.claimIds.length, sentence.text).toBeLessThanOrEqual(LIMITATION_MAX_CLAIMS);
+  const limitationsOf = (slug: string) => ledgerOf(slug).sentences.filter((sentence) => sentence.section === 'limitations');
+
+  it('are the five of the golden piece in the golden fixture, one for each group', () => {
+    expect(limitationsOf(GOLDEN_SLUG)).toHaveLength(5);
   });
 
-  it('name a claim that has no number by its label alone, not by the name or the date it lists', () => {
-    const texts = ledgerOf(GOLDEN_SLUG).sentences.filter((sentence) => sentence.section === 'limitations').map((sentence) => sentence.text);
-    expect(texts).toContain(
-      'The second plant, deliveries started, existing conveyor frames and $38,000 per arm figures come from a company press release; no independent measurement was available.',
-    );
-    expect(texts.join(' ')).not.toContain('1 October 2026');
+  it.each(SLUGS)('are never the same text twice in %s', (slug) => {
+    const texts = limitationsOf(slug).map((sentence) => sentence.text);
+    expect(new Set(texts).size).toBe(texts.length);
   });
 });
 
@@ -206,7 +203,7 @@ describe('fixtureFiles: the piece that rests on another outlet', () => {
 
   it('covers it with a limitation sentence that names the outlet, and its receipt says reported, not filing', () => {
     const sentence = ledger.sentences.find((item) => item.section === 'limitations' && item.claimIds.includes('c-19'));
-    expect(sentence?.text).toBe('The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.');
+    expect(sentence?.text).toBe('What is cited here is reported by Mercer Wire; it was not checked against a primary source.');
     expect(sentence?.claimIds).toEqual(['c-19']);
     const receipt = receiptsView(ledger).claims.find((claim) => claim.id === 'c-19');
     expect(receipt?.basis).toBe('reported');

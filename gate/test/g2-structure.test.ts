@@ -379,31 +379,31 @@ describe('G2_LIMITATION_COVERAGE', () => {
     g.draft.limitations.splice(at, count);
   };
 
-  it('passes the golden piece, whose nine sentences cover every claim that needs one', () => {
+  it('passes the golden piece, whose five sentences cover every claim that needs one', () => {
     expect(codesAfter(() => {})).toEqual([]);
   });
 
   it('fails each claim that a missing basis sentence leaves out, and says which and why', () => {
-    // Sentence 1 covers the first four datasheet claims, c-8 to c-11. Setting the body length keeps G2_BODY_LENGTH out of the way.
+    // Sentence 1 covers the eight datasheet claims, c-8 to c-15. Setting the body length keeps G2_BODY_LENGTH out of the way.
     const out = resultAfter((g) => {
       droppingSentence(0)(g);
       setBodyWords(g, 665);
     });
-    expect(out.failures).toHaveLength(4);
+    expect(out.failures).toHaveLength(8);
     expect(out.failures[0]).toEqual({
       check: 'G2',
       code: 'G2_LIMITATION_COVERAGE',
       message: 'claim c-8 (payload) has the basis "datasheet", but no limitation sentence with the basis template cites it',
       where: 'c-8',
     });
-    expect(out.failures.map((failure) => failure.where)).toEqual(['c-8', 'c-9', 'c-10', 'c-11']);
+    expect(out.failures.map((failure) => failure.where)).toEqual(['c-8', 'c-9', 'c-10', 'c-11', 'c-12', 'c-13', 'c-14', 'c-15']);
     expect(new Set(out.failures.map((failure) => failure.code))).toEqual(new Set(['G2_LIMITATION_COVERAGE']));
   });
 
   it('fails each claim that a missing status sentence leaves out, and says which and why', () => {
-    // Sentences 8 and 9 cover the five planned claims.
+    // Sentence 5 covers the five planned claims.
     const out = resultAfter((g) => {
-      droppingSentence(7, 2)(g);
+      droppingSentence(4)(g);
       setBodyWords(g, 665);
     });
     expect(out.failures[0]).toEqual({
@@ -417,16 +417,16 @@ describe('G2_LIMITATION_COVERAGE', () => {
 
   it('fails a claim that is left out of a sentence which is otherwise there', () => {
     const out = resultAfter((g) => {
-      g.draft.limitations[1]!.claimIds = g.draft.limitations[1]!.claimIds.filter((id) => id !== 'c-12');
+      g.draft.limitations[0]!.claimIds = g.draft.limitations[0]!.claimIds.filter((id) => id !== 'c-12');
       setBodyWords(g, 665);
     });
     expect(out.failures.map((failure) => [failure.code, failure.where])).toEqual([['G2_LIMITATION_COVERAGE', 'c-12']]);
   });
 
   it('does not count a sentence of the other template as covering a claim', () => {
-    // c-27 and c-28 are covered by sentence 6 (basis) and sentence 7 (status). Make both of them 'basis' sentences.
+    // c-27 and c-28 are covered by sentence 3 (basis) and sentence 4 (status). Make both of them 'basis' sentences.
     const out = resultAfter((g) => {
-      g.draft.limitations[6]!.template = 'basis';
+      g.draft.limitations[3]!.template = 'basis';
       setBodyWords(g, 665);
     });
     expect(out.failures.map((failure) => [failure.code, failure.where, failure.message.includes('status template')])).toEqual([
