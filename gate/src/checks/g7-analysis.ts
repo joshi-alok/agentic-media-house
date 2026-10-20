@@ -38,7 +38,7 @@ const MAX_FIRST_WORD = 40;
  *   do not have counts for nothing, so a company that only an ungrounded first word names is still new.
  *   Numbers written out in words count as numbers, and a word that states an
  *   amount with no value to compare ("half", "doubled") is always new.
- *   A new name is a blocker like a new figure (G7_ANALYSIS_NEW_NAME): no model reads analysis, so code is the only judge of what it may name.
+ *   A new name is a blocker like a new figure (G7_ANALYSIS_NEW_NAME): the model check holds analysis only to adding nothing the passages do not support, so code stays the strict judge of what it may name.
  *   The first word of an analysis sentence has its own rule (G7_ANALYSIS_NEW_NAME): when it looks like a name
  *   it must be a function word from SENTENCE_STARTERS, a word on the allow-list, or
  *   a whole word (any case) of the quoted passage, the name values or the outlet of
@@ -46,9 +46,9 @@ const MAX_FIRST_WORD = 40;
  *   text and the label of a claim, ground nothing: they are what a model wrote.
  * - It starts with a capital letter or a digit, once any opening quotation marks and brackets
  *   are skipped (G7_ANALYSIS_NEW_NAME). The rule for the opening word reads only a word that
- *   starts with a capital letter, and no model reads analysis, so an analysis sentence that
+ *   starts with a capital letter, and code is the strict reader of analysis, so an analysis sentence that
  *   began in lowercase ("harlow reported something similar.") would have its first word read
- *   by nothing. There is no such rule for a fact sentence: the model check judges it.
+ *   by no rule of the gate. There is no such rule for a fact sentence: the model check judges it.
  */
 export const checkG7: Check = ({ draft, claims }, ctx) => {
   const sentences = allSentences(draft);

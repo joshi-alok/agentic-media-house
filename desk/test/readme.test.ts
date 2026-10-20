@@ -249,9 +249,10 @@ describe('the README: what the Desk does not check', () => {
     expect(limits()).toContain('DNS rebinding');
   });
 
-  it('says that analysis sentences are read by code only and never by the model check, and that a model-written id is filtered before a prompt', () => {
+  it('says that analysis sentences are read by code and then by the model check, and that a model-written id is filtered before a prompt', () => {
     expect(limits()).toContain('**Analysis sentences.**');
-    expect(limits()).toContain('the model check (G10) is never asked about them');
+    expect(limits()).toContain('the model check (G10) then judges each of them beside the passages of the claims it cites, and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support');
+    expect(limits()).not.toContain('is never asked about them');
     expect(limits()).toContain('**Claim ids in a prompt.**');
   });
 

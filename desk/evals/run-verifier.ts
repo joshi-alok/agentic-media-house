@@ -102,7 +102,7 @@ export function planOf(items: readonly EvalItem[]): VerifyPlan {
       claims.push(claim);
       return claim.id;
     });
-    return { id: `s${at}`, section: 'body', where: `sentence ${at + 1} of the batch`, text: item.sentence, claimIds };
+    return { id: `s${at}`, kind: 'fact', section: 'body', where: `sentence ${at + 1} of the batch`, text: item.sentence, claimIds };
   });
   return { sentences, headings: [], claims };
 }

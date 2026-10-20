@@ -507,8 +507,8 @@ describe('G7_ANALYSIS_NEW_NAME: the opening word', () => {
 });
 
 describe('G7_ANALYSIS_NEW_NAME: an analysis sentence that does not start with a capital letter or a digit', () => {
-  // The rule for the opening word reads only a word that starts with a capital letter, and no model reads analysis. A sentence that starts in lowercase
-  // ("harlow reported something similar.") would have its first word read by nothing, so it is refused.
+  // The rule for the opening word reads only a word that starts with a capital letter, and code is the strict reader of analysis. A sentence that starts in lowercase
+  // ("harlow reported something similar.") would have its first word read by no rule of the gate, so it is refused.
   it('fails an analysis sentence that starts with a lowercase name, and says where it is and what it starts with', () => {
     expect(run(saying('harlow reported something similar.')).failures).toEqual([
       {

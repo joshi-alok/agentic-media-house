@@ -175,7 +175,7 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'unchecked',
-    text: 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in, and by no model: whatever else an analysis sentence says passes, and the page labels it Analysis.',
+    text: 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in, and then by the model check, which refuses one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support. The page labels it Analysis.',
     example: 'The arm never fails and is the safest on the market.',
   },
   {

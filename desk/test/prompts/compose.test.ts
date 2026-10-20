@@ -72,11 +72,14 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence may cite only claims from a primary source.');
   });
 
-  it('keeps for analysis, which no model reads, the rule of its first word: a capital letter or a digit, then a word of the gate\'s closed list or a word of the quoted passage, the names or the outlet of a cited claim', () => {
+  it('keeps for analysis, which the Desk checks by code and a second model reads, the rule of its first word: a capital letter or a digit, then a word of the gate\'s closed list or a word of the quoted passage, the names or the outlet of a cited claim', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('- (blocks) An analysis sentence names only what a fact sentence of the piece names.');
     expect(COMPOSE_INSTRUCTIONS).toContain(`Begin every analysis sentence with a capital letter or a digit, and with one of these words: ${SENTENCE_STARTERS.join(', ')};`);
     expect(COMPOSE_INSTRUCTIONS).toContain('or with a word that appears in the quoted passage, the name values or the outlet of a claim it cites (not in its text or label).');
-    expect(COMPOSE_INSTRUCTIONS).toContain('No model reads analysis, so the Desk checks it by code.');
+    expect(COMPOSE_INSTRUCTIONS).toContain(
+      'The Desk checks it by code, and a second model reads every analysis sentence beside the passages of the claims it cites and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support.',
+    );
+    expect(COMPOSE_INSTRUCTIONS).not.toContain('No model reads analysis');
     expect(COMPOSE_INSTRUCTIONS).not.toContain('ordinary word');
     expect(COMPOSE_INSTRUCTIONS).not.toContain('names nothing that no fact sentence');
   });

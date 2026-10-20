@@ -307,7 +307,7 @@ describe('runGate: names and filler are notes, figures are not', () => {
     expect(result.route).toBe('publish');
   });
 
-  it('sends back a name that analysis brings in, as it sends back a number, because no model reads analysis', () => {
+  it('sends back a name that analysis brings in, as it sends back a number, because code is the strict reader of analysis', () => {
     const name = api.runGate(
       mutate(cloneGolden(), (g) => {
         findSentence(g.draft, (sentence) => sentence.text.includes('The measured rate sits below')).text =

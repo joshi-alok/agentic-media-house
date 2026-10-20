@@ -8,7 +8,7 @@ export type Severity = (typeof SEVERITIES)[number];
  * and is left out of this list cannot publish a piece by being left out.
  *
  * A note is a rule about the shape or the style of a piece, or about a word in a fact sentence or a heading that the model check judges better than a
- * word list can. A rule about analysis is never a note for a name or a figure, because no model reads analysis. A blocker is a rule about a figure, a
+ * word list can. A rule about analysis is never a note for a name or a figure, because the model check holds analysis only to adding nothing the passages do not support, and code stays the strict judge of what it may name or count. A blocker is a rule about a figure, a
  * quotation, a citation, a duplicate or the structure that the renderer needs. A word that mixes letters and digits (mid-2027, FY2027, 10x) is a figure,
  * although the reader of the gate takes it for a name, so G4_FIGURE_UNSUPPORTED blocks and is not on this list.
  */

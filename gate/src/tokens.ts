@@ -30,8 +30,8 @@ export interface SentenceTokens {
    * it, when it would have been a name token had it not been first: it starts
    * with a capital letter or mixes letters and digits. Absent otherwise,
    * for example when the sentence opens with a number or a date. A sentence that opens with a lowercase
-   * word has none either, which is why G7 requires an analysis sentence to start with a capital letter or a digit (no model
-   * reads analysis). A fact sentence that opens in lowercase is not required to: the model check judges it.
+   * word has none either, which is why G7 requires an analysis sentence to start with a capital letter or a digit (the model check holds
+   * analysis only to adding nothing the passages do not support, so code is the strict reader of its opening word). A fact sentence that opens in lowercase is not required to: the model check judges it.
    */
   initialWord?: string;
 }
@@ -101,8 +101,8 @@ export function nameTokensOf(name: string): string[] {
  * an ordinary capitalised word is noted in a fact sentence (G4) and sends analysis
  * back (G7). It cannot see a name
  * that starts in lowercase (iRobot, xAI), an ordinal (first, second) or a vague
- * quantity (several, a couple). In a fact sentence or a heading the model check is the only reader
- * of those; in an analysis sentence, which no model reads, nothing is. An impossible date (31 February) is not
+ * quantity (several, a couple). In a fact sentence, a heading and an analysis sentence alike, the model check is the only reader
+ * of those. An impossible date (31 February) is not
  * consumed, so its digits come out as numbers that no real date can support.
  */
 export function extractTokens(sentenceText: string): SentenceTokens {

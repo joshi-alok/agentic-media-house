@@ -7,8 +7,8 @@ import { buildVerifyUser, verifySystem } from '../prompts/verify';
 import type { StageContext } from './context';
 
 // G10, the model check: the second layer of the gate. The code checks (G1 to G9) cannot judge meaning, so a model that did not write
-// the piece is given every fact sentence and every heading of it, with the passages of the sources they rely on, and says whether the
-// passages entail them, and whether the basis and the status of each claim are supported. Anything but "entailed" fails, an "entailed" over a
+// the piece is given every fact sentence, every analysis sentence and every heading of it, with the passages of the sources they rely on, and says whether the
+// passages entail them (for analysis: whether it adds nothing that they do not support), and whether the basis and the status of each claim are supported. Anything but "entailed" fails, an "entailed" over a
 // non-empty list of what the passages do not state fails too, a verdict that is missing fails, and a verdict for something that was not asked is
 // refused: the verifier is held to the same rule as every other model, that code decides what its answer means.
 
@@ -29,11 +29,13 @@ export const VERIFY_EFFORT: ModelEffort = 'medium';
 export interface SentenceItem {
   /** `s` and the position of the sentence in the piece, counting from 0 (`LocatedSentence.index` of the gate). */
   id: string;
+  /** A statement of fact, or the Desk's own reading of the facts (analysis), which the verifier is told to judge by a looser rule. */
+  kind: 'fact' | 'analysis';
   section: LedgerSection;
   /** Where the sentence stands, as the gate says it for a failure (`describeLocation`). */
   where: string;
   text: string;
-  /** The claims it cites that exist, each once, in the order cited. */
+  /** The claims it cites that exist, each once, in the order cited. An analysis sentence that cites none rests on every claim the piece cites. */
   claimIds: string[];
 }
 
@@ -49,7 +51,7 @@ export interface HeadingItem {
 
 /** Everything the verifier is asked to judge of a draft. */
 export interface VerifyPlan {
-  /** Every fact sentence: the title, the description, the opening, the takeaways and the sections. */
+  /** Every fact and analysis sentence: the title, the description, the opening, the takeaways and the sections. A limitation sentence is not one. */
   sentences: SentenceItem[];
   /** The heading of every section that has a sentence. */
   headings: HeadingItem[];
@@ -61,8 +63,8 @@ export interface VerifyPlan {
 const existing = (ids: readonly string[], known: ReadonlySet<string>): string[] => [...new Set(ids)].filter((id) => known.has(id));
 
 /**
- * What is to be judged in `draft`, whose claims are `claims`. Every fact sentence is an item. Analysis is the Desk's reading and
- * is not judged here; the gate limits what it may say: no new number, date or name. The limitation sentences are written from templates and
+ * What is to be judged in `draft`, whose claims are `claims`. Every fact sentence is an item. An analysis sentence is judged too: it may not bring in an entity,
+ * event, figure or claim that the passages it relies on do not support (the gate's own limits on analysis stay as well). The limitation sentences are written from templates and
  * checked exactly by G8. Every heading of a section that has a sentence is an item, relying on the claims that the sentences of its
  * section cite: a section with no sentence has no heading on the page, so its heading is not judged. A claim that no sentence cites does not
  * matter, and a citation of a claim that does not exist is left out (G3 reports it).
@@ -70,15 +72,21 @@ const existing = (ids: readonly string[], known: ReadonlySet<string>): string[] 
 export function verifyPlanOf(draft: Draft, claims: readonly Claim[]): VerifyPlan {
   const known = new Set(claims.map((claim) => claim.id));
   const located = allSentences(draft);
+  const cited = citedClaims(draft, claims);
   const sentences = located
-    .filter((item) => item.sentence.kind === 'fact')
-    .map((item): SentenceItem => ({ id: `s${item.index}`, section: item.section, where: describeLocation(item), text: item.sentence.text, claimIds: existing(item.sentence.claimIds, known) }));
+    .filter((item) => item.sentence.kind !== 'limitation')
+    .map((item): SentenceItem => {
+      const own = existing(item.sentence.claimIds, known);
+      // An analysis sentence that cites nothing rests on the whole of what the piece cites.
+      const kind = item.sentence.kind === 'analysis' ? 'analysis' : 'fact';
+      return { id: `s${item.index}`, kind, section: item.section, where: describeLocation(item), text: item.sentence.text, claimIds: kind === 'analysis' && own.length === 0 ? cited.map((claim) => claim.id) : own };
+    });
   const headings = draft.sections.flatMap((section, at): HeadingItem[] => {
     const sentences = section.paragraphs.flat();
     if (sentences.length === 0) return [];
     return [{ id: `h${at}`, text: section.heading, where: `section "${section.heading}"`, claimIds: existing(sentences.flatMap((sentence) => sentence.claimIds), known) }];
   });
-  return { sentences, headings, claims: citedClaims(draft, claims) };
+  return { sentences, headings, claims: cited };
 }
 
 const reason = z.string().min(1).max(400);
@@ -182,9 +190,10 @@ export function aggregateVerdicts(model: string, plan: VerifyPlan, reply: Verify
     if (!label.statusSupported) failures.push({ id: claim.id, kind: 'label', code: 'unsupported', reason: `the status "${claim.status}" is not supported: ${label.reason}` });
   }
 
+  const facts = plan.sentences.filter((item) => item.kind === 'fact').length;
   const notes =
     failures.length === 0
-      ? [`Judged ${plan.sentences.length} fact sentences and ${plan.headings.length} headings against the passages they rely on, and the basis and the status of ${plan.claims.length} claims; every one was supported.`]
+      ? [`Judged ${facts} fact sentences, ${plan.sentences.length - facts} analysis sentences and ${plan.headings.length} headings against the passages they rely on, and the basis and the status of ${plan.claims.length} claims; every one was supported.`]
       : failures.map((failure) => noteOf(failure, plan));
   return { verifier: { model, passed: failures.length === 0, notes }, failures };
 }
@@ -214,7 +223,7 @@ export async function judgePlan(client: ModelClient, model: string, plan: Verify
  */
 export async function runVerifier(ctx: StageContext, draft: Draft, claims: Claim[]): Promise<VerifierOutcome> {
   const plan = verifyPlanOf(draft, claims);
-  if (plan.sentences.length + plan.headings.length === 0) throw new Error('runVerifier needs a draft with at least one fact sentence or heading to judge');
+  if (plan.sentences.length + plan.headings.length === 0) throw new Error('runVerifier needs a draft with at least one fact sentence, analysis sentence or heading to judge');
   const { outcome } = await judgePlan(ctx.client, ctx.config.models.verify, plan);
   ctx.log(`verify: the model check ${outcome.verifier.passed ? 'passed' : `failed ${outcome.failures.length} times`}`);
   return outcome;

@@ -28,8 +28,8 @@ import { loadWorkflow, stepNamed } from './support/workflow';
 // that every edit of a prompt would break.
 const tokensOfText = (text: string): number => Math.ceil(text.length / 4);
 const EXTRACT_PROMPT = tokensOfText(extractSystem());
-const THREE_CALLS_IN = 2639 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
-const THREE_CALLS_OUT = 3070; // the same calls: what the scripted model writes (the claims, the draft, the verdicts), so a change of the demo story or of the verifier reply changes it
+const THREE_CALLS_IN = 2875 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
+const THREE_CALLS_OUT = 3169; // the same calls: what the scripted model writes (the claims, the draft, the verdicts), so a change of the demo story or of the verifier reply changes it
 const ONE_EXTRACT_IN = 225 + EXTRACT_PROMPT; // an Extract call alone
 const TWO_EXTRACTS_IN = 375 + 2 * EXTRACT_PROMPT; // two pages, an Extract call for each
 const dollarsOf = (inputTokens: number, outputTokens: number): number => (inputTokens * 3 + outputTokens * 15) / 1_000_000;
@@ -168,7 +168,7 @@ describe('main: tune, the table', () => {
       '  claims dropped: none',
       '  claims surviving: 7',
       '  composed draft: the gate says publish; 628 words',
-      '  model check: round 0 judged 35 items: entailed 35, not entailed 0, ambiguous 0, missing 0; label problems 0 (7 claims)',
+      '  model check: round 0 judged 40 items: entailed 40, not entailed 0, ambiguous 0, missing 0; label problems 0 (7 claims)',
       '  verify: publish after 0 revision rounds; the gate says publish; 628 words',
       `  tokens: ${THREE_CALLS_IN} in, ${THREE_CALLS_OUT} out, 3 model calls`,
       `total: 1 page, 1 trial, 3 of 40 model calls, ${THREE_CALLS_IN} tokens in, ${THREE_CALLS_OUT} out`,
@@ -316,11 +316,11 @@ describe('main: tune, what the model check found', () => {
       .script('verify', faultFinding, faultFinding, faultFinding, faultFinding);
     const { call, out, record } = tuning([RELEASE], { deps: { tuneClient: reading } });
     expect(await call('--client', 'fake')).toBe(0);
-    expect(out).toContain('  model check: round 0 judged 35 items: entailed 32, not entailed 1, ambiguous 1, missing 1; label problems 1 (7 claims)');
+    expect(out).toContain('  model check: round 0 judged 40 items: entailed 37, not entailed 1, ambiguous 1, missing 1; label problems 1 (7 claims)');
     expect(out).toContain('  verify: hold after 3 revision rounds; the gate says publish; 628 words');
     expect(record().rows[0]).toMatchObject({
       status: 'judged',
-      modelCheck: { round: 0, judged: 35, entailed: 32, notEntailed: 1, ambiguous: 1, missing: 1, claims: 7, labelProblems: 1 },
+      modelCheck: { round: 0, judged: 40, entailed: 37, notEntailed: 1, ambiguous: 1, missing: 1, claims: 7, labelProblems: 1 },
       verdict: { outcome: 'hold', rounds: 3, route: 'publish', codes: {} },
       usage: { calls: 9 },
     });

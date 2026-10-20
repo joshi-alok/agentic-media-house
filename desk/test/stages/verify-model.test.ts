@@ -20,13 +20,13 @@ const PLAN = verifyPlanOf(GOLDEN_DRAFT, GOLDEN_CLAIMS);
 const MODEL = 'model-v';
 
 describe('verifyPlanOf', () => {
-  it('has an item for every fact sentence, in the order of the piece, and for no other sentence', () => {
-    const facts = allSentences(GOLDEN_DRAFT).filter((item) => item.sentence.kind === 'fact');
-    expect(PLAN.sentences.map((item) => item.id)).toEqual(facts.map((item) => `s${item.index}`));
-    expect(PLAN.sentences.map((item) => item.text)).toEqual(facts.map((item) => item.sentence.text));
-    const others = allSentences(GOLDEN_DRAFT).filter((item) => item.sentence.kind !== 'fact');
-    expect(others.length).toBeGreaterThan(5);
-    for (const item of others) expect(PLAN.sentences.map((planned) => planned.id)).not.toContain(`s${item.index}`);
+  it('has an item for every fact sentence and every analysis sentence, in the order of the piece, and for no limitation', () => {
+    const judged = allSentences(GOLDEN_DRAFT).filter((item) => item.sentence.kind !== 'limitation');
+    expect(PLAN.sentences.map((item) => item.id)).toEqual(judged.map((item) => `s${item.index}`));
+    expect(PLAN.sentences.map((item) => item.text)).toEqual(judged.map((item) => item.sentence.text));
+    const limitations = allSentences(GOLDEN_DRAFT).filter((item) => item.sentence.kind === 'limitation');
+    expect(limitations.length).toBeGreaterThan(3);
+    for (const item of limitations) expect(PLAN.sentences.map((planned) => planned.id)).not.toContain(`s${item.index}`);
   });
 
   it('numbers a sentence as the gate does, counting from 0 over the whole piece, the analysis and the limitations too', () => {
@@ -114,11 +114,14 @@ describe('VerifyReply', () => {
 describe('aggregateVerdicts', () => {
   it('passes a draft when every item is entailed and every label is supported, and says what was checked', () => {
     const { verifier, failures } = aggregateVerdicts(MODEL, PLAN, verifierReply(PLAN));
+    const facts = PLAN.sentences.filter((item) => item.kind === 'fact').length;
     expect(failures).toEqual([]);
+    expect(facts).toBeGreaterThan(30);
+    expect(PLAN.sentences.length - facts).toBeGreaterThan(0);
     expect(verifier).toEqual({
       model: MODEL,
       passed: true,
-      notes: [`Judged ${PLAN.sentences.length} fact sentences and 3 headings against the passages they rely on, and the basis and the status of ${PLAN.claims.length} claims; every one was supported.`],
+      notes: [`Judged ${facts} fact sentences, ${PLAN.sentences.length - facts} analysis sentences and 3 headings against the passages they rely on, and the basis and the status of ${PLAN.claims.length} claims; every one was supported.`],
     });
   });
 
@@ -274,7 +277,7 @@ describe('runVerifier', () => {
     expect(logs).toEqual(['verify: the model check passed']);
   });
 
-  it('judges a draft that has as many headings as fact sentences', async () => {
+  it('judges a small draft whose items are two facts, two analysis sentences and two headings', async () => {
     const draft = structuredClone(GOLDEN_DRAFT) as Draft;
     draft.title = { kind: 'analysis', text: 'A title.', claimIds: [] };
     draft.description = { kind: 'analysis', text: 'A description.', claimIds: [] };
@@ -285,7 +288,8 @@ describe('runVerifier', () => {
       { heading: 'What it costs', paragraphs: [[{ kind: 'fact', text: 'Fixture Robotics lists the arm from $38,000.', claimIds: ['c-4'] }]] },
     ];
     const plan = verifyPlanOf(draft, GOLDEN_CLAIMS);
-    expect([plan.sentences.length, plan.headings.length]).toEqual([2, 2]);
+    expect(plan.sentences.map((item) => item.kind)).toEqual(['analysis', 'analysis', 'fact', 'fact']);
+    expect(plan.headings).toHaveLength(2);
     const { outcome, fake } = await check(verifierReply(plan), draft);
     expect(outcome.verifier.passed).toBe(true);
     expect(fake.calls).toHaveLength(1);
@@ -372,15 +376,15 @@ describe('runVerifier', () => {
     expect(outsideBlocks(fake.calls[0]?.user ?? '')).toContain('Claim c-19 (basis: reported, status: unspecified, reported by Mercer Wire, another outlet):');
   });
 
-  it('refuses a draft with nothing to judge', async () => {
+  it('refuses a draft with nothing to judge: no fact, no analysis and no heading', async () => {
     const draft = structuredClone(GOLDEN_DRAFT) as Draft;
-    draft.title = { kind: 'analysis', text: 'A title.', claimIds: [] };
-    draft.description = { kind: 'analysis', text: 'A description.', claimIds: [] };
+    draft.title = { kind: 'limitation', text: 'A title.', claimIds: ['c-1'], template: 'basis' };
+    draft.description = { kind: 'limitation', text: 'A description.', claimIds: ['c-1'], template: 'status' };
     draft.opening = [];
     draft.takeaways = [];
     draft.sections = [];
     const made = stageContext(scratch);
-    await expect(runVerifier(made.ctx, draft, GOLDEN_CLAIMS)).rejects.toThrow('runVerifier needs a draft with at least one fact sentence or heading to judge');
+    await expect(runVerifier(made.ctx, draft, GOLDEN_CLAIMS)).rejects.toThrow('runVerifier needs a draft with at least one fact sentence, analysis sentence or heading to judge');
     expect(made.fake.calls).toEqual([]);
   });
 });

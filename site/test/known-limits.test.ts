@@ -241,12 +241,13 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
     expect(extractTokens(limit.example)).toMatchObject({ numbers: [{ value: '12' }], names: ['logistics'], initialWord: 'Harlow' });
   });
 
-  it('is true of analysis: a sentence of the Desk\'s own reading that asserts what no claim says passes, and no model check is made of it', () => {
+  it('is true of analysis: a sentence of the Desk\'s own reading that asserts what no claim says passes the checks of code, which is why the model check also reads it', () => {
     const limit = withText(unchecked, 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default');
     expect(limit.text).toContain('(a piece above that is noted, not stopped)');
     expect(limit.text).not.toContain('up to a fifth');
-    expect(limit.text).toContain('and by no model');
-    expect(limit.text).toContain('the page labels it Analysis');
+    expect(limit.text).toContain('and then by the model check, which refuses one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support');
+    expect(limit.text).not.toContain('by no model');
+    expect(limit.text).toContain('The page labels it Analysis.');
     const input = cloneGolden();
     const analysis = input.draft.sections.flatMap((section) => section.paragraphs.flat()).find((sentence) => sentence.kind === 'analysis')!;
     analysis.text = limit.example;

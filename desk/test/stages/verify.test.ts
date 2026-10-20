@@ -452,7 +452,7 @@ describe('reviseDraft', () => {
     expect(allSentences(revised)[Number(id.slice(1))]?.sentence).toEqual({ kind: 'fact', text: 'Mercer Wire reports that 7 investors took part.', claimIds: ['c-19'] });
   });
 
-  it('keeps a fact a fact: the composer cannot turn a fact that the model check rejected into analysis, which no model reads, and the run ends with a schema error', async () => {
+  it('keeps a fact a fact: the composer cannot turn a fact that the model check rejected into analysis, which the model check judges by a looser rule, and the run ends with a schema error', async () => {
     const tier2 = makeTier2Variant(cloneGolden());
     const made = stageContext(scratch);
     const start = assembleDraft(replyFromDraft(tier2.draft), tier2.claims, made.ctx);
@@ -461,7 +461,7 @@ describe('reviseDraft', () => {
     await expect(reviseDraft(made.ctx, tier2.claims, start, [{ id, reason: 'r' }])).rejects.toMatchObject({ name: 'ModelError', kind: 'schema' });
   });
 
-  it('can turn analysis into a fact, which the model check then reads', async () => {
+  it('can turn analysis into a fact, which the model check then judges by the stricter rule', async () => {
     const analysisAt = allSentences(draft()).find((item) => item.sentence.kind === 'analysis');
     if (analysisAt === undefined) throw new Error('the golden piece has no analysis sentence');
     const id = `s${analysisAt.index}`;

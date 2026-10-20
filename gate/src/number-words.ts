@@ -30,7 +30,7 @@ import { UNIT_SOURCE, canonicalUnit } from './normalise';
 // number ("five five"). In a fact sentence G4 notes both with
 // G4_NUMBER_WORD_UNCHECKABLE (a note: the model check judges the sentence); in
 // an analysis sentence G7 refuses them (G7_ANALYSIS_NEW_VALUE) and in a heading
-// G4 refuses them (G4_HEADING_NUMBER), because no model reads analysis and a
+// G4 refuses them (G4_HEADING_NUMBER), because the model check holds analysis only to adding nothing the passages do not support, and a
 // heading states no figure. The composer is told to write the figure as digits
 // and to cite a claim that gives it.
 

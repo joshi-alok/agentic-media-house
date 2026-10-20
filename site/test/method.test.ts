@@ -459,13 +459,15 @@ describe('the README: blockers and notes, and another outlet', () => {
     expect(readme).not.toContain('so the gate holds it (`TIER2_ATTRIBUTION`)');
   });
 
-  it('says what the gate checks of analysis and that its share is only noted, and no longer that a cap limits the exposure', () => {
+  it('says what the gate and the model check do with analysis and that its share is only noted, and no longer that a cap limits the exposure', () => {
     const start = readme.indexOf('- **Analysis sentences.**');
     const bullet = readme.slice(start, readme.indexOf('\n', start));
     expect(start).toBeGreaterThan(0);
     // The strings that desk/test/readme.test.ts pins stay.
     expect(bullet).toContain('**Analysis sentences.**');
-    expect(bullet).toContain('the model check (G10) is never asked about them');
+    expect(bullet).toContain('the model check (G10) then judges each of them beside the passages of the claims it cites, and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support');
+    expect(bullet).not.toContain('is never asked about them');
+    expect(bullet).not.toContain('Nothing reads what else an analysis sentence says');
     expect(bullet).toContain('where they stand (not in the title or the description)');
     expect(bullet).toContain('the numbers, dates, words of amount and names they bring in that no factual sentence contains');
     expect(bullet).toContain('with a capital letter or a digit, and with a function word or a word of the quoted passage, the name values or the outlet of a claim they cite');
