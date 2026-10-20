@@ -42,7 +42,7 @@ function claimsProblem(ids: readonly string[], known: ReadonlyMap<string, Claim>
  *   'status' sentence the same status; a 'basis' sentence for the basis
  *   `reported` names one outlet, so its claims also share their outlet
  *   (G8_LIMITATION_GROUP).
- * - Its text is what the template renders for its claims
+ * - Its text is what the note renders for its claims
  *   (G8_LIMITATION_MISMATCH). A sentence whose claims have changed since it
  *   was written fails here too.
  *

@@ -26,7 +26,7 @@ import type { SourceKind } from '../index';
 /** The longest quotation a claim may have: what the claim schema allows and what the gate's configuration says. */
 export const MAX_QUOTE_LENGTH = defaultGateConfig().spanMax;
 
-/** The most words a label may have: a label is a short name for a claim, and it is printed in the notes under "What we couldn't verify", on the receipts page and on the fact card. */
+/** The most words a label may have: a label is a short name for a claim, and it is printed on the receipts page and on the fact card. */
 export const MAX_LABEL_WORDS = 6;
 
 /**

@@ -140,8 +140,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     code: 'G2_BODY_LENGTH',
     description: 'The body is shorter than the length the rule requires.',
     apply: (base) => {
-      // The notes are short now, so cutting them is not enough: the last paragraph of every section goes too.
-      base.draft.limitations = base.draft.limitations.slice(0, 1);
+      // Cut the last paragraph of every section.
       for (const section of base.draft.sections) section.paragraphs.pop();
       return base;
     },
@@ -153,7 +152,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     description: 'A sentence is padded until the piece is over 850 words.',
     apply: (base) => {
       const sentence = sentenceWith(base, 'The arm itself weighs');
-      sentence.text = `${sentence.text.slice(0, -1)}${' and the arm keeps working as described'.repeat(30)}.`;
+      sentence.text = `${sentence.text.slice(0, -1)}${' and the arm keeps working as described'.repeat(60)}.`;
       return base;
     },
   },

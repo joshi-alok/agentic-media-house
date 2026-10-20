@@ -548,7 +548,7 @@ const BODY: Draft = {
 };
 
 // The limitation sentences come from `buildLimitations`, the same function the
-// pipeline will use, so the fixture and the gate's templates cannot drift apart.
+// pipeline will use, so the fixture and the gate's notes cannot drift apart.
 const DRAFT: Draft = { ...BODY, limitations: buildLimitations(citedClaims(BODY, CLAIMS)) };
 
 export const GOLDEN_DRAFT: Draft = deepFreeze(DRAFT);

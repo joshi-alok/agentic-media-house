@@ -138,7 +138,7 @@ describe('limitationGroups', () => {
 
   it('does not cut a group, however many claims it has', () => {
     const many = Array.from({ length: 11 }, (_, at) => c(at + 1));
-    expect(idsOf(limitationGroups(many.reverse()))).toEqual([['basis', 'datasheet', many.map((item) => item.id).sort((a, b) => claimNumber(a) - claimNumber(b))]]);
+    expect(idsOf(limitationGroups([...many].reverse()))).toEqual([['basis', 'datasheet', ['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7', 'c-8', 'c-9', 'c-10', 'c-11']]]);
   });
 
   it('orders by claim number, not as text', () => {
