@@ -342,6 +342,65 @@ describe('main: tune, a draft that the gate sends back every time', () => {
   });
 });
 
+describe('main: tune, the log of a trial', () => {
+  // The stages say what they did in lines of counts and codes (ctx.log). A trial used to throw them away; they are kept beside its artifacts, so that a trial that went wrong can be read.
+  const logOf = (dir: string, trial = 'trial-1', page = '01'): string => readFileSync(path.join(dir, page, trial, 'log.txt'), 'utf8');
+
+  it('keeps the lines that the stages logged, one to a line, in a file beside the artifacts of the trial, and the table is as it was', async () => {
+    const { call, dir, out } = tuning([RELEASE], { deps: { tuneClient: story() } });
+    expect(await call('--client', 'fake')).toBe(0);
+    expect(existsSync(path.join(dir, '01', 'trial-1', 'log.txt'))).toBe(true);
+    const lines = logOf(dir).split('\n');
+    expect(lines.pop()).toBe('');
+    expect(lines).toEqual([
+      'extract: 7 claims proposed, 7 kept, 0 dropped',
+      'compose: the gate says publish (0 failures, 0 notes, 0 hold reasons)',
+      'verify: the model check passed',
+      'verify: round 0: the gate says publish, the model check passed',
+    ]);
+    expect(lines.some((line) => line.startsWith('compose: the gate says'))).toBe(true);
+    expect(lines.some((line) => line.startsWith('verify: round 0'))).toBe(true);
+    // The table did not take the lines in.
+    expect(out.some((line) => line.startsWith('compose:') || line.startsWith('verify:') || line.startsWith('extract:'))).toBe(false);
+  });
+
+  it('keeps the log of a trial that failed, up to the step that failed', async () => {
+    const reading = new FakeClient().script('extract', { claims: DEMO_CLAIMS }).script('compose', DEMO_REPLY).script('verify', { verdicts: 'not a list' });
+    const { call, dir, record } = tuning([RELEASE], { deps: { tuneClient: reading } });
+    expect(await call('--client', 'fake')).toBe(0);
+    expect(record().rows[0]!.status).toBe('failed');
+    expect(logOf(dir).split('\n').filter((line) => line !== '')).toEqual([
+      'extract: 7 claims proposed, 7 kept, 0 dropped',
+      'compose: the gate says publish (0 failures, 0 notes, 0 hold reasons)',
+    ]);
+  });
+
+  it('leaves a file for a trial that logged nothing, and keeps the lines of each trial apart', async () => {
+    const failing = new FakeClient().script('extract', { claims: 'not a list' }, { claims: [] });
+    const first = tuning([RELEASE], { deps: { tuneClient: failing } });
+    expect(await first.call('--client', 'fake', '--trials', '2')).toBe(0);
+    expect(logOf(first.dir, 'trial-1')).toBe('');
+    expect(logOf(first.dir, 'trial-2')).toBe('extract: 0 claims proposed, 0 kept, 0 dropped\n');
+    const two = tuning([RELEASE], { deps: { tuneClient: story(2) } });
+    expect(await two.call('--client', 'fake', '--trials', '2')).toBe(0);
+    for (const trial of ['trial-1', 'trial-2']) expect(logOf(two.dir, trial).split('\n').filter((line) => line.startsWith('compose:'))).toHaveLength(1);
+  });
+
+  it('holds counts and codes only: nothing that a page or a model wrote, and no address of the settings', async () => {
+    const { call, dir } = tuning([RELEASE], { deps: { tuneClient: story() } });
+    expect(await call('--client', 'fake')).toBe(0);
+    const log = logOf(dir);
+    for (const claim of DEMO_CLAIMS) {
+      expect(log).not.toContain(claim.text);
+      expect(log).not.toContain(claim.quote);
+      expect(log).not.toContain(claim.label);
+    }
+    expect(log).not.toContain(DEMO_REPLY.title.text);
+    expect(log).not.toContain('Fixture Robotics has begun shipping');
+    expect(log.split('\n').every((line) => /^(extract|compose|verify): /.test(line) || line === '')).toBe(true);
+  });
+});
+
 describe('main: tune, the outlet of a page of another outlet', () => {
   it('is the name that the registry gives the outlet, so that the claims of its page are attributed to it', async () => {
     const claim = {
@@ -584,9 +643,9 @@ describe('main: tune, what it writes', () => {
     const { call, cwd, dir, record } = tuning([RELEASE], { deps: { tuneClient: story() } });
     expect(await call('--client', 'fake')).toBe(0);
     const files = filesBelow(dir);
-    expect(files.filter((file) => !file.startsWith('evidence/'))).toEqual(['01/trial-1/04-extract.json', '01/trial-1/05-compose.json', '01/trial-1/06-verify.json', 'tune.json']);
+    expect(files.filter((file) => !file.startsWith('evidence/'))).toEqual(['01/trial-1/04-extract.json', '01/trial-1/05-compose.json', '01/trial-1/06-verify.json', '01/trial-1/log.txt', 'tune.json']);
     expect(files.filter((file) => file.startsWith('evidence/')).map((file) => file.slice(-4)).sort()).toEqual(['.txt', 'json']);
-    const page = readFileSync(path.join(dir, files.find((file) => file.endsWith('.txt'))!), 'utf8');
+    const page = readFileSync(path.join(dir, files.find((file) => file.startsWith('evidence/') && file.endsWith('.txt'))!), 'utf8');
     expect(page).toContain('Fixture Robotics has begun shipping FX-1 warehouse arms');
     expect(record()).toMatchObject({ stamp: '20261005-043100', date: '2026-10-05', client: 'fake', trials: 1, maxCalls: 40, stopped: null, dollars: null });
     expect(record().models).toEqual(defaultConfig().models);

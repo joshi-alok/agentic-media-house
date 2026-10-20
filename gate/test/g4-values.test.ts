@@ -414,7 +414,8 @@ describe('G4 names', () => {
 
   it('accepts a model name and an acronym that a claim lists', () => {
     expect(codes(mini('The sales of the FX-1 and the ISO rules rose.', [claimOf([who('FX-1'), who('ISO')])]))).toEqual([]);
-    expect(codes(mini('The sales of the FX-1 rose.', [claimOf([who('FX-2')])]))).toEqual(['G4_NAME_UNSUPPORTED']);
+    // A model name has a digit: it mixes letters and digits, so it is a figure-like word and a blocker (see 'G4 figure-like words').
+    expect(codes(mini('The sales of the FX-1 rose.', [claimOf([who('FX-2')])]))).toEqual(['G4_FIGURE_UNSUPPORTED']);
   });
 
   it('accepts a name listed by any one of the cited claims, but not by a claim that is not cited', () => {
@@ -544,7 +545,7 @@ describe('G4 headings', () => {
 
   it('does not take a model name that contains a digit for a number', () => {
     expect(headingCodes('What the FX-1 does')).toEqual([]);
-    expect(headingCodes('What the H1 results show', 2)).toEqual(['G4_HEADING_NAME']);
+    expect(headingCodes('What the H1 results show', 2)).toEqual(['G4_FIGURE_UNSUPPORTED']);
   });
 
   it.each([
@@ -693,6 +694,183 @@ describe('G4 headings', () => {
       g.draft.sections = [{ heading: 'What Harlow reports', paragraphs: [] }];
     });
     expect(checkG4(input, defaultContext()).failures.map((failure) => failure.code)).toEqual(['G4_HEADING_NAME']);
+  });
+});
+
+describe('G4 figure-like words: a word that mixes letters and digits is a blocker, not a note', () => {
+  // Dates and figures such as mid-2027, FY2027, 1H27, Q3, 2H, 10x, 2nd, IP67 are read as names (they have letters), and a name no claim lists is only a
+  // note. These are figures, though, and no model is trusted with them alone: a word that mixes letters and digits must be in the passage of a claim
+  // the sentence cites (or be a name value or the outlet of one), or it blocks.
+  const claimWith = (quote: string, values: ClaimValue[] = []) => claimOf(values, { span: { start: 0, end: quote.length, quote } });
+
+  it('rejects mid-2027 when the cited passage says 2028, and says which word, where and what to do', () => {
+    const claim = claimWith('Shipments begin in 2028.', [when('2028', '2028')]);
+    expect(run(mini('Shipments begin in mid-2027.', [claim])).failures).toEqual([
+      {
+        check: 'G4',
+        code: 'G4_FIGURE_UNSUPPORTED',
+        message:
+          'the figure-like word "mid-2027" at title is not in any claim this sentence cites: write it as the claim\'s passage writes it, or leave it out',
+        where: 'title',
+      },
+    ]);
+  });
+
+  it('accepts mid-2027 when the passage of a cited claim has it, with no value and no name value for it', () => {
+    const claim = claimWith('Shipments begin in mid-2027.');
+    expect(codes(mini('Shipments begin in mid-2027.', [claim]))).toEqual([]);
+    expect(codes(mini('Shipments begin in mid-2027, the plan says.', [claim]))).toEqual([]);
+  });
+
+  it.each(['mid-2027', 'FY2027', '1H27', 'Q3', '2H', '10x', '3x', '2nd', 'IP67', 'UR20', 'Gen7', 'FX-2'])(
+    'rejects %s in a fact sentence when no cited claim has it, and accepts it when the passage has it',
+    (word) => {
+      const unsupported = claimWith('Shipments begin in the autumn.');
+      expect(codes(mini(`Shipments begin in the ${word} plan.`, [unsupported]))).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      const supported = claimWith(`Shipments begin in the ${word} plan.`);
+      expect(codes(mini(`Shipments begin in the ${word} plan.`, [supported]))).toEqual([]);
+    },
+  );
+
+  it('compares in any case and without a possessive, as it compares names', () => {
+    const claim = claimWith('The IP67 rating is stated.');
+    expect(codes(mini('The ip67 rating is stated.', [claim]))).toEqual([]);
+    expect(codes(mini("The IP67's rating is stated.", [claim]))).toEqual([]);
+  });
+
+  it('accepts a model name that a cited claim lists as a name value, and one in the outlet of a cited claim', () => {
+    expect(codes(mini('The sales of the FX-1 rose.', [claimOf([who('FX-1')])]))).toEqual([]);
+    const fromOutlet = claimWith('Sales rose.', []);
+    fromOutlet.source = { ...fromOutlet.source, tier: 2, outlet: 'Gen7 Wire' };
+    expect(codes(mini('The sales rose, says Gen7 Wire.', [fromOutlet]))).toEqual([]);
+  });
+
+  it('does not take the word from a claim the sentence does not cite, or from the text or the label of a claim', () => {
+    const a = claimWith('Shipments begin in the autumn.');
+    const b = claimWith('Shipments begin in FY2027.', []);
+    b.id = 'c-2';
+    expect(codes(mini('Shipments begin in FY2027.', [a, b], ['c-1']))).toEqual(['G4_FIGURE_UNSUPPORTED']);
+    expect(codes(mini('Shipments begin in FY2027.', [a, b], ['c-1', 'c-2']))).toEqual([]);
+    const model = claimWith('Shipments begin in the autumn.');
+    model.text = 'Shipments begin in FY2027.';
+    model.label = 'FY2027 shipments';
+    expect(codes(mini('Shipments begin in FY2027.', [model]))).toEqual(['G4_FIGURE_UNSUPPORTED']);
+  });
+
+  it('accepts a word on the allow-list passed in the context', () => {
+    const claim = claimWith('Shipments begin in the autumn.');
+    expect(codes(mini('Shipments begin in FY2027.', [claim]), { nameAllowList: ['fy2027'] })).toEqual([]);
+  });
+
+  it('is not also reported as a name, and is reported once however often the sentence says it', () => {
+    const claim = claimWith('Shipments begin in the autumn.');
+    const out = run(mini('Shipments begin in FY2027 and end in FY2027.', [claim]));
+    expect(out.failures.map((failure) => failure.code)).toEqual(['G4_FIGURE_UNSUPPORTED']);
+    const both = run(mini('Shipments by Acme begin in FY2027 and Q3.', [claim]));
+    expect(both.failures.map((failure) => [failure.code, failure.message.match(/"([^"]+)"/)?.[1]])).toEqual([
+      ['G4_NAME_UNSUPPORTED', 'acme'],
+      ['G4_FIGURE_UNSUPPORTED', 'fy2027'],
+      ['G4_FIGURE_UNSUPPORTED', 'q3'],
+    ]);
+  });
+
+  it('holds a first word that mixes letters and digits to the same rule, because the capital-letter exemption of a first word does not cover a figure', () => {
+    const claim = claimWith('Shipments begin in the autumn.');
+    expect(codes(mini('FY2027 shipments begin.', [claim]))).toEqual(['G4_FIGURE_UNSUPPORTED']);
+    expect(codes(mini('10x shipments begin.', [claim]))).toEqual(['G4_FIGURE_UNSUPPORTED']);
+    expect(codes(mini('FY2027 shipments begin.', [claimWith('FY2027 shipments begin.')]))).toEqual([]);
+    // A first word with no digit is still not read as a name.
+    expect(codes(mini('Acme ships arms.', [claim]))).toEqual([]);
+  });
+
+  it('is a blocker, not a note: the gate sends the piece back', () => {
+    const input = mutate(cloneGolden(), (g) => {
+      findSentence(g.draft, (sentence) => sentence.text.startsWith('Peak tool speed')).text = 'Peak tool speed is 2.3 m/s in mid-2027.';
+    });
+    const result = runGate(input, defaultContext());
+    expect(result.failures.map((failure) => failure.code)).toEqual(['G4_FIGURE_UNSUPPORTED']);
+    expect(result.warnings.map((note) => note.code)).not.toContain('G4_FIGURE_UNSUPPORTED');
+    expect(result.route).not.toBe('publish');
+  });
+
+  it('leaves a name without a digit as the note it was: an unlisted name is reported as G4_NAME_UNSUPPORTED only', () => {
+    expect(codes(mini('The plans at Acme grew.', [claimWith('Plans grew.')]))).toEqual(['G4_NAME_UNSUPPORTED']);
+    const input = mutate(cloneGolden(), (g) => {
+      findSentence(g.draft, (sentence) => sentence.text.startsWith('Peak tool speed')).text = 'Peak tool speed is 2.3 m/s at Harlow.';
+    });
+    const result = runGate(input, defaultContext());
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((note) => note.code)).toEqual(['G4_NAME_UNSUPPORTED']);
+    expect(result.route).toBe('publish');
+  });
+
+  describe('in a heading', () => {
+    // The golden headings are "What shipped" (section 0), "What the customer reports" (1) and "What the filing shows" (2).
+    const headingFailures = (heading: string, at = 0, change: (g: GateInput) => void = () => undefined) =>
+      checkG4(
+        mutate(cloneGolden(), (g) => {
+          g.draft.sections[at]!.heading = heading;
+          change(g);
+        }),
+        defaultContext(),
+      ).failures;
+    const headingCodes = (heading: string, at = 0, change?: (g: GateInput) => void) => headingFailures(heading, at, change).map((failure) => failure.code);
+
+    it('rejects Q3, 10x and FY2027 in a heading when no claim of its section has them, and says which word and where', () => {
+      expect(headingFailures('What FY2027 brings')).toEqual([
+        {
+          check: 'G4',
+          code: 'G4_FIGURE_UNSUPPORTED',
+          message:
+            'the figure-like word "fy2027" in the heading "What FY2027 brings" is not in any claim cited in this section: write it as the claim\'s passage writes it, or leave it out of the heading',
+          where: 'section "What FY2027 brings"',
+        },
+      ]);
+      expect(headingCodes('What Q3 brings')).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      expect(headingCodes('What 10x means')).toEqual(['G4_FIGURE_UNSUPPORTED']);
+    });
+
+    it('accepts the word when a claim cited in the section has it in its passage, a name value or its outlet, and not when only another section does', () => {
+      const quoteHas = (g: GateInput) => {
+        const cited = g.draft.sections[0]!.paragraphs.flat()[0]!.claimIds[0];
+        claimOfId(g, cited!).span.quote += ' Q3 deliveries.';
+      };
+      expect(headingCodes('What Q3 brings', 0, quoteHas)).toEqual([]);
+      expect(headingCodes('What Q3 brings', 2, quoteHas)).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      // The golden piece lists the IP54 as a name value of a claim (c-15) that only section 0 cites, and the FX-1 in claims of every section.
+      expect(headingCodes('What the IP54 rating means', 0)).toEqual([]);
+      expect(headingCodes('What the IP54 rating means', 2)).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      expect(headingCodes('What the FX-1 does', 2)).toEqual([]);
+      const outlet = (g: GateInput) => {
+        claimOfId(g, 'c-19').source.tier = 2;
+        claimOfId(g, 'c-19').source.outlet = 'Gen7 Wire';
+      };
+      expect(headingCodes('What Gen7 Wire says', 2, outlet)).toEqual([]);
+      expect(headingCodes('What Gen7 Wire says', 0, outlet)).toEqual(['G4_FIGURE_UNSUPPORTED', 'G4_HEADING_NAME']);
+    });
+
+    it('accepts a word on the allow-list', () => {
+      expect(checkG4(mutate(cloneGolden(), (g) => { g.draft.sections[0]!.heading = 'What Q3 brings'; }), defaultContext({ nameAllowList: ['q3'] })).failures).toEqual([]);
+    });
+
+    it('holds a first word with a digit to the rule, reports it once, and not also as a name', () => {
+      expect(headingCodes('FY2027 plans and FY2027 results')).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      expect(headingCodes('What Harlow does in Q3', 1)).toEqual(['G4_HEADING_NAME', 'G4_FIGURE_UNSUPPORTED']);
+    });
+
+    it('is a blocker, so the gate sends the piece back and the heading is the item to rewrite', () => {
+      const input = mutate(cloneGolden(), (g) => { g.draft.sections[0]!.heading = 'What Q3 brings'; });
+      const result = runGate(input, defaultContext());
+      expect(result.failures.map((failure) => [failure.code, failure.where])).toEqual([['G4_FIGURE_UNSUPPORTED', 'section "What Q3 brings"']]);
+      expect(result.route).not.toBe('publish');
+    });
+
+    it('leaves a heading name without a digit as the note it was', () => {
+      const input = mutate(cloneGolden(), (g) => { g.draft.sections[1]!.heading = 'What Harlow reports'; });
+      const result = runGate(input, defaultContext());
+      expect(result.failures).toEqual([]);
+      expect(result.warnings.map((note) => note.code)).toEqual(['G4_HEADING_NAME']);
+    });
   });
 });
 

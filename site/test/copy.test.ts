@@ -322,7 +322,7 @@ describe('scoreboardCaveat', () => {
 
 describe('meaningLimit', () => {
   const START =
-    'Meaning is not checked by code. The checks make sure that every figure (a number or a date) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists (except the first word of a sentence); they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
+    'Meaning is not checked by code. The checks make sure that every figure (a number or a date, or a word that mixes letters and digits) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists (except the first word of a sentence); they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
   const OFF = `${START} That will be the job of the independent model check, which is not running yet.`;
   const ON = `${START} That is the job of the independent model check.`;
 
@@ -336,7 +336,7 @@ describe('meaningLimit', () => {
   });
 
   // What the sentence says the checks do is what the gate does: a figure and a quotation that no cited claim has send a piece back, a name is noted.
-  it('is true of the gate: a number and a quotation that no cited claim has are blockers, and a name that no cited claim lists is a note', () => {
+  it('is true of the gate: a number, a date, a word that mixes letters and digits and a quotation that no cited claim has are blockers, and a name that no cited claim lists is a note', () => {
     const codesOf = (change: (input: ReturnType<typeof cloneGolden>) => void) => {
       const input = cloneGolden();
       change(input);
@@ -349,6 +349,10 @@ describe('meaningLimit', () => {
     expect(date.failures).toContain('G4_DATE_UNSUPPORTED');
     const quote = codesOf((input) => { input.draft.takeaways[0]!.text = 'The company said "every arm ships free".'; });
     expect(quote.failures).toContain('G5_QUOTE_NOT_VERBATIM');
+    // A word that mixes letters and digits is a figure in this sentence: it is a blocker, and a name without a digit is only a note.
+    const mixed = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant ships in mid-2027.'; });
+    expect(mixed.failures).toContain('G4_FIGURE_UNSUPPORTED');
+    expect(mixed.notes).not.toContain('G4_NAME_UNSUPPORTED');
     const name = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant is the second Harlow plant to receive arms.'; });
     expect(name.failures).not.toContain('G4_NAME_UNSUPPORTED');
     expect(name.notes).toContain('G4_NAME_UNSUPPORTED');

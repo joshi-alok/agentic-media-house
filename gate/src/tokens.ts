@@ -30,7 +30,8 @@ export interface SentenceTokens {
    * it, when it would have been a name token had it not been first: it starts
    * with a capital letter or mixes letters and digits. Absent otherwise,
    * for example when the sentence opens with a number or a date. A sentence that opens with a lowercase
-   * word has none either, which is why G2 requires every sentence to start with a capital letter or a digit.
+   * word has none either, which is why G7 requires an analysis sentence to start with a capital letter or a digit (no model
+   * reads analysis). A fact sentence that opens in lowercase is not required to: the model check judges it.
    */
   initialWord?: string;
 }
@@ -56,7 +57,9 @@ function consume(text: string, source: string, accept: (matched: string) => bool
 }
 
 // A name token starts with an uppercase letter (this includes ALL-CAPS
-// acronyms such as CEO and ISO), or mixes letters and digits (FX-1, H1, B2B).
+// acronyms such as CEO and ISO), or mixes letters and digits (FX-1, H1, B2B). A word
+// that mixes letters and digits may be a date or a figure (mid-2027, FY2027, 10x, Q3), so G4 does not
+// leave it to the note for a name: it is a blocker unless a cited claim has the word (G4_FIGURE_UNSUPPORTED).
 function isNameWord(word: string): boolean {
   return /^\p{Lu}/u.test(word) || (/\p{L}/u.test(word) && /\p{N}/u.test(word));
 }
@@ -98,7 +101,8 @@ export function nameTokensOf(name: string): string[] {
  * an ordinary capitalised word is noted in a fact sentence (G4) and sends analysis
  * back (G7). It cannot see a name
  * that starts in lowercase (iRobot, xAI), an ordinal (first, second) or a vague
- * quantity (several, a couple); the model verifier covers those. An impossible date (31 February) is not
+ * quantity (several, a couple). In a fact sentence or a heading the model check is the only reader
+ * of those; in an analysis sentence, which no model reads, nothing is. An impossible date (31 February) is not
  * consumed, so its digits come out as numbers that no real date can support.
  */
 export function extractTokens(sentenceText: string): SentenceTokens {

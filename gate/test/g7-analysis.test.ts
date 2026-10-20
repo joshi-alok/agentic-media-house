@@ -359,6 +359,70 @@ describe('G7_ANALYSIS_NEW_NAME: names', () => {
   });
 });
 
+describe('G7_ANALYSIS_NEW_NAME: a name that a fact sentence opens with', () => {
+  // In the golden piece "Fixture" opens the title, the description and several sentences, and is also said in the middle of the demo-day sentence.
+  // Take it out of the middle of that sentence, so that the facts have it only as their first word.
+  const demoDay = (g: GateInput) =>
+    (findSentence(g.draft, (sentence) => sentence.text.startsWith('At a demo day on 24 September 2026')).text =
+      'At a demo day on 24 September 2026, the company showed an FX-1 arm unloading mixed cartons from a trailer.');
+  const naming = (text: string) => (g: GateInput) => {
+    demoDay(g);
+    saying(text)(g);
+  };
+
+  it('starts from facts that have the name only as their first word', () => {
+    const only = cloneGolden();
+    demoDay(only);
+    const stated = only.draft.sections.flatMap((section) => section.paragraphs.flat()).filter((sentence) => sentence.kind === 'fact');
+    expect(stated.some((sentence) => sentence.text.startsWith('Fixture Robotics'))).toBe(true);
+    expect(stated.some((sentence) => /\sFixture\b/.test(sentence.text))).toBe(false);
+  });
+
+  it('lets an analysis sentence name the company that facts open with, when the claims those facts cite have the word', () => {
+    expect(run(naming('The schedule suggests Fixture Robotics will keep to its plan.'))).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('still refuses a company that no fact has, and says so', () => {
+    const output = run(naming('The schedule suggests Harlow Robotics will keep to its plan.'));
+    expect(output.failures.map((failure) => failure.message)).toEqual([
+      `the analysis sentence at ${ANALYSIS_AT} introduces the name "harlow", which no fact sentence contains`,
+    ]);
+  });
+
+  it('still refuses a company that a fact opens with when the claims that fact cites do not have the word', () => {
+    const output = run((g) => {
+      naming('The schedule suggests Harlow will keep to its plan.')(g);
+      findSentence(g.draft, (sentence) => sentence.text.startsWith('The datasheet lists a rated payload')).text = 'Harlow lists a rated payload of 12 kg at full reach and a maximum reach of 1.4 m.';
+    });
+    expect(codes(output)).toEqual(['G7_ANALYSIS_NEW_NAME']);
+    expect(output.failures[0]!.message).toContain('name "harlow"');
+  });
+
+  it('counts the opening word of a fact that is grounded only by the claims that fact cites, not by the claims of another fact', () => {
+    const output = run((g) => {
+      naming('The schedule suggests Quillon will keep to its plan.')(g);
+      const fact = findSentence(g.draft, (sentence) => sentence.text.startsWith('The datasheet lists a rated payload'));
+      fact.text = 'Quillon lists a rated payload of 12 kg at full reach and a maximum reach of 1.4 m.';
+      const other = g.claims.find((claim) => claim.id === 'c-20')!;
+      other.span.quote += ' Quillon was not involved.';
+    });
+    expect(codes(output)).toEqual(['G7_ANALYSIS_NEW_NAME']);
+    const grounded = run((g) => {
+      naming('The schedule suggests Quillon will keep to its plan.')(g);
+      const fact = findSentence(g.draft, (sentence) => sentence.text.startsWith('The datasheet lists a rated payload'));
+      fact.text = 'Quillon lists a rated payload of 12 kg at full reach and a maximum reach of 1.4 m.';
+      g.claims.find((claim) => claim.id === 'c-8')!.span.quote += ' Quillon made it.';
+    });
+    expect(grounded).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('does not make a function word that a fact opens with a name that an analysis sentence may use in the middle of a sentence', () => {
+    // "The" opens many facts, but an ordinary opening word is not a name: a capital "The" in the middle of an analysis sentence is still read as one.
+    const output = run(naming('The schedule suggests that The Plan will hold.'));
+    expect(output.failures.map((failure) => failure.message.match(/name "([^"]+)"/)?.[1])).toEqual(['the', 'plan']);
+  });
+});
+
 describe('G7_ANALYSIS_NEW_NAME: the opening word', () => {
   it('fails an analysis sentence that opens with a name no claim it cites contains, and says which', () => {
     expect(run(saying('Harlow reported something similar.')).failures).toEqual([

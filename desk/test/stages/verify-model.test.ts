@@ -301,6 +301,8 @@ describe('runVerifier', () => {
     expect(call?.maxOutputTokens).toBe(VERIFY_MAX_OUTPUT_TOKENS);
     expect(call?.effort).toBe(VERIFY_EFFORT);
     expect(VERIFY_EFFORT).toBe('medium');
+    // Thinking counts toward the limit on the reply, and a reply that is cut off is a refusal that ends the run: the limit leaves room for the thinking of a long piece.
+    expect(VERIFY_MAX_OUTPUT_TOKENS).toBe(16000);
     expect(call?.schema).toBe(VerifyReply);
     expect(call?.system).toBe(verifySystem());
     expect(call?.system.startsWith(UNTRUSTED_PREAMBLE)).toBe(true);

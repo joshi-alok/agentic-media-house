@@ -1,6 +1,6 @@
 {
-  "total": 59,
-  "caught": 59,
+  "total": 60,
+  "caught": 60,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -212,6 +212,13 @@
       "check": "G4",
       "code": "G4_NAME_UNSUPPORTED",
       "description": "A sentence names a company that no claim it cites mentions.",
+      "caught": true
+    },
+    {
+      "id": "unsupported-figure-word",
+      "check": "G4",
+      "code": "G4_FIGURE_UNSUPPORTED",
+      "description": "A sentence gives a date as a word that mixes letters and digits, \"mid-2027\", that no claim it cites contains.",
       "caught": true
     },
     {

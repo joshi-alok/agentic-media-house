@@ -91,6 +91,24 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('for example "<outlet> reports that ...". Never state it as plain fact, and never use it in analysis.');
   });
 
+  // G6 compares the sentence with the exact string that the registry records as the outlet, and a round of revision was lost to a name that was written a little differently.
+  it('says to write the name of the outlet exactly as it is given after "reported by", in the rule about another outlet', () => {
+    const rules = composeRules();
+    const rule = rules.find((line) => line.startsWith('- (blocks) A claim marked "reported by"'))!;
+    expect(rule).toContain('Never state it as plain fact, and never use it in analysis. Write the outlet\'s name exactly as it is given after "reported by".');
+    for (const prompt of [COMPOSE_INSTRUCTIONS, REVISE_INSTRUCTIONS]) expect(prompt).toContain('Write the outlet\'s name exactly as it is given after "reported by".');
+  });
+
+  // The reader of the gate takes mid-2027, FY2027, 10x and Q3 for names, and a name is only noted: a figure like these blocks (G4_FIGURE_UNSUPPORTED).
+  it('says in a rule that blocks that a word that mixes letters and digits is written only as the passage of a cited claim writes it, next to the rule about numbers and dates', () => {
+    const rules = composeRules();
+    const line = '- (blocks) Write a word that mixes letters and digits (such as FY2027 or 10x) only as the passage of a claim that the sentence cites writes it.';
+    expect(rules).toContain(line);
+    const numbers = rules.findIndex((rule) => rule.startsWith('- (blocks) Every number, date and amount'));
+    expect(rules.indexOf(line)).toBe(numbers + 1);
+    for (const prompt of [COMPOSE_INSTRUCTIONS, REVISE_INSTRUCTIONS]) expect(prompt).toContain(line);
+  });
+
   it('gives the shape of the piece as targets, in the numbers of the gate, and says not to pad', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain(`The opening is about ${GATE.openingWords.min} to ${GATE.openingWords.max} words. There are ${GATE.takeaways.min} to ${GATE.takeaways.max} takeaways.`);
     expect(COMPOSE_INSTRUCTIONS).toContain(`The piece is about ${GATE.bodyWords.min} to ${GATE.bodyWords.max} words in all`);
@@ -191,6 +209,8 @@ describe('reviseSystem', () => {
     expect(REVISE_INSTRUCTIONS).toContain('"replacements", a list with one entry for each item you rewrite');
     expect(REVISE_INSTRUCTIONS).toContain('- for a sentence: an entry with "id" (the id of the item, copied exactly) and "sentence", the new sentence.');
     expect(REVISE_INSTRUCTIONS).toContain('- for a heading: an entry with "id" and "heading", the new heading as text.');
+    // The reply is refused when a fact comes back as analysis (reviseReplySchema), and a refused reply ends the run.
+    expect(REVISE_INSTRUCTIONS).toContain('A fact sentence stays a fact sentence: a reply that rewrites one as analysis is refused.');
   });
 
   it('gives the same rules as the prompt of the draft, line for line, and the same account of a sentence', () => {

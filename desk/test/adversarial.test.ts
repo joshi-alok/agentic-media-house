@@ -205,7 +205,7 @@ const BAD: Scenario[] = [
     name: 'a claim whose quotation is not in the source, which the piece then cites',
     script: () => told({ claims: [...DEMO_CLAIMS, NOT_ON_THE_PAGE], piece: reply((copy) => { copy.takeaways[3] = fact('The FX-1 weighs 38 kg.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED', 'G4_FIGURE_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -217,7 +217,7 @@ const BAD: Scenario[] = [
     name: 'a claim whose label carries a name that is not in its quotation, which the piece then cites',
     script: () => told({ claims: [...DEMO_CLAIMS, MADE_UP_NAME], piece: reply((copy) => { copy.takeaways[3] = fact('Fixture Robotics lists the FX-1 from $38,000 per arm.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED', 'G4_FIGURE_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -320,7 +320,7 @@ const BAD: Scenario[] = [
     name: 'a claim whose label has a word that its quotation does not have',
     script: () => told({ claims: [...DEMO_CLAIMS, MADE_UP_WORD], piece: reply((copy) => { copy.takeaways[3] = fact('Fixture Robotics lists the FX-1 from $38,000 per arm.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED', 'G4_FIGURE_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);

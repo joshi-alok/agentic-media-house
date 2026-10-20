@@ -71,6 +71,16 @@ export const CLAIMS_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'unsupported-figure-word',
+    check: 'G4',
+    code: 'G4_FIGURE_UNSUPPORTED',
+    description: 'A sentence gives a date as a word that mixes letters and digits, "mid-2027", that no claim it cites contains.',
+    apply: (base) => {
+      sentenceWith(base, 'The datasheet lists a 12 kg').text = 'The datasheet lists a 12 kg rated payload and a 1.4 m maximum reach, with shipments from mid-2027.';
+      return base;
+    },
+  },
+  {
     id: 'heading-with-number',
     check: 'G4',
     code: 'G4_HEADING_NUMBER',

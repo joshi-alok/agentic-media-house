@@ -198,6 +198,28 @@ describe('gateRules', () => {
       expect(g4).toContain('each one it finds must appear among the values of a claim that sentence cites');
     });
 
+    // A word that mixes letters and digits is a date or a figure that the reader only takes for a name because it has letters: it blocks.
+    it.each(['FY2027', '10x'])('says that a word that mixes letters and digits (such as %s) must appear in the passage, the names or the outlet of a cited claim, which is true of the gate: it blocks', (word) => {
+      expect(g4).toContain('a word that mixes letters and digits (such as FY2027 or 10x) must appear in the quoted passage, the names or the outlet of a claim that sentence cites');
+      expect(g4).toContain('in a heading, of a claim cited in its section');
+      expect(g4notes).not.toContain('letters and digits');
+      expect(extractTokens(`Shipments begin in ${word}.`).names).toEqual([word.toLowerCase()]);
+      const sentence = cloneGolden();
+      sentence.draft.takeaways[0]!.text = `Shipments begin in ${word}.`;
+      const result = runGate(sentence, defaultContext());
+      expect(result.failures.map((failure) => failure.code)).toContain('G4_FIGURE_UNSUPPORTED');
+      expect(result.warnings.map((note) => note.code)).not.toContain('G4_FIGURE_UNSUPPORTED');
+      expect(severityOf('G4_FIGURE_UNSUPPORTED')).toBe('blocker');
+      // The same word in the quoted passage of a claim that the sentence cites passes.
+      const cited = sentence.claims.find((claim) => claim.id === sentence.draft.takeaways[0]!.claimIds[0])!;
+      cited.span.quote = `${cited.span.quote} Shipments begin in ${word}.`;
+      expect(runGate(sentence, defaultContext()).failures.map((failure) => failure.code)).not.toContain('G4_FIGURE_UNSUPPORTED');
+      // And in a heading.
+      const heading = cloneGolden();
+      heading.draft.sections[0]!.heading = `Output at ${word}`;
+      expect(runGate(heading, defaultContext()).failures.map((failure) => failure.code)).toContain('G4_FIGURE_UNSUPPORTED');
+    });
+
     it('does not make the capitalised names a rule that blocks: they are in the notes, and a name that no claim lists is only noted', () => {
       expect(g4).not.toContain('capitalised');
       expect(g4notes).toContain('capitalised names in each factual sentence (except its first word) and in each heading');

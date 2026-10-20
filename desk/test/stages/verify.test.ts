@@ -436,15 +436,33 @@ describe('reviseDraft', () => {
     expect(revised.sections.map((section) => section.paragraphs.length)).toEqual(original.sections.map((section) => section.paragraphs.length));
   });
 
-  it('can change the kind of a sentence, and an attribution that the new sentence does not have is gone', async () => {
+  it('an attribution that the new sentence does not have is gone', async () => {
     const tier2 = makeTier2Variant(cloneGolden());
     const made = stageContext(scratch);
     const start = assembleDraft(replyFromDraft(tier2.draft), tier2.claims, made.ctx);
     const id = idOf(start, 'Mercer Wire reports that 7 investors took part in the round.');
     expect(allSentences(start)[Number(id.slice(1))]?.sentence).toMatchObject({ attributed: true });
-    made.fake.script('compose', rewriting(id, { kind: 'analysis', text: 'That is a small round.', claimIds: [] }));
+    made.fake.script('compose', rewriting(id, { kind: 'fact', text: 'Mercer Wire reports that 7 investors took part.', claimIds: ['c-19'] }));
     const revised = await reviseDraft(made.ctx, tier2.claims, start, [{ id, reason: 'r' }]);
-    expect(allSentences(revised)[Number(id.slice(1))]?.sentence).toEqual({ kind: 'analysis', text: 'That is a small round.', claimIds: [] });
+    expect(allSentences(revised)[Number(id.slice(1))]?.sentence).toEqual({ kind: 'fact', text: 'Mercer Wire reports that 7 investors took part.', claimIds: ['c-19'] });
+  });
+
+  it('keeps a fact a fact: the composer cannot turn a fact that the model check rejected into analysis, which no model reads, and the run ends with a schema error', async () => {
+    const tier2 = makeTier2Variant(cloneGolden());
+    const made = stageContext(scratch);
+    const start = assembleDraft(replyFromDraft(tier2.draft), tier2.claims, made.ctx);
+    const id = idOf(start, 'Mercer Wire reports that 7 investors took part in the round.');
+    made.fake.script('compose', rewriting(id, { kind: 'analysis', text: 'That is a small round.', claimIds: [] }));
+    await expect(reviseDraft(made.ctx, tier2.claims, start, [{ id, reason: 'r' }])).rejects.toMatchObject({ name: 'ModelError', kind: 'schema' });
+  });
+
+  it('can turn analysis into a fact, which the model check then reads', async () => {
+    const analysisAt = allSentences(draft()).find((item) => item.sentence.kind === 'analysis');
+    if (analysisAt === undefined) throw new Error('the golden piece has no analysis sentence');
+    const id = `s${analysisAt.index}`;
+    const replacement = { kind: 'fact' as const, text: 'The company says so.', claimIds: ['c-1'] };
+    const { revised } = await revise([{ id, reason: 'r' }], { replacements: [{ id, sentence: replacement }] });
+    expect(allSentences(revised)[analysisAt.index]?.sentence).toEqual(replacement);
   });
 
   it('writes the slug from the new title, the date of the run, and limitations made again from the claims that the new sentences cite', async () => {
@@ -555,7 +573,7 @@ describe('reviseDraft', () => {
     expect(made.fake.calls).toEqual([]);
   });
 
-  it('fails with a schema error when the reply rewrites an item that was not sent, rewrites one twice, or mixes up a sentence and a heading', async () => {
+  it('fails with a schema error when the reply rewrites an item that was not sent, rewrites one twice, mixes up a sentence and a heading, or turns a fact into analysis', async () => {
     const sentence = { kind: 'fact' as const, text: 'A sentence.', claimIds: ['c-1'] };
     const replies = [
       { replacements: [{ id: 's4', sentence }] },
@@ -564,6 +582,7 @@ describe('reviseDraft', () => {
       { replacements: [{ id: 'h0', sentence }] },
       { replacements: [{ id: 's3', sentence: { kind: 'limitation', text: 'x', claimIds: ['c-1'], template: 'basis' } }] },
       { replacements: [{ id: 's3', sentence, note: 'x' }] },
+      { replacements: [{ id: 's3', sentence: { kind: 'analysis', text: 'An opinion.', claimIds: [] } }] },
       { sentences: [] },
     ];
     for (const reply of replies) {
@@ -596,6 +615,16 @@ describe('reviseReplySchema', () => {
     expect(schema.safeParse({ replacements: [] }).success).toBe(true);
   });
 
+  // The model check reads fact sentences and headings and never analysis, so a fact that it rejected must not come back as analysis.
+  it('accepts a fact for a fact, analysis for analysis and a fact for analysis, and refuses analysis for a fact', () => {
+    const opinion = { kind: 'analysis', text: 'An opinion.', claimIds: [] };
+    expect(schema.safeParse({ replacements: [{ id: 's3', sentence }] }).success).toBe(true);
+    expect(schema.safeParse({ replacements: [{ id: 's7', sentence: opinion }] }).success).toBe(true);
+    expect(schema.safeParse({ replacements: [{ id: 's7', sentence }] }).success).toBe(true);
+    expect(schema.safeParse({ replacements: [{ id: 's3', sentence: opinion }] }).success).toBe(false);
+    expect(schema.safeParse({ replacements: [{ id: 's3', sentence: { ...opinion, claimIds: ['c-1'] } }] }).success).toBe(false);
+  });
+
   it.each([
     ['an item that was not sent', { replacements: [{ id: 's4', sentence }] }],
     ['an item twice', { replacements: [{ id: 's3', sentence }, { id: 's3', sentence }] }],
@@ -617,6 +646,9 @@ describe('reviseReplySchema', () => {
     expect(say({ replacements: [{ id: 's3', sentence }, { id: 's3', sentence }] })).toEqual(['replacements.1.id: the item "s3" is rewritten twice']);
     expect(say({ replacements: [{ id: 'h1', sentence }] })).toEqual(['replacements.0.id: the item "h1" is rewritten as the wrong kind of thing: a sentence for a heading or a heading for a sentence']);
     expect(say({ replacements: [{ id: 's3', heading: 'A heading' }] })).toEqual(['replacements.0.id: the item "s3" is rewritten as the wrong kind of thing: a sentence for a heading or a heading for a sentence']);
+    expect(say({ replacements: [{ id: 's3', sentence: { kind: 'analysis', text: 'An opinion.', claimIds: [] } }] })).toEqual([
+      'replacements.0.id: the item "s3" is rewritten as another kind than it was: a fact stays a fact',
+    ]);
   });
 });
 

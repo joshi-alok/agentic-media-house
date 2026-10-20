@@ -2,8 +2,8 @@ import type { LedgerSection } from '../constants';
 import type { Check, Failure } from '../gate';
 import { dateMatches } from '../normalise';
 import type { DateToken, NumberToken } from '../tokens';
-import { extractTokens } from '../tokens';
-import { claimWords, openingWordAccepted } from '../grounding';
+import { extractTokens, toNameToken } from '../tokens';
+import { claimWords, isSentenceStarter, openingWordAccepted } from '../grounding';
 import { allSentences, describeLocation } from '../sentences';
 import { afterOpeners, startsWithCapitalOrDigit } from '../text';
 
@@ -33,8 +33,9 @@ const MAX_FIRST_WORD = 40;
  *   when the analysis gives one; a date matches a fact date at the precision the
  *   analysis uses; names are the capitalised words `extractTokens` finds,
  *   except the first word of a sentence and the words on the allow-list.
- *   A name that a fact sentence has only as its first word does not count as
- *   stated: say it mid-sentence in a fact.
+ *   A name that a fact sentence has as its first word counts as stated when the claims that fact cites ground it, by the
+ *   rule for an opening word below (a function word does not count: it is no name); an opening word that those claims
+ *   do not have counts for nothing, so a company that only an ungrounded first word names is still new.
  *   Numbers written out in words count as numbers, and a word that states an
  *   amount with no value to compare ("half", "doubled") is always new.
  *   A new name is a blocker like a new figure (G7_ANALYSIS_NEW_NAME): no model reads analysis, so code is the only judge of what it may name.
@@ -88,6 +89,12 @@ export const checkG7: Check = ({ draft, claims }, ctx) => {
     numbers.push(...tokens.numbers);
     dates.push(...tokens.dates);
     for (const name of tokens.names) names.add(name);
+    // The first word is no name token (every sentence starts with a capital letter), but a fact that opens with the company it is about does state
+    // it: when the claims the fact cites ground the word, as they must for an analysis sentence that opens with it, an analysis sentence may name it.
+    if (tokens.initialWord !== undefined && !isSentenceStarter(tokens.initialWord)) {
+      const cited = [...new Set(item.sentence.claimIds)].flatMap((id) => byId.get(id) ?? []);
+      if (openingWordAccepted(tokens.initialWord, claimWords(cited), ctx.nameAllowList)) names.add(toNameToken(tokens.initialWord));
+    }
   }
 
   for (const item of analysis) {

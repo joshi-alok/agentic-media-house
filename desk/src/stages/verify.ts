@@ -75,7 +75,9 @@ export function problemsOf(draft: Draft, gate: GateResult, failures: readonly Ve
 /**
  * The reply that the composer must give to a revision: for some of the items it was sent, a new sentence or a new heading, by id. The reply
  * need not cover every item (an item it leaves out stays as it is, and fails again), but it may not rewrite an item it was not sent, rewrite one
- * twice, or give a heading a sentence or a sentence a heading. Strict at every level.
+ * twice, or give a heading a sentence or a sentence a heading. A fact stays a fact: the model check reads fact sentences and headings and never
+ * analysis, and the gate only limits what an analysis sentence introduces, so a fact that the model check rejected could otherwise come back as
+ * analysis and leave the piece unjudged. Analysis may become a fact (the model check then reads it). Strict at every level.
  */
 export function reviseReplySchema(items: readonly Pick<ReviseItem, 'id' | 'kind'>[]) {
   const entry = z.union([z.strictObject({ id: z.string(), sentence: ReplySentence }), z.strictObject({ id: z.string(), heading: z.string() })]);
@@ -90,7 +92,9 @@ export function reviseReplySchema(items: readonly Pick<ReviseItem, 'id' | 'kind'
             ? 'is rewritten twice'
             : 'sentence' in replacement === (item.kind === 'heading')
               ? 'is rewritten as the wrong kind of thing: a sentence for a heading or a heading for a sentence'
-              : undefined;
+              : item.kind === 'fact' && 'sentence' in replacement && replacement.sentence.kind !== 'fact'
+                ? 'is rewritten as another kind than it was: a fact stays a fact'
+                : undefined;
       seen.add(replacement.id);
       if (wrong !== undefined) context.addIssue({ code: 'custom', path: ['replacements', at, 'id'], message: `the item "${replacement.id}" ${wrong}` });
     });

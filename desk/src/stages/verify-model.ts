@@ -12,8 +12,12 @@ import type { StageContext } from './context';
 // that is missing fails, and a verdict for something that was not asked is refused: the verifier is held to the same rule as every other model,
 // that code decides what its answer means.
 
-/** The most tokens the reply may have: a verdict and a short reason for every item and every claim of a long piece. */
-export const VERIFY_MAX_OUTPUT_TOKENS = 8000;
+/**
+ * The most tokens the reply may have: a verdict and a short reason for every item and every claim of a long piece, and the thinking that comes before them.
+ * On the model that checks, thinking counts toward this limit (as with `EXTRACT_MAX_OUTPUT_TOKENS`), and a reply that is cut off at the limit is a `refused` error
+ * that ends the run, so the limit is generous (it was 8000).
+ */
+export const VERIFY_MAX_OUTPUT_TOKENS = 16000;
 
 /**
  * How hard the model may think while it judges whether a sentence is supported, unsupported or distorted: `medium`, because this is the one job where a second look

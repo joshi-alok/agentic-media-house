@@ -17,7 +17,11 @@ export const G4_CODES = [
   'G4_HEADING_QUOTE',
   'G4_HEADING_NAME',
   'G4_NUMBER_WORD_UNCHECKABLE',
+  'G4_FIGURE_UNSUPPORTED',
 ] as const;
+
+/** Does the word contain a digit? A name token that does mixes letters and digits (mid-2027, FY2027, 10x, Q3, IP67, FX-1). */
+const hasDigit = (word: string): boolean => /\d/u.test(word);
 
 /**
  * A number value of a claim in canonical form. The raw text is the authority:
@@ -55,15 +59,22 @@ const claimDate = (value: ClaimValue): string => parseDateToken(value.raw)?.iso 
  * `extractTokens`): a name that no claim lists is a note (G4_NAME_UNSUPPORTED),
  * not a blocker, and the model check judges whether the sentence is supported.
  *
+ * A word that mixes letters and digits (mid-2027, FY2027, 1H27, Q3, 2H, 10x, 2nd, IP67, FX-1) is read as a name too, but it is a date, a
+ * figure or a model number, and the reader reads those as names only because they have letters. A note would leave them to a model alone,
+ * so such a word is held to a stricter rule: it must be a word of a cited claim's quoted passage, name value or outlet (`claimWords`), or be
+ * on the allow-list, or it is a blocker (G4_FIGURE_UNSUPPORTED, never also G4_NAME_UNSUPPORTED). A name without a digit is unchanged.
+ *
  * The first word of a sentence is not read as a name, because every sentence starts with a capital letter; the model check
- * judges a name that opens a sentence like any other.
+ * judges a name that opens a sentence like any other. A first word that mixes letters and digits is not just a capital letter, so it is
+ * held to the rule for a figure-like word, as the first word of a heading is.
  *
  * Section headings are free text that no claim vouches for, so they are held
  * to a stricter rule than sentences: a heading may contain no number and no
  * date (G4_HEADING_NUMBER), no quoted passage (G4_HEADING_QUOTE), and no
  * capitalised word, the first one included, that is not a word of a claim cited in
  * its own section or on the allow-list (G4_HEADING_NAME; the first word may also be
- * a function word from SENTENCE_STARTERS).
+ * a function word from SENTENCE_STARTERS). A word of a heading that mixes letters and
+ * digits is a blocker when it is not such a word (G4_FIGURE_UNSUPPORTED), as in a sentence.
  *
  * Analysis and limitation sentences are not read here. Quoted text is G5's.
  */
@@ -121,13 +132,24 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
       }
     }
 
-    for (const name of tokens.names) {
-      if (!supportedNames.has(name) && !ctx.nameAllowList.has(name)) {
-        fail(
-          'G4_NAME_UNSUPPORTED',
-          `the capitalised word "${name}" at ${where} is not a name in any claim this sentence cites: list it as a name value, or write it in lowercase if it is an ordinary word in the middle of the sentence (the first word of a sentence keeps its capital letter)`,
-        );
+    // The first word of the sentence is read only when it has a digit: it is then a figure, not just a capital letter.
+    const opening = tokens.initialWord !== undefined && hasDigit(tokens.initialWord) ? [toNameToken(tokens.initialWord)] : [];
+    const evidence = claimWords(cited);
+    for (const name of new Set([...opening, ...tokens.names])) {
+      if (supportedNames.has(name) || ctx.nameAllowList.has(name)) continue;
+      if (hasDigit(name)) {
+        if (!evidence.has(name)) {
+          fail(
+            'G4_FIGURE_UNSUPPORTED',
+            `the figure-like word "${name}" at ${where} is not in any claim this sentence cites: write it as the claim's passage writes it, or leave it out`,
+          );
+        }
+        continue;
       }
+      fail(
+        'G4_NAME_UNSUPPORTED',
+        `the capitalised word "${name}" at ${where} is not a name in any claim this sentence cites: list it as a name value, or write it in lowercase if it is an ordinary word in the middle of the sentence (the first word of a sentence keeps its capital letter)`,
+      );
     }
   }
 
@@ -159,6 +181,13 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
       ...tokens.names.filter((name) => !words.has(name) && !ctx.nameAllowList.has(name)),
     ];
     for (const name of new Set(unsupported)) {
+      if (hasDigit(name)) {
+        fail(
+          'G4_FIGURE_UNSUPPORTED',
+          `the figure-like word "${name}" in the heading "${heading}" is not in any claim cited in this section: write it as the claim's passage writes it, or leave it out of the heading`,
+        );
+        continue;
+      }
       fail(
         'G4_HEADING_NAME',
         `the capitalised word "${name}" in the heading "${heading}" is not a word of any claim cited in this section: write it in lowercase if it is an ordinary word, or leave the name out of the heading`,

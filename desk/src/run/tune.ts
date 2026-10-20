@@ -13,6 +13,7 @@ import type { Snapshot } from '../stages/fetch';
 import { runVerify } from '../stages/verify';
 import type { VerifyResult } from '../stages/verify';
 import { verifyPlanOf } from '../stages/verify-model';
+import { writeFileAtomic } from './atomic';
 
 // `desk tune`: the first contact of the pipeline with a real model, and the tool for tuning what it is told. It takes a list of the addresses of real pages, fetches each one
 // as the Desk fetches (robots.txt honoured, the pace of the settings), says what kind of source the registry says it is, and sends it through Extract, Compose and Verify with
@@ -321,10 +322,18 @@ interface Page {
   selected: SelectArtifact;
 }
 
-/** One trial of a page: Extract, Compose and Verify, each only if the one before gave it something to work with, with a client of its own and the budget of a run. */
+/** The name of the file in the folder of a trial where the lines that the stages logged are kept. */
+export const TRIAL_LOG = 'log.txt';
+
+/**
+ * One trial of a page: Extract, Compose and Verify, each only if the one before gave it something to work with, with a client of its own and the budget of a run.
+ * What the stages log (`ctx.log`: counts and codes, the number of claims, what the gate said, which items went back) is kept in `log.txt` in the folder of the trial, one
+ * line to a line, whether the trial ended or failed.
+ */
 async function runTrial(options: TuneOptions, calls: CallCount, evidence: EvidenceStore, page: Page, trial: number, dir: string): Promise<TuneRow> {
   const built = options.buildClient((client) => new CallLimitClient(client, calls));
   const callsBefore = calls.used;
+  const logged: string[] = [];
   const ctx: StageContext = {
     date: options.date,
     config: options.config,
@@ -334,7 +343,7 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
     evidence,
     runDir: dir,
     published: emptyPublished(),
-    log: () => undefined,
+    log: (line) => void logged.push(line.replace(/[\r\n]+/g, ' ')),
     ...(options.profile === undefined ? {} : { profile: options.profile }),
   };
   const row = blank(page.snapshot.url, page.kind, trial);
@@ -357,6 +366,8 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
   } catch (error) {
     row.status = error instanceof CallLimitReached ? 'stopped' : 'failed';
     row.note = describeError(error);
+  } finally {
+    await writeFileAtomic(path.join(dir, TRIAL_LOG), logged.map((line) => `${line}\n`).join(''));
   }
   // The calls are those that reached the model, as the invocation counts them: a call that the budget of the invocation refused is not one. The tokens are what the model reported.
   const spent = built.spent();
@@ -389,7 +400,7 @@ async function prepare(options: TuneOptions, evidence: EvidenceStore, url: strin
 
 /**
  * Try every address, in order, and write what happened to `<runs folder>/tune/<stamp>/`: `tune.json` (the record, rewritten after each trial, so that what was done is kept
- * if the program stops), the artifacts of each trial in `<nn>/trial-<k>/`, and the pages in `evidence/`. The table is given to `out` a row at a time. When the budget of calls is spent
+ * if the program stops), the artifacts of each trial in `<nn>/trial-<k>/` with the `log.txt` of what its stages logged, and the pages in `evidence/`. The table is given to `out` a row at a time. When the budget of calls is spent
  * the invocation stops where it is, and the record says where; the rows so far are kept. Throws `TuneRefused` for the api client on the made-up world, before anything is written.
  */
 export async function runTune(options: TuneOptions): Promise<TuneResult> {
