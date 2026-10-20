@@ -12,6 +12,7 @@ import {
 } from '@robywire/gate';
 import type { GateInput } from '@robywire/gate';
 import { cloneGolden } from '@robywire/gate/fixtures';
+import { analysisLimit } from '../src/lib/copy';
 import { KNOWN_LIMITS, LIMITS_HEADING, LIMITS_INTRO } from '../src/lib/method';
 import type { KnownLimit } from '../src/lib/method';
 
@@ -245,9 +246,10 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
     const limit = withText(unchecked, 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default');
     expect(limit.text).toContain('(a piece above that is noted, not stopped)');
     expect(limit.text).not.toContain('up to a fifth');
-    expect(limit.text).toContain('and then by the model check, which refuses one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support');
-    expect(limit.text).not.toContain('by no model');
-    expect(limit.text).toContain('A model can miss one, and a judgement or a consequence that the passages plainly support is allowed by design, so an analysis sentence can still be wrong in a way that no rule sees; the page labels it Analysis.');
+    expect(limit.text).toContain('are checked by code for where they stand and for the numbers, dates and names they bring in');
+    expect(limit.text).toContain('the page labels it Analysis.');
+    // What the model check does with analysis depends on whether it runs, so copy.ts writes it (analysisLimit) and copy.test.ts says it for every setting.
+    expect(limit.text).toBe(analysisLimit());
     // The example is an analysis sentence that the code lets through and that only the model check judges: it is a judgement, not a figure, a name or a new fact.
     expect(limit.example).toBe('The delivery schedule matters more than the price.');
     const input = cloneGolden();

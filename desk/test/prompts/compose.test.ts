@@ -77,7 +77,7 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain(`Begin every analysis sentence with a capital letter or a digit, and with one of these words: ${SENTENCE_STARTERS.join(', ')};`);
     expect(COMPOSE_INSTRUCTIONS).toContain('or with a word that appears in the quoted passage, the name values or the outlet of a claim it cites (not in its text or label).');
     expect(COMPOSE_INSTRUCTIONS).toContain(
-      'The Desk checks it by code, and a second model reads every analysis sentence beside the passages of the claims it cites and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support.',
+      'The Desk checks it by code, and a second model reads every analysis sentence beside the passages of the claims it cites and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support, so cite every claim the sentence rests on.',
     );
     expect(COMPOSE_INSTRUCTIONS).not.toContain('No model reads analysis');
     expect(COMPOSE_INSTRUCTIONS).not.toContain('ordinary word');

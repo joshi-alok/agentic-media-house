@@ -1,5 +1,6 @@
 import { defaultConfig } from '@robywire/gate';
 import type { CheckId, GateConfig } from '@robywire/gate';
+import { analysisLimit } from './copy';
 
 // The words of the method page that a test needs to reach: the nine rules of
 // the gate, whose numbers come from the gate's own configuration, the known
@@ -106,7 +107,7 @@ export const LIMITS_INTRO =
 
 /**
  * What the code cannot see, and where it refuses more than it should. The limit that meaning is not checked is
- * written in copy.ts, because who checks it is a matter of what is live.
+ * written in copy.ts, because who checks it is a matter of what is live; so is the part of the limit about analysis that depends on the model check (`analysisLimit`).
  */
 export const KNOWN_LIMITS: readonly KnownLimit[] = [
   {
@@ -176,7 +177,7 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'unchecked',
-    text: 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in, and then by the model check, which refuses one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support. A model can miss one, and a judgement or a consequence that the passages plainly support is allowed by design, so an analysis sentence can still be wrong in a way that no rule sees; the page labels it Analysis.',
+    text: analysisLimit(),
     example: 'The delivery schedule matters more than the price.',
   },
   {

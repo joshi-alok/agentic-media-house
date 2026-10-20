@@ -1,4 +1,4 @@
-import { allSentences } from '@robywire/gate';
+import { allSentences, citedClaims } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
 import { VERIFY_INSTRUCTIONS, buildVerifyUser } from '../../src/prompts/verify';
@@ -23,6 +23,9 @@ describe('verifyPlanOf: analysis', () => {
   });
 
   it('gives an analysis sentence the claims it cites, and every claim the piece cites when it cites none', () => {
+    const own = analysis[0]!.sentence.claimIds;
+    expect(own.length).toBeGreaterThan(0);
+    expect(PLAN.sentences.find((item) => item.id === `s${analysis[0]!.index}`)?.claimIds).toEqual([...new Set(own)]);
     const draft = structuredClone(GOLDEN_DRAFT);
     const first = allSentences(draft).find((item) => item.sentence.kind === 'analysis')!;
     first.sentence.claimIds = [];
@@ -41,9 +44,12 @@ describe('the prompt for an analysis item', () => {
   });
 
   it('tells the verifier what entailed means for analysis', () => {
-    expect(VERIFY_INSTRUCTIONS).toContain("An item shown as Analysis is the Desk's own reading, not a statement of a source.");
+    expect(VERIFY_INSTRUCTIONS).toContain('For an item shown as Analysis, the test for "entailed" above is replaced by this one: it is the Desk\'s own reading, not a statement of a source.');
     expect(VERIFY_INSTRUCTIONS).toContain('adds no entity, event, figure, date, quotation or claim of fact that the passages it relies on do not support');
-    expect(VERIFY_INSTRUCTIONS).toContain('For an Analysis item, "missing" lists the entities, events, figures, dates, quotations or claims of fact that it adds');
+    expect(VERIFY_INSTRUCTIONS).toContain(
+      'For an Analysis item, "missing" lists each thing that makes it not entailed: what it adds (an entity, an event, a figure, a date, a quotation or a claim of fact), what it states more strongly than the passages, a prediction it presents as certain, or advice to buy, sell or hold.',
+    );
+    expect(VERIFY_INSTRUCTIONS).toContain('so "missing" is empty and the verdict is "entailed"');
   });
 });
 
@@ -55,10 +61,13 @@ describe('aggregateVerdicts: analysis', () => {
   });
 
   it('counts facts, analysis and headings in the note of a pass', () => {
-    const facts = PLAN.sentences.filter((item) => item.kind === 'fact').length;
-    const reading = PLAN.sentences.length - facts;
+    // The counts come from the draft, not from the plan whose items are being counted.
+    const facts = located.filter((item) => item.sentence.kind === 'fact').length;
+    const reading = analysis.length;
+    const headings = GOLDEN_DRAFT.sections.filter((section) => section.paragraphs.flat().length > 0).length;
+    expect(reading).toBeGreaterThan(0);
     expect(aggregateVerdicts('m', PLAN, verifierReply(PLAN)).verifier.notes).toEqual([
-      `Judged ${facts} fact sentences, ${reading} analysis sentences and ${PLAN.headings.length} headings against the passages they rely on, and the basis and the status of ${PLAN.claims.length} claims; every one was supported.`,
+      `Judged ${facts} fact sentences, ${reading} analysis sentences and ${headings} headings against the passages they rely on, and the basis and the status of ${citedClaims(GOLDEN_DRAFT, GOLDEN_CLAIMS).length} claims; every one was supported.`,
     ]);
   });
 });

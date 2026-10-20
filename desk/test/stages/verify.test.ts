@@ -238,6 +238,33 @@ describe('runVerify: a draft that the gate passes and the verifier does not', ()
     expect(user).not.toContain('Fixture Robotics begins');
   });
 
+  it('sends back an analysis sentence that the model check rejects as an analysis item, which the composer mends with a new analysis sentence, and publishes in round 1', async () => {
+    const analysis = 'The stated use of the funds matches the production plan that the company describes.';
+    const { ctx, fake, claims, composed } = await start();
+    const id = idOf(composed.draft, analysis);
+    const original = allSentences(composed.draft)[Number(id.slice(1))]?.sentence;
+    expect(original).toMatchObject({ kind: 'analysis', text: analysis });
+    const cited = original?.claimIds ?? [];
+    expect(cited.length).toBeGreaterThan(0);
+    const mended = { kind: 'analysis' as const, text: 'The stated use of the funds fits the production plan that the company describes.', claimIds: cited };
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } }), CLEARS());
+    fake.script('compose', rewriting(id, mended));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('publish');
+    expect(result.rounds).toBe(1);
+    expect(callsOf(fake, 'verify')).toHaveLength(2);
+    // The verifier was shown the sentence as Analysis, the composer was shown it as an analysis item with the reason, and the new sentence is analysis again.
+    expect(outsideBlocks(callsOf(fake, 'verify')[0]?.user ?? '')).toContain(`Analysis ${id} (`);
+    const user = callsOf(fake, 'compose')[1]?.user ?? '';
+    expect(blocksOf(user).filter((block) => !block.id.startsWith('c-')).map((block) => block.id)).toEqual([id, `${id}-problems`]);
+    expect(outsideBlocks(user)).toContain(`Item ${id} (an analysis sentence, a section, citing ${cited.join(', ')}):`);
+    expect(blocksOf(user).find((block) => block.id === `${id}-problems`)?.text).toContain('the model check judged it not entailed by the passages it relies on');
+    expect(allSentences(result.draft)[Number(id.slice(1))]?.sentence).toEqual(mended);
+    expect(result.history[0]).toMatchObject({ round: 0, sent: [id], verifier: { passed: false }, verifierFailures: [{ id, kind: 'sentence', code: 'not_entailed' }] });
+    expect(result.history[0]?.gate.route).toBe('publish');
+    expect(result.history[1]).toMatchObject({ round: 1, sent: [], verifier: { passed: true }, verifierFailures: [] });
+  });
+
   it('is sent back for a heading that the verifier does not clear', async () => {
     const { ctx, fake, claims, composed } = await start();
     fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { h1: 'ambiguous' } }), CLEARS());

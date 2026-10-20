@@ -61,7 +61,7 @@ export function composeRules(config: GateConfig = GATE): string[] {
     '- (blocks) Never use analysis in the title or the description.',
     `- (noted) At most ${analysisPercent} per cent of the sentences of the piece may be analysis.`,
     '- (blocks) An analysis sentence may not contain a number or a date that no fact sentence of the piece contains, or a word that states an amount without a figure.',
-    `- (blocks) An analysis sentence names only what a fact sentence of the piece names. Begin every analysis sentence with a capital letter or a digit, and with one of these words: ${SENTENCE_STARTERS.join(', ')}; or with a word that appears in the quoted passage, the name values or the outlet of a claim it cites (not in its text or label). The Desk checks it by code, and a second model reads every analysis sentence beside the passages of the claims it cites and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support.`,
+    `- (blocks) An analysis sentence names only what a fact sentence of the piece names. Begin every analysis sentence with a capital letter or a digit, and with one of these words: ${SENTENCE_STARTERS.join(', ')}; or with a word that appears in the quoted passage, the name values or the outlet of a claim it cites (not in its text or label). The Desk checks it by code, and a second model reads every analysis sentence beside the passages of the claims it cites and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support, so cite every claim the sentence rests on.`,
     '- (blocks) An analysis sentence may cite only claims from a primary source.',
     '',
     'Claims from another outlet:',

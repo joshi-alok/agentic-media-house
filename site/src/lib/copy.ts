@@ -117,6 +117,19 @@ export function scoreboardCaveat(live: Live = LIVE): string {
     : `${start} The independent model check is not part of it; that check is not running yet, and its accuracy will be measured on its own labelled set.`;
 }
 
+/**
+ * The known limit about analysis: what code checks of an analysis sentence, what the model check does with it once the check runs, and what no rule sees.
+ * The method page lists it among the known limits, with the example that known-limits.test.ts shows with the real gate.
+ */
+export function analysisLimit(live: Live = LIVE): string {
+  const code =
+    'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in,';
+  const adds = 'one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support.';
+  const missed =
+    'A model can miss one, and a judgement or a consequence that the passages plainly support is allowed by design, so an analysis sentence can still be wrong in a way that no rule sees; the page labels it Analysis.';
+  return live.verifier ? `${code} and then by the model check, which refuses ${adds} ${missed}` : `${code} and then, once it runs (it is not running yet), by the model check, which will refuse ${adds} ${missed}`;
+}
+
 /** The last of the known limits of the checks: what no rule of code can see. */
 export function meaningLimit(live: Live = LIVE): string {
   const start =

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  analysisLimit,
   deskIntro,
   disclosure,
   gateIntro,
@@ -462,6 +463,35 @@ describe('neverDoes', () => {
   });
 });
 
+describe('analysisLimit', () => {
+  const START =
+    'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in,';
+  const ADDS = 'one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support.';
+  const MISSED =
+    'A model can miss one, and a judgement or a consequence that the passages plainly support is allowed by design, so an analysis sentence can still be wrong in a way that no rule sees; the page labels it Analysis.';
+  const OFF = `${START} and then, once it runs (it is not running yet), by the model check, which will refuse ${ADDS} ${MISSED}`;
+  const ON = `${START} and then by the model check, which refuses ${ADDS} ${MISSED}`;
+
+  it.each(CASES)('gives the model check in the tense of its flag (%s)', (_name, live) => {
+    expect(analysisLimit(live)).toBe(live.verifier ? ON : OFF);
+  });
+
+  it.each(CASES)('says what no rule sees, whether or not the model check runs (%s)', (_name, live) => {
+    expect(analysisLimit(live)).toContain(MISSED);
+    expect(analysisLimit(live)).not.toContain('by no model');
+  });
+
+  it('says the model check is not running yet only while it is not', () => {
+    expect(analysisLimit(NONE)).toContain('(it is not running yet)');
+    expect(analysisLimit(ALL)).not.toContain('not running yet');
+    expect(analysisLimit(ALL)).not.toContain('will refuse');
+  });
+
+  it('is the text the method page shows by default', () => {
+    expect(analysisLimit()).toBe(analysisLimit(LIVE));
+  });
+});
+
 // --- Where the copy may be written ---------------------------------------------------
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
@@ -503,6 +533,7 @@ describe('the source of the site', () => {
     ['the record the Desk keeps of its own runs', /record the Desk keeps/i],
     ['what the Desk never does', /\bIt (?:contacts no one|does not republish its sources|uses no photographs|does not rewrite another outlet|does not publish a sentence)/],
     ['the sources the Desk writes from', /The Desk writes from tier 1 sources|never states a fact on that authority|the Desk does not rewrite a competitor/i],
+    ['what the model check does with analysis', /by the model check, which (?:will )?refuses? one that adds/],
   ])('has no file that writes a sentence about %s outside copy.ts and live.ts', (_what, pattern) => {
     const found = files.filter((file) => pattern.test(readFileSync(file, 'utf8'))).map((file) => path.relative(SRC, file));
     expect(found).toEqual([]);
