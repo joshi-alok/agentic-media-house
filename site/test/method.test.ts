@@ -400,6 +400,23 @@ describe('the README: blockers and notes, and another outlet', () => {
     expect(readme).not.toContain('so the gate holds it (`TIER2_ATTRIBUTION`)');
   });
 
+  it('says what the gate checks of analysis and that its share is only noted, and no longer that a cap limits the exposure', () => {
+    const start = readme.indexOf('- **Analysis sentences.**');
+    const bullet = readme.slice(start, readme.indexOf('\n', start));
+    expect(start).toBeGreaterThan(0);
+    // The strings that desk/test/readme.test.ts pins stay.
+    expect(bullet).toContain('**Analysis sentences.**');
+    expect(bullet).toContain('the model check (G10) is never asked about them');
+    expect(bullet).toContain('where they stand (not in the title or the description)');
+    expect(bullet).toContain('the numbers, dates, words of amount and names they bring in that no factual sentence contains');
+    expect(bullet).toContain('with a capital letter or a digit, and with a function word or a word of the quoted passage, the name values or the outlet of a claim they cite');
+    expect(bullet).toContain('The share of the body that analysis takes (a fifth by default) is only noted on the receipts page, and the gate does not stop a piece for it.');
+    expect(bullet).toContain('The page labels every analysis sentence, and the receipts page notes a piece whose analysis goes over the target share; that shows the exposure and does not remove it.');
+    expect(bullet).not.toContain('Up to a fifth of the sentences of a piece may be');
+    expect(bullet).not.toContain('The share cap is what limits the exposure');
+    expect(bullet).not.toContain('how many there are');
+  });
+
   it('documents --profile of the tuning harness, and the words and the notes of each draft', () => {
     expect(readme).toContain('**The profile.** `--profile brief|digest|explainer` judges the drafts against the ranges of a kind of piece');
     expect(readme).toContain('and tells the writer the same ranges');

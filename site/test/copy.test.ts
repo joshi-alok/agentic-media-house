@@ -26,6 +26,8 @@ import {
 import { LIVE } from '../src/lib/live';
 import type { Live } from '../src/lib/live';
 import { releaseNote } from '../src/lib/receipts';
+import { defaultContext, runGate } from '@robywire/gate';
+import { cloneGolden } from '@robywire/gate/fixtures';
 
 // The Desk is not running in Plan 1, and a page that says it is would be a lie. Every
 // sentence of the site whose tense depends on a part of the Desk being live is written
@@ -313,12 +315,36 @@ describe('scoreboardCaveat', () => {
 
 describe('meaningLimit', () => {
   const START =
-    'Meaning is not checked by code. The checks make sure that every figure, name and quotation in a sentence comes from a claim the sentence cites, not that the sentence says what the claim says, or that a paraphrase is fair.';
+    'Meaning is not checked by code. The checks make sure that every figure (a number or a date) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists; they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
   const OFF = `${START} That will be the job of the independent model check, which is not running yet.`;
   const ON = `${START} That is the job of the independent model check.`;
 
   it.each(CASES)('hands meaning to the model check, in the tense of its flag (%s)', (_name, live) => {
     expect(meaningLimit(live)).toBe(live.verifier ? ON : OFF);
+  });
+
+  it.each([NONE, ALL])('does not say that the checks make sure of a name, because a name that no cited claim lists is only noted', (live) => {
+    expect(meaningLimit(live)).not.toContain('figure, name and quotation');
+    expect(meaningLimit(live)).toContain('they note a name in a factual sentence that no cited claim lists');
+  });
+
+  // What the sentence says the checks do is what the gate does: a figure and a quotation that no cited claim has send a piece back, a name is noted.
+  it('is true of the gate: a number and a quotation that no cited claim has are blockers, and a name that no cited claim lists is a note', () => {
+    const codesOf = (change: (input: ReturnType<typeof cloneGolden>) => void) => {
+      const input = cloneGolden();
+      change(input);
+      const result = runGate(input, defaultContext());
+      return { failures: result.failures.map((failure) => failure.code), notes: result.warnings.map((note) => note.code) };
+    };
+    const number = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant shipped 77 arms.'; });
+    expect(number.failures).toContain('G4_NUMBER_UNSUPPORTED');
+    const date = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant shipped arms on 3 March 2019.'; });
+    expect(date.failures).toContain('G4_DATE_UNSUPPORTED');
+    const quote = codesOf((input) => { input.draft.takeaways[0]!.text = 'The company said "every arm ships free".'; });
+    expect(quote.failures).toContain('G5_QUOTE_NOT_VERBATIM');
+    const name = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant is the second Harlow plant to receive arms.'; });
+    expect(name.failures).not.toContain('G4_NAME_UNSUPPORTED');
+    expect(name.notes).toContain('G4_NAME_UNSUPPORTED');
   });
 });
 

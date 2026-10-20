@@ -120,7 +120,7 @@ export function scoreboardCaveat(live: Live = LIVE): string {
 /** The last of the known limits of the checks: what no rule of code can see. */
 export function meaningLimit(live: Live = LIVE): string {
   const start =
-    'Meaning is not checked by code. The checks make sure that every figure, name and quotation in a sentence comes from a claim the sentence cites, not that the sentence says what the claim says, or that a paraphrase is fair.';
+    'Meaning is not checked by code. The checks make sure that every figure (a number or a date) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists; they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
   return live.verifier ? `${start} That is the job of the independent model check.` : `${start} That will be the job of the independent model check, which is not running yet.`;
 }
 
