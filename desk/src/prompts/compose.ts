@@ -1,4 +1,4 @@
-import { CATEGORY_VOCAB, PUBLICATION_NAME, defaultConfig as defaultGateConfig, profileOverrides } from '@robywire/gate';
+import { CATEGORY_VOCAB, PUBLICATION_NAME, SENTENCE_STARTERS, defaultConfig as defaultGateConfig, profileOverrides } from '@robywire/gate';
 import type { Claim, GateConfig, LedgerSection, ProfileId } from '@robywire/gate';
 import { systemPrompt, wrapSource } from '../index';
 import { PLACE, provenance } from './words';
@@ -24,37 +24,43 @@ const SENTENCES = [
   'Write plain sentences: no markdown, no HTML, no links. The Desk writes the slug, the date, the author and the section "What we couldn\'t verify" itself. Do not write them.',
 ];
 
-/** How the number of takeaways is said: a digest has none. */
+/** Who the writer is told it is: the same line for a draft and for the revision of one. */
+const WRITER = `You are the writer of ${PUBLICATION_NAME}, a publication whose every factual sentence traces to a passage of a source.`;
+
+/** How the number of takeaways is said: a digest has none, a brief has none or up to some, an explainer has a range. */
 function takeawayWords(range: { min: number; max: number }): string {
-  return range.max === 0 ? 'There are no takeaways.' : `There are ${range.min} to ${range.max} takeaways.`;
+  if (range.max === 0) return 'There are no takeaways.';
+  return range.min === 0 ? `There are up to ${range.max} takeaways.` : `There are ${range.min} to ${range.max} takeaways.`;
 }
 
 /** The rules of the gate in plain words, with the numbers of `config`, each marked as one that blocks or one that is noted. The prompt of a draft and the prompt of its revision both give them. */
 export function composeRules(config: GateConfig = GATE): string[] {
   const analysisPercent = Math.round(config.analysisShareCap * 100);
   return [
-    'The Desk checks every rule below by code. A rule marked (blocks) sends a sentence back to you when it is broken. A rule marked (noted) is recorded on the page of the piece and does not stop it: follow it all the same.',
+    'The Desk checks the rules below by code, and a second model reads the facts. A rule marked (blocks) sends a sentence back to you when it is broken. A rule marked (noted) is recorded on the page of the piece and does not stop it: follow it all the same.',
     '',
     'Facts:',
     '- (blocks) Every fact sentence cites at least one claim. The title and the description are fact sentences.',
     '- (blocks) Every number, date and amount in a fact sentence must be one of the values of a claim that the sentence cites. A claim licenses only the values listed for it, not every word of its text.',
-    '- (blocks) Write figures as digits. A number written in words is checked like a number written in digits.',
-    '- (noted) Never use a word that states an amount without a figure: half, twice, double, doubled, tenfold, a third and the like. Give the figure and cite the claim that has it. If the claim states a period such as "the first half of 2027", write it as a quotation, word for word, in double quotation marks, or write the year alone.',
+    '- (blocks) A number written in words is checked like a number written in digits. Write figures as digits.',
+    '- (noted in a fact sentence; it blocks in analysis and in a heading) Never use a word that states an amount without a figure: half, twice, double, doubled, tenfold, a third and the like. Give the figure and cite the claim that has it. If the claim states a period such as "the first half of 2027", write it as a quotation, word for word, in double quotation marks, or write the year alone.',
     '- (blocks) A passage in double quotation marks must be word for word inside the quoted passage of a claim that the sentence cites. Do not use quotation marks for anything else.',
-    '- (noted) Name a person, company, product or place only if a claim that the sentence cites names it. A second model reads every fact sentence beside the passages it cites, and the piece is held when a sentence says more than they say.',
+    '- (noted) Name a person, company, product or place only if a claim that the sentence cites names it. A second model reads every fact sentence beside the passages it cites; a sentence it rejects is sent back to you, and the piece is held if it is still rejected after the rounds of revision.',
     '',
     'Headings:',
     '- (blocks) A heading has no number, no date and no quotation.',
+    '- (blocks) A heading is never "Key takeaways" or "What we couldn\'t verify": the Desk writes those.',
     `- (noted) A heading is a statement of at most ${config.headingMax} characters, never a question.`,
     '- (noted) A heading names nothing that the claims cited in its section do not.',
-    '- (blocks) Write at least two sections, each with a heading. Do not leave a section with no sentences, and do not give two neighbouring sections the same heading.',
+    '- (blocks; it cannot be revised, the piece is held) Write at least two sections, each with a heading.',
+    '- Do not leave a section with no sentences, and do not give two neighbouring sections the same heading. The page would show them wrongly.',
     '',
     'Analysis:',
     '- An analysis sentence is your own reading of the facts. It starts with no label: the Desk labels it. Use it where it helps the reader understand why a fact matters.',
     '- (blocks) Never use analysis in the title or the description.',
     `- (noted) At most ${analysisPercent} per cent of the sentences of the piece may be analysis.`,
-    '- (blocks) An analysis sentence may not contain a number or a date that no fact sentence of the piece contains.',
-    '- (blocks) An analysis sentence names nothing that no fact sentence of the piece names. It starts with an ordinary word, or with a word that a claim it cites contains. Begin every analysis sentence with a capital letter or a digit. No model reads analysis, so the Desk checks it by code.',
+    '- (blocks) An analysis sentence may not contain a number or a date that no fact sentence of the piece contains, or a word that states an amount without a figure.',
+    `- (blocks) An analysis sentence names only what a fact sentence of the piece names. Begin every analysis sentence with a capital letter or a digit, and with one of these words: ${SENTENCE_STARTERS.join(', ')}; or with a word that appears in the quoted passage, the name values or the outlet of a claim it cites (not in its text or label). No model reads analysis, so the Desk checks it by code.`,
     '- (blocks) An analysis sentence may cite only claims from a primary source.',
     '',
     'Claims from another outlet:',
@@ -75,11 +81,11 @@ export const COMPOSE_RULES: readonly string[] = composeRules(GATE);
 /** What the model is told to do, and what each part of its reply means, for a kind of piece. The client adds the JSON Schema of the reply to it. */
 export function composeInstructions(config: GateConfig = GATE): string {
   return [
-    `You are the writer of ${PUBLICATION_NAME}, a publication whose every factual sentence traces to a passage of a source.`,
+    WRITER,
     'You are given claims, each with an id, a text, a label, a quoted passage from its source and the values (numbers, dates and names) that it licenses. You write one piece from them, as sentences that cite claim ids. You write nothing that the claims do not support, and you add nothing from what you know.',
     '',
     'Reply with a JSON object with these fields:',
-    `- "categories": one to three of: ${CATEGORY_VOCAB.join(', ')}. At least one must be a beat (any of them except funding). Use funding only together with a beat.`,
+    `- "categories": one to three of: ${CATEGORY_VOCAB.join(', ')}. At least one must be a beat (any of them except funding). Use funding only together with a beat. (blocks; it cannot be revised, the piece is held)`,
     '- "title" and "description": one sentence each.',
     '- "opening": the opening paragraph, a list of sentences.',
     config.takeaways.max === 0 ? '- "takeaways": leave it as an empty list.' : '- "takeaways": the key takeaways, a list of sentences, each one a bullet.',
@@ -125,7 +131,7 @@ export function buildComposeUser(claims: readonly Claim[], date: string): string
  */
 export const reviseInstructions = (config: GateConfig = GATE): string =>
   [
-    `You are the writer of ${PUBLICATION_NAME}, a publication whose every factual sentence traces to a passage of a source.`,
+    WRITER,
     'You wrote a piece from claims, and it was checked. Some of its sentences and headings were found wanting. You are given the claims again, and only the items that failed. Each item is in a block with an id that starts with s (a sentence) or h (a heading), and the problems found in it are in the block that follows. Rewrite each item so that none of its problems remains and so that it breaks none of the rules below. Keep what was right in it. You are not given the rest of the piece, so do not try to change anything else.',
     '',
     'Reply with a JSON object with one field, "replacements", a list with one entry for each item you rewrite:',

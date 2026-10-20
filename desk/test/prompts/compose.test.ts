@@ -1,4 +1,4 @@
-import { CATEGORY_VOCAB, defaultConfig as gateDefaults } from '@robywire/gate';
+import { CATEGORY_VOCAB, SENTENCE_STARTERS, defaultConfig as gateDefaults } from '@robywire/gate';
 import { GOLDEN_CLAIMS, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
 import { COMPOSE_INSTRUCTIONS, COMPOSE_RULES, REVISE_INSTRUCTIONS, buildComposeUser, buildReviseUser, composeInstructions, composeRules, composeSystem, reviseSystem } from '../../src/prompts/compose';
@@ -33,6 +33,10 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('Use funding only together with a beat.');
   });
 
+  it('says that a draft with no beat, or with funding alone, is held at once: the categories belong to no sentence, so there is nothing to revise', () => {
+    expect(COMPOSE_INSTRUCTIONS).toContain('Use funding only together with a beat. (blocks; it cannot be revised, the piece is held)');
+  });
+
   it('says that every fact sentence cites a claim and that every number, date and amount must be a value of a cited claim', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('Every fact sentence cites at least one claim.');
     expect(COMPOSE_INSTRUCTIONS).toContain('Every number, date and amount in a fact sentence must be one of the values of a claim that the sentence cites.');
@@ -55,18 +59,31 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('Do not leave a section with no sentences, and do not give two neighbouring sections the same heading.');
   });
 
+  it('says that the headings the Desk writes itself are not for the composer, and that the number of sections cannot be revised', () => {
+    expect(COMPOSE_INSTRUCTIONS).toContain('- (blocks) A heading is never "Key takeaways" or "What we couldn\'t verify": the Desk writes those.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('- (blocks; it cannot be revised, the piece is held) Write at least two sections, each with a heading.');
+  });
+
   it('says the rules of analysis: never in the title or the description, at most the gate\'s share, nothing new, no claim of another outlet', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('Never use analysis in the title or the description.');
     expect(COMPOSE_INSTRUCTIONS).toContain(`At most ${GATE.analysisShareCap * 100} per cent of the sentences of the piece may be analysis.`);
-    expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence may not contain a number or a date that no fact sentence of the piece contains.');
-    expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence names nothing that no fact sentence of the piece names.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence may not contain a number or a date that no fact sentence of the piece contains, or a word that states an amount without a figure.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence names only what a fact sentence of the piece names.');
     expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence may cite only claims from a primary source.');
   });
 
-  it('keeps for analysis, which no model reads, the rules of its first word: a capital letter or a digit, then an ordinary word or a word of a cited claim', () => {
-    expect(COMPOSE_INSTRUCTIONS).toContain('- (blocks) An analysis sentence names nothing that no fact sentence of the piece names.');
-    expect(COMPOSE_INSTRUCTIONS).toContain('Begin every analysis sentence with a capital letter or a digit.');
-    expect(COMPOSE_INSTRUCTIONS).toContain('It starts with an ordinary word, or with a word that a claim it cites contains');
+  it('keeps for analysis, which no model reads, the rule of its first word: a capital letter or a digit, then a word of the gate\'s closed list or a word of the quoted passage, the names or the outlet of a cited claim', () => {
+    expect(COMPOSE_INSTRUCTIONS).toContain('- (blocks) An analysis sentence names only what a fact sentence of the piece names.');
+    expect(COMPOSE_INSTRUCTIONS).toContain(`Begin every analysis sentence with a capital letter or a digit, and with one of these words: ${SENTENCE_STARTERS.join(', ')};`);
+    expect(COMPOSE_INSTRUCTIONS).toContain('or with a word that appears in the quoted passage, the name values or the outlet of a claim it cites (not in its text or label).');
+    expect(COMPOSE_INSTRUCTIONS).toContain('No model reads analysis, so the Desk checks it by code.');
+    expect(COMPOSE_INSTRUCTIONS).not.toContain('ordinary word');
+    expect(COMPOSE_INSTRUCTIONS).not.toContain('names nothing that no fact sentence');
+  });
+
+  it('says that a word that states an amount without a figure blocks in analysis and in a heading, and is only noted in a fact sentence', () => {
+    expect(COMPOSE_INSTRUCTIONS).toContain('- (noted in a fact sentence; it blocks in analysis and in a heading) Never use a word that states an amount without a figure: half, twice, double, doubled, tenfold, a third and the like.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('- (blocks) An analysis sentence may not contain a number or a date that no fact sentence of the piece contains, or a word that states an amount without a figure.');
   });
 
   it('says that a claim from another outlet is only ever reported, as an attributed fact that names the outlet', () => {
@@ -300,6 +317,40 @@ describe('composeRules: what blocks and what is noted', () => {
     expect(text).toContain('- (noted) Name a person, company, product or place only if a claim that the sentence cites names it');
     expect(text).toContain('- (noted) A heading is a statement');
     expect(text).toContain('- (noted) Do not use these phrases anywhere');
+  });
+
+  it('does not mark a rule that no code checks as one that blocks, and says that the piece is shown wrongly', () => {
+    const rules = composeRules();
+    const line = rules.find((rule) => rule.includes('Do not leave a section with no sentences'))!;
+    expect(line).not.toContain('(blocks');
+    expect(line).not.toContain('(noted');
+    expect(line).toBe('- Do not leave a section with no sentences, and do not give two neighbouring sections the same heading. The page would show them wrongly.');
+  });
+
+  it('says in the legend that a second model reads the facts, and writes the figures rule with the check first', () => {
+    const rules = composeRules();
+    expect(rules[0]).toContain('The Desk checks the rules below by code, and a second model reads the facts.');
+    expect(rules[0]).not.toContain('checks every rule below by code');
+    expect(rules).toContain('- (blocks) A number written in words is checked like a number written in digits. Write figures as digits.');
+  });
+
+  it('says what happens to a fact sentence that the second model rejects', () => {
+    const text = composeRules().join('\n');
+    expect(text).toContain('A second model reads every fact sentence beside the passages it cites; a sentence it rejects is sent back to you, and the piece is held if it is still rejected after the rounds of revision.');
+    expect(text).not.toContain('and the piece is held when a sentence says more than they say');
+  });
+
+  it('says how many takeaways there are: none, up to a number, or a range', () => {
+    expect(composeRules({ ...GATE, takeaways: { min: 0, max: 0 } }).join('\n')).toContain('There are no takeaways.');
+    expect(composeRules({ ...GATE, takeaways: { min: 0, max: 5 } }).join('\n')).toContain('There are up to 5 takeaways.');
+    expect(composeRules({ ...GATE, takeaways: { min: 0, max: 5 } }).join('\n')).not.toContain('0 to 5');
+    expect(composeRules({ ...GATE, takeaways: { min: 3, max: 5 } }).join('\n')).toContain('There are 3 to 5 takeaways.');
+    expect(composeSystem('brief')).toContain('There are up to 5 takeaways.');
+  });
+
+  it('opens the prompt of the draft and the prompt of the revision with the same line', () => {
+    expect(REVISE_INSTRUCTIONS.split('\n')[0]).toBe(COMPOSE_INSTRUCTIONS.split('\n')[0]);
+    expect(COMPOSE_INSTRUCTIONS.split('\n')[0]).toContain('a publication whose every factual sentence traces to a passage of a source.');
   });
 
   it('has no rule about the first word of a fact sentence', () => {
