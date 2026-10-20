@@ -8,9 +8,9 @@ export interface CaseResult {
   id: string;
   check: CheckId;
   code: string;
-  /** True when the gate reported a failure from `check` with `code`. */
+  /** True when the gate reported a finding from `check` with `code`, as a blocker or as a note. */
   caught: boolean;
-  /** Every distinct failure code the gate reported for the broken piece, in order. */
+  /** Every distinct code the gate reported for the broken piece, in order, blockers and notes alike. */
   gotCodes: string[];
 }
 
@@ -34,13 +34,14 @@ export function runSeeded(checks: readonly Check[] = ALL_CHECKS, cases: readonly
   const baselinePasses = runGateWith(checks, cloneGolden(), seededContext()).route === 'publish';
 
   const results = cases.map((item): CaseResult => {
-    const { failures } = runGateWith(checks, item.apply(cloneGolden()), seededContext());
+    const result = runGateWith(checks, item.apply(cloneGolden()), seededContext());
+    const reported = [...result.failures, ...result.warnings];
     return {
       id: item.id,
       check: item.check,
       code: item.code,
-      caught: failures.some((failure) => failure.check === item.check && failure.code === item.code),
-      gotCodes: [...new Set(failures.map((failure) => failure.code))],
+      caught: reported.some((finding) => finding.check === item.check && finding.code === item.code),
+      gotCodes: [...new Set(reported.map((finding) => finding.code))],
     };
   });
 

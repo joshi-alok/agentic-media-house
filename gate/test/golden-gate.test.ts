@@ -25,6 +25,10 @@ describe('the public API of @robywire/gate', () => {
     'checkG9',
     'ALL_FAILURE_CODES',
     'HOLD_REASONS',
+    // severity
+    'NOTE_CODES',
+    'SEVERITIES',
+    'severityOf',
     // slugs and titles
     'disambiguateSlug',
     'titleTokens',

@@ -56,7 +56,7 @@ describe('holdReasonsOf', () => {
 
   it('names each failure of the model check by one of the reasons of the gate package: not entailed, ambiguous, a label that is not supported, and no verdict', () => {
     const { verifier } = { verifier: { model: 'm', passed: false, notes: ['n'] } };
-    const gate = { route: 'publish' as const, failures: [], holdReasons: [], checks: {} as VerifyResult['gate']['checks'] };
+    const gate = { route: 'publish' as const, failures: [], warnings: [], holdReasons: [], checks: {} as VerifyResult['gate']['checks'] };
     const pass = (code: 'not_entailed' | 'ambiguous' | 'unsupported' | 'missing') => [{ round: 0, gate, verifier, verifierFailures: [{ id: 'c-1', kind: 'label' as const, code, reason: 'x' }], sent: [] }];
     expect(holdReasonsOf({ gate, verifier, history: pass('not_entailed') })).toEqual(['G10_NOT_ENTAILED']);
     expect(holdReasonsOf({ gate, verifier, history: pass('ambiguous') })).toEqual(['G10_AMBIGUOUS']);

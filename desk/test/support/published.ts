@@ -11,7 +11,7 @@ import { makeSite } from './site';
 // cleared (`release: 'auto'`), and put in a checkout of the site that is a real repository with that one commit.
 
 /** What the gate says of a piece that it clears: every check passed, route publish. */
-export const CLEARED: GateResult = { route: 'publish', failures: [], holdReasons: [], checks: Object.fromEntries(CHECK_IDS.map((id) => [id, 'pass'])) as GateResult['checks'] };
+export const CLEARED: GateResult = { route: 'publish', failures: [], warnings: [], holdReasons: [], checks: Object.fromEntries(CHECK_IDS.map((id) => [id, 'pass'])) as GateResult['checks'] };
 
 const META = { runId: '2026-10-04-043100', gate: CLEARED, verifier: { model: 'claude-sonnet-5-5', passed: true, notes: [] }, release: 'auto' as const };
 

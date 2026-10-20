@@ -11,6 +11,7 @@ export * from './number-words';
 export * from './render';
 export * from './schemas';
 export * from './sentences';
+export * from './severity';
 export * from './slug';
 export * from './sources';
 export * from './text';

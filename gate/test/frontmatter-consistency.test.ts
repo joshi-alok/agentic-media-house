@@ -27,6 +27,7 @@ const FRONTMATTER_CODES: readonly string[] = G1_CODES.filter((code) => code !== 
 const PUBLISH: GateResult = {
   route: 'publish',
   failures: [],
+  warnings: [],
   holdReasons: [],
   checks: { G1: 'pass', G2: 'pass', G3: 'pass', G4: 'pass', G5: 'pass', G6: 'pass', G7: 'pass', G8: 'pass', G9: 'pass' },
 };

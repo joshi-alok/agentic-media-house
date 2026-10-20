@@ -166,3 +166,46 @@ describe('runGate', () => {
     }
   });
 });
+
+describe('runGateWith: blockers and notes', () => {
+  const NOTES = ['G2_BODY_LENGTH', 'G9_BANNED_PHRASE'];
+  const runWithNotes = (checks: Check[]) => runGateWith(checks, INPUT, defaultContext(), NOTES);
+
+  it('publishes a draft whose only findings are notes, and lists them as warnings', () => {
+    const result = runWithNotes([fails('G2', 'G2_BODY_LENGTH'), passes]);
+    expect(result.route).toBe('publish');
+    expect(result.failures).toEqual([]);
+    expect(result.warnings).toEqual([failure('G2', 'G2_BODY_LENGTH')]);
+  });
+
+  it('keeps blockers in failures and notes in warnings, each in the order the checks found them', () => {
+    const result = runWithNotes([fails('G2', 'G2_BODY_LENGTH'), fails('G3', 'G3_NO_CLAIM'), fails('G9', 'G9_BANNED_PHRASE')]);
+    expect(result.failures.map((item) => item.code)).toEqual(['G3_NO_CLAIM']);
+    expect(result.warnings.map((item) => item.code)).toEqual(['G2_BODY_LENGTH', 'G9_BANNED_PHRASE']);
+    expect(result.route).toBe('revise');
+  });
+
+  it('marks a check as fail only when it found a blocker', () => {
+    const { checks } = runWithNotes([fails('G2', 'G2_BODY_LENGTH'), fails('G3', 'G3_NO_CLAIM')]);
+    expect(checks.G2).toBe('pass');
+    expect(checks.G3).toBe('fail');
+  });
+
+  it('still holds a draft that has a hold reason and only notes', () => {
+    const result = runWithNotes([fails('G2', 'G2_BODY_LENGTH'), holds('a reason')]);
+    expect(result.route).toBe('hold');
+    expect(result.warnings).toHaveLength(1);
+  });
+
+  it('treats a code it is not told is a note as a blocker', () => {
+    const result = runGateWith([fails('G2', 'G2_BODY_LENGTH')], INPUT, defaultContext(), []);
+    expect(result.route).toBe('revise');
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('has no notes by default: every code a check reports is still a blocker', () => {
+    const result = run([fails('G2', 'G2_BODY_LENGTH')]);
+    expect(result.route).toBe('revise');
+    expect(result.warnings).toEqual([]);
+  });
+});
