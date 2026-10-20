@@ -199,6 +199,14 @@ describe('CHECKS_PASSED_TEXT', () => {
     expect(page.indexOf('checks passed.')).toBeLessThan(page.indexOf('{CHECKS_PASSED_TEXT}'));
     expect(page.indexOf('{CHECKS_PASSED_TEXT}')).toBeLessThan(page.indexOf('<ul class="checks">'));
   });
+
+  // It says that the notes are listed below, so a piece with no note does not carry it.
+  it('is printed only when the piece has notes, because it says that they are listed below the checks', () => {
+    const page = readFileSync(new URL('../src/pages/news/[slug]/receipts/index.astro', import.meta.url), 'utf8');
+    expect(page).toContain('{view.gate.notes.length > 0 && <p>{CHECKS_PASSED_TEXT}</p>}');
+    expect(page.match(/CHECKS_PASSED_TEXT/g)).toHaveLength(2); // the import and the one place where it is printed
+    expect(view.gate.notes).toEqual([]);
+  });
 });
 
 describe('receiptsView: the page header', () => {

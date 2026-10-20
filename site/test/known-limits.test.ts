@@ -6,6 +6,7 @@ import {
   defaultConfig,
   defaultContext,
   extractTokens,
+  NOTE_CODES,
   openingWordAccepted,
   runGate,
 } from '@robywire/gate';
@@ -39,12 +40,13 @@ describe('KNOWN_LIMITS', () => {
     expect(text).toContain('"two thirds" is read as the number 2');
     expect(text).toContain('"six-axis" is read as the number 6 with no unit');
     expect(text).toContain('iRobot or xAI');
+    expect(text).toContain('A capitalised word that opens a factual sentence is not read as a name');
     expect(text).toContain('The name check is strict on purpose');
-    expect(unseen).toHaveLength(7);
+    expect(unseen).toHaveLength(8);
     expect(misread).toHaveLength(2);
     expect(strict).toHaveLength(2);
     expect(unchecked).toHaveLength(4);
-    expect(KNOWN_LIMITS).toHaveLength(15);
+    expect(KNOWN_LIMITS).toHaveLength(16);
   });
 
   it.each(KNOWN_LIMITS.map((limit) => [limit.text.slice(0, 40), limit] as const))('is written as plain sentences: %s', (_name, limit) => {
@@ -95,6 +97,24 @@ describe('KNOWN_LIMITS', () => {
     expect(extractTokens('A third of the arms shipped.').uncheckable).toEqual([]);
   });
 
+  it('is true of the first word of a sentence: an invented name that opens a factual sentence is not read, so the gate finds nothing, and the same name in the middle of a sentence is noted', () => {
+    const limit = withText(unseen, 'A capitalised word that opens a factual sentence is not read as a name');
+    expect(limit.text).toContain('so an invented name there is not even noted; the model check is the only reader');
+    expect(limit.example).toBe('Tarnmoor shipped.');
+    const tokens = extractTokens(limit.example);
+    expect(tokens.initialWord).toBe('Tarnmoor');
+    expect(tokens.names).toEqual([]);
+    const at = (text: string) => {
+      const input = cloneGolden();
+      input.draft.takeaways[0]!.text = text;
+      const result = runGate(input, defaultContext());
+      return { failures: result.failures.map((failure) => failure.code), notes: result.warnings.map((note) => note.code) };
+    };
+    const first = at(limit.example);
+    expect([...first.failures, ...first.notes].filter((code) => code.startsWith('G4'))).toEqual([]);
+    expect(at('The plant is the second Harlow plant.').notes).toContain('G4_NAME_UNSUPPORTED');
+  });
+
   // What the reader takes the example for. Each misread limit has a row, so a new one fails until it is shown.
   const READ_AS: Record<string, { raw: string; value: string }> = {
     'The plant shipped two thirds of the arms.': { raw: 'two', value: '2' },
@@ -126,6 +146,7 @@ describe('KNOWN_LIMITS', () => {
 
   it('is true of the strict limit about the name check: an ordinary capitalised noun that opens a section heading is noted, and not noted when a claim of the section contains it', () => {
     const limit = withText(strict, 'The name check is strict on purpose');
+    expect(limit.text).toContain('it reads every capitalised word (except the first word of a sentence) as a name');
     expect(limit.text).toContain('such as a noun that opens a section heading, is noted');
     expect(extractTokens(limit.example).initialWord).toBe('Output');
     const input = cloneGolden();
@@ -221,15 +242,18 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
   });
 
   it('is true of analysis: a sentence of the Desk\'s own reading that asserts what no claim says passes, and no model check is made of it', () => {
-    const limit = withText(unchecked, 'Analysis sentences, up to a fifth of the sentences of the body');
+    const limit = withText(unchecked, 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default');
+    expect(limit.text).toContain('(a piece above that is noted, not stopped)');
+    expect(limit.text).not.toContain('up to a fifth');
     expect(limit.text).toContain('and by no model');
     expect(limit.text).toContain('the page labels it Analysis');
     const input = cloneGolden();
     const analysis = input.draft.sections.flatMap((section) => section.paragraphs.flat()).find((sentence) => sentence.kind === 'analysis')!;
     analysis.text = limit.example;
     expect(route(input)).toEqual({ route: 'publish', failures: [] });
-    // The share is the limit that the text names, at most a fifth, and it is what makes the exposure small and not nil.
+    // The share is a target of a fifth by default and a note above it: it caps nothing, and what shows the exposure is the label on every analysis sentence.
     expect(defaultConfig().analysisShareCap).toBe(0.2);
+    expect(NOTE_CODES).toContain('G7_ANALYSIS_SHARE');
   });
 
   it('is true of a heading: one that asserts something in words and names no figure and no capitalised word passes', () => {
@@ -241,8 +265,12 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
     expect(route(input)).toEqual({ route: 'publish', failures: [] });
   });
 
-  it('is true of names: a piece with a name that no claim lists is published by the gate, and the name is noted', () => {
+  it('is true of names: a piece with a name in the middle of a sentence that no claim lists is published by the gate, and the name is noted', () => {
     const limit = withText(unchecked, 'A capitalised word that no claim lists is noted');
+    expect(limit.text).toContain('(except the first word of a sentence, which is not read as a name)');
+    // The example is a name in the middle of the sentence on purpose: the first word of a sentence is not read at all (see the limit about it).
+    expect(limit.example).toBe('The plant is the second Harlow plant.');
+    expect(extractTokens(limit.example).names).toEqual(['harlow']);
     const input = cloneGolden();
     input.draft.takeaways[0]!.text = limit.example;
     const result = runGate(input, defaultContext());

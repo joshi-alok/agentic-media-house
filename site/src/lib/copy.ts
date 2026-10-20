@@ -82,8 +82,8 @@ export function gateIntro(live: Live = LIVE): string {
 /** The section about the independent model check. */
 export function modelCheckText(live: Live = LIVE): string {
   return live.verifier
-    ? 'On every piece, a second model call reads each factual sentence beside the passages it cites and judges whether they say the same thing, and whether the basis and status labels fit. It uses a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece is held. This check is a second layer on top of the nine rules, never the only one. Its accuracy was measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted, before it was relied on.'
-    : 'On every piece, once the Desk is live, a second model call will read each factual sentence beside the passages it cites and judge whether they say the same thing, and whether the basis and status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. This check will be a second layer on top of the nine rules, never the only one. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted. It is not running yet.';
+    ? 'On every piece, a second model call reads each factual sentence beside the passages it cites and judges whether they say the same thing, and whether the basis and status labels fit. It uses a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece is held. This check is a second layer on top of the nine rules for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read, it is the only layer. Its accuracy was measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted, before it was relied on.'
+    : 'On every piece, once the Desk is live, a second model call will read each factual sentence beside the passages it cites and judge whether they say the same thing, and whether the basis and status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. This check will be a second layer on top of the nine rules for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read, it will be the only layer. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted. It is not running yet.';
 }
 
 /** The start of the section about holds: when a piece is held and where a held draft goes. The page adds what the holds page shows. */
@@ -97,8 +97,8 @@ export function holdsText(live: Live = LIVE): string {
 export function ownerReleaseText(live: Live = LIVE): string {
   const note = releaseNote('owner');
   return live.publishing
-    ? `A held draft is published only if the owner decides to release it, and the piece then says so: its receipts page reads "${note}", and each sentence that rests on another outlet is labelled "Unconfirmed." in the article.`
-    : `A held draft will be published only if the owner decides to release it, and the piece will then say so: its receipts page will read "${note}", and each sentence that rests on another outlet will be labelled "Unconfirmed." in the article; the site already does both for a piece whose ledger says that the owner released it.`;
+    ? `A held draft is published only if the owner decides to release it, and the piece then says so: its receipts page reads "${note}", and each sentence that rests on another outlet is labelled "Unconfirmed." in the body of the article.`
+    : `A held draft will be published only if the owner decides to release it, and the piece will then say so: its receipts page will read "${note}", and each sentence that rests on another outlet will be labelled "Unconfirmed." in the body of the article; the site already does both for a piece whose ledger says that the owner released it.`;
 }
 
 /** The paragraph about disclosure on the method page. It follows the footer. */
@@ -120,7 +120,7 @@ export function scoreboardCaveat(live: Live = LIVE): string {
 /** The last of the known limits of the checks: what no rule of code can see. */
 export function meaningLimit(live: Live = LIVE): string {
   const start =
-    'Meaning is not checked by code. The checks make sure that every figure (a number or a date) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists; they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
+    'Meaning is not checked by code. The checks make sure that every figure (a number or a date) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists (except the first word of a sentence); they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
   return live.verifier ? `${start} That is the job of the independent model check.` : `${start} That will be the job of the independent model check, which is not running yet.`;
 }
 
@@ -145,8 +145,8 @@ export function statusPageIntro(live: Live = LIVE): string {
 export function sourcesText(live: Live = LIVE): string {
   const tiers = "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
   return live.publishing
-    ? `${tiers} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting as its own: every fact from it is attributed to the outlet by name.`
-    : `${tiers} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting as its own: every fact from it will be attributed to the outlet by name.`;
+    ? `${tiers} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting is published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting as its own: every fact from it is attributed to the outlet by name.`
+    : `${tiers} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting will be published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting as its own: every fact from it will be attributed to the outlet by name.`;
 }
 
 /** The list "What the Desk never does" on the method page, one item for each promise. */
@@ -156,14 +156,14 @@ export function neverDoes(live: Live = LIVE): string[] {
         'It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".',
         'It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.',
         'It uses no photographs. Each piece gets a fact card drawn from its own claims.',
-        "It does not rewrite another outlet's reporting as its own. A fact that only another outlet reports is attributed to it by name and labelled Unconfirmed.",
+        "It does not rewrite another outlet's reporting as its own. A fact that only another outlet reports is attributed to it by name and labelled Unconfirmed in the body of the article.",
         'It does not publish a sentence the gate cannot trace to a source.',
       ]
     : [
         'It will contact no one. It will send no email to a company and ask nobody for comment, so no piece will say "we asked and did not hear back".',
         'It will not republish its sources. A piece will quote short passages, each attributed and at most 300 characters, and will not copy articles.',
         'It will use no photographs. Each piece already gets a fact card drawn from its own claims.',
-        "It will not rewrite another outlet's reporting as its own. A fact that only another outlet reports will be attributed to it by name and labelled Unconfirmed.",
+        "It will not rewrite another outlet's reporting as its own. A fact that only another outlet reports will be attributed to it by name and labelled Unconfirmed in the body of the article.",
         'It will not publish a sentence the gate cannot trace to a source, and the gate already refuses one.',
       ];
 }

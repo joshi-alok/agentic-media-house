@@ -243,12 +243,19 @@ describe('trialText', () => {
 
 describe('modelCheckText', () => {
   const OFF =
-    'On every piece, once the Desk is live, a second model call will read each factual sentence beside the passages it cites and judge whether they say the same thing, and whether the basis and status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. This check will be a second layer on top of the nine rules, never the only one. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted. It is not running yet.';
+    'On every piece, once the Desk is live, a second model call will read each factual sentence beside the passages it cites and judge whether they say the same thing, and whether the basis and status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. This check will be a second layer on top of the nine rules for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read, it will be the only layer. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted. It is not running yet.';
   const ON =
-    'On every piece, a second model call reads each factual sentence beside the passages it cites and judges whether they say the same thing, and whether the basis and status labels fit. It uses a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece is held. This check is a second layer on top of the nine rules, never the only one. Its accuracy was measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted, before it was relied on.';
+    'On every piece, a second model call reads each factual sentence beside the passages it cites and judges whether they say the same thing, and whether the basis and status labels fit. It uses a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece is held. This check is a second layer on top of the nine rules for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read, it is the only layer. Its accuracy was measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted, before it was relied on.';
 
   it.each(CASES)('is in the future tense until the verifier is live (%s)', (_name, live) => {
     expect(modelCheckText(live)).toBe(live.verifier ? ON : OFF);
+  });
+
+  it.each([NONE, ALL])('does not say that the rules are always a layer under the model check: for meaning and for names it is the only layer', (live) => {
+    const text = modelCheckText(live);
+    expect(text).not.toContain('never the only one');
+    expect(text).toContain('for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read,');
+    expect(text).toMatch(/it (?:is|will be) the only layer\./);
   });
 });
 
@@ -275,8 +282,8 @@ describe('holdsText', () => {
 
 describe('ownerReleaseText', () => {
   const NOTE = releaseNote('owner');
-  const OFF = `A held draft will be published only if the owner decides to release it, and the piece will then say so: its receipts page will read "${NOTE}", and each sentence that rests on another outlet will be labelled "Unconfirmed." in the article; the site already does both for a piece whose ledger says that the owner released it.`;
-  const ON = `A held draft is published only if the owner decides to release it, and the piece then says so: its receipts page reads "${NOTE}", and each sentence that rests on another outlet is labelled "Unconfirmed." in the article.`;
+  const OFF = `A held draft will be published only if the owner decides to release it, and the piece will then say so: its receipts page will read "${NOTE}", and each sentence that rests on another outlet will be labelled "Unconfirmed." in the body of the article; the site already does both for a piece whose ledger says that the owner released it.`;
+  const ON = `A held draft is published only if the owner decides to release it, and the piece then says so: its receipts page reads "${NOTE}", and each sentence that rests on another outlet is labelled "Unconfirmed." in the body of the article.`;
 
   it.each(CASES)('says the release happens only when the Desk publishes (%s)', (_name, live) => {
     expect(ownerReleaseText(live)).toBe(live.publishing ? ON : OFF);
@@ -315,7 +322,7 @@ describe('scoreboardCaveat', () => {
 
 describe('meaningLimit', () => {
   const START =
-    'Meaning is not checked by code. The checks make sure that every figure (a number or a date) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists; they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
+    'Meaning is not checked by code. The checks make sure that every figure (a number or a date) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists (except the first word of a sentence); they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
   const OFF = `${START} That will be the job of the independent model check, which is not running yet.`;
   const ON = `${START} That is the job of the independent model check.`;
 
@@ -325,7 +332,7 @@ describe('meaningLimit', () => {
 
   it.each([NONE, ALL])('does not say that the checks make sure of a name, because a name that no cited claim lists is only noted', (live) => {
     expect(meaningLimit(live)).not.toContain('figure, name and quotation');
-    expect(meaningLimit(live)).toContain('they note a name in a factual sentence that no cited claim lists');
+    expect(meaningLimit(live)).toContain('they note a name in a factual sentence that no cited claim lists (except the first word of a sentence)');
   });
 
   // What the sentence says the checks do is what the gate does: a figure and a quotation that no cited claim has send a piece back, a name is noted.
@@ -345,6 +352,10 @@ describe('meaningLimit', () => {
     const name = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant is the second Harlow plant to receive arms.'; });
     expect(name.failures).not.toContain('G4_NAME_UNSUPPORTED');
     expect(name.notes).toContain('G4_NAME_UNSUPPORTED');
+    // The exception in the sentence: the first word of a sentence is not read as a name, so an invented name that opens one is not even noted.
+    const first = codesOf((input) => { input.draft.takeaways[0]!.text = 'Tarnmoor shipped.'; });
+    expect(first.failures).not.toContain('G4_NAME_UNSUPPORTED');
+    expect(first.notes).not.toContain('G4_NAME_UNSUPPORTED');
   });
 });
 
@@ -391,8 +402,8 @@ describe('statusPageIntro', () => {
 describe('sourcesText', () => {
   const TIERS =
     "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
-  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting as its own: every fact from it will be attributed to the outlet by name.`;
-  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting as its own: every fact from it is attributed to the outlet by name.`;
+  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting will be published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting as its own: every fact from it will be attributed to the outlet by name.`;
+  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting is published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting as its own: every fact from it is attributed to the outlet by name.`;
 
   it.each(CASES)('says what the Desk does in the present tense only when it publishes (%s)', (_name, live) => {
     expect(sourcesText(live)).toBe(live.publishing ? ON : OFF);
@@ -408,9 +419,16 @@ describe('sourcesText', () => {
   // A piece may rest entirely on another outlet's reporting and publish by itself: its body is labelled, and the page says so plainly.
   it.each([NONE, ALL])('says that another outlet is attributed and labelled, and that a piece which uses it is not held for that', (live) => {
     const text = sourcesText(live);
-    expect(text).toContain('the article labels it Unconfirmed');
+    expect(text).toContain('the article labels it Unconfirmed in its body');
     expect(text).not.toMatch(/\bheld\b/);
     expect(text).not.toContain('for the owner');
+  });
+
+  // The label is written by renderBody for the body only, and a title or a description that rests on another outlet has none: the page says so.
+  it.each([NONE, ALL])('says that a headline or a description built on another outlet names it and has no label, and that a piece may rest entirely on it', (live) => {
+    const text = sourcesText(live);
+    expect(text).toContain('A headline or a description built on such a claim names the outlet and carries no label');
+    expect(text).toMatch(/a piece that rests entirely on another outlet's reporting (?:is|will be) published without a human when the gate and the model check clear it/);
   });
 });
 
@@ -419,14 +437,14 @@ describe('neverDoes', () => {
     'It will contact no one. It will send no email to a company and ask nobody for comment, so no piece will say "we asked and did not hear back".',
     'It will not republish its sources. A piece will quote short passages, each attributed and at most 300 characters, and will not copy articles.',
     'It will use no photographs. Each piece already gets a fact card drawn from its own claims.',
-    "It will not rewrite another outlet's reporting as its own. A fact that only another outlet reports will be attributed to it by name and labelled Unconfirmed.",
+    "It will not rewrite another outlet's reporting as its own. A fact that only another outlet reports will be attributed to it by name and labelled Unconfirmed in the body of the article.",
     'It will not publish a sentence the gate cannot trace to a source, and the gate already refuses one.',
   ];
   const ON = [
     'It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".',
     'It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.',
     'It uses no photographs. Each piece gets a fact card drawn from its own claims.',
-    "It does not rewrite another outlet's reporting as its own. A fact that only another outlet reports is attributed to it by name and labelled Unconfirmed.",
+    "It does not rewrite another outlet's reporting as its own. A fact that only another outlet reports is attributed to it by name and labelled Unconfirmed in the body of the article.",
     'It does not publish a sentence the gate cannot trace to a source.',
   ];
 

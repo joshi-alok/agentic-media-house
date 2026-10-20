@@ -39,7 +39,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
       id: 'G2',
       name: 'Structure',
       text: `There are at least 2 sections, every section has a heading, no heading is one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn't verify"), and every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
-      notes: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words, and a heading is at most ${headingMax} characters and not a question; these are targets for a piece of the default kind, a piece outside them is noted and published all the same, and its receipts page lists what was outside.`,
+      notes: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words, and a heading is at most ${headingMax} characters and not a question. These are targets for the kind of piece. A piece outside them is noted and published all the same, and its receipts page lists what was outside.`,
     },
     {
       id: 'G3',
@@ -51,7 +51,7 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
       id: 'G4',
       name: 'Values',
       text: `The reader of the gate finds the numbers and dates in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg); a section heading has no number, date or quotation and no word that states an amount with no figure; and every value a claim lists is really in its quoted passage, as a whole word or number (a 2 is not found inside "12 weeks" or "2.3").`,
-      notes: 'The reader also finds the capitalised names in each factual sentence and in each heading, and the words that state an amount with no figure to check in a factual sentence ("half", "twice", "doubled", "tenfold"); a name that no cited claim lists, and such a word, are noted and do not stop the piece, because the model check judges what a sentence means better than a list of words can.',
+      notes: 'The reader also finds the capitalised names in each factual sentence (except its first word) and in each heading, and the words that state an amount with no figure to check in a factual sentence ("half", "twice", "doubled", "tenfold"); a name that no cited claim lists, and such a word, are noted and do not stop the piece, because the model check judges what a sentence means better than a list of words can.',
     },
     {
       id: 'G5',
@@ -62,13 +62,13 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
     {
       id: 'G6',
       name: 'Sourcing',
-      text: 'A claim that comes from another outlet has the basis "reported" (no claim from a primary source has it) and may appear only in a factual sentence that names the outlet and is marked as an attribution, never in analysis; the article labels such a sentence "Unconfirmed.".',
+      text: 'A claim that comes from another outlet has the basis "reported" (no claim from a primary source has it) and may appear only in a factual sentence that names the outlet and is marked as an attribution, never in analysis; the article labels such a sentence "Unconfirmed." in its body, and a title or a description that rests on one names the outlet and carries no label.',
       notes: '',
     },
     {
       id: 'G7',
       name: 'Analysis',
-      text: `Analysis, the Desk's own reading of the facts, is labelled, stays out of the title and the description, may not bring in a number (written in digits or words), a date or a name that no factual sentence contains, must start with a capital letter or a digit, and must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites.`,
+      text: `Analysis, the Desk's own reading of the facts, is labelled, stays out of the title and the description, may not bring in a number (written in digits or words), a date, a word that states an amount with no figure, or a name that no factual sentence contains, must start with a capital letter or a digit, and must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites.`,
       notes: `Analysis is at most ${share} percent of the body's sentences; a piece that goes over is noted and published.`,
     },
     {
@@ -144,6 +144,11 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
     example: 'iRobot and xAI joined the round.',
   },
   {
+    kind: 'unseen',
+    text: 'A capitalised word that opens a factual sentence is not read as a name, so an invented name there is not even noted; the model check is the only reader.',
+    example: 'Tarnmoor shipped.',
+  },
+  {
     kind: 'misread',
     text: 'A fraction that starts with a number word is read as that number: "two thirds" is read as the number 2, so the gate looks for a claim that lists a 2.',
     example: 'The plant shipped two thirds of the arms.',
@@ -155,7 +160,7 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'strict',
-    text: 'The name check is strict on purpose: it reads every capitalised word as a name, so an ordinary capitalised word, such as a noun that opens a section heading, is noted. A note costs nothing, and the model check reads each sentence for a name that slipped through.',
+    text: 'The name check is strict on purpose: it reads every capitalised word (except the first word of a sentence) as a name, so an ordinary capitalised word, such as a noun that opens a section heading, is noted. A note costs nothing, and the model check reads each sentence for a name that slipped through.',
     example: 'Output rose in the spring.',
   },
   {
@@ -170,13 +175,13 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'unchecked',
-    text: 'Analysis sentences, up to a fifth of the sentences of the body by default, are checked by code for where they stand and for the numbers, dates and names they bring in, and by no model: whatever else an analysis sentence says passes, and the page labels it Analysis.',
+    text: 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in, and by no model: whatever else an analysis sentence says passes, and the page labels it Analysis.',
     example: 'The arm never fails and is the safest on the market.',
   },
   {
     kind: 'unchecked',
-    text: 'A capitalised word that no claim lists is noted, not refused: between it and the page stands the model check, and nothing else.',
-    example: 'Tarnmoor is the second Harlow plant to receive FX-1 arms.',
+    text: 'A capitalised word that no claim lists is noted, not refused (except the first word of a sentence, which is not read as a name): between it and the page stands the model check, and nothing else.',
+    example: 'The plant is the second Harlow plant.',
   },
   {
     kind: 'unchecked',

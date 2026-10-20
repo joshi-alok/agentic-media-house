@@ -16,12 +16,14 @@ import {
   G9_CODES,
   LIMITATIONS_HEADING,
   LIMITATION_MAX_CLAIMS,
+  LedgerEntry,
   NOTE_CODES,
   SAFE_BASES,
   TAKEAWAYS_HEADING,
   defaultConfig,
   defaultContext,
   extractTokens,
+  renderBody,
   runGate,
   severityOf,
 } from '@robywire/gate';
@@ -106,7 +108,10 @@ describe('gateRules', () => {
   it('does not give a range of length as a rule that blocks: the text of G2 has no word count, and the notes say that a piece outside is published all the same', () => {
     const g2 = rules.find((rule) => rule.id === 'G2')!;
     expect(g2.text).not.toMatch(/\d+ to \d+ words/);
-    expect(g2.notes).toContain('a piece outside them is noted and published all the same');
+    expect(g2.notes).toContain('These are targets for the kind of piece. A piece outside them is noted and published all the same');
+    expect(g2.notes).not.toContain('default kind');
+    // Two sentences, not one with a comma between: the first ends at the heading, the second begins with the targets.
+    expect(g2.notes).toContain('and not a question. These are targets');
   });
 
   // A rule has notes if and only if the gate lists a code of its check as a note, and the notes name exactly those: the page cannot say that
@@ -195,7 +200,7 @@ describe('gateRules', () => {
 
     it('does not make the capitalised names a rule that blocks: they are in the notes, and a name that no claim lists is only noted', () => {
       expect(g4).not.toContain('capitalised');
-      expect(g4notes).toContain('capitalised names in each factual sentence and in each heading');
+      expect(g4notes).toContain('capitalised names in each factual sentence (except its first word) and in each heading');
       expect(g4notes).toContain('a name that no cited claim lists');
     });
 
@@ -216,8 +221,22 @@ describe('gateRules', () => {
     });
   });
 
-  it('says in G6 that the article labels a sentence that rests on another outlet "Unconfirmed."', () => {
-    expect(rules.find((rule) => rule.id === 'G6')?.text).toContain('the article labels such a sentence "Unconfirmed."');
+  it('says in G6 that the article labels in its body a sentence that rests on another outlet "Unconfirmed.", and that a title or a description that rests on one carries no label', () => {
+    const g6 = rules.find((rule) => rule.id === 'G6')?.text ?? '';
+    expect(g6).toContain('the article labels such a sentence "Unconfirmed." in its body');
+    expect(g6).toContain('a title or a description that rests on one names the outlet and carries no label');
+  });
+
+  // The label is written by renderBody, which prints the opening, the takeaways, the body and the limitations: a title or a description that is
+  // attributed is not printed in it, so it has no label.
+  it('is true of the label: renderBody puts it on the sentences of the body and on nothing of the title or the description', () => {
+    const ledger = LedgerEntry.parse(JSON.parse(readFileSync(new URL('../src/content-fixtures/ledger/fixture-robotics-ships-fx-5-to-second-plant.json', import.meta.url), 'utf8')));
+    const labelled = (entry: typeof ledger) => (renderBody(entry).match(/\*\*Unconfirmed\.\*\* /g) ?? []).length;
+    const inBody = ledger.sentences.filter((item) => item.kind === 'fact' && item.attributed === true && ['opening', 'takeaways', 'body', 'limitations'].includes(item.section)).length;
+    expect(inBody).toBeGreaterThan(0);
+    expect(labelled(ledger)).toBe(inBody);
+    for (const item of ledger.sentences.filter((sentence) => sentence.section === 'title' || sentence.section === 'description')) item.attributed = true;
+    expect(labelled(ledger)).toBe(inBody);
   });
 
   it('says in G6 that a claim from another outlet has the basis "reported" and a primary one never does, and the gate agrees', () => {
@@ -250,6 +269,7 @@ describe('gateRules', () => {
   it('says in G7 that analysis may not use a number in words and must open with an ordinary word', () => {
     const g7 = rules.find((rule) => rule.id === 'G7')?.text ?? '';
     expect(g7).toContain('a number (written in digits or words)');
+    expect(g7).toContain('a word that states an amount with no figure');
     expect(g7).toContain('must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites');
   });
 
@@ -268,6 +288,14 @@ describe('gateRules', () => {
     expect(failuresWith('description')).toContain('G7_ANALYSIS_PLACEMENT');
     expect(failuresWith('opening')).not.toContain('G7_ANALYSIS_PLACEMENT');
     expect(failuresWith('takeaways')).not.toContain('G7_ANALYSIS_PLACEMENT');
+  });
+
+  it('says in G7 that analysis may not bring in a word that states an amount with no figure, and the gate sends it back, as it only notes the same word in a factual sentence', () => {
+    const input = cloneGolden();
+    input.draft.takeaways[0] = { kind: 'analysis', text: 'The output doubled.', claimIds: ['c-1'] };
+    const result = runGate(input, defaultContext());
+    expect(result.failures.map((failure) => failure.code)).toContain('G7_ANALYSIS_NEW_VALUE');
+    expect(result.failures.map((failure) => failure.message).join(' ')).toContain('number word "doubled"');
   });
 
   it('says in G7 that analysis must start with a capital letter or a digit, and the gate sends back an analysis sentence that starts with a lowercase letter', () => {
@@ -299,7 +327,17 @@ describe('gateRules', () => {
 
   it('does not say that another outlet holds a piece, because it does not', () => {
     expect(rules.find((rule) => rule.id === 'G6')?.text).not.toContain('held');
-    expect(rules.find((rule) => rule.id === 'G6')?.text).toContain('the article labels such a sentence "Unconfirmed."');
+    expect(rules.find((rule) => rule.id === 'G6')?.text).toContain('the article labels such a sentence "Unconfirmed." in its body');
+  });
+});
+
+describe('the method page', () => {
+  const page = readFileSync(new URL('../src/pages/method/index.astro', import.meta.url), 'utf8');
+
+  it('prints the notes of a rule under its text, so that dropping them from the template fails here', () => {
+    expect(page).toContain('{rule.text}');
+    expect(page).toContain("{rule.notes !== '' && <span class=\"rule-notes\"> Noted, not blocking: {rule.notes}</span>}");
+    expect(page.indexOf('{rule.text}')).toBeLessThan(page.indexOf('{rule.notes'));
   });
 });
 
@@ -385,12 +423,13 @@ describe('the README: blockers and notes, and another outlet', () => {
     expect(readme).toContain('only when a code-based gate finds no blocker');
     expect(readme).toContain('and an independent model check agrees that each factual sentence says what its sources say');
     expect(readme).toContain('Rules about length, shape, capitalised names and filler are notes: they are recorded on the receipts page of the piece and do not stop it.');
-    expect(readme).toContain('Anything the gate or the model check cannot clear is held for the owner.');
+    expect(readme).toContain('Anything the gate or the model check cannot clear will be held for the owner.');
     expect(readme).not.toContain('verifies that every factual sentence traces to a quoted span in a primary (tier-1) source');
   });
 
   it('says that a claim from another outlet is an attribution that the article labels, and not that such a piece is never published by itself', () => {
-    expect(readme).toContain('A claim from another outlet may appear only as an attribution that names the outlet, and the article labels it Unconfirmed.');
+    expect(readme).toContain('A claim from another outlet may appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body.');
+    expect(readme).toContain('A headline or a description built on such a claim names the outlet and carries no label, and a piece may rest entirely on another outlet\'s reporting and be published without a human when the gate and the model check clear it.');
     expect(readme).not.toContain('never published by itself');
     expect(readme).not.toContain('They are never the sole source of a claim');
   });
@@ -421,5 +460,28 @@ describe('the README: blockers and notes, and another outlet', () => {
     expect(readme).toContain('**The profile.** `--profile brief|digest|explainer` judges the drafts against the ranges of a kind of piece');
     expect(readme).toContain('and tells the writer the same ranges');
     expect(readme).toContain('the notes and the words of the draft');
+  });
+});
+
+// The runbook is read by the owner before the first real run. It must not promise a hold that the gate no longer makes.
+describe('the runbook: what holds a piece', () => {
+  const runbook = readFileSync(new URL('../../docs/runbook.md', import.meta.url), 'utf8');
+
+  it('does not say that a story with no primary source is held, because it is written in attributed form and published when it is cleared', () => {
+    expect(runbook).not.toContain('rehearsal: no primary source, so every piece is held');
+    expect(runbook).not.toContain('(so every story that the Desk writes is written in attributed form and **held**, which is the rule of the design)');
+    expect(runbook).toContain('rehearsal: no primary source');
+    expect(runbook).toContain('is written in attributed form, and the gate and the model check publish it when they clear it; it is held only if one of them does not');
+    expect(runbook).toContain('**If the run publishes instead**');
+  });
+
+  it('says that the share of analysis is only noted, and that the length of a piece is a note and not a hold', () => {
+    expect(runbook).not.toContain('how many, how they begin');
+    expect(runbook).not.toContain('the share cap of G7 is the answer');
+    expect(runbook).toContain('their share of the piece is only noted');
+    expect(runbook).toContain('the label on every analysis sentence and the note of its share are the answer');
+    expect(runbook).not.toContain('A draft that fails G2 (`G2_BODY_LENGTH`, `G2_OPENING_LENGTH`, `G2_TAKEAWAYS_COUNT`, `G2_SECTIONS_MIN`) is held');
+    expect(runbook).toContain('those codes are notes, and the piece is published with the note on its receipts page');
+    expect(runbook).toContain('(`G2_SECTIONS_MIN`) is a blocker that no rewritten sentence can mend');
   });
 });
