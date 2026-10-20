@@ -328,7 +328,7 @@ export const TRIAL_LOG = 'log.txt';
 /**
  * One trial of a page: Extract, Compose and Verify, each only if the one before gave it something to work with, with a client of its own and the budget of a run.
  * What the stages log (`ctx.log`: counts and codes, the number of claims, what the gate said, which items went back) is kept in `log.txt` in the folder of the trial, one
- * line to a line, whether the trial ended or failed.
+ * line to a line, whether the trial ended or failed. A log that cannot be written is lost without a word: it never replaces the result of the trial.
  */
 async function runTrial(options: TuneOptions, calls: CallCount, evidence: EvidenceStore, page: Page, trial: number, dir: string): Promise<TuneRow> {
   const built = options.buildClient((client) => new CallLimitClient(client, calls));
@@ -367,7 +367,8 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
     row.status = error instanceof CallLimitReached ? 'stopped' : 'failed';
     row.note = describeError(error);
   } finally {
-    await writeFileAtomic(path.join(dir, TRIAL_LOG), logged.map((line) => `${line}\n`).join(''));
+    // The log is for reading when a trial went wrong, so it must never be what changes the result of the trial: if it cannot be written, it is lost, and the row stays as the trial made it.
+    await writeFileAtomic(path.join(dir, TRIAL_LOG), logged.map((line) => `${line}\n`).join('')).catch(() => undefined);
   }
   // The calls are those that reached the model, as the invocation counts them: a call that the budget of the invocation refused is not one. The tokens are what the model reported.
   const spent = built.spent();

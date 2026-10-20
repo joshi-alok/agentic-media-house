@@ -20,8 +20,11 @@ export const G4_CODES = [
   'G4_FIGURE_UNSUPPORTED',
 ] as const;
 
-/** Does the word contain a digit? A name token that does mixes letters and digits (mid-2027, FY2027, 10x, Q3, IP67, FX-1). */
-const hasDigit = (word: string): boolean => /\d/u.test(word);
+/**
+ * Does the word contain a digit, of any script (the Unicode class N, as `isNameWord` of the token reader reads it: a fullwidth digit and the subscript in CO2 count)?
+ * A name token that does mixes letters and digits (mid-2027, FY2027, 10x, Q3, IP67, FX-1).
+ */
+const hasDigit = (word: string): boolean => /\p{N}/u.test(word);
 
 /**
  * A number value of a claim in canonical form. The raw text is the authority:
@@ -141,7 +144,7 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
         if (!evidence.has(name)) {
           fail(
             'G4_FIGURE_UNSUPPORTED',
-            `the figure-like word "${name}" at ${where} is not in any claim this sentence cites: write it as the claim's passage writes it, or leave it out`,
+            `the figure-like word "${name}" at ${where} is not in any claim this sentence cites: write it as the passage of a claim writes it, cite the claim whose passage has it, or leave it out`,
           );
         }
         continue;
@@ -184,7 +187,7 @@ export const checkG4: Check = ({ draft, claims }, ctx) => {
       if (hasDigit(name)) {
         fail(
           'G4_FIGURE_UNSUPPORTED',
-          `the figure-like word "${name}" in the heading "${heading}" is not in any claim cited in this section: write it as the claim's passage writes it, or leave it out of the heading`,
+          `the figure-like word "${name}" in the heading "${heading}" is not in any claim cited in this section: write it as the passage of a claim writes it, cite in this section the claim whose passage has it, or leave it out of the heading`,
         );
         continue;
       }

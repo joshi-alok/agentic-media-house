@@ -110,7 +110,7 @@ function placeOf(id: string): { kind: 'sentence' | 'heading'; at: number } {
 
 /**
  * What the composer is shown of the sentence or the heading `id` of `draft`. The ids of the claims that a sentence cites were written by the
- * composer: only those of claims in `known` are kept (`promptClaimIds`), and the others are logged, shortened to 40 characters, as one line.
+ * composer: only those of claims in `known` are kept (`promptClaimIds`), and how many were left out is logged, as one line that does not show them.
  */
 function itemOf(draft: Draft, id: string, reasons: string[], known: ReadonlySet<string>, log: (line: string) => void): ReviseItem {
   const { kind, at } = placeOf(id);
@@ -124,9 +124,9 @@ function itemOf(draft: Draft, id: string, reasons: string[], known: ReadonlySet<
   const { sentence } = found;
   const { kept, dropped } = promptClaimIds(sentence.claimIds, known);
   if (dropped.length > 0) {
-    const shown = dropped.map((claimId) => JSON.stringify(claimId.length > 40 ? `${claimId.slice(0, 40)}...` : claimId)).join(', ');
+    // Only how many: the ids are text that the composer wrote, and a log line may be kept in a file.
     const one = dropped.length === 1;
-    log(`verify: item ${id} cites ${shown}, which ${one ? 'is not the id of a claim' : 'are not ids of claims'}, so the composer is not told of ${one ? 'it' : 'them'}`);
+    log(`verify: item ${id} cites ${dropped.length} ${one ? 'id that is not the id of a claim' : 'ids that are not ids of claims'}, so the composer is not told of ${one ? 'it' : 'them'}`);
   }
   return { id, kind: sentence.kind, section: found.section, text: sentence.text, claimIds: kept, attributed: sentence.kind === 'fact' && sentence.attributed === true, reasons };
 }

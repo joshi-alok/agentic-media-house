@@ -710,7 +710,7 @@ describe('G4 figure-like words: a word that mixes letters and digits is a blocke
         check: 'G4',
         code: 'G4_FIGURE_UNSUPPORTED',
         message:
-          'the figure-like word "mid-2027" at title is not in any claim this sentence cites: write it as the claim\'s passage writes it, or leave it out',
+          'the figure-like word "mid-2027" at title is not in any claim this sentence cites: write it as the passage of a claim writes it, cite the claim whose passage has it, or leave it out',
         where: 'title',
       },
     ]);
@@ -804,6 +804,43 @@ describe('G4 figure-like words: a word that mixes letters and digits is a blocke
     expect(result.route).toBe('publish');
   });
 
+  describe('a digit that is not ASCII', () => {
+    // The reader takes a word for a name when it mixes letters and digits in any script (the Unicode class N), so the figure rule must see the same digits: a word with a
+    // fullwidth digit or a subscript digit is a figure-like word and not a note. The characters are written as codes, so that this file stays ASCII.
+    const fullwidth = `FY${String.fromCharCode(0xff12, 0xff10, 0xff12, 0xff17)}`;
+    const subscript = `CO${String.fromCharCode(0x2082)}`;
+    const claimWith = (quote: string) => claimOf([], { span: { start: 0, end: quote.length, quote } });
+
+    it.each([
+      ['fullwidth digits', fullwidth],
+      ['a subscript digit', subscript],
+    ])('rejects a word with %s in a fact sentence when no cited claim has it, and accepts it when the passage has it', (_name, word) => {
+      const out = run(mini(`Shipments use the ${word} plan.`, [claimWith('Shipments begin in the autumn.')]));
+      expect(out.failures.map((failure) => failure.code)).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      expect(out.failures[0]?.message).toContain(`"${word.toLowerCase()}"`);
+      expect(codes(mini(`Shipments use the ${word} plan.`, [claimWith(`Shipments use the ${word} plan.`)]))).toEqual([]);
+    });
+
+    it('holds a first word with such a digit to the rule, in a sentence and in a heading', () => {
+      expect(codes(mini(`${fullwidth} shipments begin.`, [claimWith('Shipments begin in the autumn.')]))).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      expect(codes(mini(`${fullwidth} shipments begin.`, [claimWith(`${fullwidth} shipments begin.`)]))).toEqual([]);
+      const heading = (text: string, change: (g: GateInput) => void = () => undefined) =>
+        checkG4(mutate(cloneGolden(), (g) => { g.draft.sections[0]!.heading = text; change(g); }), defaultContext()).failures.map((failure) => failure.code);
+      expect(heading(`${subscript} plans`)).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      expect(heading(`What ${fullwidth} brings`)).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      expect(heading(`What ${fullwidth} brings`, (g) => { claimOfId(g, 'c-1').span.quote += ` ${fullwidth} deliveries.`; })).toEqual([]);
+    });
+
+    it('is a blocker, not a note, in the gate', () => {
+      const input = mutate(cloneGolden(), (g) => {
+        findSentence(g.draft, (sentence) => sentence.text.startsWith('Peak tool speed')).text = `Peak tool speed is 2.3 m/s in ${fullwidth}.`;
+      });
+      const result = runGate(input, defaultContext());
+      expect(result.failures.map((failure) => failure.code)).toEqual(['G4_FIGURE_UNSUPPORTED']);
+      expect(result.warnings.map((note) => note.code)).toEqual([]);
+    });
+  });
+
   describe('in a heading', () => {
     // The golden headings are "What shipped" (section 0), "What the customer reports" (1) and "What the filing shows" (2).
     const headingFailures = (heading: string, at = 0, change: (g: GateInput) => void = () => undefined) =>
@@ -822,7 +859,7 @@ describe('G4 figure-like words: a word that mixes letters and digits is a blocke
           check: 'G4',
           code: 'G4_FIGURE_UNSUPPORTED',
           message:
-            'the figure-like word "fy2027" in the heading "What FY2027 brings" is not in any claim cited in this section: write it as the claim\'s passage writes it, or leave it out of the heading',
+            'the figure-like word "fy2027" in the heading "What FY2027 brings" is not in any claim cited in this section: write it as the passage of a claim writes it, cite in this section the claim whose passage has it, or leave it out of the heading',
           where: 'section "What FY2027 brings"',
         },
       ]);
