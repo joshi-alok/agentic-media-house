@@ -296,13 +296,13 @@ describe('G7_ANALYSIS_NEW_VALUE: dates', () => {
   });
 });
 
-describe('G7_ANALYSIS_NEW_VALUE: names', () => {
+describe('G7_ANALYSIS_NEW_NAME: names', () => {
   it('fails a name no fact sentence contains, and says which', () => {
     const output = run(saying('The rate sits below the maximum, a gap that Harlow Logistics also reported.'));
     expect(output.failures).toEqual([
       {
         check: 'G7',
-        code: 'G7_ANALYSIS_NEW_VALUE',
+        code: 'G7_ANALYSIS_NEW_NAME',
         message: `the analysis sentence at ${ANALYSIS_AT} introduces the name "harlow", which no fact sentence contains`,
         where: ANALYSIS_AT,
       },
@@ -325,7 +325,7 @@ describe('G7_ANALYSIS_NEW_VALUE: names', () => {
   it('ignores names on the allow-list, and takes the allow-list from the context', () => {
     expect(run(saying('The rate sits below the maximum, as it did on Monday.'))).toEqual({ failures: [], holdReasons: [] });
     const text = 'The rate sits below the maximum, a gap that Harlow also reported.';
-    expect(codes(run(saying(text)))).toEqual(['G7_ANALYSIS_NEW_VALUE']);
+    expect(codes(run(saying(text)))).toEqual(['G7_ANALYSIS_NEW_NAME']);
     expect(run(saying(text), { nameAllowList: ['harlow'] })).toEqual({ failures: [], holdReasons: [] });
   });
 

@@ -7,7 +7,7 @@ import { claimWords, openingWordAccepted } from '../grounding';
 import { allSentences, describeLocation } from '../sentences';
 
 /** Every failure code G7 can report. */
-export const G7_CODES = ['G7_ANALYSIS_PLACEMENT', 'G7_ANALYSIS_SHARE', 'G7_ANALYSIS_NEW_VALUE'] as const;
+export const G7_CODES = ['G7_ANALYSIS_PLACEMENT', 'G7_ANALYSIS_SHARE', 'G7_ANALYSIS_NEW_VALUE', 'G7_ANALYSIS_NEW_NAME'] as const;
 
 /** Parts of the piece where analysis is not allowed: the parts a reader takes as plain fact. */
 const NO_ANALYSIS: readonly LedgerSection[] = ['title', 'description', 'opening', 'takeaways'];
@@ -32,6 +32,7 @@ const BODY: readonly LedgerSection[] = ['opening', 'takeaways', 'body', 'limitat
  *   stated: say it mid-sentence in a fact.
  *   Numbers written out in words count as numbers, and a word that states an
  *   amount with no value to compare ("half", "doubled") is always new.
+ *   A new name is a note (G7_ANALYSIS_NEW_NAME), not a blocker: the model check judges meaning, and a word list cannot tell a name from an ordinary capitalised word.
  *   The first word of an analysis sentence has its own rule: when it looks like a name
  *   it must be a function word from SENTENCE_STARTERS, a word on the allow-list, or
  *   a whole word (any case) of the quoted passage, the name values or the outlet of
@@ -112,7 +113,12 @@ export const checkG7: Check = ({ draft, claims }, ctx) => {
     }
     for (const name of tokens.names) {
       if (!names.has(name) && !ctx.nameAllowList.has(name)) {
-        fail(`name "${name}"`);
+        failures.push({
+          check: 'G7',
+          code: 'G7_ANALYSIS_NEW_NAME',
+          message: `the analysis sentence at ${where} introduces the name "${name}", which no fact sentence contains`,
+          where,
+        });
       }
     }
   }

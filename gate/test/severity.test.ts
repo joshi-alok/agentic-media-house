@@ -21,14 +21,19 @@ describe('severityOf', () => {
 });
 
 describe('NOTE_CODES', () => {
-  it('holds the length and the shape of a piece as notes', () => {
+  it('holds the length and the shape of a piece, its capitalised names and its filler as notes', () => {
     expect([...NOTE_CODES]).toEqual([
       'G2_OPENING_LENGTH',
       'G2_TAKEAWAYS_COUNT',
       'G2_BODY_LENGTH',
       'G2_HEADING_QUESTION',
       'G2_HEADING_TOO_LONG',
+      'G4_NAME_UNSUPPORTED',
+      'G4_HEADING_NAME',
+      'G4_NUMBER_WORD_UNCHECKABLE',
       'G7_ANALYSIS_SHARE',
+      'G7_ANALYSIS_NEW_NAME',
+      'G9_BANNED_PHRASE',
     ]);
   });
 

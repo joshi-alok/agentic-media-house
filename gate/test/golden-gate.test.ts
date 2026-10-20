@@ -269,3 +269,46 @@ describe('runGate: length and shape are notes', () => {
     expect(result.route).toBe('revise');
   });
 });
+
+describe('runGate: names and filler are notes, figures are not', () => {
+  it('publishes a piece with a name that its claim does not list, and lists the name as a note', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Harlow plant to receive FX-1 arms.', claimIds: ['c-1'] };
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((item) => item.code)).toContain('G4_NAME_UNSUPPORTED');
+    expect(result.route).toBe('publish');
+  });
+
+  it('publishes a piece that uses a banned filler phrase, and lists the phrase as a note', () => {
+    const result = api.runGate(cloneGolden(), api.defaultContext({ config: { bannedPhrases: ['begun shipping'] } }));
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((item) => item.code)).toContain('G9_BANNED_PHRASE');
+    expect(result.route).toBe('publish');
+  });
+
+  it('lists a name that analysis brings in as a note of its own, and still sends back a number that analysis brings in', () => {
+    const name = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        findSentence(g.draft, (sentence) => sentence.text.includes('The measured rate sits below')).text =
+          'The measured rate sits below the datasheet maximum, a gap that Harlow Logistics also reported.';
+      }),
+      api.defaultContext(),
+    );
+    expect(name.failures).toEqual([]);
+    expect(name.warnings.map((item) => item.code)).toEqual(['G7_ANALYSIS_NEW_NAME']);
+
+    const number = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        findSentence(g.draft, (sentence) => sentence.text.includes('The measured rate sits below')).text =
+          'The measured rate is 22% below the datasheet maximum, which is normal for a figure quoted as an upper limit.';
+      }),
+      api.defaultContext(),
+    );
+    expect(number.failures.map((item) => item.code)).toContain('G7_ANALYSIS_NEW_VALUE');
+    expect(number.route).toBe('revise');
+  });
+});

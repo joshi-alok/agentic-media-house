@@ -678,17 +678,6 @@ describe('problemsOf', () => {
     expect(problems.map((problem) => problem.id)).toEqual(['h1']);
   });
 
-  it('points a banned phrase at every sentence and every heading that has it, whatever its case', () => {
-    const { problems } = problemsFor((draft) => {
-      draft.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the Groundbreaking FX-1 arm to a second Brindle Logistics plant at Tarnmoor.', claimIds: ['c-1'] };
-      draft.sections[2]!.heading = 'What the groundbreaking filing shows';
-    });
-    expect(problems.filter((problem) => problem.reason.startsWith('G9_BANNED_PHRASE: '))).toEqual([
-      { id: 's1', reason: 'G9_BANNED_PHRASE: the banned phrase "groundbreaking" appears here' },
-      { id: 'h2', reason: 'G9_BANNED_PHRASE: the banned phrase "groundbreaking" appears here' },
-    ]);
-  });
-
   it('gives a sentence that failed twice two problems with its id', () => {
     const { problems } = problemsFor((draft) => { draft.takeaways[1] = { kind: 'fact', text: 'the datasheet lists a 15 kg rated payload.', claimIds: ['c-8'] }; });
     const id = problems[0]?.id;

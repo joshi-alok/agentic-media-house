@@ -184,7 +184,7 @@ const BAD: Scenario[] = [
     name: 'an invented name at the start of a sentence',
     script: () => told({ piece: reply((copy) => { copy.opening[1] = fact('Harlow Dynamics announced on 1 October 2026 that deliveries have started.', 'c-2'); }) }),
     gate: 'G4_INITIAL_WORD_UNSUPPORTED',
-    reasons: ['G4_INITIAL_WORD_UNSUPPORTED', 'G4_NAME_UNSUPPORTED'],
+    reasons: ['G4_INITIAL_WORD_UNSUPPORTED'],
     rounds: 2,
   },
   {
@@ -230,7 +230,7 @@ const BAD: Scenario[] = [
     name: 'a claim whose quotation is not in the source, which the piece then cites',
     script: () => told({ claims: [...DEMO_CLAIMS, NOT_ON_THE_PAGE], piece: reply((copy) => { copy.takeaways[3] = fact('The FX-1 weighs 38 kg.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED', 'G4_NAME_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -242,7 +242,7 @@ const BAD: Scenario[] = [
     name: 'a claim whose label carries a name that is not in its quotation, which the piece then cites',
     script: () => told({ claims: [...DEMO_CLAIMS, MADE_UP_NAME], piece: reply((copy) => { copy.takeaways[3] = fact('Fixture Robotics lists the FX-1 from $38,000 per arm.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED', 'G4_NAME_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -296,7 +296,7 @@ const BAD: Scenario[] = [
     name: 'a figure that is only a part of a longer figure of its quotation: 2 in 12 weeks',
     script: () => told({ claims: [...DEMO_CLAIMS, PART_OF_A_FIGURE], piece: reply((copy) => { copy.takeaways[3] = fact('Fixture Robotics promises delivery within 2 weeks of an order.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED', 'G4_NAME_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -323,7 +323,7 @@ const BAD: Scenario[] = [
     name: 'a claim whose label has a word that its quotation does not have',
     script: () => told({ claims: [...DEMO_CLAIMS, MADE_UP_WORD], piece: reply((copy) => { copy.takeaways[3] = fact('Fixture Robotics lists the FX-1 from $38,000 per arm.', 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED', 'G4_NAME_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);
@@ -346,7 +346,7 @@ const BAD: Scenario[] = [
     fetcher: worldWith({ [DEMO_URLS.release]: releasePage(`<p style="display:none">${HIDDEN_SENTENCE}</p><p hidden>${HIDDEN_SENTENCE}</p>`) }),
     script: () => told({ claims: [...DEMO_CLAIMS, HIDDEN_QUOTE], piece: reply((copy) => { copy.takeaways[3] = fact(HIDDEN_SENTENCE, 'c-8'); }) }),
     gate: 'G3_UNKNOWN_CLAIM',
-    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED', 'G4_NAME_UNSUPPORTED'],
+    reasons: ['G3_UNKNOWN_CLAIM', 'G4_INITIAL_WORD_UNSUPPORTED', 'G4_NUMBER_UNSUPPORTED'],
     rounds: 2,
     check: async ({ dir }) => {
       const extracted = await readArtifact(dir, '04-extract', ExtractArtifact);

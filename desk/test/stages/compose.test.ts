@@ -113,15 +113,11 @@ describe('runCompose: a script that breaks a rule is caught, with the gate\'s ow
     ['a number must be a value of a cited claim', (reply) => { reply.takeaways[1] = { kind: 'fact', text: 'The datasheet lists a 15 kg rated payload and a 1.4 m maximum reach.', claimIds: ['c-8', 'c-9'] }; }, 'G4_NUMBER_UNSUPPORTED'],
     ['a number written in words is checked as a number', (reply) => { reply.takeaways[1] = { kind: 'fact', text: 'The datasheet lists a twenty kilograms rated payload and a 1.4 m maximum reach.', claimIds: ['c-8', 'c-9'] }; }, 'G4_NUMBER_UNSUPPORTED'],
     ['a date must be a value of a cited claim', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Brindle Logistics plant to receive FX-1 arms, from 3 October 2026.', claimIds: ['c-1'] }; }, 'G4_DATE_UNSUPPORTED'],
-    ['a name must be a value of a cited claim', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Harlow plant to receive FX-1 arms.', claimIds: ['c-1'] }; }, 'G4_NAME_UNSUPPORTED'],
     ['a made-up name at the start of a sentence is not accepted', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Harlow Logistics plans a plant at Tarnmoor.', claimIds: ['c-1'] }; }, 'G4_INITIAL_WORD_UNSUPPORTED'],
-    ['digits, never half, twice or double', (reply) => { reply.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the FX-1 arm, rated for half a tonne, to a second Brindle Logistics plant.', claimIds: ['c-1', 'c-8'] }; }, 'G4_NUMBER_WORD_UNCHECKABLE'],
     ['every sentence starts with a capital letter or a digit', (reply) => { (reply.opening[0] as { text: string }).text = `f${(reply.opening[0] as { text: string }).text.slice(1)}`; }, 'G2_SENTENCE_START'],
     ['a quotation is word for word in a cited claim', (reply) => { reply.takeaways[2] = { kind: 'fact', text: 'Brindle Logistics said "we saved a fortune" at Ashvale.', claimIds: ['c-20'] }; }, 'G5_QUOTE_NOT_VERBATIM'],
     ['a heading has no number', (reply) => { section(reply, 0).heading = 'What shipped in 2026'; }, 'G4_HEADING_NUMBER'],
     ['a heading has no quotation', (reply) => { section(reply, 0).heading = 'What "shipped"'; }, 'G4_HEADING_QUOTE'],
-    ['a heading is lowercase except the words of the claims of its section', (reply) => { section(reply, 0).heading = 'What Shipped'; }, 'G4_HEADING_NAME'],
-    ['a heading names nobody that its claims do not', (reply) => { section(reply, 0).heading = 'What Harlow shipped'; }, 'G4_HEADING_NAME'],
     ['a section has a heading', (reply) => { section(reply, 0).heading = ''; }, 'G2_HEADING_EMPTY'],
     ['analysis is never in the opening', (reply) => { reply.opening[1] = { kind: 'analysis', text: 'The first site, at Ashvale, now runs 40 of the arms, and a third site is planned.', claimIds: ['c-23', 'c-26'] }; }, 'G7_ANALYSIS_PLACEMENT'],
     ['analysis is never in the title', (reply) => { reply.title = { kind: 'analysis', text: 'Fixture Robotics ships its FX-1 warehouse arm to a second plant', claimIds: ['c-1'] }; }, 'G7_ANALYSIS_PLACEMENT'],
@@ -130,7 +126,6 @@ describe('runCompose: a script that breaks a rule is caught, with the gate\'s ow
     ['the description is short', (reply) => { reply.description = { kind: 'fact', text: `Fixture Robotics has begun shipping the FX-1 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor${', and more'.repeat(10)}.`, claimIds: ['c-1', 'c-8'] }; }, 'G1_DESCRIPTION_TOO_LONG'],
     ['a piece has a category', (reply) => { reply.categories = []; }, 'G1_CATEGORY_COUNT'],
     ['funding comes with a beat', (reply) => { reply.categories = ['funding']; }, 'G1_CATEGORY_NO_BEAT'],
-    ['no banned phrase', (reply) => { reply.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the groundbreaking FX-1 arm, rated for 12 kg, to a second plant.', claimIds: ['c-1', 'c-8'] }; }, 'G9_BANNED_PHRASE'],
   ];
 
   // The rules that have become notes: the gate reports them in `warnings`, and a piece that breaks only one of them is published.
@@ -144,6 +139,11 @@ describe('runCompose: a script that breaks a rule is caught, with the gate\'s ow
     ['the opening is as long as the gate says', (reply) => { reply.opening = reply.opening.slice(0, 1); }, 'G2_OPENING_LENGTH'],
     ['there are as many takeaways as the gate says', (reply) => { reply.takeaways = reply.takeaways.slice(0, 2); }, 'G2_TAKEAWAYS_COUNT'],
     ['the piece is as long as the gate says', (reply) => { for (const item of reply.sections) item.paragraphs = item.paragraphs.slice(0, 1); }, 'G2_BODY_LENGTH'],
+    ['a name must be a value of a cited claim', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Harlow plant to receive FX-1 arms.', claimIds: ['c-1'] }; }, 'G4_NAME_UNSUPPORTED'],
+    ['digits, never half, twice or double', (reply) => { reply.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the FX-1 arm, rated for half a tonne, to a second Brindle Logistics plant.', claimIds: ['c-1', 'c-8'] }; }, 'G4_NUMBER_WORD_UNCHECKABLE'],
+    ['a heading is lowercase except the words of the claims of its section', (reply) => { section(reply, 0).heading = 'What Shipped'; }, 'G4_HEADING_NAME'],
+    ['a heading names nobody that its claims do not', (reply) => { section(reply, 0).heading = 'What Harlow shipped'; }, 'G4_HEADING_NAME'],
+    ['no banned phrase', (reply) => { reply.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the groundbreaking FX-1 arm, rated for 12 kg, to a second plant.', claimIds: ['c-1', 'c-8'] }; }, 'G9_BANNED_PHRASE'],
   ];
 
   it.each(ROWS)('catches a script that breaks the rule: %s', async (_rule, change, code) => {

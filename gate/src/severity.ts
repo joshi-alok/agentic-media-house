@@ -16,7 +16,12 @@ export const NOTE_CODES: readonly string[] = [
   'G2_BODY_LENGTH',
   'G2_HEADING_QUESTION',
   'G2_HEADING_TOO_LONG',
+  'G4_NAME_UNSUPPORTED',
+  'G4_HEADING_NAME',
+  'G4_NUMBER_WORD_UNCHECKABLE',
   'G7_ANALYSIS_SHARE',
+  'G7_ANALYSIS_NEW_NAME',
+  'G9_BANNED_PHRASE',
 ];
 
 /** `note` for a code on the list of notes, `blocker` for every other code. */

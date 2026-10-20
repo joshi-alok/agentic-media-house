@@ -1,4 +1,4 @@
-import { allSentences, describeLocation, normaliseQuotes, runGate } from '@robywire/gate';
+import { allSentences, describeLocation, runGate } from '@robywire/gate';
 import type { Claim, Draft, Failure, GateResult } from '@robywire/gate';
 import { z } from 'zod';
 import { ComposeArtifact, VerifyArtifact, writeArtifact } from '../index';
@@ -35,8 +35,7 @@ export interface Problems {
  * (`allSentences`), and a section by its place, from 0.
  *
  * A gate failure points at a sentence when its `where` is the place of the sentence (`describeLocation`), at every sentence of the opening
- * when it is `opening` (the length of the opening is the length of its sentences), at a heading when it is `section "<heading>"`, and, for
- * a banned phrase, at every sentence and heading that has the phrase. A failure of the model check points at the sentence or the heading it judged.
+ * when it is `opening` (the length of the opening is the length of its sentences), at a heading when it is `section "<heading>"`. A failure of the model check points at the sentence or the heading it judged.
  * Every other failure is `unattached`: it is about the piece as a whole (its length, its sections, its categories), about a claim (the
  * basis or the status of a claim, which no sentence can change), or about a sentence that code wrote (a limitation), and rewriting a sentence cannot
  * mend it. A reason is the gate's code and message, or what the verifier said. A limitation sentence is never pointed at: it is made again from the claims.
@@ -45,12 +44,10 @@ export function problemsOf(draft: Draft, gate: GateResult, failures: readonly Ve
   const located = allSentences(draft).filter((item) => item.sentence.kind !== 'limitation');
   const sentenceIds = (test: (item: (typeof located)[number]) => boolean): string[] => located.filter(test).map((item) => `s${item.index}`);
   const headingIds = (test: (heading: string) => boolean): string[] => draft.sections.flatMap((section, at) => (test(section.heading) ? [`h${at}`] : []));
-  const fold = (text: string): string => normaliseQuotes(text).toLowerCase();
 
   const idsOf = (failure: Failure): string[] => {
     const { where } = failure;
     if (where === undefined) return [];
-    if (failure.code === 'G9_BANNED_PHRASE') return [...sentenceIds((item) => fold(item.sentence.text).includes(fold(where))), ...headingIds((heading) => fold(heading).includes(fold(where)))];
     if (where === 'opening') return sentenceIds((item) => item.section === 'opening');
     const heading = /^section "(.*)"$/.exec(where);
     if (heading !== null) return headingIds((text) => text === heading[1]);
@@ -59,8 +56,7 @@ export function problemsOf(draft: Draft, gate: GateResult, failures: readonly Ve
 
   const result: Problems = { problems: [], unattached: [] };
   for (const failure of gate.failures) {
-    // The gate reports a banned phrase once for every place it is in, each time with the phrase for its `where`, so each place gets the same sentence.
-    const reason = failure.code === 'G9_BANNED_PHRASE' ? `${failure.code}: the banned phrase "${failure.where}" appears here` : `${failure.code}: ${failure.message}`;
+    const reason = `${failure.code}: ${failure.message}`;
     const ids = idsOf(failure);
     if (ids.length === 0) result.unattached.push(reason);
     for (const id of ids) result.problems.push({ id, reason });
