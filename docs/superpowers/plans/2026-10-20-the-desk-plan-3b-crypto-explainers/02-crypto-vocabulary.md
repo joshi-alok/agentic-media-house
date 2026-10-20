@@ -242,6 +242,8 @@ Prompts, site copy, footer, banned filler and the README say "robotics" and "pri
 - Modify: `desk/src/prompts/select.ts`, `desk/src/prompts/extract.ts`, `desk/src/prompts/verify.ts`, `desk/src/prompts/compose.ts`, `gate/src/config.ts`, `gate/src/limitations.ts` (`STATUS_NOTES`), `site/src/lib/copy.ts`, `site/src/lib/method.ts`, `README.md`, `docs/runbook.md`, `sources.yml` (header comment only)
 - Modify (tests): `desk/test/prompts/*.test.ts`, `site/test/copy.test.ts`, `site/test/method.test.ts`, `site/test/known-limits.test.ts`, `gate/test/limitations.test.ts`, `gate/test/config.test.ts`
 
+(Found when Task 6 was reviewed: more places still say datasheet, press release or "company" in reader-facing or model-facing words and belong to this task: `gate/src/checks/g2-structure.ts` ~line 107, the message of `G2_LIMITATIONS_MISSING` ("they rest on a datasheet, press release, briefing or demo"), which the Desk and the model see (change it to "documentation, an announcement, a briefing or a demo" and keep the tests that quote it in step); `site/src/pages/method/index.astro` ~lines 84-85 ("such as a datasheet, a press release, a filing ..."); a comment at `gate/src/checks/g6-sourcing.ts` ~line 28; `desk/src/prompts/select.ts` ~line 18 ("a company's own newsroom"); `site/src/lib/copy.ts` ~line 159 and `site/src/lib/method.ts` ~line 42, whose sentences `site/test/copy.test.ts` ~line 409 and `site/test/method.test.ts` pin. The receipts page shows the raw slug of a basis (`docs`, `announcement`) in a chip: leave that. The golden story's prose ("The datasheet lists a 12 kg ...") stays.)
+
 - [ ] **Step 1: Write the failing tests**
 
 `site/test/copy-domain.test.ts`:
