@@ -1,4 +1,4 @@
-import { defaultContext, runGate } from '@robywire/gate';
+import { defaultContext, profileOverrides, runGate } from '@robywire/gate';
 import type { Claim, Draft, GateContext, GateResult } from '@robywire/gate';
 import type { ModelEffort } from '../model/types';
 import { buildComposeUser, composeSystem } from '../prompts/compose';
@@ -16,9 +16,13 @@ export const COMPOSE_MAX_OUTPUT_TOKENS = 6000;
 /** How hard the model may think while it writes from claims: `low`, as for any writing that follows fixed rules, which the gate then checks in code. */
 export const COMPOSE_EFFORT: ModelEffort = 'low';
 
-/** What the gate needs to know of the world: the slugs and the titles that are published, and the gate's own defaults for everything else. */
-export function gateContextOf(ctx: Pick<StageContext, 'published'>): GateContext {
-  return defaultContext({ publishedSlugs: ctx.published.slugs, recentTitles: ctx.published.titles });
+/** What the gate needs to know of the world: the slugs and the titles that are published, the ranges of the kind of piece, and the gate's own defaults for everything else. */
+export function gateContextOf(ctx: Pick<StageContext, 'published' | 'profile'>): GateContext {
+  return defaultContext({
+    publishedSlugs: ctx.published.slugs,
+    recentTitles: ctx.published.titles,
+    ...(ctx.profile === undefined ? {} : { config: profileOverrides(ctx.profile) }),
+  });
 }
 
 /** A draft, and what the gate says of it. */
@@ -38,7 +42,7 @@ export async function runCompose(ctx: StageContext, claims: Claim[]): Promise<Co
   const reply = await ctx.client.json({
     role: 'compose',
     model: ctx.config.models.compose,
-    system: composeSystem(),
+    system: composeSystem(ctx.profile),
     user: buildComposeUser(claims, ctx.date),
     schema: ComposeReply,
     maxOutputTokens: COMPOSE_MAX_OUTPUT_TOKENS,

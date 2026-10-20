@@ -245,3 +245,16 @@ describe('gateContextOf', () => {
     expect([...gate.nameAllowList].sort()).toEqual([...DEFAULT_NAME_ALLOW_LIST].sort());
   });
 });
+
+describe('runCompose: the profile of the piece', () => {
+  it('judges the draft against the ranges of its profile, and tells the writer the same ranges', async () => {
+    const made = stageContext(scratch, { profile: 'brief' });
+    made.fake.script('compose', replyFromDraft());
+    const result = await runCompose(made.ctx, GOLDEN_CLAIMS);
+    expect(result.gate.failures).toEqual([]);
+    expect(result.gate.warnings.map((note) => note.code)).toEqual(['G2_BODY_LENGTH']);
+    expect(result.gate.route).toBe('publish');
+    const call = made.fake.calls.find((item) => item.role === 'compose')!;
+    expect(call.system).toContain('The piece is about 150 to 500 words in all');
+  });
+});

@@ -162,7 +162,7 @@ export async function reviseDraft(ctx: StageContext, claims: Claim[], draft: Dra
   const reply = await ctx.client.json({
     role: 'compose',
     model: ctx.config.models.compose,
-    system: reviseSystem(),
+    system: reviseSystem(ctx.profile),
     user: buildReviseUser(claims, items),
     schema: reviseReplySchema(items),
     maxOutputTokens: COMPOSE_MAX_OUTPUT_TOKENS,

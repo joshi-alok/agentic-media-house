@@ -1,7 +1,7 @@
-import { CATEGORY_VOCAB, SENTENCE_STARTERS, defaultConfig as gateDefaults } from '@robywire/gate';
+import { CATEGORY_VOCAB, defaultConfig as gateDefaults } from '@robywire/gate';
 import { GOLDEN_CLAIMS, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
-import { COMPOSE_INSTRUCTIONS, COMPOSE_RULES, REVISE_INSTRUCTIONS, buildComposeUser, buildReviseUser, composeSystem, reviseSystem } from '../../src/prompts/compose';
+import { COMPOSE_INSTRUCTIONS, COMPOSE_RULES, REVISE_INSTRUCTIONS, buildComposeUser, buildReviseUser, composeInstructions, composeRules, composeSystem, reviseSystem } from '../../src/prompts/compose';
 import type { ReviseItem } from '../../src/prompts/compose';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { RUN_DATE } from '../support/candidates';
@@ -33,9 +33,9 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('Use funding only together with a beat.');
   });
 
-  it('says that every fact sentence cites a claim and that every number, date and name must be a value of a cited claim', () => {
+  it('says that every fact sentence cites a claim and that every number, date and amount must be a value of a cited claim', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('Every fact sentence cites at least one claim.');
-    expect(COMPOSE_INSTRUCTIONS).toContain('Every number, date and name in a fact sentence must be one of the values of a claim that the sentence cites.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('Every number, date and amount in a fact sentence must be one of the values of a claim that the sentence cites.');
     expect(COMPOSE_INSTRUCTIONS).toContain('A claim licenses only the values listed for it, not every word of its text.');
   });
 
@@ -48,25 +48,25 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('A passage in double quotation marks must be word for word inside the quoted passage of a claim that the sentence cites.');
   });
 
-  it('says that every sentence starts with a capital letter or a digit, and gives the plain words that may start one: the gate\'s own list', () => {
-    expect(COMPOSE_INSTRUCTIONS).toContain('Every sentence starts with a capital letter or a digit.');
-    expect(COMPOSE_INSTRUCTIONS).toContain(`A sentence starts either with one of these plain words: ${SENTENCE_STARTERS.join(', ')};`);
-    expect(COMPOSE_INSTRUCTIONS).toContain('or with a word that appears in the quoted passage, the name values or the outlet of a claim that the sentence cites. A word that only the text or the label of a claim has is refused');
-  });
-
   it('says the rules of a heading: a statement of at most the gate\'s limit, no number, date or quotation, capitalised only as the claims of its section are, no empty section, no repeated neighbour', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain(`A heading is a statement of at most ${GATE.headingMax} characters, never a question.`);
     expect(COMPOSE_INSTRUCTIONS).toContain('A heading has no number, no date and no quotation.');
-    expect(COMPOSE_INSTRUCTIONS).toContain('Every capitalised word of a heading, the first one included, must be a plain word from the list above or a word of the quoted passage, the name values or the outlet of a claim cited in that section.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('A heading names nothing that the claims cited in its section do not.');
     expect(COMPOSE_INSTRUCTIONS).toContain('Do not leave a section with no sentences, and do not give two neighbouring sections the same heading.');
   });
 
-  it('says the rules of analysis: never in the title, the description, the opening or the takeaways, at most the gate\'s share, nothing new, no claim of another outlet', () => {
-    expect(COMPOSE_INSTRUCTIONS).toContain('Never use analysis in the title, the description, the opening or the takeaways.');
+  it('says the rules of analysis: never in the title or the description, at most the gate\'s share, nothing new, no claim of another outlet', () => {
+    expect(COMPOSE_INSTRUCTIONS).toContain('Never use analysis in the title or the description.');
     expect(COMPOSE_INSTRUCTIONS).toContain(`At most ${GATE.analysisShareCap * 100} per cent of the sentences of the piece may be analysis.`);
-    expect(COMPOSE_INSTRUCTIONS).toContain('may not contain a number, a date or a name that no fact sentence of the piece contains');
-    expect(COMPOSE_INSTRUCTIONS).toContain('it starts with a plain word or a word of the quoted passage, the name values or the outlet of a claim that it cites');
+    expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence may not contain a number or a date that no fact sentence of the piece contains.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence names nothing that no fact sentence of the piece names.');
     expect(COMPOSE_INSTRUCTIONS).toContain('An analysis sentence may cite only claims from a primary source.');
+  });
+
+  it('keeps for analysis, which no model reads, the rules of its first word: a capital letter or a digit, then an ordinary word or a word of a cited claim', () => {
+    expect(COMPOSE_INSTRUCTIONS).toContain('- (blocks) An analysis sentence names nothing that no fact sentence of the piece names.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('Begin every analysis sentence with a capital letter or a digit.');
+    expect(COMPOSE_INSTRUCTIONS).toContain('It starts with an ordinary word, or with a word that a claim it cites contains');
   });
 
   it('says that a claim from another outlet is only ever reported, as an attributed fact that names the outlet', () => {
@@ -74,10 +74,10 @@ describe('composeSystem', () => {
     expect(COMPOSE_INSTRUCTIONS).toContain('for example "<outlet> reports that ...". Never state it as plain fact, and never use it in analysis.');
   });
 
-  it('gives the shape of the piece in the numbers of the gate', () => {
-    expect(COMPOSE_INSTRUCTIONS).toContain(`The opening is ${GATE.openingWords.min} to ${GATE.openingWords.max} words in all. There are ${GATE.takeaways.min} to ${GATE.takeaways.max} takeaways.`);
-    expect(COMPOSE_INSTRUCTIONS).toContain(`The piece is ${GATE.bodyWords.min} to ${GATE.bodyWords.max} words in all`);
-    expect(COMPOSE_INSTRUCTIONS).toContain('Leave room for the notes.');
+  it('gives the shape of the piece as targets, in the numbers of the gate, and says not to pad', () => {
+    expect(COMPOSE_INSTRUCTIONS).toContain(`The opening is about ${GATE.openingWords.min} to ${GATE.openingWords.max} words. There are ${GATE.takeaways.min} to ${GATE.takeaways.max} takeaways.`);
+    expect(COMPOSE_INSTRUCTIONS).toContain(`The piece is about ${GATE.bodyWords.min} to ${GATE.bodyWords.max} words in all`);
+    expect(COMPOSE_INSTRUCTIONS).toContain('never pad it with anything that a claim does not say');
     expect(COMPOSE_INSTRUCTIONS).toContain(`The description is at most ${GATE.descriptionMax} characters.`);
   });
 
@@ -280,5 +280,64 @@ describe('buildReviseUser', () => {
     const text = composeSystem();
     expect(text).toContain('such as "the first half of 2027"');
     expect(text).toContain('write it as a quotation, word for word, in double quotation marks, or write the year alone');
+  });
+});
+
+describe('composeRules: what blocks and what is noted', () => {
+  it('marks each rule that sends a sentence back with (blocks) and each rule that is only recorded with (noted)', () => {
+    const rules = composeRules();
+    expect(rules.filter((rule) => rule.startsWith('- (blocks) ')).length).toBeGreaterThan(5);
+    expect(rules.filter((rule) => rule.startsWith('- (noted) ')).length).toBeGreaterThan(4);
+    expect(rules[0]).toContain('(blocks)');
+    expect(rules[0]).toContain('(noted)');
+  });
+
+  it('blocks on a figure, a date, a quotation, a citation and the use of another outlet, and only notes a name, a heading shape and a banned phrase', () => {
+    const text = composeRules().join('\n');
+    expect(text).toContain('- (blocks) Every fact sentence cites at least one claim.');
+    expect(text).toContain('- (blocks) Every number, date and amount');
+    expect(text).toContain('- (blocks) A passage in double quotation marks');
+    expect(text).toContain('- (noted) Name a person, company, product or place only if a claim that the sentence cites names it');
+    expect(text).toContain('- (noted) A heading is a statement');
+    expect(text).toContain('- (noted) Do not use these phrases anywhere');
+  });
+
+  it('has no rule about the first word of a fact sentence', () => {
+    const text = composeRules().join('\n');
+    expect(text).not.toContain('Every sentence starts with a capital letter or a digit.');
+    expect(text).not.toContain('A sentence starts either with one of these plain words');
+    expect(text).not.toContain('plain word');
+  });
+});
+
+describe('the profile of the piece', () => {
+  it('gives the writer the ranges of the profile, and says that a digest has no takeaways', () => {
+    const digest = composeSystem('digest');
+    expect(digest).toContain('The piece is about 150 to 500 words in all');
+    expect(digest).toContain('There are no takeaways.');
+    expect(composeSystem('explainer')).toContain('The piece is about 500 to 1400 words in all');
+    expect(composeSystem('explainer')).toContain('There are 3 to 5 takeaways.');
+  });
+
+  it('gives the revision the same ranges as the draft', () => {
+    expect(reviseSystem('digest')).toContain('The piece is about 150 to 500 words in all');
+  });
+
+  it('is the prompt of the gate defaults when no profile is given', () => {
+    expect(composeSystem()).toBe(composeSystem(undefined));
+    expect(composeSystem()).toBe(`${UNTRUSTED_PREAMBLE}\n\n${COMPOSE_INSTRUCTIONS}`);
+    expect(composeSystem()).toContain(`The piece is about ${GATE.bodyWords.min} to ${GATE.bodyWords.max} words in all`);
+  });
+
+  it('lists every category of the vocabulary', () => {
+    for (const category of CATEGORY_VOCAB) expect(composeSystem('brief')).toContain(category);
+  });
+
+  it('says that "takeaways" is an empty list when the profile has none, and describes the field as before when it has some', () => {
+    expect(composeSystem('digest')).toContain('- "takeaways": leave it as an empty list.');
+    expect(composeSystem('digest')).not.toContain('the key takeaways, a list of sentences');
+    expect(composeSystem('explainer')).toContain('- "takeaways": the key takeaways, a list of sentences, each one a bullet.');
+    expect(composeSystem()).toContain('- "takeaways": the key takeaways, a list of sentences, each one a bullet.');
+    expect(composeInstructions({ ...GATE, takeaways: { min: 0, max: 0 } })).toContain('- "takeaways": leave it as an empty list.');
   });
 });

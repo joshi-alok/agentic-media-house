@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { LedgerEntry, dayNumber, defaultConfig as defaultGateConfig } from '@robywire/gate';
-import type { DeskState, SourcesRegistry } from '@robywire/gate';
+import type { DeskState, ProfileId, SourcesRegistry } from '@robywire/gate';
 import { ExtractError, FeedError, FetchError, canonicalUrl, describeIssues } from '../index';
 import type { DeskConfig, EvidenceStore, Fetcher, ModelClient } from '../index';
 
@@ -34,6 +34,8 @@ export interface StageContext {
   /** The folder of this run: the stages write their artifacts here. */
   runDir: string;
   published: PublishedIndex;
+  /** The kind of piece being written, which sets the ranges the writer is asked for and the gate holds the piece to as notes. Absent: the defaults of the gate. */
+  profile?: ProfileId;
   /** A line for the log of the run. */
   log: (line: string) => void;
 }
