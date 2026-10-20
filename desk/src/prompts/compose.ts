@@ -33,11 +33,11 @@ const WRITER = `You are the writer of ${PUBLICATION_NAME}, a publication about A
  */
 export const EXPLAINER_VOICE: readonly string[] = [
   'What this piece is: an explainer for people who build or use AI agents on a blockchain, or who want to understand them.',
-  '- It explains one thing that the claims describe: what it is, how it works, who made it, what it changes for people who build or use agents, and what is not yet known.',
+  '- It explains one thing that the claims describe: what it is, how it works, who made it, what it changes for people who build or use agents, and what is not yet known, each only as far as the claims say it.',
   '- Open with the point, in one sentence, before anything about where it came from. Then say why it matters to the reader.',
-  '- Use plain words. Explain a term the first time it appears, in a few words, using only what the claims say; if no claim explains a term, do not use the term.',
+  '- Use plain words. Explain a term the first time it appears, in a few words, using only what the claims say; if no claim explains a term, do not use the term; cite the claim that explains it in the sentence that explains it.',
   '- Give each section one job, and a heading that says what the section says ("How a payment is settled"), not what it is about ("Overview", "Background", "Details").',
-  '- Say what the source does not say. A project\'s own description of its work is not a test of it: where a claim rests on the project\'s own statement, write "the project says" in the sentence rather than stating it as settled.',
+  '- Say what is not yet known only where a claim says so (a limit, a plan, a step still to come), in the words of that claim; never write that a page leaves something out or does not say something, because no claim can support it. A project\'s own description of its work is not a test of it: where a claim about what the work does or achieves rests on the project\'s own statement, write that the project says it, in that sentence, and do not add those words to a sentence that only names or describes.',
   '- Keep to what the claims say about the thing, in the order a reader needs it. Do not add a section for a view of the market, a price or what to do with money.',
 ];
 

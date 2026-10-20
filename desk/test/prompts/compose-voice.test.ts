@@ -29,14 +29,17 @@ describe('the voice of an explainer', () => {
     expect(text).toContain('"Overview"');
   });
 
-  it('says to say what the source does not say, and not to state a project\'s own description as settled', () => {
+  it('says what is not yet known only where a claim says so, never that a page does not say something, and not to state a project\'s own description as settled', () => {
     const text = EXPLAINER_VOICE.join('\n');
-    expect(text).toContain('Say what the source does not say');
-    expect(text).toContain('"the project says"');
+    expect(text).toContain('Say what is not yet known only where a claim says so');
+    expect(text).toContain('never write that a page leaves something out or does not say something');
+    expect(text).toContain('write that the project says it');
+    expect(text).not.toContain('Say what the source does not say');
   });
 
-  it('puts the voice before the rules, so that the rules, which are checked, come last', () => {
+  it('puts the voice after the job and before the rules, so that the rules, which are checked, come last', () => {
     const text = composeSystem('explainer');
+    expect(text.indexOf('Write plain sentences: no markdown')).toBeLessThan(text.indexOf(EXPLAINER_VOICE[0]!));
     expect(text.indexOf(EXPLAINER_VOICE[0]!)).toBeLessThan(text.indexOf('The Desk checks the rules below by code'));
   });
 
