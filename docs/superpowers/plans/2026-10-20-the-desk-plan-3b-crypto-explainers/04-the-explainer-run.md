@@ -386,7 +386,7 @@ Expected: green.
 
 ### Task 16: What an explainer is
 
-The compose prompt gives rules, and rules do not make a good piece. The diagnosis showed pieces that were correct and flat: a list of facts under headings that said what the section was about ("Overview"), and a note of caution after every sentence. The explainer has a voice: it opens with the point, explains a term the first time and only from the claims, gives each section one job and says so in its heading, and says what the source does not say. The voice is part of the prompt for the profile `explainer`; the other profiles are told nothing new.
+The compose prompt gives rules, and rules do not make a good piece. The diagnosis showed pieces that were correct and flat: a list of facts under headings that said what the section was about ("Overview"), and a note of caution after every sentence. The explainer has a voice: it opens with the point, explains a term the first time and only from the claims, gives each section one job and says so in its heading, and says what is not yet known only where a claim says so. (The first form of this line told the writer to "say what the source does not say"; the review of the task found that no claim can state an absence, so such a sentence is a fact with nothing to cite or an analysis the model check may reject, and it costs revision rounds. The line now says what is not yet known only in the words of a claim, and never that a page leaves something out.) The voice is part of the prompt for the profile `explainer`; the other profiles are told nothing new.
 
 **Files:**
 - Modify: `desk/src/prompts/compose.ts`
@@ -429,14 +429,17 @@ describe('the voice of an explainer', () => {
     expect(text).toContain('"Overview"');
   });
 
-  it('says to say what the source does not say, and not to state a project\'s own description as settled', () => {
+  it('says what is not yet known only where a claim says so, never that a page does not say something, and not to state a project\'s own description as settled', () => {
     const text = EXPLAINER_VOICE.join('\n');
-    expect(text).toContain('Say what the source does not say');
-    expect(text).toContain('"the project says"');
+    expect(text).toContain('Say what is not yet known only where a claim says so');
+    expect(text).toContain('never write that a page leaves something out or does not say something');
+    expect(text).toContain('write that the project says it');
+    expect(text).not.toContain('Say what the source does not say');
   });
 
-  it('puts the voice before the rules, so that the rules, which are checked, come last', () => {
+  it('puts the voice after the job and before the rules, so that the rules, which are checked, come last', () => {
     const text = composeSystem('explainer');
+    expect(text.indexOf('Write plain sentences: no markdown')).toBeLessThan(text.indexOf(EXPLAINER_VOICE[0]!));
     expect(text.indexOf(EXPLAINER_VOICE[0]!)).toBeLessThan(text.indexOf('The Desk checks the rules below by code'));
   });
 
@@ -464,11 +467,11 @@ Expected: FAIL (`EXPLAINER_VOICE` is not exported).
  */
 export const EXPLAINER_VOICE: readonly string[] = [
   'What this piece is: an explainer for people who build or use AI agents on a blockchain, or who want to understand them.',
-  '- It explains one thing that the claims describe: what it is, how it works, who made it, what it changes for people who build or use agents, and what is not yet known.',
+  '- It explains one thing that the claims describe: what it is, how it works, who made it, what it changes for people who build or use agents, and what is not yet known, each only as far as the claims say it.',
   '- Open with the point, in one sentence, before anything about where it came from. Then say why it matters to the reader.',
-  '- Use plain words. Explain a term the first time it appears, in a few words, using only what the claims say; if no claim explains a term, do not use the term.',
+  '- Use plain words. Explain a term the first time it appears, in a few words, using only what the claims say; if no claim explains a term, do not use the term; cite the claim that explains it in the sentence that explains it.',
   '- Give each section one job, and a heading that says what the section says ("How a payment is settled"), not what it is about ("Overview", "Background", "Details").',
-  '- Say what the source does not say. A project\'s own description of its work is not a test of it: where a claim rests on the project\'s own statement, write "the project says" in the sentence rather than stating it as settled.',
+  '- Say what is not yet known only where a claim says so (a limit, a plan, a step still to come), in the words of that claim; never write that a page leaves something out or does not say something, because no claim can support it. A project\'s own description of its work is not a test of it: where a claim about what the work does or achieves rests on the project\'s own statement, write that the project says it, in that sentence, and do not add those words to a sentence that only names or describes.',
   '- Keep to what the claims say about the thing, in the order a reader needs it. Do not add a section for a view of the market, a price or what to do with money.',
 ];
 ```
