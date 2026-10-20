@@ -96,14 +96,14 @@ describe('fixtureFiles: the pieces', () => {
     expect(dates).toEqual(['2026-10-04', '2026-10-03', '2026-10-02', '2026-10-01', '2026-09-29']);
   });
 
-  it('files the golden piece under industrial-warehouse and funding, and gives the others other beats', () => {
+  it('files the golden piece under agent-infrastructure and funding, and gives the others other beats', () => {
     const categories = SLUGS.map((slug) => LedgerEntry.parse(JSON.parse(text(`ledger/${slug}.json`))).categories);
     expect(categories).toEqual([
-      ['industrial-warehouse', 'funding'],
-      ['humanoids'],
-      ['policy-standards'],
-      ['home-consumer', 'field-mobility'],
-      ['policy-standards', 'funding'],
+      ['agent-infrastructure', 'funding'],
+      ['payments-commerce'],
+      ['policy-regulation'],
+      ['wallets-keys', 'identity-trust'],
+      ['policy-regulation', 'funding'],
     ]);
   });
 

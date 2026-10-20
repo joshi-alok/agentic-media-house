@@ -9,7 +9,7 @@ describe('route paths', () => {
   });
 
   it('builds the topic path for a beat or tag', () => {
-    expect(topicPath('humanoids')).toBe('/topics/humanoids/');
+    expect(topicPath('payments-commerce')).toBe('/topics/payments-commerce/');
     expect(topicPath('funding')).toBe('/topics/funding/');
   });
 

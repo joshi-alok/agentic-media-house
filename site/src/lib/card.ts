@@ -94,8 +94,8 @@ export function wrapText(text: string, maxChars: number, maxLines: number): stri
  * the words under the label of each figure, and the label of the card for assistive technology says them.
  */
 export const BASIS_WORDS: Readonly<Record<Basis, string>> = {
-  datasheet: 'datasheet',
-  'press-release': 'press release',
+  docs: 'documentation',
+  announcement: 'announcement',
   briefing: 'briefing',
   demo: 'demonstration',
   filing: 'filing',

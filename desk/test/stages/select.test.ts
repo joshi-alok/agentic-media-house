@@ -22,7 +22,7 @@ const ARTICLE = candidate({ url: URLS.mercerArticle, title: "Fixture Robotics st
 const FUNDING = candidate({
   url: 'https://mercer-wire.example/robotics/northwind-handling-raises-12-million',
   title: 'Northwind Handling raises $12 million for pallet-moving robots',
-  beats: ['humanoids', 'funding'],
+  beats: ['payments-commerce', 'funding'],
   publishedAt: '2026-10-03T16:00:00.000Z',
 });
 const RELEASE = candidate({ url: URLS.release, title: 'Fixture Robotics begins shipping FX-1 arms to a second Brindle Logistics plant', tier: 1, outlet: 'Fixture Robotics', origin: 'newsroom', publishedAt: undefined });
@@ -90,13 +90,13 @@ describe('shortlistOf', () => {
 
   describe('beat', () => {
     it.each([
-      ['a beat', ['humanoids'], true],
-      ['a beat and the funding tag', ['funding', 'policy-standards'], true],
-      ['every beat of the vocabulary', ['humanoids', 'home-consumer', 'industrial-warehouse', 'field-mobility', 'software-autonomy', 'components-supply-chain', 'policy-standards'], true],
+      ['a beat', ['payments-commerce'], true],
+      ['a beat and the funding tag', ['funding', 'policy-regulation'], true],
+      ['every beat of the vocabulary', ['payments-commerce', 'wallets-keys', 'agent-infrastructure', 'identity-trust', 'protocols-standards', 'security-incidents', 'policy-regulation'], true],
       ['the funding tag alone, which is not a beat', ['funding'], false],
       ['no beat at all', [], false],
       ['a name that is not in the vocabulary', ['industrial'], false],
-      ['a name that is not in the vocabulary and a beat', ['industrial', 'humanoids'], true],
+      ['a name that is not in the vocabulary and a beat', ['industrial', 'payments-commerce'], true],
     ])('%s', (_name, beats, kept) => {
       expect(listOf([dated('a', '2026-10-04T00:00:00.000Z', { beats })])).toEqual(kept ? ['https://mercer-wire.example/robotics/a'] : []);
     });

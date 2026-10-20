@@ -18,15 +18,15 @@ export const DESK_AUTHOR_NAME = 'Agentic Media House Desk';
  */
 export const DESK_BYLINE_LABEL = 'automated, with sources linked';
 
-/** The seven beats from the content contract (section 4). A closed vocabulary. */
+/** The seven beats of the publication, from the design of the blog-first redesign (AI agents in crypto). A closed vocabulary. */
 export const BEATS = [
-  'humanoids',
-  'home-consumer',
-  'industrial-warehouse',
-  'field-mobility',
-  'software-autonomy',
-  'components-supply-chain',
-  'policy-standards',
+  'payments-commerce',
+  'identity-trust',
+  'wallets-keys',
+  'protocols-standards',
+  'agent-infrastructure',
+  'security-incidents',
+  'policy-regulation',
 ] as const;
 export type Beat = (typeof BEATS)[number];
 
@@ -43,8 +43,8 @@ export type Category = (typeof CATEGORY_VOCAB)[number];
  * (a tier-2 claim): G6 requires it there and refuses it anywhere else.
  */
 export const BASES = [
-  'datasheet',
-  'press-release',
+  'docs',
+  'announcement',
   'briefing',
   'paper',
   'filing',
@@ -57,7 +57,7 @@ export type Basis = (typeof BASES)[number];
 
 /**
  * Bases that need no "What we couldn't verify" section: the source is a filing,
- * a standard, a paper or a measurement, not a company's own claim. `reported` is
+ * a standard, a paper or a measurement, not a project's or a company's own claim. `reported` is
  * never safe: what another outlet reports is, by its nature, not checked here.
  */
 export const SAFE_BASES = ['filing', 'standard', 'paper', 'measured'] as const satisfies readonly Basis[];

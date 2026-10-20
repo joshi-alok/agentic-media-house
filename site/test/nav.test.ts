@@ -33,16 +33,16 @@ describe('FOOTER_LINKS', () => {
 describe('isCurrent', () => {
   it('is true for the page itself', () => {
     expect(isCurrent('/method/', '/method/')).toBe(true);
-    expect(isCurrent('/topics/humanoids/', '/topics/humanoids/')).toBe(true);
+    expect(isCurrent('/topics/payments-commerce/', '/topics/payments-commerce/')).toBe(true);
   });
 
   it('is true for a page below it', () => {
-    expect(isCurrent('/topics/humanoids/', '/topics/humanoids/page/2/')).toBe(true);
+    expect(isCurrent('/topics/payments-commerce/', '/topics/payments-commerce/page/2/')).toBe(true);
   });
 
   it('is false for another page, including one whose address only starts the same way', () => {
-    expect(isCurrent('/topics/humanoids/', '/topics/home-consumer/')).toBe(false);
-    expect(isCurrent('/topics/home/', '/topics/home-consumer/')).toBe(false);
+    expect(isCurrent('/topics/payments-commerce/', '/topics/wallets-keys/')).toBe(false);
+    expect(isCurrent('/topics/home/', '/topics/wallets-keys/')).toBe(false);
     expect(isCurrent('/method/', '/')).toBe(false);
   });
 

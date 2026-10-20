@@ -35,7 +35,7 @@ describe('receiptsView: the claims', () => {
     const full = golden.claims.find((claim) => claim.id === 'c-1')!.source.snapshotHash;
     expect(first.hash).toBe(full.slice(0, 12));
     expect(first.hash).toMatch(/^[0-9a-f]{12}$/);
-    expect(first.basis).toBe('press-release');
+    expect(first.basis).toBe('announcement');
     expect(first.status).toBe('unspecified');
   });
 

@@ -162,23 +162,23 @@ describe('aggregateVerdicts', () => {
     reply.labels[1] = { id: 'c-2', basisSupported: true, statusSupported: false, reason: 'It is not planned.' };
     const { verifier, failures } = aggregateVerdicts(MODEL, PLAN, reply);
     expect(failures).toEqual([
-      { id: 'c-1', kind: 'label', code: 'unsupported', reason: 'the basis "press-release" is not supported: It is not a press release.' },
+      { id: 'c-1', kind: 'label', code: 'unsupported', reason: 'the basis "announcement" is not supported: It is not a press release.' },
       { id: 'c-2', kind: 'label', code: 'unsupported', reason: 'the status "unspecified" is not supported: It is not planned.' },
     ]);
-    expect(verifier.notes).toEqual(['claim c-1: the basis "press-release" is not supported: It is not a press release.', 'claim c-2: the status "unspecified" is not supported: It is not planned.']);
+    expect(verifier.notes).toEqual(['claim c-1: the basis "announcement" is not supported: It is not a press release.', 'claim c-2: the status "unspecified" is not supported: It is not planned.']);
   });
 
   it('fails twice a claim whose basis and status are both unsupported', () => {
     const { failures } = aggregateVerdicts(MODEL, PLAN, verifierReply(PLAN, { unsupported: ['c-8'] }));
     expect(failures.map((failure) => failure.reason)).toEqual([
-      'the basis "datasheet" is not supported: The passage does not support the label.',
+      'the basis "docs" is not supported: The passage does not support the label.',
       'the status "unspecified" is not supported: The passage does not support the label.',
     ]);
   });
 
   it('fails a claim that the verifier gave no judgement on', () => {
     const { failures } = aggregateVerdicts(MODEL, PLAN, verifierReply(PLAN, { omit: ['c-8'] }));
-    expect(failures).toEqual([{ id: 'c-8', kind: 'label', code: 'missing', reason: 'the verifier gave no verdict on the basis "datasheet" and the status "unspecified"' }]);
+    expect(failures).toEqual([{ id: 'c-8', kind: 'label', code: 'missing', reason: 'the verifier gave no verdict on the basis "docs" and the status "unspecified"' }]);
   });
 
   it('lists every failure, items first and then claims, and fails when there are several', () => {

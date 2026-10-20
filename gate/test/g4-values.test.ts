@@ -31,7 +31,7 @@ function claimOf(values: ClaimValue[], overrides: Partial<Claim> = {}): Claim {
       retrievedAt: '2026-10-04T04:30:00Z',
     },
     span: { start: 0, end: quote.length, quote },
-    basis: 'datasheet',
+    basis: 'docs',
     status: 'unspecified',
     values,
     ...overrides,
@@ -43,7 +43,7 @@ function mini(text: string, claims: Claim[], cited: string[] = claims.map((claim
     draft: {
       slug: 'a-slug',
       publishedAt: '2026-10-04',
-      categories: ['humanoids'],
+      categories: ['payments-commerce'],
       author: { name: 'Agentic Media House Desk' },
       title: { kind: 'fact', text, claimIds: cited },
       description: { kind: 'fact', text: 'It is fine.', claimIds: cited },

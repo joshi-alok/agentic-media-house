@@ -90,10 +90,10 @@ describe('BASIS_WORDS', () => {
     expect(Object.keys(BASIS_WORDS).sort()).toEqual([...BASES].sort());
   });
 
-  it('says them as the card shows them: datasheet, press release, briefing, demonstration, filing, paper, standard, measured, another outlet', () => {
+  it('says them as the card shows them: documentation, announcement, briefing, demonstration, filing, paper, standard, measured, another outlet', () => {
     expect(BASIS_WORDS).toEqual({
-      datasheet: 'datasheet',
-      'press-release': 'press release',
+      docs: 'documentation',
+      announcement: 'announcement',
       briefing: 'briefing',
       demo: 'demonstration',
       filing: 'filing',
@@ -116,7 +116,7 @@ describe('cardFigures', () => {
     expect(cardFigures(GOLDEN)).toEqual([
       { value: 'USD 450 million', label: 'funding round', basis: 'filing' },
       { value: '18 per cent', label: 'cycle-time cut', basis: 'measured' },
-      { value: '$38,000', label: 'per arm', basis: 'press release' },
+      { value: '$38,000', label: 'per arm', basis: 'announcement' },
     ]);
   });
 
@@ -211,7 +211,7 @@ describe('renderCardSvg', () => {
   });
 
   it('writes the basis of each figure under its label, in small type and the quiet colour', () => {
-    expect(textsWithRole(svg, 'figure-basis')).toEqual(['filing', 'measured', 'press release']);
+    expect(textsWithRole(svg, 'figure-basis')).toEqual(['filing', 'measured', 'announcement']);
     const tagsOf = (role: string) => [...svg.matchAll(new RegExp(`<text[^>]*data-role="${role}"[^>]*>`, 'g'))].map((match) => match[0]);
     const attribute = (tag: string, name: string) => /x="(\d+)" y="(\d+)" font-family="[^"]*" font-size="(\d+)"/.exec(tag)![name === 'x' ? 1 : name === 'y' ? 2 : 3]!;
     const [labels, bases] = [tagsOf('figure-label'), tagsOf('figure-basis')];
@@ -452,7 +452,7 @@ describe('the layout of the card', () => {
 describe('cardLabel', () => {
   it('names the card, the title and the key figures with where each comes from, so that a reader who cannot see the picture gets them', () => {
     expect(cardLabel(GOLDEN)).toBe(
-      `Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million (filing), cycle-time cut 18 per cent (measured), per arm $38,000 (press release))`,
+      `Fact card: ${GOLDEN.title} (key figures: funding round USD 450 million (filing), cycle-time cut 18 per cent (measured), per arm $38,000 (announcement))`,
     );
   });
 
@@ -548,7 +548,7 @@ describe('renderInlineCardSvg', () => {
         expect(textsWithRole(renderInlineCardSvg(entry), role)).toEqual(textsWithRole(renderCardSvg(entry), role));
       }
     }
-    expect(textsWithRole(inline, 'figure-basis')).toEqual(['filing', 'measured', 'press release']);
+    expect(textsWithRole(inline, 'figure-basis')).toEqual(['filing', 'measured', 'announcement']);
   });
 
   it('is the same every time', () => {

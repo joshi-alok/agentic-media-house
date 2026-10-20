@@ -12,8 +12,8 @@ import { PLACE, provenance } from './words';
 
 /** What each basis says about where a figure comes from, for the verifier to judge a claim's basis against its passage. */
 const BASIS_MEANING: Readonly<Record<Basis, string>> = {
-  datasheet: "the passage is from a company's own specification sheet",
-  'press-release': "the passage is a company's own announcement",
+  docs: "the passage is from a project's own documentation or its own post",
+  announcement: "the passage is a project's or a company's own announcement",
   briefing: 'the passage says the company gave the figure in a briefing',
   demo: 'the passage describes a demonstration',
   paper: "the passage is from the authors' paper",

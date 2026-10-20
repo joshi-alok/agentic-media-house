@@ -87,7 +87,7 @@ const NOT_ON_THE_PAGE = {
   type: 'spec',
   quote: 'Arm mass: 38 kg.',
   values: [{ kind: 'number', raw: '38 kg', normalised: '38', unit: 'kg' }],
-  basis: 'datasheet',
+  basis: 'docs',
   status: 'unspecified',
   source: 1,
 };

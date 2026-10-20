@@ -43,7 +43,7 @@ export function demoFetcher(now: () => Date): FixtureFetcher {
 export const DEMO_REGISTRY_YAML = `
 primary:
   companies:
-    humanoids:
+    payments-commerce:
       - { name: Fixture Robotics, url: "https://fixture-robotics.example/news", status: unverified }
   research: []
   standards:
@@ -56,11 +56,11 @@ secondary:
   - name: Mercer Wire
     feed: "https://mercer-wire.example/feed.xml"
     status: unverified
-    beats: [humanoids, funding]
+    beats: [payments-commerce, funding]
   - name: Gantry Daily
     feed: "https://gantry-daily.example/atom.xml"
     status: unverified
-    beats: [industrial-warehouse]
+    beats: [agent-infrastructure]
     note: A made-up outlet.
 bar:
   publish_if_any:

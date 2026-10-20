@@ -21,7 +21,7 @@ const ITEM: EvalItem = {
   id: 'e-01',
   label: 'supported',
   sentence: 'Fixture Robotics lists the FX-1 from $38,000 per arm.',
-  passages: [{ quote: 'Fixture Robotics lists the FX-1 from $38,000 per arm.', basis: 'press-release', status: 'unspecified' }],
+  passages: [{ quote: 'Fixture Robotics lists the FX-1 from $38,000 per arm.', basis: 'announcement', status: 'unspecified' }],
 };
 
 describe('the committed set', () => {
@@ -188,7 +188,7 @@ describe('planOf', () => {
     const claim = planOf([reported]).claims[0] as Claim;
     expect([claim.basis, claim.status, claim.source.tier, claim.source.outlet]).toEqual(['reported', 'planned', 2, 'Gantry Daily']);
     const ordinary = planOf([ITEM]).claims[0] as Claim;
-    expect([ordinary.basis, ordinary.status, ordinary.source.tier, ordinary.source.outlet]).toEqual(['press-release', 'unspecified', 1, undefined]);
+    expect([ordinary.basis, ordinary.status, ordinary.source.tier, ordinary.source.outlet]).toEqual(['announcement', 'unspecified', 1, undefined]);
     expect(ordinary.span).toEqual({ start: 0, end: ITEM.passages[0]?.quote.length, quote: ITEM.passages[0]?.quote });
   });
 

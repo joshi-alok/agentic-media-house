@@ -18,15 +18,15 @@ import {
 import { ALL_FAILURE_CODES, HOLD_REASONS } from '../src/checks';
 
 describe('closed vocabularies', () => {
-  it('lists the seven beats from the content contract, in contract order', () => {
+  it('lists the seven beats of the publication, in the order of the site', () => {
     expect(BEATS).toEqual([
-      'humanoids',
-      'home-consumer',
-      'industrial-warehouse',
-      'field-mobility',
-      'software-autonomy',
-      'components-supply-chain',
-      'policy-standards',
+      'payments-commerce',
+      'identity-trust',
+      'wallets-keys',
+      'protocols-standards',
+      'agent-infrastructure',
+      'security-incidents',
+      'policy-regulation',
     ]);
   });
 
@@ -41,8 +41,8 @@ describe('closed vocabularies', () => {
 
   it('names the nine claim bases, four statuses and six claim types', () => {
     expect(BASES).toEqual([
-      'datasheet',
-      'press-release',
+      'docs',
+      'announcement',
       'briefing',
       'paper',
       'filing',

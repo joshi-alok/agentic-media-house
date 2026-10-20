@@ -5,7 +5,7 @@
   "publishedAt": "2026-09-29",
   "title": "Fixture Robotics ships its FX-5 warehouse arm to a second plant",
   "categories": [
-    "policy-standards",
+    "policy-regulation",
     "funding"
   ],
   "claims": [
@@ -14,7 +14,7 @@
       "text": "Fixture Robotics has begun shipping FX-5 warehouse arms to the second Brindle Logistics plant, at Tarnmoor.",
       "label": "second plant",
       "type": "event",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "unspecified",
       "values": [
         {
@@ -55,7 +55,7 @@
       "text": "Brindle Logistics runs 40 FX-5 arms at its Ashvale plant.",
       "label": "Ashvale installation",
       "type": "event",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "deployed",
       "values": [
         {
@@ -96,7 +96,7 @@
       "text": "Brindle Logistics plans to add a third site in 2027.",
       "label": "third-site rollout",
       "type": "event",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "planned",
       "values": [
         {
@@ -180,7 +180,7 @@
       "text": "The FX-5 is rated for a payload of 12 kg at full reach.",
       "label": "payload",
       "type": "spec",
-      "basis": "datasheet",
+      "basis": "docs",
       "status": "unspecified",
       "values": [
         {
@@ -207,7 +207,7 @@
       "text": "The FX-5 has a maximum reach of 1.4 m.",
       "label": "reach",
       "type": "spec",
-      "basis": "datasheet",
+      "basis": "docs",
       "status": "unspecified",
       "values": [
         {
@@ -307,7 +307,7 @@
       "text": "Fixture Robotics announced on 1 October 2026 that deliveries have started.",
       "label": "deliveries started",
       "type": "date",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "unspecified",
       "values": [
         {
@@ -333,7 +333,7 @@
       "text": "The FX-5 mounts on existing conveyor frames and needs no new safety cage.",
       "label": "existing conveyor frames",
       "type": "spec",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "unspecified",
       "values": [
         {
@@ -359,7 +359,7 @@
       "text": "Fixture Robotics lists the FX-5 from $38,000, with delivery within 12 weeks of an order.",
       "label": "per arm",
       "type": "number",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "unspecified",
       "values": [
         {
@@ -401,7 +401,7 @@
       "text": "The FX-5 has a peak tool speed of 2.3 m/s.",
       "label": "top speed",
       "type": "spec",
-      "basis": "datasheet",
+      "basis": "docs",
       "status": "unspecified",
       "values": [
         {
@@ -428,7 +428,7 @@
       "text": "The FX-5 repeats a position to within 0.05 mm.",
       "label": "repeatability",
       "type": "spec",
-      "basis": "datasheet",
+      "basis": "docs",
       "status": "unspecified",
       "values": [
         {
@@ -455,7 +455,7 @@
       "text": "The FX-5 can pick up to 1,200 items an hour.",
       "label": "pick rate",
       "type": "spec",
-      "basis": "datasheet",
+      "basis": "docs",
       "status": "unspecified",
       "values": [
         {
@@ -481,7 +481,7 @@
       "text": "The FX-5 weighs 38 kg.",
       "label": "arm mass",
       "type": "spec",
-      "basis": "datasheet",
+      "basis": "docs",
       "status": "unspecified",
       "values": [
         {
@@ -508,7 +508,7 @@
       "text": "The FX-5 draws 650 W in typical use.",
       "label": "power draw",
       "type": "spec",
-      "basis": "datasheet",
+      "basis": "docs",
       "status": "unspecified",
       "values": [
         {
@@ -535,7 +535,7 @@
       "text": "The FX-5 has an ingress protection rating of IP54.",
       "label": "ingress protection",
       "type": "spec",
-      "basis": "datasheet",
+      "basis": "docs",
       "status": "unspecified",
       "values": [
         {
@@ -561,7 +561,7 @@
       "text": "Tarnmoor is due to receive 60 arms by 30 November 2026.",
       "label": "arms due at Tarnmoor",
       "type": "event",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "planned",
       "values": [
         {
@@ -597,7 +597,7 @@
       "text": "Brindle Logistics plans to use the arms at Tarnmoor for inbound trailer unloading.",
       "label": "Tarnmoor use",
       "type": "event",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "planned",
       "values": [
         {
@@ -628,7 +628,7 @@
       "text": "The Brindle Logistics installation at Ashvale went live on 18 August 2026.",
       "label": "Ashvale go-live date",
       "type": "date",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "deployed",
       "values": [
         {
@@ -664,7 +664,7 @@
       "text": "Dana Whitcombe of Brindle Logistics said the plant went from pilot to production in nine weeks.",
       "label": "pilot-to-production time",
       "type": "quote",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "deployed",
       "values": [
         {
@@ -815,7 +815,7 @@
       "text": "Fixture Robotics will use the funds to expand FX-5 production.",
       "label": "expand FX-5 production",
       "type": "event",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "planned",
       "values": [
         {
@@ -846,7 +846,7 @@
       "text": "Fixture Robotics expects to build 500 FX-5 arms in 2027.",
       "label": "FX-5 arms in 2027",
       "type": "event",
-      "basis": "press-release",
+      "basis": "announcement",
       "status": "planned",
       "values": [
         {
@@ -1381,7 +1381,7 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "What is cited here comes from the company's datasheet; no independent measurement was available.",
+      "text": "What is cited here comes from the project's own documentation; no independent testing was available.",
       "claimIds": [
         "c-8",
         "c-9",
@@ -1398,7 +1398,7 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "What is cited here comes from a company press release; no independent measurement was available.",
+      "text": "What is cited here comes from the project's own announcement; no independent confirmation was available.",
       "claimIds": [
         "c-1",
         "c-2",
@@ -1419,7 +1419,7 @@
       "section": "limitations",
       "paragraph": 0,
       "kind": "limitation",
-      "text": "What is cited here was shown in a demonstration; the source does not describe independent testing.",
+      "text": "What is cited here was shown in a demonstration or a test; the source does not describe independent testing.",
       "claimIds": [
         "c-27",
         "c-28"

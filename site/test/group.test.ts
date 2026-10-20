@@ -5,8 +5,8 @@ const piece = (slug: string, ...categories: string[]) => ({ slug, data: { catego
 
 describe('firstBeat', () => {
   it('is the first category that is a beat', () => {
-    expect(firstBeat(['humanoids', 'funding'])).toBe('humanoids');
-    expect(firstBeat(['funding', 'field-mobility'])).toBe('field-mobility');
+    expect(firstBeat(['payments-commerce', 'funding'])).toBe('payments-commerce');
+    expect(firstBeat(['funding', 'identity-trust'])).toBe('identity-trust');
   });
 
   it('is undefined when there is no beat among the categories', () => {
@@ -21,22 +21,22 @@ describe('groupByBeat', () => {
   });
 
   it('groups pieces by their first beat, in the order of the beats, and keeps each group in the order given', () => {
-    const a = piece('a', 'policy-standards');
-    const b = piece('b', 'humanoids');
-    const c = piece('c', 'policy-standards', 'funding');
-    const d = piece('d', 'funding', 'humanoids');
+    const a = piece('a', 'policy-regulation');
+    const b = piece('b', 'payments-commerce');
+    const c = piece('c', 'policy-regulation', 'funding');
+    const d = piece('d', 'funding', 'payments-commerce');
     expect(groupByBeat([a, b, c, d])).toEqual([
-      { beat: 'humanoids', pieces: [b, d] },
-      { beat: 'policy-standards', pieces: [a, c] },
+      { beat: 'payments-commerce', pieces: [b, d] },
+      { beat: 'policy-regulation', pieces: [a, c] },
     ]);
   });
 
   it('leaves out beats that have no piece', () => {
-    expect(groupByBeat([piece('a', 'humanoids')]).map((group) => group.beat)).toEqual(['humanoids']);
+    expect(groupByBeat([piece('a', 'payments-commerce')]).map((group) => group.beat)).toEqual(['payments-commerce']);
   });
 
   it('files a piece under its first beat only, not under its other beats', () => {
-    const groups = groupByBeat([piece('a', 'humanoids', 'field-mobility')]);
+    const groups = groupByBeat([piece('a', 'payments-commerce', 'identity-trust')]);
     expect(groups).toHaveLength(1);
   });
 
@@ -46,17 +46,17 @@ describe('groupByBeat', () => {
 });
 
 describe('piecesIn', () => {
-  const a = piece('a', 'humanoids', 'funding');
-  const b = piece('b', 'field-mobility');
-  const c = piece('c', 'funding', 'field-mobility');
+  const a = piece('a', 'payments-commerce', 'funding');
+  const b = piece('b', 'identity-trust');
+  const c = piece('c', 'funding', 'identity-trust');
 
   it('lists the pieces that have the topic among their categories, in the order given', () => {
     expect(piecesIn([a, b, c], 'funding')).toEqual([a, c]);
-    expect(piecesIn([a, b, c], 'field-mobility')).toEqual([b, c]);
+    expect(piecesIn([a, b, c], 'identity-trust')).toEqual([b, c]);
   });
 
   it('is empty when no piece has the topic', () => {
-    expect(piecesIn([a, b, c], 'policy-standards')).toEqual([]);
-    expect(piecesIn([], 'humanoids')).toEqual([]);
+    expect(piecesIn([a, b, c], 'policy-regulation')).toEqual([]);
+    expect(piecesIn([], 'payments-commerce')).toEqual([]);
   });
 });

@@ -23,9 +23,9 @@ const FIXTURE_LEDGERS = fileURLToPath(new URL('../../../site/src/content-fixture
 const ROOM = 'Fixture Robotics';
 const roomStory = (slug: string, title: string, extra = {}) => {
   const url = `https://fixture-robotics.example/news/${slug}`;
-  return { id: candidateId(url), title, url, outlet: ROOM, tier: 1, beats: ['humanoids'], origin: 'newsroom', ...extra };
+  return { id: candidateId(url), title, url, outlet: ROOM, tier: 1, beats: ['payments-commerce'], origin: 'newsroom', ...extra };
 };
-const mercerStory = (url: string, title: string, publishedAt: string) => ({ id: candidateId(url), title, url, publishedAt, outlet: 'Mercer Wire', tier: 2, beats: ['humanoids', 'funding'], origin: 'feed' });
+const mercerStory = (url: string, title: string, publishedAt: string) => ({ id: candidateId(url), title, url, publishedAt, outlet: 'Mercer Wire', tier: 2, beats: ['payments-commerce', 'funding'], origin: 'feed' });
 
 /** The world's map without one address. */
 function without(...urls: string[]) {
@@ -61,7 +61,7 @@ describe('runDiscover: the fixture world', () => {
           publishedAt: '2026-10-02T18:45:00.000Z',
           outlet: 'Gantry Daily',
           tier: 2,
-          beats: ['industrial-warehouse'],
+          beats: ['agent-infrastructure'],
           origin: 'feed',
         },
       ],
@@ -291,7 +291,7 @@ describe('runDiscover: limits', () => {
 describe('runDiscover: which links of a newsroom are stories', () => {
   const rootRoom = (url: string) => {
     const registry = smallRegistry();
-    registry.primary.companies = { humanoids: [{ name: ROOM, url, status: 'unverified' }] };
+    registry.primary.companies = { 'payments-commerce': [{ name: ROOM, url, status: 'unverified' }] };
     registry.secondary = [];
     return registry;
   };

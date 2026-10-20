@@ -108,7 +108,7 @@ describe('buildExtractUser', () => {
 
   it('says, outside the block, what the page is, its tier and which bases a claim from it may have', () => {
     const message = outsideBlocks(buildExtractUser([RELEASE, REPORT]));
-    expect(message).toContain('Source 1 is a company newsroom (tier 1). The basis of a claim from it is one of: press-release, datasheet, briefing, demo.');
+    expect(message).toContain('Source 1 is a project or company page (tier 1). The basis of a claim from it is one of: announcement, docs, briefing, demo.');
     expect(message).toContain("Source 2 is a report by Mercer Wire (tier 2): another outlet's account, not a primary source. The basis of a claim from it is: reported.");
   });
 

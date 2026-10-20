@@ -47,14 +47,14 @@ const COMMON_SET: ReadonlySet<string> = new Set(COMMON_WORDS);
 const SHORT_NEGATIONS: ReadonlySet<string> = new Set(['no', 'not', 'nor', 'non']);
 
 /**
- * What each kind of page may be the basis of, which is what the claim says its figure rests on. A company's own page is a
- * press release, a datasheet, a briefing or a demonstration; an arXiv page is a paper; an SEC page is a filing; a standards
+ * What each kind of page may be the basis of, which is what the claim says its figure rests on. A project's or a company's own page is an
+ * announcement, documentation, a briefing or a demonstration; an arXiv page is a paper; an SEC page is a filing; a standards
  * body's page is a standard; a page of another outlet is only ever reported. Nothing is allowed from a page of unknown kind,
  * and `measured` is allowed from none: a figure that a company says it measured is the company's claim, and the basis
  * `measured` would excuse the piece from saying so.
  */
 export const ALLOWED_BASES: Readonly<Record<SourceKind, readonly Basis[]>> = {
-  'company-newsroom': ['press-release', 'datasheet', 'briefing', 'demo'],
+  'company-newsroom': ['announcement', 'docs', 'briefing', 'demo'],
   arxiv: ['paper'],
   sec: ['filing'],
   standard: ['standard'],
@@ -64,7 +64,7 @@ export const ALLOWED_BASES: Readonly<Record<SourceKind, readonly Basis[]>> = {
 
 /** The words for a kind of source in a message, for a reader and for a model. */
 export const KIND_WORDS: Readonly<Record<SourceKind, string>> = {
-  'company-newsroom': 'a company newsroom',
+  'company-newsroom': 'a project or company page',
   arxiv: 'an arXiv page',
   sec: 'an SEC page',
   standard: 'a standards body page',

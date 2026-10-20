@@ -12,8 +12,8 @@ const piece = (slug: string, title: string, publishedAt: string, categories: str
   data: { title, description, publishedAt, categories },
 });
 
-const FX1 = piece('fx-1', 'Fixture Robotics ships its FX-1 warehouse arm to a second plant', '2026-10-04', ['industrial-warehouse', 'funding']);
-const FX2 = piece('fx-2', 'Fixture Robotics ships its FX-2 warehouse arm to a second plant', '2026-10-03', ['humanoids']);
+const FX1 = piece('fx-1', 'Fixture Robotics ships its FX-1 warehouse arm to a second plant', '2026-10-04', ['agent-infrastructure', 'funding']);
+const FX2 = piece('fx-2', 'Fixture Robotics ships its FX-2 warehouse arm to a second plant', '2026-10-03', ['payments-commerce']);
 
 describe('rssItems', () => {
   it('is empty when there are no pieces', () => {
@@ -27,7 +27,7 @@ describe('rssItems', () => {
         description: 'About Fixture Robotics ships its FX-1 warehouse arm to a second plant.',
         link: '/news/fx-1/',
         pubDate: new Date('2026-10-04T00:00:00Z'),
-        categories: ['Industrial & warehouse', 'Funding'],
+        categories: ['Agent infrastructure', 'Funding'],
       },
     ]);
   });
@@ -72,7 +72,7 @@ describe('the feed', () => {
     const items = rss.channel.item as { title: string; link: string; pubDate: string; category: string[]; guid: { '#text': string } }[];
     expect(items.map((item) => item.link)).toEqual(['https://agenticmediahouse.example/news/fx-1/', 'https://agenticmediahouse.example/news/fx-2/']);
     expect(items[0]?.pubDate).toBe('Sun, 04 Oct 2026 00:00:00 GMT');
-    expect(items[0]?.category).toEqual(['Industrial & warehouse', 'Funding']);
+    expect(items[0]?.category).toEqual(['Agent infrastructure', 'Funding']);
     expect(items[0]?.guid['#text']).toBe('https://agenticmediahouse.example/news/fx-1/');
   });
 
@@ -85,7 +85,7 @@ describe('the feed', () => {
   });
 
   it('escapes markup in a title, so a hostile title cannot break the feed', async () => {
-    const xml = await feed([piece('x', 'A < B & "C" </title><script>', '2026-10-04', ['humanoids'])]);
+    const xml = await feed([piece('x', 'A < B & "C" </title><script>', '2026-10-04', ['payments-commerce'])]);
     expect(xmlProblem(xml)).toBeUndefined();
     expect(xml).not.toContain('<script>');
     const { rss } = parse(xml);

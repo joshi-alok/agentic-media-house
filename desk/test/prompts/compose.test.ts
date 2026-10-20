@@ -165,7 +165,7 @@ describe('buildComposeUser', () => {
 
   it('says, outside the block, the basis, the status and where the claim is from', () => {
     const outside = outsideBlocks(buildComposeUser(GOLDEN_CLAIMS.slice(4, 5), RUN_DATE));
-    expect(outside).toContain('Claim c-5 (basis: press-release, status: planned, from a primary source):');
+    expect(outside).toContain('Claim c-5 (basis: announcement, status: planned, from a primary source):');
   });
 
   it('names the outlet of a claim that another outlet reported, outside the block', () => {

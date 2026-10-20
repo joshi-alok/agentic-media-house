@@ -77,8 +77,8 @@ describe('buildVerifyUser', () => {
     const passages = blocksOf(message).filter((block) => block.id.startsWith('c-'));
     expect(passages.map((block) => block.id)).toEqual(plan().claims.map((claim) => claim.id));
     expect(passages[0]?.text).toBe(plan().claims[0]?.span.quote);
-    expect(outsideBlocks(message)).toContain('Claim c-1 (basis: press-release, status: unspecified, from a primary source):');
-    expect(outsideBlocks(message)).toContain('Claim c-8 (basis: datasheet, status: unspecified, from a primary source):');
+    expect(outsideBlocks(message)).toContain('Claim c-1 (basis: announcement, status: unspecified, from a primary source):');
+    expect(outsideBlocks(message)).toContain('Claim c-8 (basis: docs, status: unspecified, from a primary source):');
   });
 
   it('gives every sentence and every heading in a block with its id, after the passages', () => {

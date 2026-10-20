@@ -12,13 +12,13 @@ const run = (change: (copy: GateInput) => void): CheckOutput => checkG8(mutate(c
 const codes = (output: CheckOutput) => output.failures.map((failure) => failure.code);
 
 // The golden piece has five limitation sentences, one for each group, whatever its size:
-//   1  basis    datasheet      c-8 to c-15
-//   2  basis    press-release  c-1 to c-7 and c-22 to c-26
+//   1  basis    docs           c-8 to c-15
+//   2  basis    announcement   c-1 to c-7 and c-22 to c-26
 //   3  basis    demo           c-27 and c-28
 //   4  status   demonstrated   c-27 and c-28
 //   5  status   planned        c-5, c-6, c-7, c-25 and c-26
 const first = (g: GateInput): LimitationSentence => g.draft.limitations[0]!;
-const FIRST_TEXT = BASIS_NOTES.datasheet;
+const FIRST_TEXT = BASIS_NOTES.docs;
 const FIRST_AT = 'limitations, sentence 1';
 const FIRST_IDS = ['c-8', 'c-9', 'c-10', 'c-11', 'c-12', 'c-13', 'c-14', 'c-15'];
 
@@ -184,7 +184,7 @@ describe('G8_LIMITATION_CLAIMS', () => {
 describe('what buildLimitations writes', () => {
   // buildLimitations is what the composer stage uses, so whatever claims a piece cites, G8 must accept what it writes.
   it.each([
-    ['all the claims of the golden piece with the basis datasheet', (g: GateInput) => g.claims.forEach((claim) => (claim.basis = 'datasheet'))],
+    ['all the claims of the golden piece with the basis docs', (g: GateInput) => g.claims.forEach((claim) => (claim.basis = 'docs'))],
     ['all of them planned', (g: GateInput) => g.claims.forEach((claim) => (claim.status = 'planned'))],
     [
       'thirteen claims that two outlets reported',
@@ -211,7 +211,7 @@ describe('G8_LIMITATION_GROUP', () => {
       {
         check: 'G8',
         code: 'G8_LIMITATION_GROUP',
-        message: `the limitation sentence at ${FIRST_AT} groups claims with different bases (c-1: press-release, c-8: datasheet): a basis sentence covers claims that share one basis`,
+        message: `the limitation sentence at ${FIRST_AT} groups claims with different bases (c-1: announcement, c-8: docs): a basis sentence covers claims that share one basis`,
         where: FIRST_AT,
       },
     ]);
@@ -333,7 +333,7 @@ describe('G8_LIMITATION_MISMATCH', () => {
   it('compares the text exactly: one changed word, an extra space or a missing full stop fails', () => {
     for (const text of [
       FIRST_TEXT.replace('available', 'obtainable'),
-      FIRST_TEXT.replace('datasheet', 'datasheet  '),
+      FIRST_TEXT.replace('documentation', 'documentation  '),
       "What is cited here comes from the company's datasheet; the 12 kilograms payload figure was not measured independently.",
       FIRST_TEXT.replace(/\.$/, ''),
       `${FIRST_TEXT} `,

@@ -79,7 +79,7 @@ describe('makeTier2Variant', () => {
     const second = makeVariant(cloneGolden(), {
       slug: 'fixture-robotics-ships-fx-5-to-second-plant',
       publishedAt: '2026-09-30',
-      categories: ['policy-standards', 'funding'],
+      categories: ['policy-regulation', 'funding'],
       replace: [
         ['FX-1', 'FX-5'],
         ['fx-1', 'fx-5'],

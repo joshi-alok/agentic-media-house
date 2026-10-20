@@ -12,7 +12,7 @@ const INPUT: GateInput = {
   draft: {
     slug: 'a-slug',
     publishedAt: '2026-10-04',
-    categories: ['humanoids'],
+    categories: ['payments-commerce'],
     author: { name: 'Agentic Media House Desk' },
     title: { kind: 'fact', text: 'A title', claimIds: [] },
     description: { kind: 'fact', text: 'A description', claimIds: [] },

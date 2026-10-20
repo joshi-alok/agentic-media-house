@@ -197,7 +197,7 @@ describe('retractPiece: a correction', () => {
 
   it('keeps every record that was there, in order, and adds this one after them', async () => {
     const { repoDir, cli, retract } = setup();
-    const earlier = { lastRun: { at: '2026-10-05T04:31:00.000Z', outcome: 'held', runId: '2026-10-05-043100', slug: 'a-held-piece' }, holds: [{ at: '2026-10-05T04:31:00.000Z', categories: ['humanoids'], reasons: ['TIER2_ATTRIBUTION'], prUrl: 'https://github.example/agentic-media-house/pull/3' }], corrections: [{ at: '2026-10-05T12:00:00.000Z', slug: 'another-piece', kind: 'correction', note: 'A date.' }] };
+    const earlier = { lastRun: { at: '2026-10-05T04:31:00.000Z', outcome: 'held', runId: '2026-10-05-043100', slug: 'a-held-piece' }, holds: [{ at: '2026-10-05T04:31:00.000Z', categories: ['payments-commerce'], reasons: ['TIER2_ATTRIBUTION'], prUrl: 'https://github.example/agentic-media-house/pull/3' }], corrections: [{ at: '2026-10-05T12:00:00.000Z', slug: 'another-piece', kind: 'correction', note: 'A date.' }] };
     writeFileSync(path.join(repoDir, STATE), `${JSON.stringify(earlier, null, 2)}\n`);
     git(repoDir, 'commit', '--quiet', '-a', '-m', 'the desk state before');
     expect(await cli.isClean([STATE])).toBe(true);

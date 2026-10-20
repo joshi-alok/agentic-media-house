@@ -295,7 +295,7 @@ describe('G2_LIMITATIONS_MISSING', () => {
     setBodyWords(g, 665);
   };
 
-  it('fails when a cited claim rests on a datasheet, press release, briefing or demo and there are no limitations', () => {
+  it('fails when a cited claim rests on docs, an announcement, a briefing or a demo and there are no limitations', () => {
     expect(codesAfter(noLimitations)).toEqual(['G2_LIMITATIONS_MISSING']);
   });
 
@@ -305,7 +305,7 @@ describe('G2_LIMITATIONS_MISSING', () => {
     expect(out.failures[0]?.message).toContain('c-1');
   });
 
-  it.each(['datasheet', 'press-release', 'briefing', 'demo', 'reported'] as const)('treats a %s claim as needing limitations', (basis) => {
+  it.each(['docs', 'announcement', 'briefing', 'demo', 'reported'] as const)('treats a %s claim as needing limitations', (basis) => {
     const change = (g: GateInput) => {
       needNothing(g);
       g.claims[0]!.basis = basis;
@@ -344,7 +344,7 @@ describe('G2_LIMITATIONS_MISSING', () => {
   it('ignores a claim that no sentence cites', () => {
     const change = (g: GateInput) => {
       needNothing(g);
-      g.claims.push({ ...structuredClone(g.claims[0]!), id: 'c-99', basis: 'datasheet' });
+      g.claims.push({ ...structuredClone(g.claims[0]!), id: 'c-99', basis: 'docs' });
       noLimitations(g);
     };
     expect(codesAfter(change)).toEqual([]);
@@ -353,7 +353,7 @@ describe('G2_LIMITATIONS_MISSING', () => {
   it('counts a claim that only the title cites', () => {
     const change = (g: GateInput) => {
       needNothing(g);
-      g.claims.push({ ...structuredClone(g.claims[0]!), id: 'c-99', basis: 'datasheet' });
+      g.claims.push({ ...structuredClone(g.claims[0]!), id: 'c-99', basis: 'docs' });
       g.draft.title.claimIds = ['c-99'];
       noLimitations(g);
     };
@@ -384,7 +384,7 @@ describe('G2_LIMITATION_COVERAGE', () => {
   });
 
   it('fails each claim that a missing basis sentence leaves out, and says which and why', () => {
-    // Sentence 1 covers the eight datasheet claims, c-8 to c-15. Setting the body length keeps G2_BODY_LENGTH out of the way.
+    // Sentence 1 covers the eight docs claims, c-8 to c-15. Setting the body length keeps G2_BODY_LENGTH out of the way.
     const out = resultAfter((g) => {
       droppingSentence(0)(g);
       setBodyWords(g, 665);
@@ -393,7 +393,7 @@ describe('G2_LIMITATION_COVERAGE', () => {
     expect(out.failures[0]).toEqual({
       check: 'G2',
       code: 'G2_LIMITATION_COVERAGE',
-      message: 'claim c-8 (payload) has the basis "datasheet", but no limitation sentence with the basis template cites it',
+      message: 'claim c-8 (payload) has the basis "docs", but no limitation sentence with the basis template cites it',
       where: 'c-8',
     });
     expect(out.failures.map((failure) => failure.where)).toEqual(['c-8', 'c-9', 'c-10', 'c-11', 'c-12', 'c-13', 'c-14', 'c-15']);
@@ -436,7 +436,7 @@ describe('G2_LIMITATION_COVERAGE', () => {
   });
 
   it('asks a claim that needs both kinds of sentence for both, basis first', () => {
-    // c-5 is a press-release claim that is planned. Drop the sentences for the press releases and for what is planned.
+    // c-5 is an announcement claim that is planned. Drop the sentences for the announcements and for what is planned.
     const out = resultAfter((g) => {
       g.draft.limitations = g.draft.limitations.filter((sentence) => !sentence.claimIds.includes('c-5'));
       setBodyWords(g, 665);
@@ -446,7 +446,7 @@ describe('G2_LIMITATION_COVERAGE', () => {
   });
 
   it('reads the claims that the body cites, not the claims that limitation sentences cite', () => {
-    // c-99 is a datasheet claim that only a limitation sentence mentions: nothing in the body rests on it.
+    // c-99 is a docs claim that only a limitation sentence mentions: nothing in the body rests on it.
     const out = resultAfter((g) => {
       g.claims.push({ ...structuredClone(claimOfGolden(g, 'c-8')), id: 'c-99' });
       g.draft.limitations[0]!.claimIds = [...g.draft.limitations[0]!.claimIds, 'c-99'];
@@ -459,7 +459,7 @@ describe('G2_LIMITATION_COVERAGE', () => {
       needNothing(g);
       g.draft.limitations = [];
       setBodyWords(g, 665);
-      g.claims.push({ ...structuredClone(claimOfGolden(g, 'c-8')), id: 'c-99', basis: 'datasheet' });
+      g.claims.push({ ...structuredClone(claimOfGolden(g, 'c-8')), id: 'c-99', basis: 'docs' });
     };
     expect(codesAfter(change)).toEqual([]);
   });

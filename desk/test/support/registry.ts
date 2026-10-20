@@ -8,7 +8,7 @@ import type { SourcesRegistry } from '@robywire/gate';
 export const FIXTURE_REGISTRY_YAML = `
 primary:
   companies:
-    humanoids:
+    payments-commerce:
       - { name: Fixture Robotics, url: "https://fixture-robotics.example/news", status: unverified }
       - { name: Northwind Machines, url: "https://www.northwind-machines.example/press", status: unverified }
     industrial:
@@ -27,16 +27,16 @@ secondary:
   - name: Mercer Wire
     feed: "https://mercer-wire.example/feed.xml"
     status: unverified
-    beats: [humanoids, funding]
+    beats: [payments-commerce, funding]
   - name: Gantry Daily
     feed: "https://gantry-daily.example/atom.xml"
     status: unverified
-    beats: [industrial-warehouse]
+    beats: [agent-infrastructure]
     note: A made-up outlet.
   - name: Old Feed
     feed: "https://old-feed.example/rss"
     status: blocked
-    beats: [policy-standards]
+    beats: [policy-regulation]
 bar:
   publish_if_any:
     - A product shipped, was priced, or reached a customer site.
@@ -59,8 +59,8 @@ export function fixtureRegistry(): SourcesRegistry {
  */
 export function smallRegistry(): SourcesRegistry {
   const registry = fixtureRegistry();
-  const fixtureRobotics = registry.primary.companies.humanoids?.find((entry) => entry.name === 'Fixture Robotics');
-  registry.primary.companies = fixtureRobotics === undefined ? {} : { humanoids: [fixtureRobotics] };
+  const fixtureRobotics = registry.primary.companies['payments-commerce']?.find((entry) => entry.name === 'Fixture Robotics');
+  registry.primary.companies = fixtureRobotics === undefined ? {} : { 'payments-commerce': [fixtureRobotics] };
   registry.secondary = registry.secondary.filter((entry) => entry.status !== 'blocked');
   return registry;
 }

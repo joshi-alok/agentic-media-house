@@ -28,25 +28,25 @@ describe('tier1Hosts', () => {
 describe('tier2Feeds', () => {
   it('lists the feeds of other outlets in the order of the file, with their beats, and leaves out the blocked one', () => {
     expect(tier2Feeds(fixtureRegistry())).toEqual([
-      { name: 'Mercer Wire', feed: 'https://mercer-wire.example/feed.xml', beats: ['humanoids', 'funding'] },
-      { name: 'Gantry Daily', feed: 'https://gantry-daily.example/atom.xml', beats: ['industrial-warehouse'] },
+      { name: 'Mercer Wire', feed: 'https://mercer-wire.example/feed.xml', beats: ['payments-commerce', 'funding'] },
+      { name: 'Gantry Daily', feed: 'https://gantry-daily.example/atom.xml', beats: ['agent-infrastructure'] },
     ]);
   });
 
   it('gives copies of the beats, so that a caller cannot change the registry', () => {
     const registry = fixtureRegistry();
-    tier2Feeds(registry)[0]?.beats.push('policy-standards');
-    expect(registry.secondary[0]?.beats).toEqual(['humanoids', 'funding']);
+    tier2Feeds(registry)[0]?.beats.push('policy-regulation');
+    expect(registry.secondary[0]?.beats).toEqual(['payments-commerce', 'funding']);
   });
 });
 
 describe('tier1Newsrooms', () => {
   it('lists the companies newsrooms in the order of the file, with the beats of their group, and leaves out the blocked one', () => {
     expect(tier1Newsrooms(fixtureRegistry())).toEqual([
-      { name: 'Fixture Robotics', url: 'https://fixture-robotics.example/news', beats: ['humanoids'] },
-      { name: 'Northwind Machines', url: 'https://www.northwind-machines.example/press', beats: ['humanoids'] },
-      { name: 'Brindle Logistics', url: 'https://brindle-logistics.example/news', beats: ['industrial-warehouse'] },
-      { name: 'Hollis Dynamics', url: 'https://hollis-dynamics.example/blog', beats: ['software-autonomy'] },
+      { name: 'Fixture Robotics', url: 'https://fixture-robotics.example/news', beats: ['payments-commerce'] },
+      { name: 'Northwind Machines', url: 'https://www.northwind-machines.example/press', beats: ['payments-commerce'] },
+      { name: 'Brindle Logistics', url: 'https://brindle-logistics.example/news', beats: ['agent-infrastructure'] },
+      { name: 'Hollis Dynamics', url: 'https://hollis-dynamics.example/blog', beats: ['protocols-standards'] },
     ]);
   });
 
@@ -58,7 +58,7 @@ describe('tier1Newsrooms', () => {
 
   it('leaves out an entry that has no address, only a sentence that says where to look', () => {
     const registry = fixtureRegistry();
-    registry.primary.companies.humanoids?.push({ name: 'Somewhere', url: '(announced on its own site)', status: 'n/a' });
+    registry.primary.companies['payments-commerce']?.push({ name: 'Somewhere', url: '(announced on its own site)', status: 'n/a' });
     expect(tier1Newsrooms(registry).map((room) => room.name)).not.toContain('Somewhere');
   });
 
@@ -102,7 +102,7 @@ describe('sourceKind', () => {
 
   it('never counts the host of an outlet as primary, even when the registry also lists it as a company', () => {
     const registry = fixtureRegistry();
-    registry.primary.companies.humanoids?.push({ name: 'Mercer Wire again', url: 'https://mercer-wire.example/news', status: 'unverified' });
+    registry.primary.companies['payments-commerce']?.push({ name: 'Mercer Wire again', url: 'https://mercer-wire.example/news', status: 'unverified' });
     expect(sourceKind('https://mercer-wire.example/robotics/a', registry)).toBe('tier2');
     expect(isTier1('https://mercer-wire.example/robotics/a', registry)).toBe(false);
   });

@@ -22,14 +22,13 @@ export interface Tier2Feed {
 }
 
 /**
- * The groups of companies in `sources.yml` are named for a field, not always for a beat of the vocabulary:
- * `industrial` and `software` are the field of `industrial-warehouse` and `software-autonomy`. A group named
- * for a beat is that beat; any other group has no beat, and its stories are not selected, because the Desk does
- * not guess which beat a story is about.
+ * A group of companies in `sources.yml` named for a beat of the vocabulary is that beat; the two groups of the
+ * made-up world of the tests are named for a field, and the table says their beats. Any other group has no beat,
+ * and its stories are not selected, because the Desk does not guess which beat a story is about.
  */
 export const COMPANY_GROUP_BEATS: Readonly<Record<string, readonly string[]>> = {
-  industrial: ['industrial-warehouse'],
-  software: ['software-autonomy'],
+  industrial: ['agent-infrastructure'],
+  software: ['protocols-standards'],
 };
 
 function beatsOfGroup(group: string): string[] {

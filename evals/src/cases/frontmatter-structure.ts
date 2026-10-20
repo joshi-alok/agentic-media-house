@@ -70,7 +70,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     code: 'G1_CATEGORY_COUNT',
     description: 'The same category is listed twice.',
     apply: (base) => {
-      base.draft.categories = ['industrial-warehouse', 'industrial-warehouse'];
+      base.draft.categories = ['agent-infrastructure', 'agent-infrastructure'];
       return base;
     },
   },
@@ -80,7 +80,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     code: 'G1_CATEGORY_UNKNOWN',
     description: 'A category is not in the closed vocabulary.',
     apply: (base) => {
-      base.draft.categories = ['industrial-warehouse', 'quantum-robots'];
+      base.draft.categories = ['agent-infrastructure', 'quantum-robots'];
       return base;
     },
   },

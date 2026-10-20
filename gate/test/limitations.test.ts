@@ -28,7 +28,7 @@ const BASE_CLAIM: Claim = {
     retrievedAt: '2026-10-04T04:30:00Z',
   },
   span: { start: 0, end: 20, quote: 'Rated payload: 12 kg' },
-  basis: 'datasheet',
+  basis: 'docs',
   status: 'unspecified',
   values: [{ kind: 'number', raw: '12 kg', normalised: '12', unit: 'kg' }],
 };
@@ -36,7 +36,7 @@ const BASE_CLAIM: Claim = {
 const claim = (overrides: Partial<Claim>): Claim => ({ ...BASE_CLAIM, ...overrides });
 
 /** Claim number `n`, with a basis, a status and, for another outlet's claim, an outlet. */
-const c = (n: number, basis: Basis = 'datasheet', status: Status = 'unspecified', outlet?: string): Claim =>
+const c = (n: number, basis: Basis = 'docs', status: Status = 'unspecified', outlet?: string): Claim =>
   claim({ id: `c-${n}`, basis, status, source: outlet === undefined ? BASE_CLAIM.source : { ...BASE_CLAIM.source, tier: 2, outlet } });
 
 const idsOf = (groups: ReturnType<typeof limitationGroups>) => groups.map((group) => [group.template, group.key, group.claims.map((item) => item.id)]);
@@ -65,10 +65,10 @@ describe('the notes', () => {
 
 describe('renderLimitation', () => {
   it.each<[Basis, string]>([
-    ['datasheet', "What is cited here comes from the company's datasheet; no independent measurement was available."],
-    ['press-release', 'What is cited here comes from a company press release; no independent measurement was available.'],
-    ['briefing', 'What is cited here was given in a company briefing; no independent measurement was available.'],
-    ['demo', 'What is cited here was shown in a demonstration; the source does not describe independent testing.'],
+    ['docs', "What is cited here comes from the project's own documentation; no independent testing was available."],
+    ['announcement', "What is cited here comes from the project's own announcement; no independent confirmation was available."],
+    ['briefing', 'What is cited here was given by the project in a briefing; no independent confirmation was available.'],
+    ['demo', 'What is cited here was shown in a demonstration or a test; the source does not describe independent testing.'],
     ['paper', "What is cited here is reported in the authors' paper; it has not been independently reproduced."],
     ['filing', 'What is cited here comes from a regulatory filing.'],
     ['standard', 'What is cited here comes from the published standard.'],
@@ -92,7 +92,7 @@ describe('renderLimitation', () => {
   });
 
   it('says nothing of the label or the figure of a claim', () => {
-    const text = renderLimitation([claim({ label: 'payload', basis: 'press-release' })], 'basis');
+    const text = renderLimitation([claim({ label: 'payload', basis: 'announcement' })], 'basis');
     expect(text).not.toContain('payload');
     expect(text).not.toContain('12');
   });
@@ -127,10 +127,10 @@ describe('needsBasisLimitation and needsStatusLimitation', () => {
 
 describe('limitationGroups', () => {
   it('makes one group for each basis in the order of BASES, then one for each status, whatever the order of the claims', () => {
-    const groups = limitationGroups([c(12, 'demo'), c(3, 'press-release'), c(10, 'datasheet'), c(2, 'datasheet'), c(5, 'press-release'), c(1, 'briefing')]);
+    const groups = limitationGroups([c(12, 'demo'), c(3, 'announcement'), c(10, 'docs'), c(2, 'docs'), c(5, 'announcement'), c(1, 'briefing')]);
     expect(idsOf(groups)).toEqual([
-      ['basis', 'datasheet', ['c-2', 'c-10']],
-      ['basis', 'press-release', ['c-3', 'c-5']],
+      ['basis', 'docs', ['c-2', 'c-10']],
+      ['basis', 'announcement', ['c-3', 'c-5']],
       ['basis', 'briefing', ['c-1']],
       ['basis', 'demo', ['c-12']],
     ]);
@@ -138,7 +138,7 @@ describe('limitationGroups', () => {
 
   it('does not cut a group, however many claims it has', () => {
     const many = Array.from({ length: 11 }, (_, at) => c(at + 1));
-    expect(idsOf(limitationGroups([...many].reverse()))).toEqual([['basis', 'datasheet', ['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7', 'c-8', 'c-9', 'c-10', 'c-11']]]);
+    expect(idsOf(limitationGroups([...many].reverse()))).toEqual([['basis', 'docs', ['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7', 'c-8', 'c-9', 'c-10', 'c-11']]]);
   });
 
   it('orders by claim number, not as text', () => {
@@ -151,9 +151,9 @@ describe('limitationGroups', () => {
   });
 
   it('puts a claim that needs both a basis sentence and a status sentence in a group of each kind, the status groups last', () => {
-    const groups = limitationGroups([c(4, 'filing', 'planned'), c(2, 'filing', 'demonstrated'), c(1, 'datasheet', 'planned'), c(3, 'filing', 'deployed')]);
+    const groups = limitationGroups([c(4, 'filing', 'planned'), c(2, 'filing', 'demonstrated'), c(1, 'docs', 'planned'), c(3, 'filing', 'deployed')]);
     expect(idsOf(groups)).toEqual([
-      ['basis', 'datasheet', ['c-1']],
+      ['basis', 'docs', ['c-1']],
       ['status', 'demonstrated', ['c-2']],
       ['status', 'planned', ['c-1', 'c-4']],
     ]);
@@ -168,7 +168,7 @@ describe('limitationGroups', () => {
   });
 
   it('counts a claim once however many times it is given, and gives nothing for nothing', () => {
-    expect(idsOf(limitationGroups([c(1), c(1), c(2)]))).toEqual([['basis', 'datasheet', ['c-1', 'c-2']]]);
+    expect(idsOf(limitationGroups([c(1), c(1), c(2)]))).toEqual([['basis', 'docs', ['c-1', 'c-2']]]);
     expect(limitationGroups([])).toEqual([]);
   });
 
@@ -182,9 +182,9 @@ describe('limitationGroups', () => {
 
 describe('buildLimitations', () => {
   it('makes a sentence for each group, with its text, its claims in order and its template', () => {
-    const built = buildLimitations([c(2, 'press-release', 'planned'), c(1, 'press-release')]);
+    const built = buildLimitations([c(2, 'announcement', 'planned'), c(1, 'announcement')]);
     expect(built).toEqual([
-      { kind: 'limitation', text: BASIS_NOTES['press-release'], claimIds: ['c-1', 'c-2'], template: 'basis' },
+      { kind: 'limitation', text: BASIS_NOTES['announcement'], claimIds: ['c-1', 'c-2'], template: 'basis' },
       { kind: 'limitation', text: STATUS_NOTES.planned, claimIds: ['c-2'], template: 'status' },
     ]);
   });

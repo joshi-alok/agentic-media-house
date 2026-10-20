@@ -154,10 +154,10 @@ describe('runExtract: a claim from the page of the outlet', () => {
   });
 
   it('is dropped when its basis is not reported, with the rule of the gate', async () => {
-    const { ctx } = setup([...CLEAN, { ...REPORTED, basis: 'press-release' }]);
+    const { ctx } = setup([...CLEAN, { ...REPORTED, basis: 'announcement' }]);
     const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(result.artifact.dropped).toEqual([
-      { index: 7, text: REPORTED.text, reasons: [{ code: 'tier-basis', message: 'a claim that rests on another outlet has the basis "reported", not "press-release" (check G6)' }] },
+      { index: 7, text: REPORTED.text, reasons: [{ code: 'tier-basis', message: 'a claim that rests on another outlet has the basis "reported", not "announcement" (check G6)' }] },
     ]);
   });
 
@@ -236,7 +236,7 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
     const { ctx } = setup([...CLEAN, proposed('c-3', { basis: 'filing' }), proposed('c-3', { basis: 'measured' })]);
     const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(result.artifact.dropped.map((item) => item.reasons.map((reason) => reason.code))).toEqual([['basis-not-allowed'], ['basis-not-allowed']]);
-    expect(result.artifact.dropped[0]?.reasons[0]?.message).toBe('the basis "filing" does not fit a company newsroom: the bases for it are press-release, datasheet, briefing, demo');
+    expect(result.artifact.dropped[0]?.reasons[0]?.message).toBe('the basis "filing" does not fit a project or company page: the bases for it are announcement, docs, briefing, demo');
   });
 
   it('checks a claim against the page it names, not another: a quotation of the release is not on the report', async () => {
@@ -273,7 +273,7 @@ describe('runExtract: a value that says other than its raw text', () => {
     type: 'spec',
     quote: 'The arm lifts twelve kg.',
     values: [{ kind: 'number', raw: 'twelve kg', normalised, unit }],
-    basis: 'datasheet',
+    basis: 'docs',
     status: 'unspecified',
     source: 1,
   });

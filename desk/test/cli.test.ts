@@ -978,7 +978,7 @@ describe('main: status', () => {
 
   it('says what the last run did, which piece it made when it made one, which day and try it was, and how many drafts are held', async () => {
     const { call, out, cwd } = setup();
-    const hold = { at: '2026-10-04T04:31:00.000Z', categories: ['humanoids'], reasons: ['TIER2_ATTRIBUTION'] };
+    const hold = { at: '2026-10-04T04:31:00.000Z', categories: ['payments-commerce'], reasons: ['TIER2_ATTRIBUTION'] };
     stateOf(cwd, { lastRun: LAST, holds: [hold, hold], corrections: [] });
     expect(await call('status')).toBe(0);
     expect(out).toEqual([

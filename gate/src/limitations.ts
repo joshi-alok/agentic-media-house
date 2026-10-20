@@ -10,10 +10,10 @@ import type { Claim, LimitationSentence } from './schemas';
 
 /** What a claim's `basis` tells the reader about where it came from. */
 export const BASIS_NOTES: Readonly<Record<Basis, string>> = {
-  datasheet: "What is cited here comes from the company's datasheet; no independent measurement was available.",
-  'press-release': 'What is cited here comes from a company press release; no independent measurement was available.',
-  briefing: 'What is cited here was given in a company briefing; no independent measurement was available.',
-  demo: 'What is cited here was shown in a demonstration; the source does not describe independent testing.',
+  docs: "What is cited here comes from the project's own documentation; no independent testing was available.",
+  announcement: "What is cited here comes from the project's own announcement; no independent confirmation was available.",
+  briefing: 'What is cited here was given by the project in a briefing; no independent confirmation was available.',
+  demo: 'What is cited here was shown in a demonstration or a test; the source does not describe independent testing.',
   paper: "What is cited here is reported in the authors' paper; it has not been independently reproduced.",
   filing: 'What is cited here comes from a regulatory filing.',
   standard: 'What is cited here comes from the published standard.',

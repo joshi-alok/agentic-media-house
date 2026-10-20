@@ -26,7 +26,7 @@ function clean(overrides: Partial<ClaimCandidate> = {}): ClaimCandidate {
     label: 'per arm',
     quote: LINE[4] as string,
     values: [number('$38,000', '38000', 'USD'), number('12', '12'), name('Fixture Robotics'), name('FX-1')],
-    basis: 'press-release',
+    basis: 'announcement',
     ...overrides,
   };
 }
@@ -133,18 +133,18 @@ describe('claimProblems: a clean claim', () => {
 
   it('has none when its text says a figure as the quotation does in other words (12 kg and 12 kilograms, twelve and 12)', () => {
     const page = 'The arm is rated for a payload of 12 kilograms at full reach.';
-    const claim = clean({ text: 'The arm is rated for a payload of twelve kg.', label: 'payload', quote: page, values: [number('12 kilograms', '12', 'kg')], basis: 'datasheet' });
+    const claim = clean({ text: 'The arm is rated for a payload of twelve kg.', label: 'payload', quote: page, values: [number('12 kilograms', '12', 'kg')], basis: 'docs' });
     expect(codesOf(claim, 'company-newsroom', page)).toEqual([]);
   });
 
   it('has none when its text gives a figure without the unit that the quotation gives it with', () => {
     const page = 'The arm is rated for a payload of 12 kilograms, and lists from $38,000.';
-    const claim = clean({ text: 'The arm is rated for a payload of 12, and lists from 38,000.', label: 'payload', quote: page, values: [], basis: 'datasheet' });
+    const claim = clean({ text: 'The arm is rated for a payload of 12, and lists from 38,000.', label: 'payload', quote: page, values: [], basis: 'docs' });
     expect(codesOf(claim, 'company-newsroom', page)).toEqual([]);
   });
 
   it('has none when its text names a month on the allow-list and a date that the quotation gives in full', () => {
-    const claim = clean({ text: 'Tarnmoor is due to receive arms in November 2026.', label: 'arms due', quote: LINE[5] as string, values: [name('Tarnmoor')], basis: 'press-release' });
+    const claim = clean({ text: 'Tarnmoor is due to receive arms in November 2026.', label: 'arms due', quote: LINE[5] as string, values: [name('Tarnmoor')], basis: 'announcement' });
     expect(codesOf(claim)).toEqual([]);
   });
 
@@ -159,7 +159,7 @@ describe('claimProblems: the quotation', () => {
   });
 
   it('gives the other checks no say when the quotation is not on the page: they read the quotation, and there is none', () => {
-    const claim = clean({ text: 'Harlow Logistics bought 900 arms.', label: 'Harlow order', quote: 'Harlow Logistics bought 900 arms.', values: [number('900', '900')], basis: 'datasheet' });
+    const claim = clean({ text: 'Harlow Logistics bought 900 arms.', label: 'Harlow order', quote: 'Harlow Logistics bought 900 arms.', values: [number('900', '900')], basis: 'docs' });
     expect(codesOf(claim)).toEqual(['quote-not-found']);
   });
 
@@ -378,7 +378,7 @@ describe('claimProblems: the text and the label', () => {
 
   it('allows an amount in words when the quotation says it too', () => {
     const page = 'Throughput is twice that of the FX-0 arm.';
-    const claim = clean({ text: 'Throughput is twice that of the FX-0 arm.', label: 'throughput', quote: page, values: [], basis: 'datasheet' });
+    const claim = clean({ text: 'Throughput is twice that of the FX-0 arm.', label: 'throughput', quote: page, values: [], basis: 'docs' });
     expect(codesOf(claim, 'company-newsroom', page)).toEqual([]);
   });
 
@@ -431,7 +431,7 @@ describe('claimProblems: the words of the label', () => {
 
   it('reads a word of the label that has a hyphen by its parts when the quotation does not have it whole: tote-picking is as good as tote picking', () => {
     const page = 'The arms are built for tote picking and trailer unloading.';
-    const labelled = (label: string) => claimProblems(clean({ text: 'The arms are built for tote picking.', label, quote: page, values: [], basis: 'datasheet' }), page, 'company-newsroom', ALLOW);
+    const labelled = (label: string) => claimProblems(clean({ text: 'The arms are built for tote picking.', label, quote: page, values: [], basis: 'docs' }), page, 'company-newsroom', ALLOW);
     expect(labelled('tote-picking arms')).toEqual([]);
     expect(labelled('tote-pickers arms').map((problem) => problem.message)).toEqual(['the label says what the quotation does not: "tote-pickers"']);
     expect(labelled('tote-picking-robots arms').map((problem) => problem.code)).toEqual(['label-not-in-quote']);
@@ -469,7 +469,7 @@ describe('claimProblems: the words of the text', () => {
   // now its other words are read too: a word of four letters or more must be a word of the quotation or a plain word of grammar.
   const PAYLOAD = 'The arm lifts 12.5 kg at full reach.';
   const textOf = (text: string, page = PAYLOAD) =>
-    claimProblems(clean({ text, label: 'the', quote: page, values: [], basis: 'datasheet' }), page, 'company-newsroom', ALLOW);
+    claimProblems(clean({ text, label: 'the', quote: page, values: [], basis: 'docs' }), page, 'company-newsroom', ALLOW);
 
   it.each([
     ['an invented lowercase name (the probe of the review)', 'the harlow dynamics arm lifts 12.5 kg', ['"harlow"', '"dynamics"']],
@@ -554,7 +554,7 @@ describe('COMMON_WORDS', () => {
 describe('claimProblems: the basis', () => {
   // What each kind of source may be the basis of. Written out here, in full, and not read from the code under test.
   const ALLOWED: Record<SourceKind, Basis[]> = {
-    'company-newsroom': ['press-release', 'datasheet', 'briefing', 'demo'],
+    'company-newsroom': ['announcement', 'docs', 'briefing', 'demo'],
     arxiv: ['paper'],
     sec: ['filing'],
     standard: ['standard'],
@@ -573,7 +573,7 @@ describe('claimProblems: the basis', () => {
   it('says that the basis is wrong for the kind of source, naming the bases that are allowed', () => {
     const [problem] = claimProblems(clean({ basis: 'filing' }), PAGE, 'company-newsroom', ALLOW);
     expect(problem?.code).toBe('basis-not-allowed');
-    expect(problem?.message).toBe('the basis "filing" does not fit a company newsroom: the bases for it are press-release, datasheet, briefing, demo');
+    expect(problem?.message).toBe('the basis "filing" does not fit a project or company page: the bases for it are announcement, docs, briefing, demo');
   });
 
   it('never allows the basis measured: no source of a story can be taken at its word as a measurement', () => {
@@ -581,9 +581,9 @@ describe('claimProblems: the basis', () => {
   });
 
   it('gives the rule of the gate (G6) when a claim from another outlet has a basis other than reported', () => {
-    const [problem] = claimProblems(clean({ basis: 'press-release' }), PAGE, 'tier2', ALLOW);
+    const [problem] = claimProblems(clean({ basis: 'announcement' }), PAGE, 'tier2', ALLOW);
     expect(problem?.code).toBe('tier-basis');
-    expect(problem?.message).toBe('a claim that rests on another outlet has the basis "reported", not "press-release" (check G6)');
+    expect(problem?.message).toBe('a claim that rests on another outlet has the basis "reported", not "announcement" (check G6)');
   });
 
   it('gives the rule of the gate (G6) when a claim from a primary source has the basis reported', () => {

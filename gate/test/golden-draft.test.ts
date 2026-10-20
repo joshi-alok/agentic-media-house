@@ -30,7 +30,7 @@ describe('GOLDEN_DRAFT: frontmatter', () => {
   it('has the slug, date, categories and author the design calls for', () => {
     expect(GOLDEN_DRAFT.slug).toBe('fixture-robotics-ships-fx-1-to-second-plant');
     expect(GOLDEN_DRAFT.publishedAt).toBe('2026-10-04');
-    expect(GOLDEN_DRAFT.categories).toEqual(['industrial-warehouse', 'funding']);
+    expect(GOLDEN_DRAFT.categories).toEqual(['agent-infrastructure', 'funding']);
     expect(GOLDEN_DRAFT.author).toEqual({ name: 'Agentic Media House Desk' });
     for (const category of GOLDEN_DRAFT.categories) {
       expect(CATEGORY_VOCAB).toContain(category);
@@ -175,7 +175,7 @@ describe('GOLDEN_DRAFT: limitations', () => {
     expect(GOLDEN_DRAFT.limitations.some((sentence) => sentence.template === 'status')).toBe(true);
   });
 
-  it('exists because the piece rests on datasheet, press-release and demo claims', () => {
+  it('exists because the piece rests on docs, announcement and demo claims', () => {
     const cited = new Set(everySentence.flatMap((sentence) => sentence.claimIds));
     const unsafe = GOLDEN_CLAIMS.filter((claim) => cited.has(claim.id) && !['filing', 'standard', 'paper', 'measured'].includes(claim.basis));
     expect(unsafe.length).toBeGreaterThan(0);
@@ -224,11 +224,11 @@ describe('cloneGolden', () => {
   it('returns a copy that tests can change without touching the originals', () => {
     const copy = cloneGolden();
     copy.draft.title.text = 'changed';
-    copy.draft.categories.push('humanoids');
+    copy.draft.categories.push('payments-commerce');
     copy.claims[0]!.label = 'changed';
     copy.claims.pop();
     expect(GOLDEN_DRAFT.title.text).toBe('Fixture Robotics ships its FX-1 warehouse arm to a second plant');
-    expect(GOLDEN_DRAFT.categories).toEqual(['industrial-warehouse', 'funding']);
+    expect(GOLDEN_DRAFT.categories).toEqual(['agent-infrastructure', 'funding']);
     expect(GOLDEN_CLAIMS[0]?.label).toBe('second plant');
     expect(cloneGolden().claims).toHaveLength(GOLDEN_CLAIMS.length);
   });

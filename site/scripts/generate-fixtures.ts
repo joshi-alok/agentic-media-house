@@ -31,10 +31,10 @@ export interface FixturePiece {
 // a piece that rests on another outlet must be (see makeTier2Variant), so the gate clears it, and it is
 // dated the day of the 'G10_AMBIGUOUS' hold in the desk state: the model check could not tell, and the owner released that draft.
 const VARIANTS = [
-  { n: 2, publishedAt: '2026-10-03', categories: ['humanoids'], tier2: false },
-  { n: 3, publishedAt: '2026-10-02', categories: ['policy-standards'], tier2: false },
-  { n: 4, publishedAt: '2026-10-01', categories: ['home-consumer', 'field-mobility'], tier2: false },
-  { n: 5, publishedAt: '2026-09-29', categories: ['policy-standards', 'funding'], tier2: true },
+  { n: 2, publishedAt: '2026-10-03', categories: ['payments-commerce'], tier2: false },
+  { n: 3, publishedAt: '2026-10-02', categories: ['policy-regulation'], tier2: false },
+  { n: 4, publishedAt: '2026-10-01', categories: ['wallets-keys', 'identity-trust'], tier2: false },
+  { n: 5, publishedAt: '2026-09-29', categories: ['policy-regulation', 'funding'], tier2: true },
 ];
 
 const GOLDEN_RETRIEVED_AT = '2026-10-04T04:30:00Z';
@@ -71,11 +71,11 @@ function deskState(all: readonly FixturePiece[]): DeskState {
     holds: [
       {
         at: '2026-09-30T04:38:05Z',
-        categories: ['humanoids'],
+        categories: ['payments-commerce'],
         reasons: ['G4_NUMBER_UNSUPPORTED'],
         prUrl: 'https://github.example/agentic-media-house/agentic-media-house/pull/12',
       },
-      { at: '2026-09-29T04:36:40Z', categories: ['policy-standards', 'funding'], reasons: [OWNER_HOLD_REASON] },
+      { at: '2026-09-29T04:36:40Z', categories: ['policy-regulation', 'funding'], reasons: [OWNER_HOLD_REASON] },
     ],
     corrections: [
       {

@@ -39,7 +39,7 @@ primary:
   # one entirely missing from the original list. Press kits are also where
   # licensed imagery comes from (see the image policy in the content contract).
   companies:
-    humanoids:
+    payments-commerce:
       - { name: Figure,              url: "https://www.figure.ai/news",            status: unverified }
       - { name: Agility Robotics,    url: "https://www.agilityrobotics.com/news",  status: unverified }
       - { name: Boston Dynamics,     url: "https://bostondynamics.com/news/",      status: unverified }
@@ -95,53 +95,53 @@ secondary:
   - name: The Robot Report
     feed: "https://www.therobotreport.com/feed/"
     status: unverified          # RSS 2.0 per the Robywire docs; the Desk has not checked it
-    beats: [industrial-warehouse, humanoids, funding]
+    beats: [agent-infrastructure, payments-commerce, funding]
     note: Strongest on business, funding and commercial humanoid deployments.
 
   - name: IEEE Spectrum — Robotics
     feed: "https://spectrum.ieee.org/feeds/topic/robotics.rss"
     status: unverified
-    beats: [software-autonomy, humanoids, components-supply-chain]
+    beats: [protocols-standards, payments-commerce, security-incidents]
     note: Engineering journalism. Often the only outlet that reads the paper.
 
   - name: Robotics 24/7
     feed: "https://www.robotics247.com/rss"
     status: unverified
-    beats: [industrial-warehouse, field-mobility]
+    beats: [agent-infrastructure, identity-trust]
 
   - name: Robohub
     feed: "https://robohub.org/feed/"
     status: unverified
-    beats: [software-autonomy, policy-standards]
+    beats: [protocols-standards, policy-regulation]
     note: Academic and community. Good early signal on research moving to product.
 
   - name: Robotics Tomorrow
     feed: "https://www.roboticstomorrow.com/rss"
     status: unverified
-    beats: [industrial-warehouse, components-supply-chain]
+    beats: [agent-infrastructure, security-incidents]
 
   - name: Tech Xplore — Robotics
     feed: "https://techxplore.com/rss-feed/robotics-news/"
     status: unverified
-    beats: [software-autonomy, components-supply-chain]
+    beats: [protocols-standards, security-incidents]
     note: Rewrites university press releases. Always trace to the paper.
 
   - name: ScienceDaily — Robotics
     feed: "https://www.sciencedaily.com/rss/computers_math/robotics.xml"
     status: unverified
-    beats: [software-autonomy]
+    beats: [protocols-standards]
     note: Aggregates press releases. Discovery only, never a source.
 
   - name: New Atlas — Robotics
     feed: "https://newatlas.com/robotics/index.rss"
     status: unverified
-    beats: [home-consumer, field-mobility]
+    beats: [wallets-keys, identity-trust]
     note: One of the few covering consumer and home. Enthusiastic — verify claims.
 
   - name: Robotics Business News
     feed: "https://roboticsbusinessnews.com/feed/"
     status: unverified
-    beats: [funding, industrial-warehouse]
+    beats: [funding, agent-infrastructure]
 
 # Dropped from the supplied list:
 #   Phys.org robotics — near-total overlap with Tech Xplore (same publisher

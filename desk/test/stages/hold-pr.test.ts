@@ -371,8 +371,8 @@ describe('holdPrBody, with text that a model wrote to do harm', () => {
     const held = structuredClone(await heldBy('cites another outlet'));
     held.draft.categories = [];
     expect(holdPrBody(held)).toContain('| Categories | (none) |');
-    held.draft.categories = ['humanoids'];
-    expect(holdPrBody(held)).toContain('| Categories | `humanoids` |');
+    held.draft.categories = ['payments-commerce'];
+    expect(holdPrBody(held)).toContain('| Categories | `payments-commerce` |');
   });
 
   it('cuts a block at 4000 characters and not before, says how many were left out, and does not cut a pair of characters in two', async () => {

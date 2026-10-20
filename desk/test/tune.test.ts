@@ -28,7 +28,7 @@ import { loadWorkflow, stepNamed } from './support/workflow';
 // that every edit of a prompt would break.
 const tokensOfText = (text: string): number => Math.ceil(text.length / 4);
 const EXTRACT_PROMPT = tokensOfText(extractSystem());
-const THREE_CALLS_IN = 2875 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
+const THREE_CALLS_IN = 2871 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
 const THREE_CALLS_OUT = 3169; // the same calls: what the scripted model writes (the claims, the draft, the verdicts), so a change of the demo story or of the verifier reply changes it
 const ONE_EXTRACT_IN = 225 + EXTRACT_PROMPT; // an Extract call alone
 const TWO_EXTRACTS_IN = 375 + 2 * EXTRACT_PROMPT; // two pages, an Extract call for each
@@ -235,7 +235,7 @@ describe('main: tune, the table', () => {
       '  claims proposed: 4',
       '  claims dropped: quote-not-found 1, label-not-in-quote 1',
       '  claims surviving: 2',
-      `  tokens: ${ONE_EXTRACT_IN} in, 499 out, 1 model call`,
+      `  tokens: ${ONE_EXTRACT_IN} in, 498 out, 1 model call`,
     ]);
     expect(out.some((line) => line.includes('composed draft'))).toBe(false);
     expect(record().rows[0]).toMatchObject({ status: 'too-few-claims', composed: null, modelCheck: null, verdict: null, usage: { calls: 1 } });

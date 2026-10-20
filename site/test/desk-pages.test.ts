@@ -11,12 +11,12 @@ const STATE: DeskState = {
   holds: [
     {
       at: '2026-09-29T04:36:40Z',
-      categories: ['policy-standards', 'funding'],
+      categories: ['policy-regulation', 'funding'],
       reasons: ['TIER2_ATTRIBUTION'],
     },
     {
       at: '2026-09-30T04:38:05Z',
-      categories: ['humanoids'],
+      categories: ['payments-commerce'],
       reasons: ['G4_NUMBER_UNSUPPORTED', 'G9_BANNED_PHRASE'],
       prUrl: 'https://github.example/agentic-media-house/agentic-media-house/pull/12',
     },
@@ -62,7 +62,7 @@ describe('holdRows', () => {
       {
         at: '2026-09-30T04:38:05Z',
         when: '30 Sep 2026',
-        beats: ['Humanoids'],
+        beats: ['Payments & commerce'],
         reasons: [
           { code: 'G4_NUMBER_UNSUPPORTED', label: 'A number was not in the claims it cites' },
           { code: 'G9_BANNED_PHRASE', label: 'A banned filler phrase was used' },
@@ -71,7 +71,7 @@ describe('holdRows', () => {
       {
         at: '2026-09-29T04:36:40Z',
         when: '29 Sep 2026',
-        beats: ['Policy & standards', 'Funding'],
+        beats: ['Policy & regulation', 'Funding'],
         reasons: [{ code: 'TIER2_ATTRIBUTION', label: "Rests on another outlet's reporting" }],
       },
     ]);
@@ -97,15 +97,15 @@ describe('holdRows', () => {
       ...EMPTY,
       holds: [
         // 2026-10-01 23:00 UTC, written with an offset that makes its text sort last.
-        { at: '2026-10-02T04:30:00+05:30', categories: ['humanoids'], reasons: [] },
-        { at: '2026-10-02T00:00:00Z', categories: ['humanoids'], reasons: [] },
+        { at: '2026-10-02T04:30:00+05:30', categories: ['payments-commerce'], reasons: [] },
+        { at: '2026-10-02T00:00:00Z', categories: ['payments-commerce'], reasons: [] },
       ],
     };
     expect(holdRows(state).map((row) => row.at)).toEqual(['2026-10-02T00:00:00Z', '2026-10-02T04:30:00+05:30']);
   });
 
   it('shows a reason it has no label for as the code itself', () => {
-    const state: DeskState = { ...EMPTY, holds: [{ at: '2026-10-01T00:00:00Z', categories: ['humanoids'], reasons: ['SOMETHING_NEW'] }] };
+    const state: DeskState = { ...EMPTY, holds: [{ at: '2026-10-01T00:00:00Z', categories: ['payments-commerce'], reasons: ['SOMETHING_NEW'] }] };
     expect(holdRows(state)[0]?.reasons).toEqual([{ code: 'SOMETHING_NEW', label: 'SOMETHING_NEW' }]);
   });
 

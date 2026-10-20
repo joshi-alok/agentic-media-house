@@ -48,7 +48,7 @@ describe('the real sources.yml', () => {
   });
 
   it('lists at least five humanoid companies', () => {
-    expect((load().primary.companies.humanoids ?? []).length).toBeGreaterThanOrEqual(5);
+    expect((load().primary.companies['payments-commerce'] ?? []).length).toBeGreaterThanOrEqual(5);
   });
 
   it('gives every secondary source an https feed and beats from the vocabulary', () => {
@@ -80,7 +80,7 @@ describe('the real sources.yml', () => {
 const MINIMAL = `
 primary:
   companies:
-    humanoids:
+    payments-commerce:
       - { name: Fixture Robotics, url: "https://fixture-robotics.example/news", status: unverified }
   research: []
   standards: []
@@ -90,7 +90,7 @@ secondary:
   - name: Example Robot News
     feed: "https://news.example/feed"
     status: unverified
-    beats: [humanoids, funding]
+    beats: [payments-commerce, funding]
 bar:
   publish_if_any: [A product shipped.]
   do_not_publish: [A demo with no specification behind it.]
@@ -119,17 +119,17 @@ function failurePaths(yamlText: string): string[] {
 describe('parseSources', () => {
   it('parses a minimal registry', () => {
     const registry = parseSources(MINIMAL);
-    expect(registry.primary.companies.humanoids?.[0]?.name).toBe('Fixture Robotics');
-    expect(registry.secondary[0]?.beats).toEqual(['humanoids', 'funding']);
+    expect(registry.primary.companies['payments-commerce']?.[0]?.name).toBe('Fixture Robotics');
+    expect(registry.secondary[0]?.beats).toEqual(['payments-commerce', 'funding']);
   });
 
   it('rejects a status that is not verified, unverified, blocked or n/a', () => {
     const bad = swap(MINIMAL, 'status: unverified }', 'status: maybe }');
-    expect(failurePaths(bad)).toEqual(['primary.companies.humanoids.0.status']);
+    expect(failurePaths(bad)).toEqual(['primary.companies.payments-commerce.0.status']);
   });
 
   it('rejects a beat that is not in the category vocabulary', () => {
-    const bad = swap(MINIMAL, 'beats: [humanoids, funding]', 'beats: [humanoids, quantum]');
+    const bad = swap(MINIMAL, 'beats: [payments-commerce, funding]', 'beats: [payments-commerce, quantum]');
     expect(failurePaths(bad)).toEqual(['secondary.0.beats.1']);
   });
 
