@@ -330,6 +330,52 @@ describe('runSelect: the primary source', () => {
   });
 });
 
+describe('runSelect: which link of the page is the primary source', () => {
+  // In the registry of the tests Quarry Robotics is a company whose entry is blocked (the Desk cannot read its pages) and Brindle Logistics is one that is not.
+  const BLOCKED = 'https://quarry-robotics.example/news/a-story';
+  const HOME = 'https://fixture-robotics.example/';
+  const BRINDLE = 'https://brindle-logistics.example/news/second-plant-opens';
+  const NOTE = (why: string) => `No tier-1 source was found: ${why}, so the story is written in attributed form.`;
+  const pageOf = (...links: string[]) => `<article><p>${links.map((link) => `See <a href="${link}">this</a>.`).join(' ')}</p></article>`;
+  const sourceOf = async (...links: string[]) => {
+    const { ctx, fake } = stageContext(scratch, { sources: fixtureRegistry(), fetcher: withPages(new FixtureFetcher(FIXTURE_DIR, worldMap(), () => FETCHED_AT), { [ARTICLE.url]: pageOf(...links) }) });
+    fake.script('select', choose(ARTICLE.id));
+    return runSelect(ctx, discovered(ALL));
+  };
+
+  it('is the first link that goes to a primary source, when that link is a page that can be read and is not a home page: a later link does not take its place', async () => {
+    expect((await sourceOf(BRINDLE, URLS.release)).tier1Url).toBe(BRINDLE);
+  });
+
+  it('passes over a link to a source that the registry marks blocked, as its page can never be fetched', async () => {
+    expect((await sourceOf(BLOCKED, URLS.release)).tier1Url).toBe(URLS.release);
+  });
+
+  it('is null, with the reason, when every link to a primary source goes to a blocked one', async () => {
+    const artifact = await sourceOf(BLOCKED, 'https://elsewhere.example/a');
+    expect(artifact.tier1Url).toBeNull();
+    expect(artifact.reasons.at(-1)).toBe(NOTE('the page of the story links only to primary sources that the Desk cannot read'));
+  });
+
+  it('takes a link to another page of a primary source rather than an earlier link to the home page of one', async () => {
+    expect((await sourceOf(HOME, URLS.release)).tier1Url).toBe(URLS.release);
+  });
+
+  it('takes the home page of a primary source when there is no link to any other page of one', async () => {
+    expect((await sourceOf('https://elsewhere.example/a', HOME)).tier1Url).toBe(HOME);
+  });
+
+  it('does not take an address with a query for a home page', async () => {
+    const withQuery = 'https://fixture-robotics.example/?p=7';
+    expect((await sourceOf(withQuery, URLS.release)).tier1Url).toBe(withQuery);
+  });
+
+  it('passes over a blocked link and a home page together, and falls back to the home page only when nothing better can be read', async () => {
+    expect((await sourceOf(BLOCKED, HOME, URLS.release)).tier1Url).toBe(URLS.release);
+    expect((await sourceOf(BLOCKED, HOME)).tier1Url).toBe(HOME);
+  });
+});
+
 describe('runSelect: no story', () => {
   it('records that the model chose none, with its reasons, and fetches nothing', async () => {
     const fetcher = new FixtureFetcher(FIXTURE_DIR, worldMap(), () => FETCHED_AT);

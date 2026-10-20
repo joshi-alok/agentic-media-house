@@ -23,7 +23,7 @@ import type { VerifierFailure } from './verify-model';
 export interface HoldRun {
   runId: string;
   at: string;
-  /** The address of the story that was chosen, as Discover found it. It is recorded with the hold, so that the next run does not choose the same story while the pull request of this hold is open. */
+  /** The address by which the story is remembered: that of the story that was chosen, as Discover found it, or, for an explainer, that of the primary page it was written from. It is recorded with the hold, so that the next run does not choose the same story while the pull request of this hold is open. */
   sourceUrl?: string;
   /** Which try of its day the run is, from the record of the run (1 for the first). A try after the first has a branch of its own for the piece, so that the branch that an earlier try left on the remote does not stand in its way. */
   attempt?: number;

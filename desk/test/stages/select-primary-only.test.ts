@@ -7,6 +7,7 @@ import { SELECT_ATTEMPTS, runSelect } from '../../src/stages/select';
 import { RUN_DATE, candidate } from '../support/candidates';
 import { FETCHED_AT, URLS, stageContext, useScratch, withPages, worldMap } from '../support/context';
 import { FIXTURE_DIR } from '../support/fixtures';
+import { fixtureRegistry } from '../support/registry';
 
 // With the profile `explainer` the piece is written from a primary page, so Select does not settle for a story whose primary page it cannot find: it asks the model
 // again without that story, at most SELECT_ATTEMPTS times in all. With any other profile it writes such a story in attributed form, as before.
@@ -139,6 +140,67 @@ describe('runSelect for an explainer', () => {
     const { ctx, fake } = stageContext(scratch, { profile: 'explainer', fetcher });
     fake.script('select', reply(FIRST.id));
     await expect(runSelect(ctx, discovered)).rejects.toThrow(new TypeError('a bug in the fetcher'));
+  });
+
+  describe('a primary page that a published piece already cites', () => {
+    const covered = { slugs: ['an-explainer'], titles: [], sourceUrls: [URLS.release] };
+
+    it('is left out, with the sentence that says so, and the model is asked again without the story', async () => {
+      const { ctx, fake, logs } = stageContext(scratch, { profile: 'explainer', fetcher: world(), published: covered });
+      fake.script('select', reply(SECOND.id), reply(null, ['The other story is not good enough.']));
+      const artifact = await runSelect(ctx, discovered);
+      expect(artifact.chosen).toBeNull();
+      expect(artifact.reasons).toEqual([left(SECOND.title, 'its primary page is already covered by a published piece'), 'The other story is not good enough.']);
+      expect(selectCalls(fake)).toHaveLength(2);
+      expect(selectCalls(fake)[1]!.user).not.toContain('starts FX-1 deliveries');
+      expect(logs).toContain(`select: ${JSON.stringify(SECOND.title)} has no primary page (its primary page is already covered by a published piece), so it is left out`);
+    });
+
+    it('leaves the model to choose another story, which is taken when its primary page is not covered', async () => {
+      const other = candidate({ url: 'https://gantry-daily.example/a/other', title: 'Fixture Robotics publishes a second datasheet', outlet: 'Gantry Daily', tier: 2, beats: ['agent-infrastructure'], publishedAt: '2026-10-04T08:00:00.000Z' });
+      const page = `<html><head><title>Other</title></head><body><article><p>See <a href="https://fixture-robotics.example/news/second-datasheet">the datasheet</a>.</p></article></body></html>`;
+      const { ctx, fake } = stageContext(scratch, { profile: 'explainer', fetcher: withPages(world(), { [other.url]: page }), published: covered });
+      fake.script('select', reply(SECOND.id), reply(other.id));
+      const artifact = await runSelect(ctx, { date: RUN_DATE, candidates: [SECOND, other], skipped: [] });
+      expect(artifact.chosen?.id).toBe(other.id);
+      expect(artifact.tier1Url).toBe('https://fixture-robotics.example/news/second-datasheet');
+      expect(artifact.reasons[0]).toBe(left(SECOND.title, 'its primary page is already covered by a published piece'));
+    });
+
+    it('chooses no story when every story leads to a page that is covered or has none', async () => {
+      const { ctx, fake } = stageContext(scratch, { profile: 'explainer', fetcher: world(), published: covered });
+      fake.script('select', reply(FIRST.id), reply(SECOND.id));
+      const artifact = await runSelect(ctx, discovered);
+      expect(artifact.chosen).toBeNull();
+      expect(artifact.reasons).toEqual([left(FIRST.title, NO_SOURCE), left(SECOND.title, 'its primary page is already covered by a published piece'), NONE_FOUND]);
+    });
+
+    it('is also left out when the link of the page has a tracking parameter: that is not another page', async () => {
+      const story = candidate({ url: 'https://gantry-daily.example/a/tracked', title: 'Fixture Robotics ships, with a tracked link', outlet: 'Gantry Daily', tier: 2, beats: ['agent-infrastructure'], publishedAt: '2026-10-04T08:00:00.000Z' });
+      const page = `<html><head><title>Tracked</title></head><body><article><p>See <a href="${URLS.release}?utm_source=feed">the release</a>.</p></article></body></html>`;
+      const { ctx, fake } = stageContext(scratch, { profile: 'explainer', fetcher: withPages(world(), { [story.url]: page }), published: covered });
+      fake.script('select', reply(story.id));
+      const artifact = await runSelect(ctx, { date: RUN_DATE, candidates: [story], skipped: [] });
+      expect(artifact.chosen).toBeNull();
+      expect(artifact.reasons[0]).toBe(left(story.title, 'its primary page is already covered by a published piece'));
+    });
+
+    it('does not matter for any other profile, which writes the story as it did', async () => {
+      const { ctx, fake } = stageContext(scratch, { fetcher: world(), published: covered });
+      fake.script('select', reply(SECOND.id));
+      const artifact = await runSelect(ctx, discovered);
+      expect(artifact.chosen?.id).toBe(SECOND.id);
+      expect(artifact.tier1Url).toBe(URLS.release);
+    });
+  });
+
+  it('leaves out a story whose page links only to primary sources that the Desk cannot read, and says why', async () => {
+    const blocked = '<html><head><title>Blocked</title></head><body><article><p>See <a href="https://quarry-robotics.example/news/a-story">the release</a>.</p></article></body></html>';
+    const { ctx, fake } = stageContext(scratch, { profile: 'explainer', sources: fixtureRegistry(), fetcher: withPages(world(), { [NO_LINKS]: blocked }) });
+    fake.script('select', reply(FIRST.id), reply(SECOND.id));
+    const artifact = await runSelect(ctx, discovered);
+    expect(artifact.chosen?.id).toBe(SECOND.id);
+    expect(artifact.reasons[0]).toBe(left(FIRST.title, 'the page of the story links only to primary sources that the Desk cannot read'));
   });
 
   it('takes a story that is itself a primary page at once, without another ask and without fetching it', async () => {

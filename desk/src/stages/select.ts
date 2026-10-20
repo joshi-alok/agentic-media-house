@@ -1,6 +1,6 @@
 import { BEATS } from '@robywire/gate';
 import { z } from 'zod';
-import { SelectArtifact, isTier1, readPage, writeArtifact } from '../index';
+import { SelectArtifact, canonicalUrl, isBlockedSource, isTier1, readPage, writeArtifact } from '../index';
 import type { Candidate, DiscoverArtifact } from '../index';
 import { buildSelectUser, selectSystem } from '../prompts/select';
 import { describeFailure, isSourceFailure } from './context';
@@ -71,22 +71,47 @@ export function shortlistOf(candidates: Candidate[], ctx: Pick<StageContext, 'da
   return shortlist;
 }
 
+/** Is this the home page of a host: a path of slashes alone, and no query? Such a page says too little to be the page that a story is written from. */
+function isHomePage(address: string): boolean {
+  try {
+    const url = new URL(address);
+    return url.pathname.replace(/\/+$/, '') === '' && url.search === '';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * The primary source of a story, by code: the candidate's own address when it is already a primary source (a company's own page), otherwise the
  * first link of the candidate's page, in the order of the page, whose address is one. The links are those that `readPage` reads, which
- * for an html page are the links of the story itself and not those of its navigation, footer or sidebar. A page that cannot be fetched or read gives no
- * source, and the reason.
+ * for an html page are the links of the story itself and not those of its navigation, footer or sidebar. A link to a source that the registry marks
+ * `blocked` is passed over, as the page cannot be fetched; so is a link to a home page when the page has a link to any other page of a primary source,
+ * as a home page is a poor primary page. A page that cannot be fetched or read gives no source, and the reason.
  */
 async function findTier1(ctx: StageContext, chosen: Candidate): Promise<{ url: string } | { why: string }> {
   if (isTier1(chosen.url, ctx.sources)) return { url: chosen.url };
   try {
     const page = await ctx.fetcher.get(chosen.url);
-    const link = readPage(page).links.find((candidate) => isTier1(candidate.url, ctx.sources));
-    return link === undefined ? { why: 'the page of the story has no link to a primary source' } : { url: link.url };
+    const primary = readPage(page).links.filter((candidate) => isTier1(candidate.url, ctx.sources));
+    const readable = primary.filter((candidate) => !isBlockedSource(candidate.url, ctx.sources));
+    const link = readable.find((candidate) => !isHomePage(candidate.url)) ?? readable[0];
+    if (link !== undefined) return { url: link.url };
+    return { why: primary.length === 0 ? 'the page of the story has no link to a primary source' : 'the page of the story links only to primary sources that the Desk cannot read' };
   } catch (error) {
     if (!isSourceFailure(error)) throw error;
     return { why: `the page of the story could not be read (${describeFailure(error)})` };
   }
+}
+
+/**
+ * The primary source that an explainer may be written from: the one found, unless a published piece, or a story that is held in a pull request, already cites that page.
+ * A second explainer from the same page would say the same again, and the page of another outlet's article about it, or the same article on the next day, leads to it again.
+ */
+function unwritten(source: { url: string } | { why: string }, ctx: Pick<StageContext, 'published'>): { url: string } | { why: string } {
+  if ('url' in source && ctx.published.sourceUrls.includes(canonicalUrl(source.url) ?? source.url)) {
+    return { why: 'its primary page is already covered by a published piece' };
+  }
+  return source;
 }
 
 /**
@@ -95,8 +120,8 @@ async function findTier1(ctx: StageContext, chosen: Candidate): Promise<{ url: s
  * With nothing on the shortlist, no model is asked. Otherwise the model is asked, and a reply that is not valid, or that names an id that is not on
  * what it was offered, is a `schema` error that ends the run. When a story is chosen, its primary source is looked for (see `findTier1`); when
  * none is found the reasons end with a sentence of the code that says so, because such a story is written in attributed form and, if the gate and
- * the model check clear it, published. With the profile `explainer`, a story whose primary source is not found is left out and the model is asked again
- * without it, at most `SELECT_ATTEMPTS` times in all; each story left out is a sentence at the head of the reasons, and when none is left to choose the
+ * the model check clear it, published. With the profile `explainer`, a story whose primary source is not found, or is already cited by a published piece, is left out and
+ * the model is asked again without it, at most `SELECT_ATTEMPTS` times in all; each story left out is a sentence at the head of the reasons, and when none is left to choose the
  * reasons end with a sentence that says that no story with a primary page was found. The shortlist of the artifact is that of the first ask.
  */
 export async function runSelect(ctx: StageContext, discovered: DiscoverArtifact): Promise<SelectArtifact> {
@@ -128,7 +153,8 @@ export async function runSelect(ctx: StageContext, discovered: DiscoverArtifact)
         result = { date: ctx.date, chosen: null, reasons: [...notes, ...reply.value.reasons], tier1Url: null, shortlist: firstIds };
         break;
       }
-      const source = await findTier1(ctx, chosen);
+      const found = await findTier1(ctx, chosen);
+      const source = primaryOnly ? unwritten(found, ctx) : found;
       if ('url' in source) {
         result = { date: ctx.date, chosen, reasons: [...notes, ...reply.value.reasons], tier1Url: source.url, shortlist: firstIds };
         break;

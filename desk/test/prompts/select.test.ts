@@ -34,10 +34,9 @@ describe('selectSystem', () => {
     expect(SELECT_INSTRUCTIONS).toContain('judge from titles alone');
   });
 
-  it('says that a story of another outlet is written only after its primary source is found, and that one whose primary source cannot be found is left out', () => {
-    expect(SELECT_INSTRUCTIONS).toContain(
-      'A story from another outlet is written only after its primary source is found, and a story whose primary source cannot be found is left out; prefer a story whose primary source is likely to be on the page you are shown.',
-    );
+  it('tells the model to prefer a story whose title names who published it, which it can judge from a title, and not to prefer a page that it is not shown', () => {
+    expect(SELECT_INSTRUCTIONS).toContain('Prefer a story whose title names the project, company or paper that published it.');
+    expect(SELECT_INSTRUCTIONS).not.toContain('the page you are shown');
   });
 
   it('says that a candidate is from an outlet or a project, and not from a company only', () => {

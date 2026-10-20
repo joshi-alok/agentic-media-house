@@ -166,3 +166,14 @@ export function isTier1(url: string, registry: SourcesRegistry): boolean {
   const kind = sourceKind(url, registry);
   return kind === 'company-newsroom' || kind === 'arxiv' || kind === 'sec' || kind === 'research' || kind === 'standard';
 }
+
+/**
+ * Is this address a page of a source that the registry marks `blocked` (the Desk cannot read it: robots.txt forbids it, or it answers a bot with a 403)? Only the sources that can be
+ * primary count (companies, research, standards), and with the same reading of the address as `sourceKind`: the whole host, or, on a host where many people publish, the path of the entry and
+ * what is below it. An address that a source which is not blocked also covers is not blocked, as that source can be read. A page of a blocked source can never be fetched, so a
+ * story cannot be written from it.
+ */
+export function isBlockedSource(url: string, registry: SourcesRegistry): boolean {
+  const entries = [...companyEntries(registry), ...registry.primary.research, ...registry.primary.standards];
+  return inScopes(url, scopesOf(entries.filter((entry) => entry.status === 'blocked'))) && !inScopes(url, scopesOf(entries.filter((entry) => entry.status !== 'blocked')));
+}

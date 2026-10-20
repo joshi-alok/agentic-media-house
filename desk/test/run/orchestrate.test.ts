@@ -189,6 +189,24 @@ describe('runDesk: a piece that is held', () => {
     // It remembers the piece and the address of the story that was chosen, so that the next run does not choose the story again while the hold is open.
     expect(state.holds).toEqual([{ at: START.toISOString(), categories: ['payments-commerce'], reasons: ['G10_NOT_ENTAILED'], slug: result.slug, sourceUrl: DEMO_URLS.mercerArticle }]);
   });
+
+  it('remembers, for an explainer, the primary page that the piece was written from, and not the article of the outlet that led to it', async () => {
+    const { run, repoDir } = setup({ config: { profile: 'explainer' }, fake: unentailed() });
+    const result = await run();
+    expect(result.outcome).toBe('held');
+    const state = await readDeskState(path.join(repoDir, STATE));
+    expect(state.holds.map((hold) => hold.sourceUrl)).toEqual([DEMO_URLS.release]);
+  });
+
+  it('does not write a second explainer from the page of one that is held, whichever article leads to it', async () => {
+    const made = setup({ config: { profile: 'explainer' }, fake: unentailed() });
+    expect((await made.run()).outcome).toBe('held');
+    // The article of the outlet is still a candidate, and its primary page is the one the held piece was written from.
+    const fake = new FakeClient().script('select', SELECT, { chosenId: null, reasons: ['Nothing else is good enough.'] });
+    const second = await again(made, { forceNew: true }, fake);
+    expect(second).toMatchObject({ outcome: 'no-story', stage: 'select' });
+    expect(second.reason).toContain('was left out: its primary page is already covered by a published piece, and an explainer is written from a primary page.');
+  });
 });
 
 describe('runDesk: no story', () => {
@@ -912,7 +930,7 @@ describe('runDesk: the profile of the settings', () => {
     expect(fetched.documents.map((document) => [document.url, document.tier])).toEqual([[DEMO_URLS.release, 1]]);
   });
 
-  it('ends an explainer with no story, at Select, when no story with a primary page is found, and fetches nothing', async () => {
+  it('ends an explainer with no story, at Select, when the story it chose has no primary page and the model chooses none of the rest, and fetches nothing', async () => {
     const page = '<html><head><title>No links</title></head><body><article><p>Fixture Robotics shipped something.</p></article></body></html>';
     const fake = new FakeClient().script('select', SELECT, { chosenId: null, reasons: ['Nothing else is good enough.'] });
     const fetcher = withPages(demoFetcher(() => FETCHED_AT), { [DEMO_URLS.mercerArticle]: page });

@@ -5,11 +5,10 @@ import type { StageContext } from './context';
 import { MAX_TITLE_LENGTH } from './discover';
 import { recencyWindow } from './select';
 
-// Stage 3, Fetch: get the pages that the story will be written from, and keep them as evidence. For the story that
-// Select chose these are the page of its primary source (if Select found one) and the page of the story itself; for an
-// explainer, which is written from a primary page, the page of its primary source alone. Each
-// is fetched politely (the fetcher's job), reduced to its text, and put in the evidence store, which names it by the
-// SHA-256 of the text. The artifact records where each page came from and its hash, never the text: the text is
+// Stage 3, Fetch: get the pages that the story will be written from, and keep them as evidence. For the story that Select chose these are the
+// page of its primary source (if Select found one) and the page of the story itself; for an explainer, which is written from a primary page, the
+// page of its primary source alone. Each page is fetched politely (the fetcher's job), reduced to its text, and put in the evidence store, which
+// names it by the SHA-256 of the text. The artifact records where each page came from and its hash, never the text: the text is
 // handed to the next stage in memory, and the evidence store is where anyone can read it again. Before the next stage takes a
 // word of it, the run reads every snapshot back from the store (`confirmSnapshots`): the claims of a piece are taken from text that the store
 // gave back, which it has checked against its hash.
@@ -46,13 +45,15 @@ function staleOrUndated(publishedAt: string | undefined, ctx: Pick<StageContext,
  * A page that cannot be fetched or read (robots.txt forbids it, it is too large, it is not text, it has no text in it) is not
  * fatal: it is recorded in the artifact with the reason and the stage goes on. In particular, when the primary source is
  * unreachable the story falls back to the page of the story alone, which is written in attributed form and, if the gate and the model
- * check clear it, published; the artifact says that the primary source failed. When every page fails the result is `no-story`. With the profile `explainer` there is no such fallback:
- * the primary source is the only page fetched, and the article of the outlet that led to it never is, so that no claim of another outlet can enter the piece. A story that
- * Select gave no primary source is then a bug of the Desk, and the stage throws. A story that has no date of its own (a headline
- * link of a newsroom page) must have a page that gives one inside the window of `recencyWindow`, as an old announcement on a newsroom page
- * is not today's news: when its page gives none, or an old one, nothing more is fetched, the page is recorded as a failure whose reason begins
- * with `stale-or-undated`, and the result is `no-story` with that reason. Any other error ends the run, and that
- * includes a failure of the evidence store: the Desk does not go on without the evidence it will cite.
+ * check clear it, published; the artifact says that the primary source failed. When every page fails the result is `no-story`.
+ *
+ * With the profile `explainer` there is no such fallback: the primary source is the only page fetched, and the article of the outlet that led to it never is, so that
+ * no claim of another outlet can enter the piece. A story that Select gave no primary source is then a bug of the Desk, and the stage throws.
+ *
+ * A story that has no date of its own (a headline link of a newsroom page) must have a page that gives one inside the window of `recencyWindow`, as an old
+ * announcement on a newsroom page is not today's news: when its page gives none, or an old one, nothing more is fetched, the page is recorded as a failure whose
+ * reason begins with `stale-or-undated`, and the result is `no-story` with that reason. Any other error ends the run, and that includes a failure of the evidence
+ * store: the Desk does not go on without the evidence it will cite.
  *
  * The text is read once, by `readAndCut` (html through the html reader, plain text and markdown as text), and is cut to `maxPageChars` at the last paragraph or line break past half the limit,
  * else at the last space; the document says `truncated` when it was cut, and the log says so. That text is what the store keeps and what the next stage quotes from. The size recorded

@@ -16,7 +16,7 @@ export const SELECT_INSTRUCTIONS = [
   '',
   'You are given today\'s date, the editorial bar, and the candidates. Each candidate has an id, a tier, the outlet or project it is from, its day of publication or "undated", and a title. The title is the text of a block that starts with <source id="..."> and has the same id as the candidate. You judge from titles alone: do not guess a fact that a title does not state.',
   'Tier 1 means a project\'s, a company\'s, a standards body\'s or a researcher\'s own page, which is a primary source. Tier 2 means another outlet reporting on something; it tells us that something happened, and a story from it is written only after its primary source is found.',
-  'A story from another outlet is written only after its primary source is found, and a story whose primary source cannot be found is left out; prefer a story whose primary source is likely to be on the page you are shown.',
+  'Prefer a story whose title names the project, company or paper that published it.',
   '',
   'How to choose:',
   '- Choose a story only if it meets at least one of the conditions under "Publish a story if any of these is true" and none of those under "Do not publish".',
