@@ -1,9 +1,11 @@
-import { LedgerEntry } from '@robywire/gate';
-import { GOLDEN_DRAFT } from '@robywire/gate/fixtures';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { LedgerEntry, defaultContext, runGate } from '@robywire/gate';
+import { GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
 import { matchPieces } from '../../../site/src/lib/match-pieces';
 import { REASON_LABELS } from '../../../site/src/lib/reasons';
-import type { HeldArtifact } from '../../src/run/artifacts';
+import { HeldArtifact } from '../../src/run/artifacts';
 import { heldPieceFiles, holdPrBody, holdPrTitle, renderHeldPiece } from '../../src/stages/hold-pr';
 import { useScratch } from '../support/context';
 import { heldOf, verdicts } from '../support/held';
@@ -28,6 +30,9 @@ const KINDS = {
   'fails the model check, which the gate cleared': () => made.modelCheck(),
 } as const;
 const heldBy = async (kind: keyof typeof KINDS): Promise<HeldArtifact> => heldOf(scratch, await KINDS[kind]());
+
+/** The ledger of the fifth fixture piece of the site: the piece that the owner released after a hold. The fixture generator writes it, and no stage of the Desk is run for it. */
+const FIXTURE_5_LEDGER = fileURLToPath(new URL('../../../site/src/content-fixtures/ledger/fixture-robotics-ships-fx-5-to-second-plant.json', import.meta.url));
 
 describe('outsideFences (the check that the tests below rely on)', () => {
   it('leaves out what is in a fenced block, and a block is closed only by a fence that is as long as the one that opened it', () => {
@@ -93,6 +98,36 @@ describe('renderHeldPiece', () => {
     const odd = structuredClone(held);
     odd.draft.slug = '../outside';
     expect(() => heldPieceFiles(odd)).toThrow('"../outside" is not a plain slug');
+  });
+});
+
+describe('renderHeldPiece and the fixture of the site that stands for a released hold', () => {
+  // The fixture generator (site/scripts/generate-fixtures.ts) cannot call the Desk, so it makes the gate of the fifth fixture by hand: the result of the gate with the
+  // route hold and the reasons of the hold, and the release owner. This test makes the same piece the way the hold flow does and compares the two, so that if either
+  // side changes the shape of what it writes, one of them fails. Only the gate and the release are compared: the fixture has no model check (`verifier`) and its run
+  // and its slug are its own.
+  it('writes the gate and the release of a released hold as the fixture generator writes them', () => {
+    const variant = makeTier2Variant(cloneGolden());
+    const gate = runGate(variant, defaultContext());
+    const verifier = { model: 'model-a', passed: false, notes: ['The model check could not tell if a sentence was supported.'] };
+    const held = HeldArtifact.parse({
+      date: '2026-10-05',
+      slug: variant.draft.slug,
+      runId: 'fixture-run-5',
+      reasons: ['G10_AMBIGUOUS'],
+      draft: variant.draft,
+      claims: variant.claims,
+      rounds: 0,
+      gate,
+      verifier,
+      history: [{ round: 0, gate, verifier, verifierFailures: [{ id: 's1', kind: 'sentence', code: 'ambiguous', reason: 'The passages do not say it.' }], sent: [] }],
+    });
+    const fixture = LedgerEntry.parse(JSON.parse(readFileSync(FIXTURE_5_LEDGER, 'utf8')));
+    const { ledger } = renderHeldPiece(held);
+    expect(fixture.release).toBeDefined();
+    expect(ledger.release).toEqual(fixture.release);
+    // The route, the result of every check, the reasons of the hold and the notes (when the ledger has them).
+    expect(ledger.gate).toEqual(fixture.gate);
   });
 });
 

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { allSentences } from '@robywire/gate';
+import { LedgerEntry, allSentences } from '@robywire/gate';
 import { GOLDEN_CLAIMS } from '@robywire/gate/fixtures';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DEMO_CLAIMS, DEMO_REPLY, clearingVerifier } from '../src/demo/story';
@@ -18,7 +18,7 @@ import { HOLD_BRANCH } from '../src/run/branches';
 import { GhForge } from '../src/run/forge';
 import type { RunResult } from '../src/run/orchestrate';
 import { R2EvidenceStore } from '../src/run/r2-evidence';
-import { SiteTarget } from '../src/run/target';
+import { SiteTarget, sitePaths } from '../src/run/target';
 import { assembleDraft } from '../src/stages/draft-assembly';
 import type { ComposeReply } from '../src/stages/draft-assembly';
 import { runFetch } from '../src/stages/fetch';
@@ -675,6 +675,15 @@ describe('the adversarial matrix: the ways to end that are not bad', () => {
     expect(verified.gate.failures).toEqual([]);
     expect(verified.gate.holdReasons).toEqual([]);
     expect((await readDeskState(path.join(made.repoDir, STATE))).holds).toEqual([]);
+    // The control that replaced the forced hold: the article labels the sentence as another outlet's reporting, and the ledger says that no human released it and keeps the claim of the outlet.
+    const attributed = 'Mercer Wire reports that the arm is priced from $38,000.';
+    const files = sitePaths();
+    const article = readFileSync(path.join(made.repoDir, files.newsFile(result.slug as string)), 'utf8');
+    expect(article).toContain(`**Unconfirmed.** ${attributed}`);
+    const ledger = LedgerEntry.parse(JSON.parse(readFileSync(path.join(made.repoDir, files.ledgerFile(result.slug as string)), 'utf8')));
+    expect(ledger.release).toBe('auto');
+    expect(ledger.gate.route).toBe('publish');
+    expect(ledger.claims.filter((claim) => claim.source.tier === 2).map((claim) => [claim.id, claim.source.outlet])).toEqual([['c-8', 'Mercer Wire']]);
   });
 
   it('ends published a composer that fixes its draft when it is sent back once, so the scenarios above are held for what is wrong in them and not for the revision', async () => {

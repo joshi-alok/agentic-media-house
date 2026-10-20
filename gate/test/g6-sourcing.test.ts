@@ -261,13 +261,8 @@ describe('the hold reason, which is retired', () => {
     expect(run((g) => addTier2Copy(g, 'c-19'))).toEqual({ failures: [], holdReasons: [] });
   });
 
-  it('is listed in HOLD_REASONS, which the site reads to give every hold reason a label', () => {
-    const output = run((g) => {
-      makeTier2(g, 'c-19');
-      attribute(g, INVESTORS, 'Mercer Wire reports that 7 investors took part in the round.');
-    });
+  it('is still listed in HOLD_REASONS, which the site reads to give every hold reason a label, although no check asks for it', () => {
     expect(HOLD_REASONS).toEqual(['TIER2_ATTRIBUTION']);
-    expect(output.holdReasons.every((reason) => (HOLD_REASONS as readonly string[]).includes(reason))).toBe(true);
   });
 });
 

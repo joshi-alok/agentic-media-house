@@ -235,6 +235,7 @@ describe('runGate: where analysis may stand', () => {
       api.defaultContext(),
     );
     expect(result.failures.map((item) => item.code)).not.toContain('G7_ANALYSIS_PLACEMENT');
+    expect(result.route).toBe('publish');
   });
 
   it('still keeps analysis out of the title and the description', () => {

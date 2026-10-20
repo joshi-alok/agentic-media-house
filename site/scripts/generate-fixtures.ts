@@ -61,6 +61,9 @@ export function fixturePieces(): FixturePiece[] {
 
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 
+/** The reason that the hold of the fixture released by the owner goes by: the model check could not tell if a sentence was supported. */
+const OWNER_HOLD_REASON = 'G10_AMBIGUOUS';
+
 function deskState(all: readonly FixturePiece[]): DeskState {
   const [latest, corrected] = [all[0]!, all[1]!];
   return DeskState.parse({
@@ -72,7 +75,7 @@ function deskState(all: readonly FixturePiece[]): DeskState {
         reasons: ['G4_NUMBER_UNSUPPORTED'],
         prUrl: 'https://github.example/agentic-media-house/agentic-media-house/pull/12',
       },
-      { at: '2026-09-29T04:36:40Z', categories: ['policy-standards', 'funding'], reasons: ['G10_AMBIGUOUS'] },
+      { at: '2026-09-29T04:36:40Z', categories: ['policy-standards', 'funding'], reasons: [OWNER_HOLD_REASON] },
     ],
     corrections: [
       {
@@ -84,9 +87,6 @@ function deskState(all: readonly FixturePiece[]): DeskState {
     ],
   });
 }
-
-/** The reason that the hold of the fixture released by the owner goes by: the model check could not tell if a sentence was supported. */
-const OWNER_HOLD_REASON = 'G10_AMBIGUOUS';
 
 /**
  * Every fixture file as a map from its path under the fixtures folder to its
