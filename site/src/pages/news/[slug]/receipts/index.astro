@@ -4,7 +4,7 @@ import { receiptsIntro } from '../../../../lib/copy';
 import { formatDateTime, plural } from '../../../../lib/format';
 import { articlePath, receiptsPath } from '../../../../lib/paths';
 import { getPieces } from '../../../../lib/pieces';
-import { receiptsView } from '../../../../lib/receipts';
+import { CHECKS_PASSED_TEXT, receiptsView } from '../../../../lib/receipts';
 import '../../../../styles/receipts.css';
 
 export async function getStaticPaths() {
@@ -30,6 +30,7 @@ const holdText = view.gate.holdReasons.length === 0 ? 'none' : view.gate.holdRea
       <h2 id="gate-heading">Gate result</h2>
       <p>{passed} of {view.gate.checks.length} checks passed. {view.gate.routeText}</p>
       {view.releaseNote !== undefined && <p>{view.releaseNote}</p>}
+      <p>{CHECKS_PASSED_TEXT}</p>
       <ul class="checks">
         {
           view.gate.checks.map((check) => (

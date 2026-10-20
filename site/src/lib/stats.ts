@@ -11,7 +11,7 @@ export interface LedgerStats {
    * another outlet is reported, not traced to a primary source, so it is not counted as verified.
    */
   claims: number;
-  /** Drafts the gate held for the owner. */
+  /** Drafts that were held for the owner. */
   held: number;
   lastRun: DeskState['lastRun'];
 }

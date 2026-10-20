@@ -99,7 +99,10 @@ const trial = trialText();
             <dt>
               {rule.id} {rule.name}
             </dt>
-            <dd>{rule.text}</dd>
+            <dd>
+              {rule.text}
+              {rule.notes !== '' && <span class="rule-notes"> Noted, not blocking: {rule.notes}</span>}
+            </dd>
           </>
         ))
       }

@@ -75,8 +75,8 @@ export function trialText(live: Live = LIVE): string | undefined {
 /** The paragraph that introduces the nine rules of the gate. */
 export function gateIntro(live: Live = LIVE): string {
   return live.publishing
-    ? 'The gate is code. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. If one fails, the draft is not published; it goes back for revision with the exact failures. In plain English the rules are these.'
-    : 'The gate is code, and it is built and tested. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. If one fails, the draft is not published: the gate reports the exact failures, and the Desk will send the draft back for revision with them. In plain English the rules are these.';
+    ? 'The gate is code. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. A finding is either a blocker, which sends the draft back for revision with the exact failures, or a note, which is recorded on the receipts page of the piece and does not stop it. In plain English the rules are these.'
+    : 'The gate is code, and it is built and tested. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. A finding is either a blocker, which stops the draft (the gate reports the exact failures, and the Desk will send the draft back for revision with them), or a note, which is recorded on the receipts page of the piece and does not stop it. In plain English the rules are these.';
 }
 
 /** The section about the independent model check. */
@@ -89,8 +89,8 @@ export function modelCheckText(live: Live = LIVE): string {
 /** The start of the section about holds: when a piece is held and where a held draft goes. The page adds what the holds page shows. */
 export function holdsText(live: Live = LIVE): string {
   return live.publishing
-    ? "The gate holds a piece when it cannot clear it: a check still fails after two rounds of revision, or a rule asks for a human decision, as G6 does for any piece that uses another outlet's reporting. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report."
-    : "The gate holds a piece when it cannot clear it: a rule asks for a human decision, as G6 does for any piece that uses another outlet's reporting, or, once the pipeline runs, a check still fails after two rounds of revision. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
+    ? "The gate holds a piece when it cannot clear it: a blocker still stands after two rounds of revision, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report."
+    : "The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after two rounds of revision, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
 }
 
 /** What the site shows for a held draft that the owner decides to publish. The words quoted are the ones the receipts page uses. */
@@ -145,8 +145,8 @@ export function statusPageIntro(live: Live = LIVE): string {
 export function sourcesText(live: Live = LIVE): string {
   const tiers = "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
   return live.publishing
-    ? `${tiers} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting; the story is held.`
-    : `${tiers} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting; the story will be held.`;
+    ? `${tiers} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting as its own: every fact from it is attributed to the outlet by name.`
+    : `${tiers} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting as its own: every fact from it will be attributed to the outlet by name.`;
 }
 
 /** The list "What the Desk never does" on the method page, one item for each promise. */
@@ -156,14 +156,14 @@ export function neverDoes(live: Live = LIVE): string[] {
         'It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".',
         'It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.',
         'It uses no photographs. Each piece gets a fact card drawn from its own claims.',
-        "It does not rewrite another outlet's reporting as its own. A story with no reachable primary source is held.",
+        "It does not rewrite another outlet's reporting as its own. A fact that only another outlet reports is attributed to it by name and labelled Unconfirmed.",
         'It does not publish a sentence the gate cannot trace to a source.',
       ]
     : [
         'It will contact no one. It will send no email to a company and ask nobody for comment, so no piece will say "we asked and did not hear back".',
         'It will not republish its sources. A piece will quote short passages, each attributed and at most 300 characters, and will not copy articles.',
         'It will use no photographs. Each piece already gets a fact card drawn from its own claims.',
-        "It will not rewrite another outlet's reporting as its own. A story with no reachable primary source will be held.",
+        "It will not rewrite another outlet's reporting as its own. A fact that only another outlet reports will be attributed to it by name and labelled Unconfirmed.",
         'It will not publish a sentence the gate cannot trace to a source, and the gate already refuses one.',
       ];
 }

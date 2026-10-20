@@ -50,9 +50,16 @@ export interface GateSummary {
 
 const ROUTE_TEXT: Record<Route, string> = {
   publish: 'The gate cleared this piece.',
-  hold: 'The gate held this draft for the owner.',
+  hold: 'This draft was held for the owner.',
   revise: 'The gate sent this draft back for revision.',
 };
+
+/**
+ * What a check that shows as passed may still have found: a note. The receipts page prints it between the count of the checks that passed and the list of them.
+ * A check fails only when it found a blocker (`runGate` sets it so), and the notes of the piece are listed on the page below the checks.
+ */
+export const CHECKS_PASSED_TEXT =
+  'A check passes when it found no blocker. A note does not fail a check, so a piece that has only notes still shows every check as passed; its notes are listed below the checks.';
 
 /** What a route of the gate means, in a sentence. */
 export const routeText = (route: Route): string => ROUTE_TEXT[route];
@@ -63,7 +70,7 @@ export const routeText = (route: Route): string => ROUTE_TEXT[route];
  */
 export function releaseNote(release: Release | undefined): string | undefined {
   if (release === 'auto') return 'Published by the gate without a human.';
-  if (release === 'owner') return 'Held by the gate, then released by the owner.';
+  if (release === 'owner') return 'Held for the owner, then released by the owner.';
   return undefined;
 }
 

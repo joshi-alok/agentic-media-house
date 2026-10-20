@@ -20,7 +20,7 @@ const SLUGS = [
   'fixture-robotics-ships-fx-4-to-second-plant',
   'fixture-robotics-ships-fx-5-to-second-plant',
 ];
-// The fifth piece rests on another outlet's reporting. The gate holds it, and the owner released it.
+// The fifth piece rests on another outlet's reporting. The model check could not tell if a sentence was supported, so it was held, and the owner released it.
 const HELD_SLUG = SLUGS[4]!;
 
 const scratch: string[] = [];

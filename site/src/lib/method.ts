@@ -15,6 +15,8 @@ export interface GateRule {
   name: string;
   /** What the check requires, in one sentence. */
   text: string;
+  /** What the check only records and does not stop a piece for; empty when it has none. */
+  notes: string;
 }
 
 /**
@@ -31,46 +33,55 @@ export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
       id: 'G1',
       name: 'Frontmatter',
       text: `The title and the description are not empty, the description is at most ${config.descriptionMax} characters, the date is a real date, the page address is lowercase letters and digits joined by single hyphens, there are 1 to 3 categories, all different, from the closed list, with at least one beat among them, and the author is the Desk, so a piece cannot carry a human's name.`,
+      notes: '',
     },
     {
       id: 'G2',
       name: 'Structure',
-      text: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words in at least 2 sections, every section has a heading of at most ${headingMax} characters that is not a question and is not one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn't verify"), every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
+      text: `There are at least 2 sections, every section has a heading, no heading is one of the two headings that the Desk writes itself ("Key takeaways" and "What we couldn't verify"), and every claim the piece cites that rests on a company's own datasheet, press release, briefing or demo, that only another outlet reported, or that was only demonstrated or is only planned, is covered by a sentence under "What we couldn't verify".`,
+      notes: `The opening paragraph is ${openingWords.min} to ${openingWords.max} words, there are ${takeaways.min} to ${takeaways.max} key takeaways, the body (the opening, the takeaways, the sections and the limitations, not the title, the description or the headings) is ${bodyWords.min} to ${bodyWords.max} words, and a heading is at most ${headingMax} characters and not a question; these are targets for a piece of the default kind, a piece outside them is noted and published all the same, and its receipts page lists what was outside.`,
     },
     {
       id: 'G3',
       name: 'Coverage',
       text: 'Every factual sentence, the title and the description included, cites at least one claim, and every claim a sentence cites exists.',
+      notes: '',
     },
     {
       id: 'G4',
       name: 'Values',
-      text: `The reader of the gate finds the numbers, dates and capitalised names in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg) and words that state an amount with no figure to check ("half", "twice", "doubled", "tenfold") are refused; a section heading has no number, date or quotation and no capitalised word that is not in the quoted passage, the names or the outlet of a claim cited in that section; and every value a claim lists is really in its quoted passage, as a whole word or number (a 2 is not found inside "12 weeks" or "2.3").`,
+      text: `The reader of the gate finds the numbers and dates in each factual sentence (what it cannot find is listed under "${LIMITS_HEADING}"), and each one it finds must appear among the values of a claim that sentence cites; numbers written in words are read like digits ("twelve kilograms" is 12 kg); a section heading has no number, date or quotation and no word that states an amount with no figure; and every value a claim lists is really in its quoted passage, as a whole word or number (a 2 is not found inside "12 weeks" or "2.3").`,
+      notes: 'The reader also finds the capitalised names in each factual sentence and in each heading, and the words that state an amount with no figure to check in a factual sentence ("half", "twice", "doubled", "tenfold"); a name that no cited claim lists, and such a word, are noted and do not stop the piece, because the model check judges what a sentence means better than a list of words can.',
     },
     {
       id: 'G5',
       name: 'Quotes',
       text: 'Any passage in double quotation marks in the title, the description or a factual or analysis sentence is word for word inside the quoted passage of a claim that the sentence cites, where spacing, dashes and the shape of quotation marks and apostrophes do not matter and case and punctuation do.',
+      notes: '',
     },
     {
       id: 'G6',
       name: 'Sourcing',
-      text: 'A claim that comes from another outlet has the basis "reported" (no claim from a primary source has it) and may appear only in a factual sentence that names the outlet and is marked as an attribution, never in analysis; the article labels such a sentence "Unconfirmed.", and a piece that uses one is held for the owner instead of being published.',
+      text: 'A claim that comes from another outlet has the basis "reported" (no claim from a primary source has it) and may appear only in a factual sentence that names the outlet and is marked as an attribution, never in analysis; the article labels such a sentence "Unconfirmed.".',
+      notes: '',
     },
     {
       id: 'G7',
       name: 'Analysis',
-      text: `Analysis, the Desk's own reading of the facts, is labelled, stays out of the title, description, opening and takeaways, makes up at most ${share} percent of the body's sentences, may not bring in a number (written in digits or words), date or name that no factual sentence contains, and must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites.`,
+      text: `Analysis, the Desk's own reading of the facts, is labelled, stays out of the title and the description, may not bring in a number (written in digits or words), a date or a name that no factual sentence contains, must start with a capital letter or a digit, and must open with an ordinary function word or a word of the quoted passage, the names or the outlet of a claim it cites.`,
+      notes: `Analysis is at most ${share} percent of the body's sentences; a piece that goes over is noted and published.`,
     },
     {
       id: 'G8',
       name: 'Limitations',
       text: `The sentences under "What we couldn't verify" are never freely written: each describes a group of claims that share one basis or one status (and, for claims that another outlet reported, that outlet) through a fixed template, covers at most four claims, cites each claim once in ascending order, and the gate writes the sentence again and requires an exact match.`,
+      notes: '',
     },
     {
       id: 'G9',
       name: 'Hygiene',
-      text: `The page address is not already in use, the title is not a near-duplicate of a title published in the last ${config.titleWindowDays} days (its words overlap theirs by ${overlap} percent or more, counting shared words over all words), and none of the banned filler phrases appears in the title, description, headings, body or limitations.`,
+      text: `The page address is not already in use, and the title is not a near-duplicate of a title published in the last ${config.titleWindowDays} days (its words overlap theirs by ${overlap} percent or more, counting shared words over all words).`,
+      notes: 'None of the banned filler phrases should appear in the title, description, headings, body or limitations; one that does is noted and the piece is published.',
     },
   ];
 }
@@ -80,8 +91,8 @@ export interface KnownLimit {
   /**
    * `unseen`: the reader finds no number, date, name or amount in the example, so no claim is compared with it.
    * `misread`: the reader finds a number in the example that is not the amount the sentence means.
-   * `strict`: the gate refuses the example although the sentence may be fine.
-   * `unchecked`: the example is text that a model writes and no rule reads: it passes whatever it says.
+   * `strict`: the gate notes or refuses the example although the sentence may be fine.
+   * `unchecked`: the example is text that a model writes and no rule reads, or a name that a rule only notes: it passes whatever it says.
    */
   kind: 'unseen' | 'misread' | 'strict' | 'unchecked';
   text: string;
@@ -144,12 +155,12 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'strict',
-    text: 'The name check is strict on purpose: it reads every capitalised word as a name, so an ordinary capitalised word, such as a noun that opens a sentence or a word in a Title Case heading, sends a draft back for revision. A false alarm costs a revision round; a name that slipped through would cost a wrong claim.',
-    example: 'Output rose 5 percent.',
+    text: 'The name check is strict on purpose: it reads every capitalised word as a name, so an ordinary capitalised word, such as a noun that opens a section heading, is noted. A note costs nothing, and the model check reads each sentence for a name that slipped through.',
+    example: 'Output rose in the spring.',
   },
   {
     kind: 'strict',
-    text: 'The only evidence for a capitalised word that opens a section heading is the quoted passage of a claim, the names that claim lists and its outlet: the text and the label of a claim are written by a model and count for nothing, so a word that only they have sends the draft back, although it may be an ordinary word.',
+    text: 'The only evidence for a capitalised word that opens a section heading or an analysis sentence is the quoted passage of a claim, the names that claim lists and its outlet: the text and the label of a claim are written by a model and count for nothing, so a word that only they have is noted in a heading and sends an analysis sentence back, although it may be an ordinary word.',
     example: 'Rollout began in the spring.',
   },
   {
@@ -159,12 +170,17 @@ export const KNOWN_LIMITS: readonly KnownLimit[] = [
   },
   {
     kind: 'unchecked',
-    text: 'Analysis sentences, up to a fifth of the sentences of the body, are checked by code for where they stand, how many there are, how they open and which numbers, dates and names they bring in, and by no model: whatever else an analysis sentence says passes, and the page labels it Analysis.',
+    text: 'Analysis sentences, up to a fifth of the sentences of the body by default, are checked by code for where they stand and for the numbers, dates and names they bring in, and by no model: whatever else an analysis sentence says passes, and the page labels it Analysis.',
     example: 'The arm never fails and is the safest on the market.',
   },
   {
     kind: 'unchecked',
-    text: 'A section heading that names no figure and no capitalised word is not checked at all, whatever it asserts: "the arms keep failing" passes.',
+    text: 'A capitalised word that no claim lists is noted, not refused: between it and the page stands the model check, and nothing else.',
+    example: 'Tarnmoor is the second Harlow plant to receive FX-1 arms.',
+  },
+  {
+    kind: 'unchecked',
+    text: 'A section heading that names no figure and no capitalised word is not checked by code for what it asserts: "the arms keep failing" passes the gate.',
     example: 'the arms keep failing',
   },
 ];
@@ -182,7 +198,7 @@ export const PIPELINE_STAGES: readonly PipelineStage[] = [
   },
   {
     name: 'Select',
-    text: 'A small model will rank what is new against a written rubric and pick one story, or none. A story with no reachable primary source can still be picked, but it will be written in attributed form and will always be held.',
+    text: 'A small model will rank what is new against a written rubric and pick one story, or none. A story with no reachable primary source can still be picked, but it will be written in attributed form, naming the outlet.',
   },
   {
     name: 'Fetch',
@@ -198,17 +214,17 @@ export const PIPELINE_STAGES: readonly PipelineStage[] = [
   },
   {
     name: 'Verify',
-    text: 'The gate will check the draft. A draft that fails will go back for revision with the exact failures, at most twice.',
+    text: 'The gate will check the draft. A blocker, such as a number or a date that no claim has, sends the draft back for revision with the exact failures, at most twice; a note, such as a length outside the target, is recorded and does not stop the piece.',
   },
   {
     name: 'Publish or hold',
-    text: 'A draft that passes will be built and published. A draft that does not will be held for the owner as a draft pull request that carries the gate report.',
+    text: 'A draft with no blocker, that the model check clears, will be built and published, with its notes on its receipts page. A draft that does not will be held for the owner as a draft pull request that carries the gate report.',
   },
 ];
 
 /** The paragraph that explains the scoreboard on the method page. There are more cases than codes, so it says at least once. */
 export const SCOREBOARD_INTRO =
-  'A gate is worth what it catches. To test this one, the golden example piece is broken on purpose, at least once for every failure code of the nine checks, and the gate has to catch every break. A missed defect fails the tests. The result is kept with the code, and this table is read from it.';
+  'A gate is worth what it reports. To test this one, the golden example piece is broken on purpose, at least once for every failure code of the nine checks, and the gate has to report every break, as a blocker that sends the draft back or as a note that is recorded. A missed defect fails the tests. The result is kept with the code, and this table is read from it.';
 
 /** The headline of the scoreboard: how many of the seeded defects the gate caught. */
 export function scoreboardHeadline(board: { total: number; caught: number }): string {

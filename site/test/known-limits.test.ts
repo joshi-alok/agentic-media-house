@@ -6,7 +6,6 @@ import {
   defaultConfig,
   defaultContext,
   extractTokens,
-  isSentenceStarter,
   openingWordAccepted,
   runGate,
 } from '@robywire/gate';
@@ -44,8 +43,8 @@ describe('KNOWN_LIMITS', () => {
     expect(unseen).toHaveLength(7);
     expect(misread).toHaveLength(2);
     expect(strict).toHaveLength(2);
-    expect(unchecked).toHaveLength(3);
-    expect(KNOWN_LIMITS).toHaveLength(14);
+    expect(unchecked).toHaveLength(4);
+    expect(KNOWN_LIMITS).toHaveLength(15);
   });
 
   it.each(KNOWN_LIMITS.map((limit) => [limit.text.slice(0, 40), limit] as const))('is written as plain sentences: %s', (_name, limit) => {
@@ -64,13 +63,21 @@ describe('KNOWN_LIMITS', () => {
     expect(tokens.names).toEqual([]);
   });
 
-  it.each([...unseen, ...misread].map((limit) => [limit.example, limit] as const))(
-    'has an example that the opening-word rule lets through, so the sentence is not stopped for another reason: "%s"',
-    (example) => {
-      const { initialWord } = extractTokens(example);
-      expect(initialWord === undefined || isSentenceStarter(initialWord), example).toBe(true);
-    },
-  );
+  // The examples above are read by the token reader alone. Here the same sentences stand in a piece that the real gate looks at.
+  it.each(unseen.map((limit) => [limit.example, limit] as const))('has an example that the gate lets through with no finding about a figure or a name: "%s"', (example) => {
+    const input = cloneGolden();
+    input.draft.takeaways[0]!.text = example;
+    const result = runGate(input, defaultContext());
+    const found = [...result.failures, ...result.warnings].filter((finding) => finding.check === 'G4' || finding.check === 'G5').map((finding) => finding.code);
+    expect(found, example).toEqual([]);
+  });
+
+  it.each(misread.map((limit) => [limit.example, limit] as const))('has an example that the gate looks up as the number it reads, and sends back when no claim lists it: "%s"', (example) => {
+    const input = cloneGolden();
+    input.draft.takeaways[0]!.text = example;
+    const result = runGate(input, defaultContext());
+    expect(result.failures.map((failure) => failure.code), example).toContain('G4_NUMBER_UNSUPPORTED');
+  });
 
   it('shows with the same reader that a number, a date and a name that the gate can see are seen, so the examples above are not empty by accident', () => {
     expect(extractTokens('The plant shipped 12 arms on 3 October 2026, and Mercer Wire reported it.')).toMatchObject({
@@ -108,17 +115,41 @@ describe('KNOWN_LIMITS', () => {
     expect(extractTokens('The 6-axis arm shipped.').numbers).toEqual([{ raw: '6', value: '6' }]);
   });
 
-  it('is true of the strict limit about the name check: an ordinary capitalised noun at the start of a sentence is refused unless a claim contains it', () => {
+  /** The golden piece with one section heading and its first sentence changed, and the codes of the findings about the heading, as blockers and as notes. */
+  const headingFindings = (input: GateInput) => {
+    const result = runGate(input, defaultContext());
+    return {
+      blockers: result.failures.filter((failure) => failure.code === 'G4_HEADING_NAME').length,
+      notes: result.warnings.filter((note) => note.code === 'G4_HEADING_NAME').length,
+    };
+  };
+
+  it('is true of the strict limit about the name check: an ordinary capitalised noun that opens a section heading is noted, and not noted when a claim of the section contains it', () => {
     const limit = withText(strict, 'The name check is strict on purpose');
-    const { initialWord } = extractTokens(limit.example);
-    expect(initialWord).toBe('Output');
-    expect(openingWordAccepted('Output', new Set(), new Set())).toBe(false);
-    expect(openingWordAccepted('Output', new Set(['output']), new Set())).toBe(true);
+    expect(limit.text).toContain('such as a noun that opens a section heading, is noted');
+    expect(extractTokens(limit.example).initialWord).toBe('Output');
+    const input = cloneGolden();
+    input.draft.sections[0]!.heading = limit.example.replace(/\.$/, '');
+    expect(headingFindings(input)).toEqual({ blockers: 0, notes: 1 });
+    // The word is in the quoted passage of a claim that the section cites.
+    const cited = input.draft.sections[0]!.paragraphs.flat().flatMap((sentence) => sentence.claimIds);
+    const claim = input.claims.find((item) => item.id === cited[0])!;
+    claim.span.quote = `${claim.span.quote} Output rose.`;
+    expect(headingFindings(input)).toEqual({ blockers: 0, notes: 0 });
   });
 
-  it('is true of the strict limit about the evidence for an opening word: a word that only the text or the label of a claim has is refused, and the same word in the quoted passage is accepted', () => {
+  it('is true of the strict limit about the name check in a sentence: an ordinary capitalised word in the middle of a fact sentence is noted and does not send the piece back', () => {
+    const input = cloneGolden();
+    input.draft.takeaways[0]!.text = 'The Output of the plant rose.';
+    const result = runGate(input, defaultContext());
+    expect(result.failures.map((failure) => failure.code)).not.toContain('G4_NAME_UNSUPPORTED');
+    expect(result.warnings.map((note) => note.code)).toContain('G4_NAME_UNSUPPORTED');
+  });
+
+  it('is true of the strict limit about the evidence for an opening word: a word that only the text or the label of a claim has is not enough, and the same word in the quoted passage is', () => {
     const limit = withText(strict, 'The only evidence for a capitalised word that opens a section heading');
     expect(limit.text).toContain('the text and the label of a claim are written by a model and count for nothing');
+    expect(limit.text).toContain('is noted in a heading and sends an analysis sentence back');
     expect(extractTokens(limit.example).initialWord).toBe('Rollout');
     const claim = structuredClone(cloneGolden().claims[0]!);
     claim.text = 'The rollout began.';
@@ -129,9 +160,36 @@ describe('KNOWN_LIMITS', () => {
     expect(openingWordAccepted('Rollout', claimWords([claim]), new Set())).toBe(true);
   });
 
+  it('is true of that evidence in the gate: the word is noted at the head of a heading and refused at the head of an analysis sentence while only the label has it, and neither once the passage has it', () => {
+    const limit = withText(strict, 'The only evidence for a capitalised word that opens a section heading');
+    const opening = limit.example.replace(/\.$/, '');
+    const build = (inPassage: boolean): GateInput => {
+      const input = cloneGolden();
+      const section = input.draft.sections[0]!;
+      const claim = input.claims.find((item) => item.id === section.paragraphs.flat()[0]!.claimIds[0])!;
+      claim.text = 'The rollout began.';
+      claim.label = 'rollout';
+      if (inPassage) claim.span.quote = `${claim.span.quote} The rollout began.`;
+      else expect(claim.span.quote.toLowerCase()).not.toContain('rollout');
+      section.heading = opening;
+      section.paragraphs[0]![0] = { kind: 'analysis', text: limit.example, claimIds: [claim.id] };
+      return input;
+    };
+    const findings = (input: GateInput) => {
+      const result = runGate(input, defaultContext());
+      return {
+        headingBlockers: result.failures.filter((failure) => failure.code === 'G4_HEADING_NAME').length,
+        headingNotes: result.warnings.filter((note) => note.code === 'G4_HEADING_NAME').length,
+        analysisBlockers: result.failures.filter((failure) => failure.code === 'G7_ANALYSIS_NEW_NAME' && failure.message.includes('opening word "Rollout"')).length,
+      };
+    };
+    expect(findings(build(false))).toEqual({ headingBlockers: 0, headingNotes: 1, analysisBlockers: 1 });
+    expect(findings(build(true))).toEqual({ headingBlockers: 0, headingNotes: 0, analysisBlockers: 0 });
+  });
+
   it('says what the strictness costs and what it buys', () => {
     const limit = withText(strict, 'The name check is strict on purpose');
-    expect(limit.text).toContain('A false alarm costs a revision round; a name that slipped through would cost a wrong claim.');
+    expect(limit.text).toContain('A note costs nothing, and the model check reads each sentence for a name that slipped through.');
   });
 });
 
@@ -176,9 +234,20 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
 
   it('is true of a heading: one that asserts something in words and names no figure and no capitalised word passes', () => {
     const limit = withText(unchecked, 'A section heading that names no figure');
+    expect(limit.text).toContain('is not checked by code for what it asserts');
+    expect(limit.text).not.toContain('not checked at all');
     const input = cloneGolden();
     input.draft.sections[0]!.heading = limit.example;
     expect(route(input)).toEqual({ route: 'publish', failures: [] });
+  });
+
+  it('is true of names: a piece with a name that no claim lists is published by the gate, and the name is noted', () => {
+    const limit = withText(unchecked, 'A capitalised word that no claim lists is noted');
+    const input = cloneGolden();
+    input.draft.takeaways[0]!.text = limit.example;
+    const result = runGate(input, defaultContext());
+    expect(result.failures.map((failure) => failure.code)).not.toContain('G4_NAME_UNSUPPORTED');
+    expect(result.warnings.map((note) => note.code)).toContain('G4_NAME_UNSUPPORTED');
   });
 
   it('is not an accident of the gate being switched off: the same label in a sentence is refused', () => {

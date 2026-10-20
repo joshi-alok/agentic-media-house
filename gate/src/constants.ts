@@ -94,7 +94,7 @@ export type Route = (typeof ROUTES)[number];
 
 /**
  * How a published piece got out: `auto` when the gate cleared it and nobody was asked,
- * `owner` when the gate did not clear it (a hold) and the owner released it. The pipeline sets it.
+ * `owner` when it was held (a blocker stood after the rounds of revision, or the model check did not clear it) and the owner released it. The pipeline sets it.
  */
 export const RELEASES = ['auto', 'owner'] as const;
 export type Release = (typeof RELEASES)[number];

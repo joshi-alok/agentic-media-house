@@ -155,12 +155,19 @@ describe('methodDisclosure', () => {
 
 describe('gateIntro', () => {
   const OFF =
-    'The gate is code, and it is built and tested. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. If one fails, the draft is not published: the gate reports the exact failures, and the Desk will send the draft back for revision with them. In plain English the rules are these.';
+    'The gate is code, and it is built and tested. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. A finding is either a blocker, which stops the draft (the gate reports the exact failures, and the Desk will send the draft back for revision with them), or a note, which is recorded on the receipts page of the piece and does not stop it. In plain English the rules are these.';
   const ON =
-    'The gate is code. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. If one fails, the draft is not published; it goes back for revision with the exact failures. In plain English the rules are these.';
+    'The gate is code. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. A finding is either a blocker, which sends the draft back for revision with the exact failures, or a note, which is recorded on the receipts page of the piece and does not stop it. In plain English the rules are these.';
 
   it.each(CASES)('says the revision loop runs only when the Desk does (%s)', (_name, live) => {
     expect(gateIntro(live)).toBe(live.publishing ? ON : OFF);
+  });
+
+  it.each([NONE, ALL])('says what a blocker does and what a note does, and no longer that any failed check stops the draft', (live) => {
+    const text = gateIntro(live);
+    expect(text).toContain('A finding is either a blocker');
+    expect(text).toContain('or a note, which is recorded on the receipts page of the piece and does not stop it');
+    expect(text).not.toContain('If one fails');
   });
 });
 
@@ -245,12 +252,22 @@ describe('modelCheckText', () => {
 
 describe('holdsText', () => {
   const OFF =
-    "The gate holds a piece when it cannot clear it: a rule asks for a human decision, as G6 does for any piece that uses another outlet's reporting, or, once the pipeline runs, a check still fails after two rounds of revision. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
+    "The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after two rounds of revision, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
   const ON =
-    "The gate holds a piece when it cannot clear it: a check still fails after two rounds of revision, or a rule asks for a human decision, as G6 does for any piece that uses another outlet's reporting. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report.";
+    "The gate holds a piece when it cannot clear it: a blocker still stands after two rounds of revision, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report.";
 
   it.each(CASES)('says the pull request flow is running only when the Desk publishes (%s)', (_name, live) => {
     expect(holdsText(live)).toBe(live.publishing ? ON : OFF);
+  });
+
+  // A piece that rests on another outlet is no longer a reason for a hold: the article labels it, and the gate publishes it.
+  it.each([NONE, ALL])('names the two ways to a hold, and does not name another outlet or G6 as one', (live) => {
+    const text = holdsText(live);
+    expect(text).toContain('two rounds of revision');
+    expect(text).toContain('model check');
+    expect(text).not.toContain('G6');
+    expect(text).not.toContain('another outlet');
+    expect(text).not.toContain('human decision');
   });
 });
 
@@ -271,7 +288,7 @@ describe('ownerReleaseText', () => {
   });
 
   it('quotes what the receipts page of an owner-released piece says, so the two cannot drift apart', () => {
-    expect(NOTE).toBe('Held by the gate, then released by the owner.');
+    expect(NOTE).toBe('Held for the owner, then released by the owner.');
     expect(ownerReleaseText(NONE)).toContain(`"${NOTE}"`);
     expect(ownerReleaseText(ALL)).toContain(`"${NOTE}"`);
   });
@@ -348,8 +365,8 @@ describe('statusPageIntro', () => {
 describe('sourcesText', () => {
   const TIERS =
     "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
-  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting; the story will be held.`;
-  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting; the story is held.`;
+  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting as its own: every fact from it will be attributed to the outlet by name.`;
+  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting as its own: every fact from it is attributed to the outlet by name.`;
 
   it.each(CASES)('says what the Desk does in the present tense only when it publishes (%s)', (_name, live) => {
     expect(sourcesText(live)).toBe(live.publishing ? ON : OFF);
@@ -361,6 +378,14 @@ describe('sourcesText', () => {
       expect(sourcesText(live)).toContain('can appear only as an attribution that names the outlet');
     }
   });
+
+  // A piece may rest entirely on another outlet's reporting and publish by itself: its body is labelled, and the page says so plainly.
+  it.each([NONE, ALL])('says that another outlet is attributed and labelled, and that a piece which uses it is not held for that', (live) => {
+    const text = sourcesText(live);
+    expect(text).toContain('the article labels it Unconfirmed');
+    expect(text).not.toMatch(/\bheld\b/);
+    expect(text).not.toContain('for the owner');
+  });
 });
 
 describe('neverDoes', () => {
@@ -368,14 +393,14 @@ describe('neverDoes', () => {
     'It will contact no one. It will send no email to a company and ask nobody for comment, so no piece will say "we asked and did not hear back".',
     'It will not republish its sources. A piece will quote short passages, each attributed and at most 300 characters, and will not copy articles.',
     'It will use no photographs. Each piece already gets a fact card drawn from its own claims.',
-    "It will not rewrite another outlet's reporting as its own. A story with no reachable primary source will be held.",
+    "It will not rewrite another outlet's reporting as its own. A fact that only another outlet reports will be attributed to it by name and labelled Unconfirmed.",
     'It will not publish a sentence the gate cannot trace to a source, and the gate already refuses one.',
   ];
   const ON = [
     'It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".',
     'It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.',
     'It uses no photographs. Each piece gets a fact card drawn from its own claims.',
-    "It does not rewrite another outlet's reporting as its own. A story with no reachable primary source is held.",
+    "It does not rewrite another outlet's reporting as its own. A fact that only another outlet reports is attributed to it by name and labelled Unconfirmed.",
     'It does not publish a sentence the gate cannot trace to a source.',
   ];
 
