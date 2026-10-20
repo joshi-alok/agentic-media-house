@@ -79,6 +79,18 @@ describe('runDiscover: which items of a feed are kept', () => {
     expect((await runDiscover(ctx)).candidates.map((candidate) => candidate.title)).toEqual(['A post with a plain title']);
   });
 
+  it('does not make a phrase of the end of the title and the start of the summary', async () => {
+    const registry = structuredClone(REGISTRY);
+    registry.primary.research[0]!.keywords = ['smart contract'];
+    const feed = feedOf([
+      ['Smart', 'contract wallets arrive'],
+      ['Smart contract wallets arrive', undefined],
+      ['A plain title', 'About a smart contract.'],
+    ]);
+    const { ctx } = stageContext(scratch, { sources: registry, fetcher: serving(feed) });
+    expect((await runDiscover(ctx)).candidates.map((candidate) => candidate.title)).toEqual(['Smart contract wallets arrive', 'A plain title']);
+  });
+
   it('keeps an item that has no summary if its title holds a keyword, and leaves it out if not', async () => {
     const feed = feedOf([
       ['Agents without a summary', undefined],

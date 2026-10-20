@@ -22,9 +22,13 @@ describe('shortlistOf: the share of one source', () => {
     expect(shortlistOf(many, ctx({ shortlistPerSource: 2, shortlistMax: 5 }))).toHaveLength(5);
   });
 
-  it('does not let a story that is over the share of its source use a place of the shortlist', () => {
-    const list = shortlistOf([1, 2, 3, 4, 5].map((n) => from('A', n)).concat([from('B', 1), from('C', 1)]), ctx({ shortlistPerSource: 2, shortlistMax: 4 }));
-    expect(list.map((item) => item.title)).toEqual(['A story 1 about agents', 'B story 1 about agents', 'C story 1 about agents', 'A story 2 about agents']);
+  it('cuts the list after it is put in order and after the share is applied: the oldest story of a source over its share goes, and another source still has its place', () => {
+    const at = (outlet: string, time: string) =>
+      candidate({ url: `https://${outlet.toLowerCase()}.example/${time.replace(':', '')}`, title: `${outlet} at ${time}`, outlet, tier: 1, origin: 'feed', beats: ['protocols-standards'], publishedAt: `${RUN_DATE}T${time}:00.000Z` });
+    // Found in this order: A at 06:00, A at 07:00, A at 08:00, B at 05:00. Newest first: A 08:00, A 07:00, A 06:00, B 05:00.
+    // Of source A, two stories are the share, so A at 06:00 is over it and B at 05:00 takes the third place.
+    const found = [at('A', '06:00'), at('A', '07:00'), at('A', '08:00'), at('B', '05:00')];
+    expect(shortlistOf(found, ctx({ shortlistPerSource: 2, shortlistMax: 3 })).map((item) => item.title)).toEqual(['A at 08:00', 'A at 07:00', 'B at 05:00']);
   });
 
   it('has 3 by default', () => {

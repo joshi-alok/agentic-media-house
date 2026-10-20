@@ -3,7 +3,7 @@ import type { Candidate, Newsroom, PageLink, PrimaryFeed, Tier2Feed } from '../i
 import { describeFailure, isSourceFailure } from './context';
 import type { StageContext } from './context';
 import { isCovered, sameStory } from './duplicates';
-import { matchesKeywords, plainText } from './keywords';
+import { itemMatches } from './keywords';
 
 // Stage 1, Discover: find the stories of the day. Every newsroom and every feed of `sources.yml` is read; each feed
 // item that holds a keyword of its source (every item, for a source with no keywords) and each headline link of a
@@ -123,7 +123,7 @@ async function readFeed(ctx: StageContext, feed: Tier2Feed | PrimaryFeed, tier: 
   let offTopic = 0;
   let elsewhere = 0;
   const items = parsed.items.filter((item) => {
-    if (!matchesKeywords(`${item.title} ${plainText(item.summary)}`, feed.keywords)) {
+    if (!itemMatches(item, feed.keywords)) {
       offTopic++;
       return false;
     }
