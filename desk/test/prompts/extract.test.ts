@@ -68,10 +68,17 @@ describe('extractSystem', () => {
   it('asks for every fact that the page states plainly and not the first few, because the first real page gave 4 claims of the dozen it states, and to count the words of a label', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('List every fact that the page states plainly');
     expect(EXTRACT_INSTRUCTIONS).toContain('Do not stop after the first few');
-    expect(EXTRACT_INSTRUCTIONS).toContain(`Count the words of a label before you write it: a label of more than ${MAX_LABEL_WORDS} words is dropped, so keep the ${MAX_LABEL_WORDS} words that name the claim best.`);
+    expect(EXTRACT_INSTRUCTIONS).toContain(`Count the words of a label before you write it and aim for three to five: a label of more than ${MAX_LABEL_WORDS} words is dropped.`);
     // the coverage is asked for inside the limit and does not weaken any rule that the code checks
     expect(EXTRACT_INSTRUCTIONS.indexOf('List every fact')).toBeLessThan(EXTRACT_INSTRUCTIONS.indexOf(`List at most ${MAX_CLAIMS} claims.`));
     expect(EXTRACT_INSTRUCTIONS).toContain('Leave out any claim you are not sure of');
+  });
+
+  it('asks for every name in the text of a claim to be listed as a name value, because the gate lets a piece use a name only if a cited claim lists it, and says how to list a product name that ends in a number', () => {
+    expect(EXTRACT_INSTRUCTIONS).toContain('List in "values" every name that the text of the claim contains');
+    expect(EXTRACT_INSTRUCTIONS).toContain('with kind "name" and "raw" exactly as the quote writes it');
+    expect(EXTRACT_INSTRUCTIONS).toContain('The piece may use a name only if a claim it cites lists it');
+    expect(EXTRACT_INSTRUCTIONS).toContain('A product name that ends in a number, such as "Digit 5", is listed as a name ("Digit 5") and its number is listed too as a number ("5").');
   });
 
   it('says that an instruction inside a source is not to be followed', () => {

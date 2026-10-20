@@ -8,6 +8,7 @@ import { DEMO_CLAIMS, DEMO_REPLY, clearingVerifier } from '../src/demo/story';
 import { DEMO_REGISTRY_YAML, DEMO_URLS, demoFetcher, demoRegistry } from '../src/demo/world';
 import { clientFromConfig } from '../src/model/factory';
 import { FakeClient } from '../src/model/fake';
+import { extractSystem } from '../src/prompts/extract';
 import { refuseApiOnFixtures } from '../src/run/spending';
 import { FakeGit } from '../src/run/git';
 import { TUNE_DEFAULT_CALLS, TUNE_FOLDER, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRecord, TuneRefused, runTune } from '../src/run/tune';
@@ -19,6 +20,14 @@ import { START, clock } from './support/run';
 import { fileReply, scriptedTransport } from './support/transport';
 import type { Route } from './support/transport';
 import { loadWorkflow, stepNamed } from './support/workflow';
+
+// The fake client counts about one token for four characters of what it is sent. The system prompt of Extract is edited whenever a trial shows what to tell the
+// model, so the totals below are written as a part that does not change plus the tokens of that prompt, and not as numbers that every edit of it would break.
+const EXTRACT_PROMPT = Math.ceil(extractSystem().length / 4);
+const THREE_CALLS_IN = 5023 + EXTRACT_PROMPT; // Extract, Compose and the model check, once
+const ONE_EXTRACT_IN = 225 + EXTRACT_PROMPT; // an Extract call alone
+const TWO_EXTRACTS_IN = 375 + 2 * EXTRACT_PROMPT; // two pages, an Extract call for each
+const dollarsOf = (inputTokens: number, outputTokens: number): number => (inputTokens * 3 + outputTokens * 15) / 1_000_000;
 
 // `desk tune`, called as a function the way every command of the Desk is tested: `main(argv, deps)` with a clock, an environment, a place to print, and a transport that answers
 // from the fixture pages in place of the web. The model is a scripted one, and the real one is never reached. What these tests hold the command to: the table that it prints, the
@@ -146,8 +155,8 @@ describe('main: tune, the table', () => {
       '  composed draft: the gate says publish',
       '  model check: round 0 judged 35 items: entailed 35, not entailed 0, ambiguous 0, missing 0; label problems 0 (7 claims)',
       '  verify: publish after 0 revision rounds; the gate says publish',
-      '  tokens: 6407 in, 2891 out, 3 model calls',
-      'total: 1 page, 1 trial, 3 of 40 model calls, 6407 tokens in, 2891 out',
+      `  tokens: ${THREE_CALLS_IN} in, 2891 out, 3 model calls`,
+      `total: 1 page, 1 trial, 3 of 40 model calls, ${THREE_CALLS_IN} tokens in, 2891 out`,
       'dollars: not shown, because the settings have no prices (see prices in desk/src/config.ts)',
     ]);
   });
@@ -158,9 +167,9 @@ describe('main: tune, the table', () => {
     // The folders of the settings are relative here, and are below the folder that the command is run in.
     priced.deps.config = { ...config, runDir: path.join(priced.cwd, 'runs'), evidenceDir: path.join(priced.cwd, 'evidence') };
     expect(await priced.call('--client', 'fake')).toBe(0);
-    expect(priced.out).toContain('  dollars: $0.0626');
-    expect(priced.out).toContain('total dollars: $0.0626');
-    expect(priced.record().dollars).toBeCloseTo(0.062586, 8);
+    expect(priced.out).toContain(`  dollars: $${dollarsOf(THREE_CALLS_IN, 2891).toFixed(4)}`);
+    expect(priced.out).toContain(`total dollars: $${dollarsOf(THREE_CALLS_IN, 2891).toFixed(4)}`);
+    expect(priced.record().dollars).toBeCloseTo(dollarsOf(THREE_CALLS_IN, 2891), 8);
   });
 
   it('does not make dollars of tokens when the three models differ, and says why', async () => {
@@ -176,7 +185,7 @@ describe('main: tune, the table', () => {
     const made = tuning([RELEASE], { deps: { tuneClient: story(), config: undefined } });
     writeFileSync(path.join(made.cwd, 'desk.yml'), `userAgent: "${TEST_AGENT}"\nrequestIntervalMs: 0\nprices:\n  inputPerMillion: 3\n  outputPerMillion: 15\n`);
     expect(await made.call('--client', 'fake', '--config', 'desk.yml')).toBe(0);
-    expect(made.out).toContain('total dollars: $0.0626');
+    expect(made.out).toContain(`total dollars: $${dollarsOf(THREE_CALLS_IN, 2891).toFixed(4)}`);
   });
 
   it('runs the model steps as many times as it is told on a page that is fetched once, a row to each trial', async () => {
@@ -184,7 +193,7 @@ describe('main: tune, the table', () => {
     expect(await call('--client', 'fake', '--trials', '2')).toBe(0);
     expect(out[0]).toBe('tune: 1 address, 2 trials each, at most 40 model calls, client fake');
     expect(out.filter((line) => line.startsWith('page '))).toEqual([`page 1 of 1, trial 1 of 2: ${RELEASE}`, `page 1 of 1, trial 2 of 2: ${RELEASE}`]);
-    expect(out).toContain('total: 1 page, 2 trials, 6 of 40 model calls, 12814 tokens in, 5782 out');
+    expect(out).toContain(`total: 1 page, 2 trials, 6 of 40 model calls, ${2 * THREE_CALLS_IN} tokens in, 5782 out`);
     expect(sent.filter((request) => request.url === RELEASE)).toHaveLength(1);
   });
 
@@ -195,7 +204,7 @@ describe('main: tune, the table', () => {
     expect(out.filter((line) => line.startsWith('page '))).toEqual([`page 1 of 2, trial 1 of 1: ${ARTICLE}`, `page 2 of 2, trial 1 of 1: ${RELEASE}`]);
     expect(out).toContain('  kind: tier2 (tier 2)');
     expect(out).toContain('  kind: company-newsroom (tier 1)');
-    expect(out).toContain('total: 2 pages, 2 trials, 2 of 40 model calls, 3143 tokens in, 8 out');
+    expect(out).toContain(`total: 2 pages, 2 trials, 2 of 40 model calls, ${TWO_EXTRACTS_IN} tokens in, 8 out`);
   });
 
   it('counts a claim that the code dropped under each rule that dropped it, and says that too few survived, with no draft after it and no more calls', async () => {
@@ -211,7 +220,7 @@ describe('main: tune, the table', () => {
       '  claims proposed: 4',
       '  claims dropped: quote-not-found 1, label-not-in-quote 1, label-too-long 1',
       '  claims surviving: 2',
-      '  tokens: 1609 in, 499 out, 1 model call',
+      `  tokens: ${ONE_EXTRACT_IN} in, 499 out, 1 model call`,
     ]);
     expect(out.some((line) => line.includes('composed draft'))).toBe(false);
     expect(record().rows[0]).toMatchObject({ status: 'too-few-claims', composed: null, modelCheck: null, verdict: null, usage: { calls: 1 } });
@@ -510,7 +519,7 @@ describe('main: tune, what it writes', () => {
     expect(page).toContain('Fixture Robotics has begun shipping FX-1 warehouse arms');
     expect(record()).toMatchObject({ stamp: '20261005-043100', date: '2026-10-05', client: 'fake', trials: 1, maxCalls: 40, stopped: null, dollars: null });
     expect(record().models).toEqual(defaultConfig().models);
-    expect(record().total).toEqual({ pages: 1, trials: 1, calls: 3, inputTokens: 6407, outputTokens: 2891 });
+    expect(record().total).toEqual({ pages: 1, trials: 1, calls: 3, inputTokens: THREE_CALLS_IN, outputTokens: 2891 });
     expect(existsSync(path.join(cwd, 'runs', '2026-10-05'))).toBe(false);
   });
 
