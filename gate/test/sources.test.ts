@@ -14,12 +14,14 @@ const SOURCES_PATH = fileURLToPath(new URL('../../sources.yml', import.meta.url)
 
 const load = () => loadSources(SOURCES_PATH);
 
-/** Every `status` in the registry, tier 1 and tier 2. */
-function everyStatus(registry: SourcesRegistry): string[] {
+/** Every entry of the registry, tier 1 and tier 2. */
+function everyEntry(registry: SourcesRegistry) {
   const { companies, research, standards, funding, events } = registry.primary;
-  const primary = [...Object.values(companies).flat(), ...research, ...standards, ...funding, ...events];
-  return [...primary.map((entry) => entry.status), ...registry.secondary.map((entry) => entry.status)];
+  return [...Object.values(companies).flat(), ...research, ...standards, ...funding, ...events, ...registry.secondary];
 }
+
+/** Every `status` in the registry, tier 1 and tier 2. */
+const everyStatus = (registry: SourcesRegistry): string[] => everyEntry(registry).map((entry) => entry.status);
 
 describe('the real sources.yml', () => {
   it('parses and validates', () => {
@@ -45,7 +47,7 @@ describe('the real sources.yml', () => {
     for (const status of new Set(everyStatus(load()))) expect(line, status).toContain(`\`${status}\``);
   });
 
-  it('lists primary feeds for research, a forum of proposals and the blogs of projects, each with beats of its own or of its group', () => {
+  it('lists at least ten primary feeds (research, a forum of proposals, the blogs of projects, regulators), every one on https', () => {
     const { primary } = load();
     const feeds = [...Object.values(primary.companies).flat(), ...primary.research, ...primary.standards].filter((entry) => entry.feed !== undefined);
     expect(feeds.length).toBeGreaterThanOrEqual(10);
@@ -81,6 +83,17 @@ describe('the real sources.yml', () => {
       const entry = all.find((candidate) => candidate.name === name);
       expect(entry?.status, name).toBe('blocked');
       expect(entry?.note, name).toMatch(/robots\.txt|403/);
+    }
+  });
+
+  it('says why an entry is blocked: every blocked entry has a note', () => {
+    for (const entry of everyEntry(load())) if (entry.status === 'blocked') expect(entry.note, entry.name).toBeTruthy();
+  });
+
+  it('lists a keyword once: no list has the same word twice, in any case', () => {
+    for (const entry of everyEntry(load())) {
+      const lowercase = (entry.keywords ?? []).map((keyword) => keyword.toLowerCase());
+      expect(lowercase, entry.name).toEqual([...new Set(lowercase)]);
     }
   });
 

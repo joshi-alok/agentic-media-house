@@ -37,7 +37,7 @@ primary:
         short: Stripe
         url: "https://stripe.com/blog"
         feed: "https://stripe.com/blog/feed.rss"
-        keywords: [stablecoin, stablecoins, agent, agents, agentic, USDC, crypto, x402]
+        keywords: [stablecoin, stablecoins, USDC, crypto, x402, agentic commerce, agentic payments, agent payments, machine payments]
         status: unverified
       - name: Coinbase blog
         short: Coinbase
@@ -70,7 +70,7 @@ primary:
         url: "https://blog.cloudflare.com/"
         feed: "https://blog.cloudflare.com/rss/"
         beats: [agent-infrastructure, payments-commerce]
-        keywords: [agent, agents, agentic, x402, stablecoin, stablecoins, crypto, blockchain]
+        keywords: [x402, stablecoin, stablecoins, pay per crawl, Web Bot Auth, NET Dollar, crypto, blockchain, payments, agentic payments]
         status: unverified
       - name: Chainlink blog
         short: Chainlink
@@ -80,12 +80,19 @@ primary:
 
   # Research. A paper is primary; a press release about a paper is not.
   research:
+    - name: arXiv cs.MA
+      short: arXiv
+      url: "https://arxiv.org/list/cs.MA/recent"
+      feed: "https://rss.arxiv.org/rss/cs.MA"
+      beats: [agent-infrastructure]
+      keywords: [blockchain, onchain, on-chain, smart contract, smart contracts, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets, stablecoin, stablecoins]
+      status: unverified
     - name: arXiv cs.AI
       short: arXiv
       url: "https://arxiv.org/list/cs.AI/recent"
       feed: "https://rss.arxiv.org/rss/cs.AI"
       beats: [agent-infrastructure]
-      keywords: [blockchain, onchain, on-chain, smart contract, smart contracts, DeFi, cryptocurrency, wallet, wallets, stablecoin, x402, ERC-8004]
+      keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, AI agent, AI agents, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets]
       status: unverified
       note: The page of a paper is its abstract; the Desk does not read PDFs. The API and the Atom feeds are closed to the Desk by robots.txt; rss.arxiv.org is open.
     - name: arXiv cs.CR
@@ -93,14 +100,7 @@ primary:
       url: "https://arxiv.org/list/cs.CR/recent"
       feed: "https://rss.arxiv.org/rss/cs.CR"
       beats: [security-incidents]
-      keywords: [blockchain, onchain, on-chain, smart contract, smart contracts, DeFi, wallet, wallets, stablecoin, MEV, rollup, account abstraction]
-      status: unverified
-    - name: arXiv cs.MA
-      short: arXiv
-      url: "https://arxiv.org/list/cs.MA/recent"
-      feed: "https://rss.arxiv.org/rss/cs.MA"
-      beats: [agent-infrastructure]
-      keywords: [blockchain, onchain, on-chain, smart contract, smart contracts, DeFi, cryptocurrency, wallet, stablecoin, payment, payments]
+      keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, AI agent, AI agents, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets]
       status: unverified
     - name: IACR ePrint
       short: IACR ePrint
@@ -114,14 +114,14 @@ primary:
       url: "https://ethresear.ch/"
       feed: "https://ethresear.ch/latest.rss"
       beats: [protocols-standards, wallets-keys]
-      keywords: [agent, agents, agentic, AI, account abstraction, intent, intents, payment, payments, wallet, wallets, ERC-8004, x402]
+      keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, agent intents, agent payments, agentic payments, ERC8004, ERC-4337, EIP-7702]
       status: unverified
     - name: Ethereum Magicians
       short: Ethereum Magicians
       url: "https://ethereum-magicians.org/"
       feed: "https://ethereum-magicians.org/latest.rss"
       beats: [protocols-standards, identity-trust]
-      keywords: [agent, agents, agentic, AI, account abstraction, intent, intents, payment, payments, wallet, wallets, ERC-8004, x402]
+      keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, agent intents, agent payments, agentic payments, ERC8004, ERC-4337, EIP-7702]
       status: unverified
 
   # Standards, open protocols and regulators. Underserved and highly checkable. An entry with no feed is a place the Desk
@@ -142,21 +142,21 @@ primary:
       url: "https://www.sec.gov/newsroom/press-releases"
       feed: "https://www.sec.gov/news/pressreleases.rss"
       beats: [policy-regulation]
-      keywords: [crypto, digital asset, digital assets, blockchain, stablecoin, stablecoins, token, tokens]
+      keywords: [crypto, digital asset, digital assets, blockchain, stablecoin, stablecoins, token, tokens, cryptocurrency, cryptocurrencies, AI, artificial intelligence, agentic]
       status: unverified
     - name: CFTC press releases
       short: CFTC
       url: "https://www.cftc.gov/PressRoom/PressReleases"
       feed: "https://www.cftc.gov/RSS/RSSGP/rssgp.xml"
       beats: [policy-regulation]
-      keywords: [crypto, digital asset, digital assets, blockchain, stablecoin, stablecoins, token, tokens]
+      keywords: [crypto, digital asset, digital assets, blockchain, stablecoin, stablecoins, token, tokens, cryptocurrency, cryptocurrencies, AI, artificial intelligence, agentic]
       status: unverified
     - name: Federal Reserve press releases
       short: Federal Reserve
       url: "https://www.federalreserve.gov/newsevents/pressreleases.htm"
       feed: "https://www.federalreserve.gov/feeds/press_all.xml"
       beats: [policy-regulation]
-      keywords: [stablecoin, stablecoins, digital asset, digital assets, crypto, payment, payments]
+      keywords: [stablecoin, stablecoins, digital asset, digital assets, crypto, payment, payments, AI, artificial intelligence, agentic]
       status: unverified
 
   # Money. A filing or the project's own announcement beats any coverage of it.
@@ -178,31 +178,31 @@ secondary:
     feed: "https://www.coindesk.com/arc/outboundfeeds/rss"
     status: unverified
     beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
-    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
   - name: Cointelegraph
     short: Cointelegraph
     feed: "https://cointelegraph.com/rss"
     status: unverified
     beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
-    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
   - name: Decrypt
     short: Decrypt
     feed: "https://decrypt.co/feed"
     status: unverified
     beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
-    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
   - name: The Block
     short: The Block
     feed: "https://www.theblock.co/rss.xml"
     status: unverified
     beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
-    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
   - name: The Defiant
     short: The Defiant
     feed: "https://thedefiant.io/api/feed"
     status: blocked
     beats: [payments-commerce, funding]
-    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
     note: robots.txt does not allow the Desk to read the feed (checked 2026-10-20).
 
 # The owner adds the projects, exchanges and wallets they follow under `primary.companies`, in the group of the beat
@@ -226,7 +226,7 @@ bar:
     - A partnership or a memorandum with no deliverable and no date.
     - A funding rumour with no named source.
     - A restatement of another outlet's story with nothing added.
-    - A claim that only a trade outlet makes.
+    - A technical claim that only a trade outlet makes.
 
   quiet_day_fallback:
     - A primer on a standard or a protocol that readers keep mis-reading.
