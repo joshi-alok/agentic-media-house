@@ -98,7 +98,7 @@ describe('runCompose: the golden piece', () => {
 
   it('logs what the gate said', async () => {
     const { logs } = await compose(replyFromDraft());
-    expect(logs).toEqual(['compose: the gate says publish (0 failures, 0 hold reasons)']);
+    expect(logs).toEqual(['compose: the gate says publish (0 failures, 0 notes, 0 hold reasons)']);
   });
 });
 

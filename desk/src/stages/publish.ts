@@ -35,7 +35,7 @@ export interface PublishResult {
  * Publish the piece that `verified` says is clear, written from `claims`.
  *
  * The stage does not take Verify's word alone: it refuses unless the outcome is `publish` and the gate's route is `publish` and the model check passed,
- * so a piece that cites another outlet (the gate holds it) or one that was not cleared cannot get here by a wrong label. The piece is rendered with
+ * so a piece that was not cleared cannot get here by a wrong label. The piece is rendered with
  * `release: 'auto'` (nobody released it: the gate cleared it) and no `updatedAt` (it has never been corrected). The ledger is checked against the schema
  * that the site uses before anything is written, because the site refuses to build a piece with a ledger it cannot read.
  *

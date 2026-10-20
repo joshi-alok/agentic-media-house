@@ -15,8 +15,8 @@ import type { VerifierFailure } from './verify-model';
 // it costs nothing; only a draft that it clears is shown to the verifier model. A draft that fails either is sent back to the
 // composer with only the sentences and headings that failed and the reasons, and the replacements are put into the draft in the
 // place of the sentences they replace; then the whole draft is judged again. This goes on for at most `config.maxRevisionRounds`
-// rounds. A draft that is clean at the end is `publish`, unless it cites another outlet, in which case it is `hold` however clean it is,
-// and a draft that is not clean at the end is `hold`: nothing is ever published on the strength of a draft that was not cleared.
+// rounds. A draft that is clean at the end is `publish`, and a draft that is not clean at the end is `hold`: nothing is ever published on the
+// strength of a draft that was not cleared.
 
 /** What was found wrong with one sentence or heading of a draft: its id (`s3`, the sentence, or `h1`, the heading of a section) and why. */
 export interface Problem {
@@ -34,9 +34,9 @@ export interface Problems {
  * Which sentences and headings of `draft` the failures point at. Sentences are numbered as the gate numbers them, from 0 over the whole piece
  * (`allSentences`), and a section by its place, from 0.
  *
- * A gate failure points at a sentence when its `where` is the place of the sentence (`describeLocation`), at every sentence of the opening
- * when it is `opening` (the length of the opening is the length of its sentences), at a heading when it is `section "<heading>"`. A failure of the model check points at the sentence or the heading it judged.
- * Every other failure is `unattached`: it is about the piece as a whole (its length, its sections, its categories), about a claim (the
+ * A gate failure points at a sentence when its `where` is the place of the sentence (`describeLocation`), at a heading when it is `section "<heading>"`.
+ * A failure of the model check points at the sentence or the heading it judged.
+ * Every other failure is `unattached`: it is about the piece as a whole (the number of its sections, its categories), about a claim (the
  * basis or the status of a claim, which no sentence can change), or about a sentence that code wrote (a limitation), and rewriting a sentence cannot
  * mend it. A reason is the gate's code and message, or what the verifier said. A limitation sentence is never pointed at: it is made again from the claims.
  */
@@ -48,7 +48,6 @@ export function problemsOf(draft: Draft, gate: GateResult, failures: readonly Ve
   const idsOf = (failure: Failure): string[] => {
     const { where } = failure;
     if (where === undefined) return [];
-    if (where === 'opening') return sentenceIds((item) => item.section === 'opening');
     const heading = /^section "(.*)"$/.exec(where);
     if (heading !== null) return headingIds((text) => text === heading[1]);
     return sentenceIds((item) => describeLocation(item) === where);
@@ -197,14 +196,13 @@ export interface VerifyResult {
 /**
  * Judge the draft that Compose wrote, send back what fails, and say whether the piece may be published.
  *
- * Each round: the gate's verdict on the draft (Compose gave it for the first; later it is run again); when the gate found no failure, the model
- * check (`runVerifier`; a draft that code has sent back is not shown to the model). A draft with no failure of either is done. Otherwise, when
+ * Each round: the gate's verdict on the draft (its notes never block, never go back to the composer and never keep the model check from running;
+ * Compose gave it for the first; later it is run again); when the gate found no failure, the model check (`runVerifier`; a draft that code has sent back is not shown to the model). A draft with no failure of either is done. Otherwise, when
  * rounds are left (`config.maxRevisionRounds`) and there is something that a rewritten sentence or heading can mend (`problemsOf`), `reviseDraft` makes a new draft and the
- * next round judges it; when there is not, the draft is held. A failure that no sentence can mend (the length of the piece, the basis of a claim)
+ * next round judges it; when there is not, the draft is held. A failure that no sentence can mend (the number of sections, the categories, the basis of a claim)
  * is not sent anywhere: it is recorded, and the draft is held when the rounds that could mend the rest are over.
  *
- * The outcome is `publish` only for a draft that the gate routes to `publish` and the model check passed. A draft that cites another outlet is routed to `hold`
- * by the gate (TIER2_ATTRIBUTION), so it is held even though it is clean: it is never published by itself. When the model check never saw the last draft,
+ * The outcome is `publish` only for a draft that the gate routes to `publish` and the model check passed. When the model check never saw the last draft,
  * `verifier` says so and is not passed.
  *
  * Writes `05-compose.json` (every draft, the first and each revision) and `06-verify.json` (every pass). Nothing is written when a call fails: the error ends the run.
@@ -224,8 +222,9 @@ export async function runVerify(ctx: StageContext, claims: Claim[], composed: Co
     const send = !clean && round < ctx.config.maxRevisionRounds && problems.length > 0;
     const ids = [...new Set(problems.map((problem) => problem.id))];
     history.push({ round, gate: structuredClone(gate), verifier: verifier ?? null, verifierFailures: structuredClone(checked?.failures ?? []), sent: send ? ids : [] });
+    const noteWords = gate.warnings.length === 0 ? '' : `, ${gate.warnings.length} ${gate.warnings.length === 1 ? 'note' : 'notes'}`;
     ctx.log(
-      `verify: round ${round}: the gate says ${gate.route}, the model check ${checked === undefined ? 'was not asked' : checked.verifier.passed ? 'passed' : 'failed'}` +
+      `verify: round ${round}: the gate says ${gate.route}${noteWords}, the model check ${checked === undefined ? 'was not asked' : checked.verifier.passed ? 'passed' : 'failed'}` +
         (send ? `; sent back: ${ids.join(' ')}` : unattached.length > 0 ? `; problems that no sentence can mend: ${unattached.length}` : ''),
     );
     if (!send) break;

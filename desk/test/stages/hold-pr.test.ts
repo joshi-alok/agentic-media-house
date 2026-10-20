@@ -5,6 +5,7 @@ import { GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixt
 import { describe, expect, it } from 'vitest';
 import { matchPieces } from '../../../site/src/lib/match-pieces';
 import { REASON_LABELS } from '../../../site/src/lib/reasons';
+import { defaultConfig } from '../../src/config';
 import { HeldArtifact } from '../../src/run/artifacts';
 import { heldPieceFiles, holdPrBody, holdPrTitle, renderHeldPiece } from '../../src/stages/hold-pr';
 import { useScratch } from '../support/context';
@@ -201,7 +202,7 @@ describe('holdPrBody', () => {
         '| Day | `2026-10-05` |',
         `| Categories | ${held.draft.categories.map((category) => `\`${category}\``).join(', ')} |`,
         '| Run | `2026-10-05-043100` |',
-        '| Rounds of revision | 2 |',
+        `| Rounds of revision | ${defaultConfig().maxRevisionRounds} |`,
         `| The article | \`site/src/content/news/${slug}.mdx\` |`,
         `| Its ledger | \`site/src/content/ledger/${slug}.json\` |`,
         '',
@@ -250,7 +251,7 @@ describe('holdPrBody', () => {
     expect(body).toContain(`- \`G4_NUMBER_UNSUPPORTED\`: ${REASON_LABELS.G4_NUMBER_UNSUPPORTED}`);
     expect(body).toContain('8 of 9 checks passed. Failed: `G4`. It found 1 failure in the last draft.');
     expect(body).toContain('G4_NUMBER_UNSUPPORTED: the number "15 kg"');
-    expect(body).toContain('| Rounds of revision | 2 |');
+    expect(body).toContain(`| Rounds of revision | ${defaultConfig().maxRevisionRounds} |`);
     // The model was not asked about a draft that the gate had sent back, and the text says so.
     expect(body).toContain('was not asked about the last draft: the gate had sent it back');
     expect(body).not.toContain('What it did not clear');

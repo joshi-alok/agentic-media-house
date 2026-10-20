@@ -81,7 +81,8 @@ async function findTier1(ctx: StageContext, chosen: Candidate): Promise<{ url: s
  *
  * With nothing on the shortlist, no model is asked. Otherwise one call is made, and a reply that is not valid, or that names an id that is not on
  * the shortlist, is a `schema` error that ends the run. When a story is chosen, its primary source is looked for (see `findTier1`); when
- * none is found the reasons end with a sentence of the code that says so, because such a story is written in attributed form and held.
+ * none is found the reasons end with a sentence of the code that says so, because such a story is written in attributed form and, if the gate and
+ * the model check clear it, published.
  */
 export async function runSelect(ctx: StageContext, discovered: DiscoverArtifact): Promise<SelectArtifact> {
   const shortlist = shortlistOf(discovered.candidates, ctx);
@@ -109,7 +110,7 @@ export async function runSelect(ctx: StageContext, discovered: DiscoverArtifact)
       const reasons =
         'url' in source
           ? reply.value.reasons
-          : [...reply.value.reasons, `No tier-1 source was found: ${source.why}, so the story is written in attributed form and held.`];
+          : [...reply.value.reasons, `No tier-1 source was found: ${source.why}, so the story is written in attributed form.`];
       artifact = { date: ctx.date, chosen, reasons, tier1Url: 'url' in source ? source.url : null, shortlist: ids };
     }
   }

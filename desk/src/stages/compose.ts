@@ -30,8 +30,8 @@ export interface ComposeResult {
 /**
  * Compose the piece from `claims` and run the gate on it. One call is made, in the role `compose`; a reply that is not valid (see
  * `ComposeReply`) is a `schema` error that ends the run. The draft is `assembleDraft` of the reply, and the result is the draft with the
- * result of the gate: the route is `publish` when nothing was found, `hold` when only a hold reason was (a claim of another outlet), and
- * `revise` when a check failed.
+ * result of the gate: the route is `publish` when the gate found no blocker (a note does not stop a piece, and no check asks for a hold
+ * any more), and `revise` when it found one.
  */
 export async function runCompose(ctx: StageContext, claims: Claim[]): Promise<ComposeResult> {
   if (claims.length === 0) throw new Error('runCompose needs claims: Extract kept none');
@@ -46,6 +46,6 @@ export async function runCompose(ctx: StageContext, claims: Claim[]): Promise<Co
   });
   const draft = assembleDraft(reply.value, claims, ctx);
   const gate = runGate({ draft, claims }, gateContextOf(ctx));
-  ctx.log(`compose: the gate says ${gate.route} (${gate.failures.length} failures, ${gate.holdReasons.length} hold reasons)`);
+  ctx.log(`compose: the gate says ${gate.route} (${gate.failures.length} failures, ${gate.warnings.length} notes, ${gate.holdReasons.length} hold reasons)`);
   return { draft, gate };
 }

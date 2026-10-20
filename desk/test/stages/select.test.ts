@@ -259,7 +259,7 @@ describe('runSelect: the primary source', () => {
     expect(fetcher.requests).toEqual([]);
   });
 
-  const NOTE = (why: string) => `No tier-1 source was found: ${why}, so the story is written in attributed form and held.`;
+  const NOTE = (why: string) => `No tier-1 source was found: ${why}, so the story is written in attributed form.`;
 
   it('is null when no link of the page goes to a primary source, and the reasons end with a sentence that says so', async () => {
     const page = '<article><p>Text <a href="https://elsewhere.example/a">a link</a></p></article>';

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { ALL_CHECKS, allSentences, buildLimitations, citedClaims, defaultContext, runGate, runGateWith } from '@robywire/gate';
+import { allSentences, buildLimitations, citedClaims, defaultContext, runGate } from '@robywire/gate';
 import type { Claim, Draft } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
@@ -327,12 +327,14 @@ describe('runVerify: a draft that is never mended is held', () => {
   it('holds a draft whose failures no sentence can mend, at once and without asking the composer', async () => {
     const { ctx, fake, claims, composed, logs } = await start((reply) => { reply.sections = reply.sections.slice(0, 1); });
     expect(composed.gate.failures.map((failure) => failure.code)).toEqual(['G2_SECTIONS_MIN']);
+    // With one section the body is also short, which is a note, and the log says so.
+    expect(composed.gate.warnings.map((note) => note.code)).toEqual(['G2_BODY_LENGTH']);
     const result = await runVerify(ctx, claims, composed);
     expect(result.outcome).toBe('hold');
     expect(result.rounds).toBe(0);
     expect(callsOf(fake, 'compose')).toHaveLength(1);
     expect(result.history[0]?.sent).toEqual([]);
-    expect(logs.filter((line) => line.startsWith('verify: round'))).toEqual(['verify: round 0: the gate says revise, the model check was not asked; problems that no sentence can mend: 1']);
+    expect(logs.filter((line) => line.startsWith('verify: round'))).toEqual(['verify: round 0: the gate says revise, 1 note, the model check was not asked; problems that no sentence can mend: 1']);
   });
 
   it('mends what a sentence can mend and then holds what it cannot, without using the rounds that are left', async () => {
@@ -640,18 +642,6 @@ describe('problemsOf', () => {
     expect(draft.title.kind).toBe('analysis');
   });
 
-  it('points a failure of the opening as a whole at every sentence of the opening', () => {
-    // The length of the opening is a note and never a failure, and no blocker is reported for the opening as a whole. The gate is run with no
-    // notes, so that this failure, which a check can still report, shows where problemsOf sends a failure whose place is the opening.
-    const draft = structuredClone(GOLDEN_DRAFT) as Draft;
-    draft.opening = draft.opening.slice(0, 2);
-    const gate = runGateWith(ALL_CHECKS, { draft, claims: cloneGolden().claims }, defaultContext(), []);
-    const { problems, unattached } = problemsOf(draft, gate, []);
-    expect(problems.map((problem) => problem.id)).toEqual(['s2', 's3']);
-    expect(problems.every((problem) => problem.reason.startsWith('G2_OPENING_LENGTH: '))).toBe(true);
-    expect(unattached).toEqual([]);
-  });
-
   it('sends nothing back for a note: an opening that is too short is listed in the warnings of the gate and is no problem', () => {
     const { gate, problems, unattached } = problemsFor((draft) => { draft.opening = draft.opening.slice(0, 2); });
     expect(gate.failures).toEqual([]);
@@ -734,5 +724,33 @@ describe('problemsOf', () => {
   it('has no problem for a draft that passes', () => {
     const gate = runGate({ draft: GOLDEN_DRAFT as Draft, claims: GOLDEN_CLAIMS }, defaultContext());
     expect(problemsOf(GOLDEN_DRAFT as Draft, gate, [])).toEqual({ problems: [], unattached: [] });
+  });
+});
+
+describe('runVerify: a draft with notes and no blocker', () => {
+  const askedQuestion = (reply: Reply) => {
+    (reply.sections[0] as Reply['sections'][number]).heading = 'What shipped?';
+  };
+
+  it('is shown to the verifier and published, and the note stays in the record', async () => {
+    const { ctx, fake, claims, composed } = await start(askedQuestion);
+    expect(composed.gate.failures).toEqual([]);
+    expect(composed.gate.warnings.map((note) => note.code)).toEqual(['G2_HEADING_QUESTION']);
+    fake.script('verify', CLEARS());
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('publish');
+    expect(result.rounds).toBe(0);
+    expect(callsOf(fake, 'verify')).toHaveLength(1);
+    expect(callsOf(fake, 'compose')).toHaveLength(1);
+    expect(result.gate.warnings.map((note) => note.code)).toEqual(['G2_HEADING_QUESTION']);
+  });
+
+  // The test "sends nothing back for a note" of Task 2 already proves that `problemsOf` has nothing to send back for a note: do not repeat it here.
+
+  it('says in the log how many notes the gate found', async () => {
+    const { ctx, fake, claims, composed, logs } = await start(askedQuestion);
+    fake.script('verify', CLEARS());
+    await runVerify(ctx, claims, composed);
+    expect(logs).toContain('verify: round 0: the gate says publish, 1 note, the model check passed');
   });
 });

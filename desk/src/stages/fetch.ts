@@ -44,8 +44,8 @@ function staleOrUndated(publishedAt: string | undefined, ctx: Pick<StageContext,
  *
  * A page that cannot be fetched or read (robots.txt forbids it, it is too large, it is not text, it has no text in it) is not
  * fatal: it is recorded in the artifact with the reason and the stage goes on. In particular, when the primary source is
- * unreachable the story falls back to the page of the story alone, which is written in attributed form and held; the artifact
- * says that the primary source failed. When every page fails the result is `no-story`. A story that has no date of its own (a headline
+ * unreachable the story falls back to the page of the story alone, which is written in attributed form and, if the gate and the model
+ * check clear it, published; the artifact says that the primary source failed. When every page fails the result is `no-story`. A story that has no date of its own (a headline
  * link of a newsroom page) must have a page that gives one inside the window of `recencyWindow`, as an old announcement on a newsroom page
  * is not today's news: when its page gives none, or an old one, nothing more is fetched, the page is recorded as a failure whose reason begins
  * with `stale-or-undated`, and the result is `no-story` with that reason. Any other error ends the run, and that
