@@ -3,7 +3,6 @@ import {
   buildLimitations,
   citedClaims,
   claimWords,
-  defaultConfig,
   defaultContext,
   extractTokens,
   NOTE_CODES,
@@ -13,6 +12,7 @@ import {
 import type { GateInput } from '@robywire/gate';
 import { cloneGolden } from '@robywire/gate/fixtures';
 import { analysisLimit } from '../src/lib/copy';
+import { runGateConfig } from '../src/lib/run-config';
 import { KNOWN_LIMITS, LIMITS_HEADING, LIMITS_INTRO } from '../src/lib/method';
 import type { KnownLimit } from '../src/lib/method';
 
@@ -261,9 +261,9 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
   });
 
   it('is true of analysis: a judgement that the passages do not plainly support passes every check of code, so only the model check, which can miss it, stands between it and the page', () => {
-    const limit = withText(unchecked, 'Analysis sentences, which are a fifth of the sentences of the body or fewer by default');
+    const limit = withText(unchecked, 'Analysis sentences, which are at most 40 percent of the sentences of the body');
     expect(limit.text).toContain('(a piece above that is noted, not stopped)');
-    expect(limit.text).not.toContain('up to a fifth');
+    expect(limit.text).not.toContain('a fifth');
     expect(limit.text).toContain('are checked by code for where they stand and for the numbers, dates and names they bring in');
     expect(limit.text).toContain('the page labels it Analysis.');
     // What the model check does with analysis depends on whether it runs, so copy.ts writes it (analysisLimit) and copy.test.ts says it for every setting.
@@ -274,8 +274,8 @@ describe('KNOWN_LIMITS: the text that no rule reads, shown with the real gate', 
     const analysis = input.draft.sections.flatMap((section) => section.paragraphs.flat()).find((sentence) => sentence.kind === 'analysis')!;
     analysis.text = limit.example;
     expect(route(input)).toEqual({ route: 'publish', failures: [] });
-    // The share is a target of a fifth by default and a note above it: it caps nothing, and what shows the exposure is the label on every analysis sentence.
-    expect(defaultConfig().analysisShareCap).toBe(0.2);
+    // The share is a target of the kind of piece that the daily run writes (40 percent for an explainer) and a note above it: it caps nothing, and what shows the exposure is the label on every analysis sentence.
+    expect(runGateConfig().analysisShareCap).toBe(0.4);
     expect(NOTE_CODES).toContain('G7_ANALYSIS_SHARE');
   });
 

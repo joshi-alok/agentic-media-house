@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { USAGE } from '../src/cli';
 
 // The README says what the Desk does and does not do, and a sentence that a later change makes untrue must fail a test. These tests
 // read the README of the repository and check the sections that state limits.
@@ -14,6 +15,17 @@ function section(heading: string): string {
   const next = rest.indexOf('\n## ', 3);
   return next < 0 ? rest : rest.slice(0, next);
 }
+
+describe('the README: the usage of the commands', () => {
+  // The line of a command in the README lists the options that the usage of the command line lists for it, so that an option that is added to the command is added to the README.
+  it('gives the line of `desk tune` every option that the usage lists for it, in the form that the usage has', () => {
+    const usageLine = USAGE.split('\n').find((line) => line.startsWith('  desk tune '))!;
+    const options = usageLine.trim().slice('desk tune '.length);
+    expect(options).toContain('[--profile brief|digest|explainer]');
+    const readmeLine = README.split('\n').find((line) => line.startsWith('- `npm run desk -- tune '))!;
+    expect(readmeLine).toContain(`\`npm run desk -- tune ${options}\``);
+  });
+});
 
 describe('the README: what the Desk is tested with', () => {
   const desk = (): string => section('The desk workspace');
@@ -449,7 +461,7 @@ describe('the README: the tuning harness', () => {
   const tune = (): string => section('The tuning harness');
 
   it('is one of the commands, with its options, and says that it publishes and commits nothing', () => {
-    expect(section('The desk command')).toContain('`npm run desk -- tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]`');
+    expect(section('The desk command')).toContain('`npm run desk -- tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--profile brief|digest|explainer] [--config <path>]`');
     expect(section('The desk command')).toContain('It publishes and commits nothing');
     expect(section('The desk command')).toContain('`npm run desk -- push [--branch-only] [--run-id <id>] [--output <file>] [--audit-log <file>]` pushes what the checkout has and `origin/main` has not');
   });

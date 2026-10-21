@@ -1,6 +1,6 @@
-import { defaultConfig } from '@robywire/gate';
 import type { CheckId, GateConfig } from '@robywire/gate';
 import { analysisLimit } from './copy';
+import { runGateConfig } from './run-config';
 
 // The words of the method page that a test needs to reach: the nine rules of
 // the gate, whose numbers come from the gate's own configuration, the known
@@ -21,11 +21,12 @@ export interface GateRule {
 }
 
 /**
- * The nine deterministic checks in plain English, with the limits taken from `config`. Each sentence says what the code
+ * The nine deterministic checks in plain English, with the limits taken from `config`, which is by default that of a run of the Desk (the ranges of the profile that desk.config.yml
+ * names, over the defaults of the gate: `runGateConfig`). Each sentence says what the code
  * really checks: method.test.ts shows the claims it makes about words with the real reader, and the gate's own tests
  * show the rest.
  */
-export function gateRules(config: GateConfig = defaultConfig()): GateRule[] {
+export function gateRules(config: GateConfig = runGateConfig()): GateRule[] {
   const { openingWords, takeaways, bodyWords, headingMax } = config;
   const share = Math.round(config.analysisShareCap * 100);
   const overlap = Math.round(config.titleSimilarityThreshold * 100);

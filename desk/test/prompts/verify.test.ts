@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { composeSystem } from '../../src/prompts/compose';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { VERIFY_INSTRUCTIONS, buildVerifyUser, verifySystem } from '../../src/prompts/verify';
+import { ALLOWED_BASES, KIND_WORDS } from '../../src/stages/claim-grounding';
 import { verifyPlanOf } from '../../src/stages/verify-model';
 import { blocksOf, outsideBlocks } from '../support/prompts';
 
@@ -49,6 +50,16 @@ describe('verifySystem', () => {
     for (const basis of BASES) expect(VERIFY_INSTRUCTIONS).toMatch(new RegExp(`^- ${basis}: the passage `, 'm'));
     for (const status of STATUSES) expect(VERIFY_INSTRUCTIONS).toMatch(new RegExp(`^- ${status}: the passage `, 'm'));
     expect(VERIFY_INSTRUCTIONS).toContain('- deployed: the passage says it is live in production or used by people outside the team.');
+  });
+
+  // The registry allows `standard` and `filing` for a page of a standards body, a regulator or an open protocol (ALLOWED_BASES, KIND_WORDS): a verifier that took `standard` to mean
+  // only a published standard and `filing` only a regulatory filing could reject the label of a claim from the documentation of an open protocol, or from a regulator's own statement,
+  // and a label that is rejected is a failure that no sentence can mend, so the piece would be held after its first draft.
+  it('tells the verifier that a standard is also the specification or documentation of an open protocol, and a filing also the regulator\'s own official statement, as the registry allows', () => {
+    expect(VERIFY_INSTRUCTIONS).toContain('- standard: the passage is from a published standard, or from the specification or the documentation of an open protocol.');
+    expect(VERIFY_INSTRUCTIONS).toContain("- filing: the passage is from a regulatory filing, or is the regulator's own official statement.");
+    expect(ALLOWED_BASES.standard).toEqual(['standard', 'filing']);
+    expect(KIND_WORDS.standard).toBe('a page of a standards body, a regulator or an open protocol');
   });
 
   it('says what the reply is: a verdict for every item and a judgement of the labels of every claim, and no others', () => {

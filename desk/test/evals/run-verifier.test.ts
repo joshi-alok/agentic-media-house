@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_BATCH_SIZE, evaluateVerifier, floorFailures, formatReport, loadVerifierSet, main, scoreOf } from '../../evals/run-verifier';
 import type { EvalReport, ItemResult } from '../../evals/run-verifier';
 import { lazyVerifier, perfectVerifier, scriptedVerifier, strictVerifier } from '../../evals/scripted';
+import { defaultConfig } from '../../src/index';
 import { ModelError } from '../../src/model/types';
 import type { ModelClient, ModelRequest } from '../../src/model/types';
 import { verifySystem } from '../../src/prompts/verify';
@@ -398,10 +399,41 @@ describe('main', () => {
     }
   });
 
-  it('accepts a batch of 1, the least there is', async () => {
-    const { code, out } = await run(['--batch', '1']);
+  // A run of the Desk may make `budget.maxCalls` calls (24), and the real client stops at the 25th: a batch so small that the set needs more calls would pay for 24 of them and lose the
+  // report. So `main` refuses it before it builds a client or makes a call. The library function `evaluateVerifier` has no such limit (a scripted client costs nothing), and its test
+  // above that accepts a batch of one sentence stays as it was.
+  it('accepts the smallest batch that fits the calls of a run: 4 gives 23 calls for the 90 sentences, the least that stays within the budget of 24', async () => {
+    const { maxCalls } = defaultConfig().budget;
+    expect(Math.ceil(SET.items.length / 4)).toBeLessThanOrEqual(maxCalls);
+    expect(Math.ceil(SET.items.length / 3)).toBeGreaterThan(maxCalls);
+    const { code, out, err } = await run(['--batch', '4']);
     expect(code).toBe(0);
-    expect(out[0]).toBe(`verifier evaluation: 90 sentences in 90 calls, model ${out[0]?.split('model ')[1]}`);
+    expect(err).toEqual([]);
+    expect(out[0]).toBe(`verifier evaluation: 90 sentences in 23 calls, model ${out[0]?.split('model ')[1]}`);
+  });
+
+  it('refuses a batch that needs more calls than a run may make, with exit 2, the number of calls it needs and the budget, before a client is built or a call is made', async () => {
+    const { maxCalls } = defaultConfig().budget;
+    for (const [batch, needed, least] of [['3', 30, 4], ['1', 90, 4], ['2', 45, 4]] as const) {
+      const calls: string[] = [];
+      const counting: ModelClient = {
+        async json(request) {
+          calls.push(request.role);
+          return perfectVerifier(SET).json(request);
+        },
+      };
+      const { code, out, err } = await run(['--batch', batch], { client: counting });
+      expect(code, batch).toBe(2);
+      expect(out, batch).toEqual([]);
+      expect(err[0], batch).toBe(`evals:verifier: --batch ${batch} needs ${needed} calls for the ${SET.items.length} sentences, and a run may make ${maxCalls}: use --batch ${least} or more`);
+      expect(err[1], batch).toContain('Usage: evals:verifier');
+      expect(calls, batch).toEqual([]);
+    }
+    // With the api client the refusal comes before the client is asked for: no key is needed to be told, and none is read.
+    const { code, err } = await run(['--client', 'api', '--batch', '3']);
+    expect(code).toBe(2);
+    expect(err[0]).toContain('--batch 3 needs 30 calls');
+    expect(err).not.toContain('ANTHROPIC_API_KEY is not set: the api client needs it in the environment');
   });
 
   it('exits with 1 and says so when the labelled set cannot be used, before any call', async () => {

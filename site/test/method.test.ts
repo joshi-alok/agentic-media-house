@@ -95,11 +95,12 @@ describe('gateRules', () => {
   it('puts the ranges of the gate in the notes of G2, the share of analysis in the notes of G7, and the other numbers in the rules', () => {
     const text = (id: string) => rules.find((rule) => rule.id === id)?.text ?? '';
     const notes = (id: string) => rules.find((rule) => rule.id === id)?.notes ?? '';
-    expect(notes('G2')).toContain('40 to 60 words');
+    // The rules of the page are those of the daily run, which writes explainers (site/test/daily-run.test.ts says why and shows the defaults of the gate are not them).
+    expect(notes('G2')).toContain('40 to 80 words');
     expect(notes('G2')).toContain('3 to 5 key takeaways');
-    expect(notes('G2')).toContain('600 to 850 words');
+    expect(notes('G2')).toContain('500 to 1400 words');
     expect(notes('G2')).toContain('at most 80 characters');
-    expect(notes('G7')).toContain('at most 20 percent');
+    expect(notes('G7')).toContain('at most 40 percent');
     expect(text('G1')).toContain('at most 155 characters');
     expect(text('G9')).toContain('in the last 14 days');
   });
@@ -354,7 +355,7 @@ describe('gateRules', () => {
 
   it('says in G7 that the share of analysis is only noted: a piece with too much analysis is published with a note', () => {
     const notes = rules.find((rule) => rule.id === 'G7')?.notes ?? '';
-    expect(notes).toContain("Analysis is at most 20 percent of the body's sentences");
+    expect(notes).toContain("Analysis is at most 40 percent of the body's sentences");
     expect(rules.find((rule) => rule.id === 'G7')?.text).not.toContain('percent');
     expect(severityOf('G7_ANALYSIS_SHARE')).toBe('note');
     expect(severityOf('G7_ANALYSIS_NEW_VALUE')).toBe('blocker');
@@ -483,15 +484,17 @@ describe('the README: blockers and notes, and another outlet', () => {
     expect(readme).not.toContain('verifies that every factual sentence traces to a quoted span in a primary (tier-1) source');
   });
 
-  it('says that a claim from another outlet is an attribution that the article labels, and not that such a piece is never published by itself', () => {
+  it('says that a claim from another outlet is an attribution that the article labels, that the daily run holds none because it reads the primary page alone, and not that such a piece is never published by itself', () => {
     expect(readme).toContain('A claim from another outlet may appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body.');
-    expect(readme).toContain('A headline or a description built on such a claim names the outlet and carries no label, and a piece may rest entirely on another outlet\'s reporting and be published without a human when the gate and the model check clear it.');
+    expect(readme).toContain('A headline or a description built on such a claim names the outlet and carries no label. The daily run (the profile `explainer`) never holds such a claim, because it reads the primary page alone (below); the gate still accepts one when no profile is set.');
+    expect(readme).not.toContain('a piece may rest entirely on another outlet');
     expect(readme).not.toContain('never published by itself');
     expect(readme).not.toContain('They are never the sole source of a claim');
   });
 
-  it('says that the daily run does not write a story with no reachable tier-1 source, and that without the profile explainer such a story is written in attributed form', () => {
-    expect(readme).toContain('If a story has no reachable tier-1 source, the daily run (the profile `explainer`, in `desk.config.yml`) does not write it: Select asks the model again without that story, at most three times in all, and then the day has no story.');
+  it('says that the daily run reads the tier-1 page alone and does not write a story with no reachable tier-1 source, and that without the profile explainer such a story is written in attributed form', () => {
+    expect(readme).toContain('The daily run (the profile `explainer`, in `desk.config.yml`) follows a story to its tier-1 page and reads that page alone, never the article of the outlet that led to it.');
+    expect(readme).toContain('If a story has no reachable tier-1 source, or its tier-1 page has been written from already, the daily run does not write it: Select asks the model again without that story, at most three times in all, and then the day has no story.');
     expect(readme).toContain('Without that profile such a story is written in attributed form: that fact goes in the piece, and it is never quietly laundered through a competitor\'s reporting.');
     expect(readFileSync(new URL('../../desk.config.yml', import.meta.url), 'utf8')).toMatch(/^profile: explainer$/m);
   });

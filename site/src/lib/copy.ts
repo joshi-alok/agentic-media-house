@@ -1,4 +1,5 @@
 import { PUBLICATION_NAME } from '@robywire/gate';
+import { runGateConfig } from './run-config';
 import { LIVE } from './live';
 import type { Live } from './live';
 import { releaseNote } from './receipts';
@@ -122,8 +123,9 @@ export function scoreboardCaveat(live: Live = LIVE): string {
  * The method page lists it among the known limits, with the example that known-limits.test.ts shows with the real gate.
  */
 export function analysisLimit(live: Live = LIVE): string {
-  const code =
-    'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in,';
+  // The share is that of the daily run (the profile that desk.config.yml names), in percent as the rule G7 of the method page says it.
+  const share = Math.round(runGateConfig().analysisShareCap * 100);
+  const code = `Analysis sentences, which are at most ${share} percent of the sentences of the body (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in,`;
   const adds = 'one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support.';
   const missed =
     'A model can miss one, and a judgement or a consequence that the passages plainly support is allowed by design, so an analysis sentence can still be wrong in a way that no rule sees; the page labels it Analysis.';
@@ -154,12 +156,19 @@ export function statusPageIntro(live: Live = LIVE): string {
     : 'This page will show the record the Desk will keep of its own runs: when it last ran, how that run ended, how many drafts the gate has held, and how many corrections have been published. The page is built from that record, so it stays empty until the Desk runs.';
 }
 
-/** The paragraph on the method page about the two kinds of source. What the Desk does is in the tense of its flag; what the gate enforces is already true. */
+/**
+ * The paragraph on the method page about the two kinds of source. What the Desk does is in the tense of its flag; what the gate enforces is already true. The Desk reads other outlets
+ * to find the news and writes from a primary page alone (the daily run is `profile: explainer`: Select leaves out a story with no primary page, or whose page is already written
+ * from, and asks again, at most `SELECT_ATTEMPTS` times; Fetch reads the primary page alone), so a piece it writes holds no claim of another outlet. The gate's own rule for such a claim is
+ * said as what it would require.
+ */
 export function sourcesText(live: Live = LIVE): string {
   const tiers = "A tier 1 source is a primary one: a project's, a company's or a researcher's own post, announcement or documentation, a paper, a regulatory filing, a standard or a proposal.";
+  const gate =
+    'The gate would still require such a claim, if one ever appeared, to appear only as an attribution that names the outlet, and the article would label it Unconfirmed in its body; a headline or a description built on one would name the outlet and carry no label.';
   return live.publishing
-    ? `${tiers} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting is published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk does not write it: the model is asked for another story, and the day may have none.`
-    : `${tiers} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting will be published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk will not write it: the model will be asked for another story, and the day may have none.`;
+    ? `${tiers} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk reads other outlets only to find the news, and it never states a fact on their authority: it follows a story to a primary page and writes from that page alone, so a piece written this way holds no claim that rests on another outlet. ${gate} If a story has no reachable primary source, or its primary page has been written from already, the Desk does not write it: the model is asked for another story, up to three times in all, and the day may have none.`
+    : `${tiers} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk will read other outlets only to find the news, and it will never state a fact on their authority: it will follow a story to a primary page and write from that page alone, so a piece written this way will hold no claim that rests on another outlet. ${gate} If a story has no reachable primary source, or its primary page has been written from already, the Desk will not write it: the model will be asked for another story, up to three times in all, and the day may have none.`;
 }
 
 /** The list "What the Desk never does" on the method page, one item for each promise. */

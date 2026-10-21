@@ -274,7 +274,7 @@ function fraction(value: string): number | undefined {
 
 /**
  * Run the evals from the command line and return the exit code: 0 when every floor is met (and there is none by default), 1 when a score is below a floor or the
- * evaluation fails, 2 for a mistake in the arguments. `--client fake` (the default) is a scripted verifier that knows the answers: it proves the wiring and measures
+ * evaluation fails, 2 for a mistake in the arguments (a `--batch` so small that the set needs more calls than a run may make is one). `--client fake` (the default) is a scripted verifier that knows the answers: it proves the wiring and measures
  * no model. `--client api` asks the model that `--model` names (by default the verify model of the configuration), inside the budget of a run, and needs
  * `ANTHROPIC_API_KEY` in the environment.
  */
@@ -314,6 +314,14 @@ export async function main(argv: readonly string[], deps: EvalDeps): Promise<num
   } catch (error) {
     deps.err(error instanceof Error ? error.message : String(error));
     return 1;
+  }
+  // The client of a run stops at `budget.maxCalls` calls, after paying for them, and nothing of the report is kept. So a batch so small that the set needs more calls than that is refused
+  // here, before a client is built or a call is made. (`evaluateVerifier` has no such limit: a scripted client costs nothing.)
+  const batchSize = batch ?? DEFAULT_BATCH_SIZE;
+  const needed = Math.ceil(set.items.length / batchSize);
+  if (needed > config.budget.maxCalls) {
+    const what = batch === undefined ? `a batch of ${batchSize}` : `--batch ${batchSize}`;
+    return usage(`${what} needs ${needed} calls for the ${set.items.length} sentences, and a run may make ${config.budget.maxCalls}: use --batch ${Math.ceil(set.items.length / config.budget.maxCalls)} or more`);
   }
   let client: ModelClient;
   let spent = deps.spent;

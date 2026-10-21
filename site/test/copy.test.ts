@@ -407,8 +407,10 @@ describe('statusPageIntro', () => {
 describe('sourcesText', () => {
   const TIERS =
     "A tier 1 source is a primary one: a project's, a company's or a researcher's own post, announcement or documentation, a paper, a regulatory filing, a standard or a proposal.";
-  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting will be published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk will not write it: the model will be asked for another story, and the day may have none.`;
-  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and the article labels it Unconfirmed in its body. A headline or a description built on such a claim names the outlet and carries no label, and a piece that rests entirely on another outlet's reporting is published without a human when the gate and the model check clear it. If a story has no reachable primary source, the Desk does not write it: the model is asked for another story, and the day may have none.`;
+  const GATE =
+    'The gate would still require such a claim, if one ever appeared, to appear only as an attribution that names the outlet, and the article would label it Unconfirmed in its body; a headline or a description built on one would name the outlet and carry no label.';
+  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk will read other outlets only to find the news, and it will never state a fact on their authority: it will follow a story to a primary page and write from that page alone, so a piece written this way will hold no claim that rests on another outlet. ${GATE} If a story has no reachable primary source, or its primary page has been written from already, the Desk will not write it: the model will be asked for another story, up to three times in all, and the day may have none.`;
+  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk reads other outlets only to find the news, and it never states a fact on their authority: it follows a story to a primary page and writes from that page alone, so a piece written this way holds no claim that rests on another outlet. ${GATE} If a story has no reachable primary source, or its primary page has been written from already, the Desk does not write it: the model is asked for another story, up to three times in all, and the day may have none.`;
 
   it.each(CASES)('says what the Desk does in the present tense only when it publishes (%s)', (_name, live) => {
     expect(sourcesText(live)).toBe(live.publishing ? ON : OFF);
@@ -417,23 +419,33 @@ describe('sourcesText', () => {
   it('keeps the definition of the two tiers and the rule of the gate in both tenses', () => {
     for (const live of [NONE, ALL]) {
       expect(sourcesText(live)).toContain(TIERS);
-      expect(sourcesText(live)).toContain('can appear only as an attribution that names the outlet');
+      expect(sourcesText(live)).toContain(GATE);
     }
   });
 
-  // A piece may rest entirely on another outlet's reporting and publish by itself: its body is labelled, and the page says so plainly.
-  it.each([NONE, ALL])('says that another outlet is attributed and labelled, and that a piece which uses it is not held for that', (live) => {
+  // The daily run follows a story to its primary page and fetches that page alone (profile `explainer`: Select leaves out a story with no primary page, and asks again up to SELECT_ATTEMPTS times),
+  // so a piece it writes holds no claim of another outlet. The page says that, and not that a piece may rest entirely on another outlet's reporting and publish by itself, which it cannot.
+  it.each([NONE, ALL])('says that the Desk reads other outlets to find the news and writes from a primary page alone, and not that a piece may rest on another outlet', (live) => {
     const text = sourcesText(live);
-    expect(text).toContain('the article labels it Unconfirmed in its body');
-    expect(text).not.toMatch(/\bheld\b/);
-    expect(text).not.toContain('for the owner');
+    expect(text).toMatch(/reads? other outlets only to find the news/);
+    expect(text).toMatch(/(?:follows|will follow) a story to a primary page and (?:writes|write) from that page alone/);
+    expect(text).toContain(live.publishing ? 'holds no claim that rests on another outlet' : 'will hold no claim that rests on another outlet');
+    expect(text).not.toMatch(/rests entirely|published without a human|attributed to the outlet by name/);
   });
 
-  // The label is written by renderBody for the body only, and a title or a description that rests on another outlet has none: the page says so.
-  it.each([NONE, ALL])('says that a headline or a description built on another outlet names it and has no label, and that a piece may rest entirely on it', (live) => {
+  it.each([NONE, ALL])('says what the Desk does with a story that has no reachable primary source, or whose primary page was written from already: asks the model for another, up to three times, and the day may have none', (live) => {
     const text = sourcesText(live);
-    expect(text).toContain('A headline or a description built on such a claim names the outlet and carries no label');
-    expect(text).toMatch(/a piece that rests entirely on another outlet's reporting (?:is|will be) published without a human when the gate and the model check clear it/);
+    expect(text).toContain('If a story has no reachable primary source, or its primary page has been written from already, the Desk');
+    expect(text).toContain('another story, up to three times in all, and the day may have none.');
+  });
+
+  // The label is written by renderBody for the body only, and a title or a description that rests on another outlet has none: the page says so plainly.
+  it.each([NONE, ALL])('says that another outlet would be attributed and labelled, that a headline or a description built on it would name it and have no label, and that nothing is held for that', (live) => {
+    const text = sourcesText(live);
+    expect(text).toContain('the article would label it Unconfirmed in its body');
+    expect(text).toContain('a headline or a description built on one would name the outlet and carry no label');
+    expect(text).not.toMatch(/\bheld\b/);
+    expect(text).not.toContain('for the owner');
   });
 });
 
@@ -465,7 +477,7 @@ describe('neverDoes', () => {
 
 describe('analysisLimit', () => {
   const START =
-    'Analysis sentences, which are a fifth of the sentences of the body or fewer by default (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in,';
+    'Analysis sentences, which are at most 40 percent of the sentences of the body (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in,';
   const ADDS = 'one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support.';
   const MISSED =
     'A model can miss one, and a judgement or a consequence that the passages plainly support is allowed by design, so an analysis sentence can still be wrong in a way that no rule sees; the page labels it Analysis.';
@@ -532,7 +544,7 @@ describe('the source of the site', () => {
     ['a hold that waits for the owner', /waits for the owner/i],
     ['the record the Desk keeps of its own runs', /record the Desk keeps/i],
     ['what the Desk never does', /\bIt (?:contacts no one|does not republish its sources|uses no photographs|does not rewrite another outlet|does not publish a sentence)/],
-    ['the sources the Desk writes from', /The Desk writes from tier 1 sources|never states a fact on that authority|the Desk does not rewrite a competitor/i],
+    ['the sources the Desk writes from', /The Desk writes from tier 1 sources|never states a fact on their authority|reads other outlets only to find the news|the Desk does not rewrite a competitor/i],
     ['what the model check does with analysis', /by the model check, which (?:will )?refuses? one that adds/],
   ])('has no file that writes a sentence about %s outside copy.ts and live.ts', (_what, pattern) => {
     const found = files.filter((file) => pattern.test(readFileSync(file, 'utf8'))).map((file) => path.relative(SRC, file));
