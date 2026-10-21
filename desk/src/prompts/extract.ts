@@ -7,7 +7,7 @@ import { ALLOWED_BASES, COMMON_WORDS, KIND_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LEN
 // the web are data (`systemPrompt` adds it), then says the job, what a claim is and the rules that the Desk checks in code
 // (`claimProblems`): a model that knows them wastes fewer claims. The user message holds the pages, each in a block that
 // `wrapSource` makes, with the facts about it that the Desk knows for itself (its number, its tier, what kind of page it is,
-// which bases it allows) outside the block.
+// which bases it allows, how many words it has) outside the block.
 
 /** The most claims one reply may have. The reply is refused when it has more. */
 export const MAX_CLAIMS = 40;
@@ -37,7 +37,7 @@ export const EXTRACT_INSTRUCTIONS = [
   '- Before you write a claim, check that every name, every capitalised word and every word of four letters or more of its text is in its quote. The common failure is a sentence that states the fact without naming its subject (it starts with "It" or "This", or goes on from a clause or a list), and the text names the subject: the quote "stores entries in a tree" and the text "Foo stores entries in a tree". Then choose a longer passage, copied exactly and within the limit, that starts where the subject is named, so that the quote holds the name (one passage may serve more than one claim), or write "it", or "the" and a noun of the quote, in place of the name, so that the text has no name to list in "values". Do not paraphrase: copy the words of the quote into the text, cut to one plain sentence, and change none of them.',
   '- State what the source says, and not what follows from it. One claim states one fact: split a sentence that states two.',
   '- Leave out any claim you are not sure of, and any claim that only restates another.',
-  '- List every fact that the page states plainly and that the rules above allow: each specification, number, date, price, amount, quantity, named customer or partner, certification, standard and date of availability. A long announcement states twenty or more separate facts: make one claim for each. Do not stop after the first few, and do not skip a fact because another is more important: the Desk chooses what to write from the claims you list.',
+  '- List every fact that the page states plainly and that the rules above allow: each specification, number, date, price, amount, quantity, named customer or partner, certification, standard and date of availability. A long announcement states twenty or more separate facts: make one claim for each. Do not stop after the first few, and do not skip a fact because another is more important: the Desk chooses what to write from the claims you list. A page states roughly one separate fact for every 60 to 100 words of its text (the message says how long it is): a page of 1,000 words usually has ten to seventeen facts or more, and a list of five is a sign that facts were skipped. Before you reply, read the page again from the top and add the facts that you skipped, by kind: what a thing is and how it is defined; how each part works; who made it or runs it; what it needs, requires or depends on; its defaults, options and limits; numbers, dates and names; what is planned, not yet done or not yet known, as the page itself says it. One fact is one claim, and its quote is the shortest passage that holds it; the rules above still apply.',
   `- Count the words of a label before you write it and aim for three to five: a label has at most ${MAX_LABEL_WORDS} words, and a longer one is cut to its first ${MAX_LABEL_WORDS} words, so put the words that name the fact first.`,
   '- List in "values" every name that the text of the claim contains: a company, a product, a programme, a place, a person, with kind "name" and "raw" exactly as the quote writes it ("x402", "Ethereum Foundation"). The piece may use a name only if a claim it cites lists it, so a claim that mentions a name and does not list it cannot be used to write that name. A name that mixes letters and digits, such as "ERC-8004" or "x402", is listed as one name ("ERC-8004"); do not list its digits as a number.',
   `- List at most ${MAX_CLAIMS} claims. A source may have none worth listing.`,
@@ -59,15 +59,24 @@ export interface ExtractSource {
   text: string;
 }
 
-/** What the message says about a source before its block: what it is and which bases a claim from it may have. */
+/**
+ * How long the page is, in the words of the message: the Desk's own count of the words of the text it sends, to the nearest ten and never below ten. The instructions tell the model that a page
+ * states about one fact for every 60 to 100 words, and a model does not count the words of a page well; the number is written outside the block and is never read from the text of the page.
+ */
+function sizeOf(text: string): string {
+  const words = (text.match(/\S+/g) ?? []).length;
+  return `The page has about ${Math.max(10, Math.round(words / 10) * 10)} words.`;
+}
+
+/** What the message says about a source before its block: what it is, which bases a claim from it may have, and how long the page is. */
 function describe(source: ExtractSource, number: number): string {
   if (source.kind === 'unknown') throw new Error('buildExtractUser: a page of unknown kind is not shown to a model');
   const bases = ALLOWED_BASES[source.kind].join(', ');
   if (source.kind === 'tier2') {
     if (source.outlet === undefined) throw new Error('buildExtractUser: a page of another outlet needs the name of the outlet');
-    return `Source ${number} is a report by ${source.outlet} (tier 2): ${KIND_WORDS.tier2}'s account, not a primary source. The basis of a claim from it is: ${bases}.`;
+    return `Source ${number} is a report by ${source.outlet} (tier 2): ${KIND_WORDS.tier2}'s account, not a primary source. The basis of a claim from it is: ${bases}. ${sizeOf(source.text)}`;
   }
-  return `Source ${number} is ${KIND_WORDS[source.kind]} (tier ${source.tier}). The basis of a claim from it is one of: ${bases}.`;
+  return `Source ${number} is ${KIND_WORDS[source.kind]} (tier ${source.tier}). The basis of a claim from it is one of: ${bases}. ${sizeOf(source.text)}`;
 }
 
 /**

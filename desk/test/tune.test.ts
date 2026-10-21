@@ -24,14 +24,14 @@ import type { Route } from './support/transport';
 import { loadWorkflow, stepNamed } from './support/workflow';
 
 // The fake client counts about one token for four characters of what it is sent. The system prompts are edited whenever a trial shows what to tell the models,
-// so the totals below are written as a part that does not change (the messages of the pages and of the draft) plus the tokens of the prompts, and not as numbers
+// so the totals below are written as a part that does not change (the messages of the pages, which say how many words a page has, and of the draft) plus the tokens of the prompts, and not as numbers
 // that every edit of a prompt would break.
 const tokensOfText = (text: string): number => Math.ceil(text.length / 4);
 const EXTRACT_PROMPT = tokensOfText(extractSystem());
-const THREE_CALLS_IN = 2871 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
+const THREE_CALLS_IN = 2879 + EXTRACT_PROMPT + tokensOfText(composeSystem()) + tokensOfText(verifySystem()); // Extract, Compose and the model check, once
 const THREE_CALLS_OUT = 3169; // the same calls: what the scripted model writes (the claims, the draft, the verdicts), so a change of the demo story or of the verifier reply changes it
-const ONE_EXTRACT_IN = 225 + EXTRACT_PROMPT; // an Extract call alone
-const TWO_EXTRACTS_IN = 375 + 2 * EXTRACT_PROMPT; // two pages, an Extract call for each
+const ONE_EXTRACT_IN = 233 + EXTRACT_PROMPT; // an Extract call alone
+const TWO_EXTRACTS_IN = 390 + 2 * EXTRACT_PROMPT; // two pages, an Extract call for each
 const dollarsOf = (inputTokens: number, outputTokens: number): number => (inputTokens * 3 + outputTokens * 15) / 1_000_000;
 
 // `desk tune`, called as a function the way every command of the Desk is tested: `main(argv, deps)` with a clock, an environment, a place to print, and a transport that answers
