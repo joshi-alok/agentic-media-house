@@ -3,7 +3,7 @@ import { EXTRACT_INSTRUCTIONS, MAX_CLAIMS, buildExtractUser, extractSystem } fro
 import type { ExtractSource } from '../../src/prompts/extract';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { verifySystem } from '../../src/prompts/verify';
-import { COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH } from '../../src/stages/claim-grounding';
+import { COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH, claimProblems } from '../../src/stages/claim-grounding';
 import { blocksOf, outsideBlocks } from '../support/prompts';
 
 // The words that the Extract stage says to a model. What matters here is not the wording but the rules that the wording
@@ -84,6 +84,74 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain(`Every word of the text of four letters or more must be a word of the quote, or one of these plain words: ${COMMON_WORDS.join(', ')}.`);
     expect(EXTRACT_INSTRUCTIONS).toContain('Write "no" or "not" only if the quote does.');
     expect(EXTRACT_INSTRUCTIONS).toContain('no "cannot", "never", "without", "only", "more than"');
+  });
+
+  describe('the quote must hold every name the text uses', () => {
+    // The real trials of the explainer path lost 14 of 21 proposed claims to one mistake: the sentence of the page that states the fact does not name its
+    // subject ("It ...", or the rest of a list), the model wrote the subject in the text, and the quote it chose was the fragment without the name.
+    // The Desk's rule stays as it is; the prompt tells the model how to meet it.
+    const bullet = (): string => EXTRACT_INSTRUCTIONS.split('\n').find((line) => line.startsWith('- Before you write a claim, check that every name')) ?? '';
+    const EXAMPLE_QUOTE = 'stores entries in a tree';
+    const EXAMPLE_TEXT = 'Foo stores entries in a tree';
+
+    it('says to check, before writing a claim, that every name, capitalised word and word of four letters or more of the text is in the quote', () => {
+      expect(bullet()).not.toBe('');
+      expect(bullet()).toContain('check that every name, every capitalised word and every word of four letters or more of its text is in its quote');
+    });
+
+    it('names the usual failure: the sentence that states the fact does not name its subject (it starts with It or This, or goes on from a clause or a list) and the text names the subject', () => {
+      expect(bullet()).toContain('The common failure is a sentence that states the fact without naming its subject');
+      expect(bullet()).toContain('it starts with "It" or "This", or goes on from a clause or a list');
+      expect(bullet()).toContain('and the text names the subject');
+      expect(bullet()).toContain(`the quote "${EXAMPLE_QUOTE}" and the text "${EXAMPLE_TEXT}"`);
+    });
+
+    it('gives the two remedies: a longer quote, copied exactly and within the limit, that starts where the subject is named; or "it" or "the" and a noun of the quote in place of the name, which is then not listed as a value', () => {
+      expect(bullet()).toContain('choose a longer passage, copied exactly and within the limit, that starts where the subject is named, so that the quote holds the name');
+      expect(bullet()).toContain('one passage may serve more than one claim');
+      expect(bullet()).toContain('write "it", or "the" and a noun of the quote, in place of the name');
+      expect(bullet()).toContain('so that the text has no name to list in "values"');
+    });
+
+    it('says not to paraphrase: the words of the quote are copied into the text, cut to one plain sentence, and none of them is changed', () => {
+      expect(bullet()).toContain('Do not paraphrase: copy the words of the quote into the text, cut to one plain sentence, and change none of them');
+    });
+
+    it('is one added bullet next to the two bullets about the words of the text, and leaves their sentences as they were', () => {
+      const lines = EXTRACT_INSTRUCTIONS.split('\n');
+      const at = lines.indexOf(bullet());
+      expect(lines[at - 1]).toContain('- Every word of the text of four letters or more must be a word of the quote, or one of these plain words:');
+      expect(lines[at + 1]).toContain('- State what the source says, and not what follows from it.');
+      expect(lines[at - 2]).toContain('- Every word of the label must be a word of the quote');
+      expect(lines[at - 3]).toContain('- The text and the label may contain only numbers, dates and capitalised words that appear in the quote.');
+      expect(lines[at - 1]).toContain('Take the words of the text from the quote and use none of your own: no "cannot", "never", "without", "only", "more than", and nothing else that says more, less or other than the quote says.');
+      expect(lines[at - 3]).toContain('Do not write a name in the text that the quote does not contain, even if the page names it somewhere else: write "the protocol", not "x402", when the quote only says "the protocol".');
+    });
+
+    it('is short, because every word of the prompt is paid on every page, and names no real project, with an invented example', () => {
+      expect(bullet()).not.toBe('');
+      expect(bullet().split(/\s+/).length).toBeLessThanOrEqual(165);
+      expect(bullet()).not.toMatch(/zkapi|a2a|x402|erc-?\d|ethereum|settlement|confirmation|groth16|poseidon|openai|ollama|leanvm|eip-?\d|facilitator/i);
+    });
+
+    it('is true of the code: the text of the example breaks the rule, and each remedy it gives passes the checks', () => {
+      const page = `The registry is public.\n${EXAMPLE_TEXT}.\nBar is not on this page.`;
+      const allow = new Set<string>();
+      const claim = (over: { text: string; quote: string; names: string[] }) => ({
+        text: over.text,
+        label: 'stores entries in a tree',
+        quote: over.quote,
+        values: over.names.map((raw) => ({ kind: 'name' as const, raw, normalised: raw.toLowerCase() })),
+        basis: 'docs' as const,
+      });
+      const codes = (over: { text: string; quote: string; names: string[] }): string[] => claimProblems(claim(over), page, 'company-newsroom', allow).map((problem) => problem.code);
+      // the failure: the fragment does not hold the name that the text uses, and the name listed as a value is not in the quote either
+      expect(codes({ text: EXAMPLE_TEXT, quote: EXAMPLE_QUOTE, names: ['Foo'] })).toEqual(['value-not-in-quote', 'text-not-in-quote']);
+      // remedy one: the longer passage that starts where the subject is named
+      expect(codes({ text: EXAMPLE_TEXT, quote: EXAMPLE_TEXT, names: ['Foo'] })).toEqual([]);
+      // remedy two: "it" for the name, and no name to list
+      expect(codes({ text: `It ${EXAMPLE_QUOTE}`, quote: EXAMPLE_QUOTE, names: [] })).toEqual([]);
+    });
   });
 
   it('says how many claims at most, what to leave out, and that a report of another outlet does not name the outlet', () => {
