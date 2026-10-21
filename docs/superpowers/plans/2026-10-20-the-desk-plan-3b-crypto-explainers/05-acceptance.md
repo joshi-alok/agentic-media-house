@@ -54,7 +54,7 @@ describe('the ten sets of passages added for AI agents in crypto', () => {
   it('name an outlet for the set that another outlet reported, and use the bases of the domain', () => {
     const passages = NEW.flatMap((item) => item.passages);
     expect(passages.some((passage) => passage.basis === 'reported' && passage.outlet === 'Mercer Wire')).toBe(true);
-    expect(new Set(passages.map((passage) => passage.basis))).toEqual(new Set(['docs', 'announcement', 'reported', 'filing', 'paper']));
+    expect(new Set(passages.map((passage) => passage.basis))).toEqual(new Set(['docs', 'announcement', 'reported', 'filing', 'paper', 'demo']));
   });
 
   it('refuse a kind that is not fact, analysis or heading', () => {
@@ -195,6 +195,8 @@ Append these to `items` in `desk/evals/verifier-set.json`, after `e-60`, in this
   "passages": [{ "quote": "Lumen Wallet supports session keys.", "basis": "docs", "status": "deployed" }, { "quote": "In the authors' evaluation, session keys reduced approval prompts by 80 percent.", "basis": "paper", "status": "unspecified" }],
   "flaw": "The evaluation was the authors', not that of Lumen Wallet." }
 ```
+
+**Changes made after the review of this task (the JSON above is the first form; the file holds the changed one).** Task 18 pays to read this set, and a passage whose basis or status a careful model must reject becomes a label failure that flags a supported item, so the set must not carry that noise. (1) The first passage of e-61 to e-66, e-76 to e-78 and e-88 to e-90 has `"status": "unspecified"`, not `deployed`: the Extract prompt gives `deployed` only to a source that says the thing is live or used outside the team, and "settles", "adds", "lets" and "supports" do not say that (the old items follow this). (2) e-85 to e-87 have `"basis": "demo"` (a test), so the test of the bases below expects `docs`, `announcement`, `reported`, `filing`, `paper` and `demo`. (3) The second passage of e-88 to e-90 reads `In the authors' independent evaluation, Lumen Wallet's session keys reduced approval prompts by 80 percent.` (it named no project, so the link of e-88 was stated by no passage). (4) The quote of e-82 to e-84 reads `In a notice filed on 12 March 2027, the Lowmoor Safety Board published its guidance on agent wallets and invited comments until 30 April 2027.` (a publication of guidance is not a filing). (5) e-76 reads `For an agent, proving who controls it takes one transaction, which keeps the check simple.` (the passage signs a challenge; it does not say the transaction is signed). Kept as they are, with the reasons: e-74 (a wrong outlet is `unsupported` in the second place of the triple; read misses of attribution by kind), e-77 (rejected on three grounds: a new entity, a new claim, a prediction). Task 18 reads the failures by kind (`label`, or the id of a sentence or heading), so that a label failure is not read as a miss of entailment.
 
 and change the `about` of the file to `Ninety sentences for measuring the verifier of the Desk: for each of thirty sets of passages, one sentence (or heading, or analysis sentence) that the passages support, one that says something they do not say, and one that changes what they say in a small way. The first sixty are about a made-up robot arm, the last thirty about made-up projects in AI agents and crypto. Everything in it is made up.`
 
