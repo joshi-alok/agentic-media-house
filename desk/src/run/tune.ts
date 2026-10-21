@@ -348,6 +348,7 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
     log: (line) => void logged.push(line.replace(/[\r\n]+/g, ' ')),
     ...(options.profile === undefined ? {} : { profile: options.profile }),
   };
+  built.onRetry?.(ctx.log);
   const row = blank(page.snapshot.url, page.kind, trial);
   try {
     const extracted = await runExtract(ctx, [page.snapshot], page.selected);

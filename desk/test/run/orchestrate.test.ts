@@ -6,6 +6,8 @@ import { DEMO_DATE, DEMO_URLS, demoFetcher, demoRegistry } from '../../src/demo/
 import type { DeskConfig } from '../../src/config';
 import { FetchError } from '../../src/fetch/http';
 import { FakeClient } from '../../src/model/fake';
+import { ModelError } from '../../src/model/types';
+import type { ModelClient } from '../../src/model/types';
 import { clientFromConfig } from '../../src/model/factory';
 import { FetchArtifact, VerifyArtifact, readArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
@@ -112,6 +114,26 @@ describe('runDesk: a clean story', () => {
     expect(record.budget.spent.calls).toBe(4);
     expect(record.budget.spent.inputTokens).toBeGreaterThan(0);
     expect(logs.some((line) => line.startsWith('extract: 7 claims proposed, 7 kept, 0 dropped'))).toBe(true);
+  });
+
+  it('puts a retry of a model call in the log of the run and in its record, counts the try in what the run spent, and still publishes', async () => {
+    const made = setup();
+    let failed = false;
+    const flaky = (inner: ModelClient): ModelClient => ({
+      json: async (call) => {
+        if (!failed) {
+          failed = true;
+          throw new ModelError('transport', 'the Anthropic API could not be reached: Connection error.', { unreached: true });
+        }
+        return inner.json(call);
+      },
+    });
+    const model = clientFromConfig(made.config, { kind: 'fake', fake: demoClient() }, {}, { sleep: async () => undefined }, undefined, flaky);
+    const result = await made.run({ model });
+    expect(result.outcome).toBe('published');
+    expect(made.logs.filter((line) => line.startsWith('model:'))).toEqual(['model: connection error, retrying (2 of 3)']);
+    expect(recordOf(made.dir).log).toEqual(made.logs);
+    expect(recordOf(made.dir).budget.spent.calls).toBe(5);
   });
 
   it('gives each stage the same date and folder, and reads the published pieces from the ledger folder: a story that is already published is not on the shortlist', async () => {

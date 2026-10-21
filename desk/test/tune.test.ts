@@ -697,6 +697,15 @@ describe('main: tune, what it refuses', () => {
     expect(out[0]).toBe('tune: 1 address, 1 trial each, at most 40 model calls, client api');
   });
 
+  it('tries a call that could not reach the API again, twice at most, as a run does: three calls in the row and in the budget, and the retries in the log of the trial', async () => {
+    const { call, out, err, record, dir } = tuning([RELEASE], { deps: { env: { ANTHROPIC_API_KEY: 'a-key-for-the-test-only' }, retry: { sleep: async () => undefined } } });
+    expect(await call()).toBe(0);
+    expect(record().rows[0]).toMatchObject({ status: 'failed', usage: { calls: 3, inputTokens: 0, outputTokens: 0 } });
+    expect(record().rows[0]?.note).toContain('could not be reached');
+    expect(readFileSync(path.join(dir, '01', 'trial-1', 'log.txt'), 'utf8')).toContain('model: connection error, retrying (2 of 3)\nmodel: connection error, retrying (3 of 3)\n');
+    expect([...out, ...err].join('\n')).not.toContain('a-key-for-the-test-only');
+  });
+
   it('refuses a user agent that links to a placeholder address, as a live run does, because it asks sites who it is', async () => {
     const { call, err, sent, cwd } = tuning([RELEASE], { deps: { config: undefined, env: { ANTHROPIC_API_KEY: 'k' } } });
     expect(await call()).toBe(2);

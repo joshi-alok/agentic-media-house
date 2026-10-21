@@ -220,20 +220,43 @@ describe('AnthropicClient errors from the API', () => {
     expect(error.retryable).toBe(false);
   });
 
-  it('maps a failure to reach the API, which has no HTTP status, to a transport error that is not retried', async () => {
+  it('maps a failure to reach the API, which has no HTTP status, to a transport error that is marked unreached and is not marked retryable (it has a rule of its own)', async () => {
     const failure = new Anthropic.APIConnectionError({ message: 'socket hang up' });
     const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(failure).createMessage }));
     expect(error.kind).toBe('transport');
     expect(error.retryable).toBe(false);
+    expect(error.unreached).toBe(true);
     expect(error.message).toBe('the Anthropic API could not be reached: socket hang up');
     expect(error.cause).toBe(failure);
   });
 
-  it('maps any other error thrown by the call to a transport error that is not retried', async () => {
+  it('maps a connection that timed out the same way, with the message of the SDK', async () => {
+    const failure = new Anthropic.APIConnectionTimeoutError();
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(failure).createMessage }));
+    expect(error.kind).toBe('transport');
+    expect(error.unreached).toBe(true);
+    expect(error.message).toBe('the Anthropic API could not be reached: Request timed out.');
+  });
+
+  it('maps any other error thrown by the call to a transport error that is not retried at all, since it is not known to be a failure to reach the API', async () => {
     const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(new Error('boom')).createMessage }));
     expect(error.kind).toBe('transport');
     expect(error.retryable).toBe(false);
+    expect(error.unreached).toBe(false);
     expect(error.message).toBe('the Anthropic API could not be reached: boom');
+  });
+
+  it('does not mark an error of the SDK that has no HTTP status and is not a connection error (the user aborted, a key is missing) as unreached', async () => {
+    for (const failure of [new Anthropic.APIUserAbortError(), new Anthropic.AnthropicError('Could not resolve authentication method.')]) {
+      const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(failure).createMessage }));
+      expect(error.unreached, failure.message).toBe(false);
+      expect(error.retryable, failure.message).toBe(false);
+    }
+  });
+
+  it.each([400, 401, 403, 404, 429, 500, 503, 529])('does not mark an HTTP %i as unreached: the API answered', async (status) => {
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(httpError(status)).createMessage }));
+    expect(error.unreached).toBe(false);
   });
 
   it.each([
@@ -247,6 +270,7 @@ describe('AnthropicClient errors from the API', () => {
     const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
     expect(error.kind).toBe('transport');
     expect(error.retryable).toBe(false);
+    expect(error.unreached).toBe(false);
     expect(error.message).toBe(`the Anthropic API could not be reached: ${text}`);
   });
 
@@ -339,6 +363,16 @@ describe('AnthropicClient: what a call that did not finish cost', () => {
   it('reports no cost for an error that never got an answer', async () => {
     const { createMessage } = standIn(httpError(401));
     expect((await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }))).usage).toBeUndefined();
+  });
+
+  it('does not mark a failure to reach the API in the repair call as unreached: the first reply arrived and was paid for, and a second try of the whole call would pay for it again', async () => {
+    const { createMessage } = standIn(reply('not json', { usage: { input_tokens: 10, output_tokens: 5 } }), new Anthropic.APIConnectionError({ message: 'socket hang up' }));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('transport');
+    expect(error.message).toBe('the Anthropic API could not be reached: socket hang up');
+    expect(error.unreached).toBe(false);
+    expect(error.retryable).toBe(false);
+    expect(error.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
   });
 
   it('adds the cost of the first call to a transport error of the repair', async () => {

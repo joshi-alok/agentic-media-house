@@ -3,7 +3,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASES, Claim, STATUSES } from '@robywire/gate';
 import { z } from 'zod';
 import { clientFromConfig, defaultConfig, describeIssues, sha256Hex } from '../src/index';
-import type { Environment, ModelClient, ModelUsage } from '../src/index';
+import type { Environment, ModelClient, ModelUsage, RetryOptions } from '../src/index';
 import { judgePlan } from '../src/stages/verify-model';
 import type { HeadingItem, SentenceItem, VerifyPlan } from '../src/stages/verify-model';
 import { perfectVerifier } from './scripted';
@@ -262,6 +262,8 @@ export interface EvalDeps {
   setFile?: string;
   /** What the client has spent so far, to say after a failure what the calls before it cost. The api client's own is used; a test hands in one for a client it supplies. */
   spent?: () => { calls: number; inputTokens: number; outputTokens: number };
+  /** How the api client waits between tries of a call that failed. A test hands in a wait that does not wait. */
+  retry?: RetryOptions;
 }
 
 const USAGE = 'Usage: evals:verifier [--client fake|api] [--model <name>] [--batch <number>] [--min-precision <0 to 1>] [--min-recall <0 to 1>]';
@@ -331,7 +333,8 @@ export async function main(argv: readonly string[], deps: EvalDeps): Promise<num
     client = perfectVerifier(set);
   } else {
     try {
-      const built = clientFromConfig(config, { kind: 'api' }, deps.env);
+      const built = clientFromConfig(config, { kind: 'api' }, deps.env, deps.retry ?? {});
+      built.onRetry?.((line) => deps.out(line));
       client = built.client;
       spent = built.spent;
     } catch (error) {

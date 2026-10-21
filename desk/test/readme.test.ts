@@ -62,6 +62,17 @@ describe('the README: how a replay knows how the run was made', () => {
   });
 });
 
+describe('the README: trying a model call again', () => {
+  it('says which failures a call is tried again after, how often and after how long, what is not tried again, that every try is a call of the budget, and that a retry is logged', () => {
+    const models = section('The desk workspace');
+    expect(models).toContain('A call that could not reach the API (a connection error, or a connection that timed out) is tried again at most twice, after 1 second and then 3');
+    expect(models).toContain('a call that the API answered with a 429 or a 5xx, at most three times, after 1, 2 and 4 seconds');
+    expect(models).toContain('nothing else is tried again (a 4xx, a refusal, a reply cut off at the limit, a reply that is not usable after its one repair), and no call is tried again once a reply has arrived');
+    expect(models).toContain('Every try is a call of the budget (`maxCalls`), so the retries cannot go over it');
+    expect(models).toContain('`model: connection error, retrying (2 of 3)`');
+  });
+});
+
 describe('the README: reading a page in parts', () => {
   it('says what the setting extractChunkWords does, that it is off by default, that every part is a call, that the claims are checked against the whole page, and that a replay reads the same parts', () => {
     const command = section('The desk command');

@@ -54,7 +54,7 @@ export interface ModelClient {
 
 /**
  * Why a call failed.
- * - `transport`: the request did not get an answer (network, the provider's own errors); some are `retryable`.
+ * - `transport`: the request did not get an answer (network, the provider's own errors); some are `retryable`, and a call that could not reach the provider at all is `unreached`.
  * - `schema`: the reply came but is not JSON of the shape that was asked for.
  * - `budget`: the run has used all it may spend.
  * - `unrecorded`: no scripted reply or recorded response exists for this request.
@@ -65,16 +65,22 @@ export type ModelErrorKind = 'transport' | 'schema' | 'budget' | 'unrecorded' | 
 /** The error a `ModelClient` throws when a call fails. */
 export class ModelError extends Error {
   readonly kind: ModelErrorKind;
-  /** True only for a transport error that is worth trying again (a 429 or a 5xx); false for every other kind. */
+  /** True only for a transport error that is worth trying again because the provider answered with a 429 or a 5xx; false for every other kind. */
   readonly retryable: boolean;
+  /**
+   * True only for a transport error of a call that never got an answer: the connection failed or timed out, so no reply came and the call reports no tokens. It is worth
+   * trying again, with a rule of its own (see `RetryClient`), and it is not `retryable`, which is for an answer of the provider.
+   */
+  readonly unreached: boolean;
   /** What the failed call cost, when the provider reported it: a reply cut off at its limit has spent its tokens all the same. Undefined when nothing was reported. */
   readonly usage: ModelUsage | undefined;
 
-  constructor(kind: ModelErrorKind, message: string, options: { cause?: unknown; retryable?: boolean; usage?: ModelUsage } = {}) {
+  constructor(kind: ModelErrorKind, message: string, options: { cause?: unknown; retryable?: boolean; unreached?: boolean; usage?: ModelUsage } = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'ModelError';
     this.kind = kind;
     this.retryable = kind === 'transport' && options.retryable === true;
+    this.unreached = kind === 'transport' && options.unreached === true;
     this.usage = options.usage;
   }
 }

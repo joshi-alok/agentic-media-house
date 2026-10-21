@@ -74,11 +74,15 @@ function statusOf(error: unknown): number | undefined {
   return typeof status === 'number' ? status : undefined;
 }
 
-/** An error of the call itself as a transport error; only a 429 and a 5xx are worth trying again. */
+/**
+ * An error of the call itself as a transport error; only a 429 and a 5xx, and a call that could not reach the API, are worth trying again. The SDK says that a call could not reach the
+ * API with an `APIConnectionError`, and with its subclass `APIConnectionTimeoutError` when the time ran out. An error with no status that is neither (a missing key, an abort, a bug) has the
+ * same message, but a second try would fail in the same way, so it is not marked.
+ */
 function transportError(error: unknown): ModelError {
   const message = error instanceof Error ? error.message : String(error);
   const status = statusOf(error);
-  if (status === undefined) return new ModelError('transport', `the Anthropic API could not be reached: ${message}`, { cause: error });
+  if (status === undefined) return new ModelError('transport', `the Anthropic API could not be reached: ${message}`, { cause: error, unreached: error instanceof Anthropic.APIConnectionError });
   const retryable = status === 429 || (status >= 500 && status <= 599);
   return new ModelError('transport', `the Anthropic API returned an error: ${message}`, { cause: error, retryable });
 }
@@ -93,7 +97,10 @@ function unfinished(stopReason: string | null, usage: ModelUsage): ModelError {
 /** Two costs added. */
 const addUsage = (a: ModelUsage, b: ModelUsage): ModelUsage => ({ inputTokens: a.inputTokens + b.inputTokens, outputTokens: a.outputTokens + b.outputTokens });
 
-/** The same error with the cost of an earlier call of the same request added to what it reports: the repair fails after the first call was paid for. */
+/**
+ * The same error with the cost of an earlier call of the same request added to what it reports: the repair fails after the first call was paid for. A failure to reach the API is not
+ * marked `unreached` here: a reply has arrived and been paid for, and trying the whole call again would ask for the first reply again and pay for it a second time.
+ */
 function withEarlierCost(error: unknown, earlier: ModelUsage): unknown {
   if (!(error instanceof ModelError)) return error;
   return new ModelError(error.kind, error.message, { cause: error.cause, retryable: error.retryable, usage: addUsage(error.usage ?? { inputTokens: 0, outputTokens: 0 }, earlier) });

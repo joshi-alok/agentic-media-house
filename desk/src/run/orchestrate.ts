@@ -229,6 +229,8 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
       lines.push(line);
       options.log?.(line);
     };
+    // A model call that is tried again says so in the log, as the stages do.
+    options.model.onRetry?.(log);
     const run = { runId, at: startedAt.toISOString() };
     let stage = 'start';
 

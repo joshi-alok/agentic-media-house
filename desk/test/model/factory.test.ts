@@ -24,6 +24,7 @@ afterEach(() => {
 /** Waits for nothing, so a test of retrying needs no clock. */
 const noWait = { sleep: async (): Promise<void> => undefined };
 const overloaded = (): ModelError => new ModelError('transport', 'overloaded', { retryable: true });
+const unreached = (): ModelError => new ModelError('transport', 'the Anthropic API could not be reached: Connection error.', { unreached: true });
 
 describe('clientFromConfig with the fake client', () => {
   it('asks the fake client it was given and returns its answers', async () => {
@@ -225,5 +226,35 @@ describe('clientFromConfig wrapping', () => {
     const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake }, {}, noWait);
     await expect(built.client.json(request())).rejects.toMatchObject({ kind: 'schema' });
     expect(fake.calls).toHaveLength(1);
+  });
+
+  it('retries a call that could not reach the API, twice at most, and the budget counts every try', async () => {
+    const fake = new FakeClient().script('select', unreached(), unreached(), { answer: 'third try' });
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake }, {}, noWait);
+    expect((await built.client.json(request())).value).toEqual({ answer: 'third try' });
+    expect(built.spent().calls).toBe(3);
+
+    const down = new FakeClient().script('select', unreached(), unreached(), unreached(), { answer: 'never asked for' });
+    const failing = clientFromConfig(defaultConfig(), { kind: 'fake', fake: down }, {}, noWait);
+    await expect(failing.client.json(request())).rejects.toMatchObject({ kind: 'transport', unreached: true });
+    expect(down.calls).toHaveLength(3);
+  });
+
+  it('stops a call that could not reach the API at the budget: with two calls, a call that fails twice and would work the third time ends with the budget error', async () => {
+    const config = defaultConfig();
+    config.budget.maxCalls = 2;
+    const fake = new FakeClient().script('select', unreached(), unreached(), { answer: 'never asked for' });
+    const built = clientFromConfig(config, { kind: 'fake', fake }, {}, noWait);
+    await expect(built.client.json(request())).rejects.toMatchObject({ kind: 'budget', message: 'budget spent: 2 of 2 model calls' });
+    expect(fake.calls).toHaveLength(2);
+  });
+
+  it('hands the lines about retries to whoever asks, which is how a run puts them in its log', async () => {
+    const fake = new FakeClient().script('select', unreached(), overloaded(), { answer: 'third try' });
+    const built = clientFromConfig(defaultConfig(), { kind: 'fake', fake }, {}, noWait);
+    const lines: string[] = [];
+    built.onRetry?.((line) => void lines.push(line));
+    await built.client.json(request());
+    expect(lines).toEqual(['model: connection error, retrying (2 of 3)', 'model: the API answered with an error that may pass, retrying (3 of 4)']);
   });
 });

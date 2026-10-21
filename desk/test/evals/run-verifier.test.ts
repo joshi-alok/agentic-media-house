@@ -7,6 +7,7 @@ import { DEFAULT_BATCH_SIZE, evaluateVerifier, floorFailures, formatReport, load
 import type { EvalReport, ItemResult } from '../../evals/run-verifier';
 import { lazyVerifier, perfectVerifier, scriptedVerifier, strictVerifier } from '../../evals/scripted';
 import { defaultConfig } from '../../src/index';
+import type { RetryOptions } from '../../src/index';
 import { ModelError } from '../../src/model/types';
 import type { ModelClient, ModelRequest } from '../../src/model/types';
 import { verifySystem } from '../../src/prompts/verify';
@@ -323,10 +324,17 @@ describe('formatReport', () => {
 });
 
 describe('main', () => {
-  function run(argv: string[], overrides: { client?: ModelClient; env?: Record<string, string>; spent?: () => { calls: number; inputTokens: number; outputTokens: number } } = {}) {
+  function run(argv: string[], overrides: { client?: ModelClient; env?: Record<string, string>; spent?: () => { calls: number; inputTokens: number; outputTokens: number }; retry?: RetryOptions } = {}) {
     const out: string[] = [];
     const err: string[] = [];
-    const deps = { out: (line: string) => void out.push(line), err: (line: string) => void err.push(line), env: overrides.env ?? {}, ...(overrides.client === undefined ? {} : { client: overrides.client }), ...(overrides.spent === undefined ? {} : { spent: overrides.spent }) };
+    const deps = {
+      out: (line: string) => void out.push(line),
+      err: (line: string) => void err.push(line),
+      env: overrides.env ?? {},
+      ...(overrides.client === undefined ? {} : { client: overrides.client }),
+      ...(overrides.spent === undefined ? {} : { spent: overrides.spent }),
+      ...(overrides.retry === undefined ? {} : { retry: overrides.retry }),
+    };
     return main(argv, deps).then((code) => ({ code, out, err }));
   }
 
@@ -457,6 +465,15 @@ describe('main', () => {
 
   it('accepts floors of 0 and 1, which are the ends of the range', async () => {
     expect((await run(['--min-recall', '0', '--min-precision', '1'], { client: perfectVerifier(SET) })).code).toBe(0);
+  });
+
+  it('tries a call that could not reach the API again, twice at most, as a run does, says so, and counts the three tries in what it spent (the network is not there in a test, and the SDK says so as a connection error)', async () => {
+    const { code, out, err } = await run(['--client', 'api'], { env: { ANTHROPIC_API_KEY: 'a-key-for-the-test-only' }, retry: { sleep: async () => undefined } });
+    expect(code).toBe(1);
+    expect(out).toEqual(['model: connection error, retrying (2 of 3)', 'model: connection error, retrying (3 of 3)']);
+    expect(err[0]).toContain('the evaluation failed: the Anthropic API could not be reached');
+    expect(err[1]).toBe('spent before the failure: 3 model calls, 0 input tokens, 0 output tokens');
+    expect([...out, ...err].join('\n')).not.toContain('a-key-for-the-test-only');
   });
 
   it('exits with 1 and says so when the evaluation fails', async () => {

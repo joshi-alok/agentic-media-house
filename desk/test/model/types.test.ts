@@ -57,6 +57,19 @@ describe('ModelError', () => {
     const others: ModelErrorKind[] = ['schema', 'budget', 'unrecorded', 'refused'];
     for (const kind of others) expect(new ModelError(kind, 'x', { retryable: true }).retryable, kind).toBe(false);
   });
+
+  it('is not unreached unless it says so: a call that never got an answer is a different thing from a provider that answered with an error', () => {
+    expect(new ModelError('transport', 'no answer').unreached).toBe(false);
+    expect(new ModelError('transport', 'no answer', { unreached: false }).unreached).toBe(false);
+    expect(new ModelError('transport', 'Connection error.', { unreached: true }).unreached).toBe(true);
+    expect(new ModelError('transport', 'overloaded', { retryable: true }).unreached).toBe(false);
+    expect(new ModelError('transport', 'Connection error.', { unreached: true }).retryable).toBe(false);
+  });
+
+  it('can be unreached only when it is a transport error', () => {
+    const others: ModelErrorKind[] = ['schema', 'budget', 'unrecorded', 'refused'];
+    for (const kind of others) expect(new ModelError(kind, 'x', { unreached: true }).unreached, kind).toBe(false);
+  });
 });
 
 describe('sha256Hex', () => {
