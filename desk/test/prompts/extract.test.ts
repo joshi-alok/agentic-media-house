@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EXTRACT_INSTRUCTIONS, MAX_CLAIMS, buildExtractUser, extractSystem } from '../../src/prompts/extract';
 import type { ExtractSource } from '../../src/prompts/extract';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
+import { verifySystem } from '../../src/prompts/verify';
 import { COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH } from '../../src/stages/claim-grounding';
 import { blocksOf, outsideBlocks } from '../support/prompts';
 
@@ -45,6 +46,28 @@ describe('extractSystem', () => {
 
   it('says that a status of deployed means live in production or used by people outside the team', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('deployed if it says it is live in production or used by people outside the team, planned if it says it will happen');
+  });
+
+  it('says that a passage that describes what a thing does, supports, exposes, proves or is made of, or calls it a working implementation, has the status unspecified, because the first real trial gave deployed to five such claims and the piece was held', () => {
+    const status = EXTRACT_INSTRUCTIONS.split('\n').find((line) => line.startsWith('- "status": '));
+    expect(status).toBeDefined();
+    // the first sentence of the rule is where it was, and the new guidance follows it in the same bullet
+    expect(status).toContain('otherwise unspecified. ');
+    for (const word of ['does', 'supports', 'exposes', 'proves', 'is made of', '"working implementation"', '"adds"']) expect(status).toContain(word);
+    expect(status).toContain('does not say how far it has got, so its status is unspecified.');
+    expect(status?.indexOf('does not say how far it has got')).toBeGreaterThan(status?.indexOf('otherwise unspecified.') ?? Number.POSITIVE_INFINITY);
+  });
+
+  it('says that deployed needs the quote itself to say live in production or used by people outside the team, and that in doubt the status is unspecified, because a wrong deployed makes the Desk hold the piece', () => {
+    expect(EXTRACT_INSTRUCTIONS).toContain('Use deployed only when the quote itself says that it is live in production or that people outside the team use it');
+    expect(EXTRACT_INSTRUCTIONS).toContain('When in doubt, use unspecified, because a wrong deployed makes the Desk hold the piece.');
+  });
+
+  it('gives the status the same meaning as the model check does, and names no real project in the guidance', () => {
+    const status = EXTRACT_INSTRUCTIONS.split('\n').find((line) => line.startsWith('- "status": ')) ?? '';
+    expect(status).toContain('live in production or used by people outside the team');
+    expect(verifySystem()).toContain('- deployed: the passage says it is live in production or used by people outside the team.');
+    expect(status).not.toMatch(/zkapi|ethereum|groth16|openai|ollama/i);
   });
 
   it('says that the text and the label may hold no number, date or capitalised word that the quote lacks, and no word that says how much', () => {
