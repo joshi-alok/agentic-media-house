@@ -16,7 +16,7 @@ const BASIS_MEANING: Readonly<Record<Basis, string>> = {
   announcement: "the passage is a project's or a company's own announcement",
   briefing: 'the passage says the project gave the figure in a briefing',
   demo: 'the passage describes a demonstration or a test',
-  paper: "the passage is from the authors' paper",
+  paper: "the passage is from the authors' paper, or from a research post by its authors",
   filing: 'the passage is from a regulatory filing, or is the regulator\'s own official statement',
   standard: 'the passage is from a published standard, or from the specification or the documentation of an open protocol',
   measured: 'the passage says the figure was measured by the source',

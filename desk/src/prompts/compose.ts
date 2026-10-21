@@ -146,6 +146,21 @@ export function buildComposeUser(claims: readonly Claim[], date: string): string
 }
 
 /**
+ * What the writer is told to check in each replacement before it replies, with the limit of the description of `config`. A revision that brings a new blocker (a description that has
+ * grown past its limit, a heading that has a number written in words) may have no round left to answer it, and the piece is held. It says only what the rules below already state, and
+ * only the prompt of a revision has it: the first draft is not changed.
+ */
+export function replacementChecklist(config: GateConfig = GATE): string[] {
+  return [
+    'Before you reply, check each replacement against the rules below:',
+    `- A replacement of the description is one sentence of at most ${config.descriptionMax} characters. Count the characters, and if it is longer, shorten it rather than drop a fact.`,
+    '- A replacement of a heading has no digit, no number written in words (such as "two" or "a third"), no date and no quotation mark, and is not a question. Say in words what the section says.',
+    '- Every name, number and date in a replacement of a fact sentence is one of the values of a claim that it cites.',
+    '- A replacement that fixes one problem must not bring another: read it again against the rules below before you reply.',
+  ];
+}
+
+/**
  * What the writer is told when some of the sentences and headings of its draft failed. It is told only those, with the problems found in
  * each, and the rules again: it cannot see the rest of the piece, so it cannot change it. The client adds the JSON Schema of the reply.
  */
@@ -159,6 +174,8 @@ export const reviseInstructions = (config: GateConfig = GATE): string =>
     '- for a heading: an entry with "id" and "heading", the new heading as text.',
     'The new sentence takes the place of the old one, so it stands where the old one stood. A fact sentence stays a fact sentence: a reply that rewrites one as analysis is refused.',
     ...SENTENCES,
+    '',
+    ...replacementChecklist(config),
     '',
     ...composeRules(config),
   ].join('\n');

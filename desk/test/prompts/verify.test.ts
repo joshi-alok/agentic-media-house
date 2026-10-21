@@ -62,6 +62,15 @@ describe('verifySystem', () => {
     expect(KIND_WORDS.standard).toBe('a page of a standards body, a regulator or an open protocol');
   });
 
+  // The registry allows `paper` and `docs` for a research page ("a forum of proposals, an archive of papers", ALLOWED_BASES, KIND_WORDS), and a forum post by its authors is such a page: a verifier that
+  // took `paper` to mean only the authors' paper rejected the label of a claim from a post ("The passage describes a demo, not a paper"), which no sentence can mend, so the piece was held.
+  it('tells the verifier that a paper is also a research post by its authors, as the registry allows for a research page', () => {
+    expect(VERIFY_INSTRUCTIONS).toContain("- paper: the passage is from the authors' paper, or from a research post by its authors.");
+    expect(VERIFY_INSTRUCTIONS).toContain('research post');
+    expect(ALLOWED_BASES.research).toContain('paper');
+    expect(KIND_WORDS.research).toBe('a research page');
+  });
+
   it('says what the reply is: a verdict for every item and a judgement of the labels of every claim, and no others', () => {
     expect(VERIFY_INSTRUCTIONS).toContain('"verdicts": a list with one entry for every item, no more and no fewer');
     expect(VERIFY_INSTRUCTIONS).toContain('"labels": a list with one entry for every claim');

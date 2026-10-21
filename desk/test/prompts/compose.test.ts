@@ -1,7 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { CATEGORY_VOCAB, SENTENCE_STARTERS, defaultConfig as gateDefaults } from '@robywire/gate';
 import { GOLDEN_CLAIMS, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
-import { COMPOSE_INSTRUCTIONS, COMPOSE_RULES, REVISE_INSTRUCTIONS, buildComposeUser, buildReviseUser, composeInstructions, composeRules, composeSystem, reviseSystem } from '../../src/prompts/compose';
+import { COMPOSE_INSTRUCTIONS, COMPOSE_RULES, REVISE_INSTRUCTIONS, buildComposeUser, buildReviseUser, composeInstructions, composeRules, composeSystem, configOf, replacementChecklist, reviseInstructions, reviseSystem } from '../../src/prompts/compose';
 import type { ReviseItem } from '../../src/prompts/compose';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { RUN_DATE } from '../support/candidates';
@@ -238,6 +239,64 @@ describe('reviseSystem', () => {
   it('is ASCII, and does not name a model', () => {
     expect(reviseSystem()).toMatch(/^[\x20-\x7e\n]*$/);
     expect(reviseSystem()).not.toContain('claude-');
+  });
+});
+
+// A trial on the real model ended with two pieces held because a revision brought a new blocker that no round was left to answer: a rewritten description of 171 characters
+// (the limit is 155) and a rewritten heading with a number word ("A short demo on two local nodes"). The rules were in the prompt, but the writer did not check its
+// replacement against them, so the prompt of the revision (and not the prompt of the first draft, which is not changed) says to check each replacement before replying.
+describe('the check of a replacement before the writer replies', () => {
+  const PROFILES = [undefined, 'digest', 'brief', 'explainer'] as const;
+  const HEADER = 'Before you reply, check each replacement against the rules below:';
+  const LINES = (limit: number): string[] => [
+    HEADER,
+    `- A replacement of the description is one sentence of at most ${limit} characters. Count the characters, and if it is longer, shorten it rather than drop a fact.`,
+    '- A replacement of a heading has no digit, no number written in words (such as "two" or "a third"), no date and no quotation mark, and is not a question. Say in words what the section says.',
+    '- Every name, number and date in a replacement of a fact sentence is one of the values of a claim that it cites.',
+    '- A replacement that fixes one problem must not bring another: read it again against the rules below before you reply.',
+  ];
+
+  it('is in the prompt of the revision for every profile, with the limit of the description of that profile', () => {
+    for (const profile of PROFILES) {
+      const prompt = reviseSystem(profile);
+      for (const line of LINES(configOf(profile).descriptionMax)) expect(prompt).toContain(line);
+    }
+    expect(LINES(GATE.descriptionMax)[1]).toContain('at most 155 characters');
+  });
+
+  it('takes the limit of the description from the configuration, and writes no number of its own', () => {
+    const short = reviseInstructions({ ...GATE, descriptionMax: 120 });
+    expect(short).toContain(LINES(120)[1]!);
+    expect(short).not.toContain('155');
+    expect(replacementChecklist({ ...GATE, descriptionMax: 90 }).join('\n')).toContain('at most 90 characters');
+    expect(replacementChecklist(GATE)).toEqual(LINES(GATE.descriptionMax));
+    // No literal 155 in the source of the prompts: the number is `config.descriptionMax`.
+    const source = readFileSync(new URL('../../src/prompts/compose.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/\b155\b/);
+  });
+
+  it('stands after the account of the reply and before the rules it refers to, which the prompt still gives line for line', () => {
+    const prompt = REVISE_INSTRUCTIONS;
+    expect(prompt.indexOf('A fact sentence stays a fact sentence')).toBeLessThan(prompt.indexOf(HEADER));
+    expect(prompt.indexOf(HEADER)).toBeLessThan(prompt.indexOf('The Desk checks the rules below by code'));
+    expect(prompt).toContain(COMPOSE_RULES.join('\n'));
+  });
+
+  it('is no more than five lines, adds no rule of its own, and says nothing of the title beyond what the rules say of a fact sentence', () => {
+    expect(replacementChecklist(GATE).length).toBeLessThanOrEqual(5);
+    expect(LINES(GATE.descriptionMax).join('\n')).not.toMatch(/title/i);
+  });
+
+  it('is not in the prompt of the first draft, for any profile', () => {
+    for (const profile of PROFILES) {
+      const drafts = [composeSystem(profile), composeInstructions(configOf(profile), profile)];
+      for (const draft of drafts) {
+        for (const line of LINES(configOf(profile).descriptionMax)) expect(draft).not.toContain(line);
+        expect(draft).not.toContain('Before you reply');
+        expect(draft).not.toContain('check each replacement');
+      }
+    }
+    expect(COMPOSE_INSTRUCTIONS).not.toContain(HEADER);
   });
 });
 
