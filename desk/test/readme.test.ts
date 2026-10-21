@@ -576,3 +576,16 @@ describe('the README: the runbook', () => {
   });
 });
 
+
+describe('the README: what the composer is told when a sentence is sent back', () => {
+  // A rewrite that brought a number no claim has held a piece in a real trial, so the message that sends a fact sentence back lists the values of the claims it cites. They come from a page,
+  // so the README says that they stand in a block, like every text from a page.
+  it('says that a fact sentence is sent back with the numbers, dates and names of its claims, in a block of its own, and that an analysis sentence and a heading are told the rule', () => {
+    expect(section('The desk workspace')).toContain('a fact sentence with the numbers, dates and names that the claims it cites license, listed in a block of its own');
+    const limits = section('What the Desk does not check');
+    expect(limits).toContain('**Values in a prompt.**');
+    expect(limits).toContain('they stand in a block of their own (`<id>-values`)');
+    expect(limits).toContain('For an analysis sentence');
+    expect(limits).toContain('lists no value');
+  });
+});

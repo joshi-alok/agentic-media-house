@@ -9,7 +9,8 @@ import { PLACE, provenance } from './words';
 // noted (the piece is published and the page of its receipts says so): the writer needs to know which, because a rule that blocks is worth
 // a sentence, and a rule that is noted is not worth an invented fact. The user message holds the claims, which the model may cite and
 // nothing else. A claim's text, label, quotation and values come from a web page, so they are written only inside a block that `wrapSource`
-// makes; what the Desk knows for itself (the id, the basis, the status, where the claim is from) stands outside it.
+// makes; what the Desk knows for itself (the id, the basis, the status, where the claim is from) stands outside it. The same goes for the revision of a draft: the
+// numbers, dates and names that the claims of a sentence license are values of a page too, so they are listed in a block, and only the rule that says what they are for stands outside.
 
 const GATE = defaultGateConfig();
 
@@ -157,7 +158,7 @@ export function replacementChecklist(config: GateConfig = GATE): string[] {
     'Before you reply, check each replacement against the rules below:',
     `- A replacement of the description is one sentence of at most ${config.descriptionMax} characters. Count the characters, and if it is longer, shorten it rather than drop a fact.`,
     '- A replacement of a heading has no digit, no number written in words (such as "two" or "a third"), no date and no quotation mark, and is not a question. Say in words what the section says.',
-    '- Every name, number and date in a replacement of a fact sentence is one of the values of a claim that it cites.',
+    '- Every name, number and date in a replacement of a fact sentence is one of those listed with its item, which are the values of the claims it cites, and a number is written as the claim writes it.',
     '- A replacement that fixes one problem must not bring another: read it again against the rules below before you reply.',
   ];
 }
@@ -169,7 +170,7 @@ export function replacementChecklist(config: GateConfig = GATE): string[] {
 export const reviseInstructions = (config: GateConfig = GATE): string =>
   [
     WRITER,
-    'You wrote a piece from claims, and it was checked. Some of its sentences and headings were found wanting. You are given the claims again, and only the items that failed. Each item is in a block with an id that starts with s (a sentence) or h (a heading), and the problems found in it are in the block that follows. Rewrite each item so that none of its problems remains and so that it breaks none of the rules below. Keep what was right in it. You are not given the rest of the piece, so do not try to change anything else.',
+    'You wrote a piece from claims, and it was checked. Some of its sentences and headings were found wanting. You are given the claims again, and only the items that failed. Each item is in a block with an id that starts with s (a sentence) or h (a heading), and the problems found in it are in the block that follows. After the problems of a fact sentence comes a block that lists the numbers, dates and names that the claims it cites allow: its replacement uses no other number, date or name, and writes a number as the claim writes it. Rewrite each item so that none of its problems remains and so that it breaks none of the rules below. Keep what was right in it. You are not given the rest of the piece, so do not try to change anything else.',
     '',
     'Reply with a JSON object with one field, "replacements", a list with one entry for each item you rewrite:',
     '- for a sentence: an entry with "id" (the id of the item, copied exactly) and "sentence", the new sentence.',
@@ -223,6 +224,56 @@ export function promptClaimIds(ids: readonly string[], known: ReadonlySet<string
   return { kept, dropped };
 }
 
+/** The numbers, dates and names that a fact sentence may state, as the raw text of the values of the claims it cites. */
+export interface LicensedValues {
+  numbers: string[];
+  dates: string[];
+  names: string[];
+}
+
+/**
+ * What the gate lets a fact sentence state (G4): the numbers, the dates and the names that are values of the claims it cites, by their raw text, and as names also the outlet of
+ * a claim (a sentence that reports another outlet names it). They come once each, in the order of the claims and then of their values. The raw text is written on one line (a run of
+ * whitespace is one space, and a text with nothing else is left out), so that a value cannot start a line of its own. It is text from a page and is only ever put in a block.
+ */
+export function licensedValues(claims: readonly Claim[]): LicensedValues {
+  const licensed: LicensedValues = { numbers: [], dates: [], names: [] };
+  const add = (list: string[], raw: string): void => {
+    const text = raw.replace(/\s+/gu, ' ').trim();
+    if (text !== '' && !list.includes(text)) list.push(text);
+  };
+  for (const claim of claims) {
+    for (const value of claim.values) add(value.kind === 'number' ? licensed.numbers : value.kind === 'date' ? licensed.dates : licensed.names, value.raw);
+    if (claim.source.outlet !== undefined) add(licensed.names, claim.source.outlet);
+  }
+  return licensed;
+}
+
+/** What a heading holds, said again after its problems (the checklist says it too): no value is listed, because a heading may state none. */
+const HEADING_HOLDS = 'A heading holds no digit, no number written in words and no date.';
+
+/**
+ * The rule of an analysis sentence, in the words of the rules below. The checks compare it with the fact sentences of the piece, which the writer is not given, so there is no list to
+ * show: it is told to leave out what it is not sure of.
+ */
+const ANALYSIS_HOLDS =
+  'An analysis sentence may state a number or a date only if a fact sentence of the piece contains it, and a name only if a fact sentence of the piece names it. You are not given the fact sentences: leave out any number, date or name that you are not sure a fact sentence has.';
+
+/**
+ * What an item may state, after its problems. A fact sentence (the title and the description are fact sentences) is told the numbers, dates and names of the claims it cites in a block
+ * of its own, `<id>-values`: they are text from a page, so they are never on a line outside a block, and `wrapSource` makes a tag in one plain text. Only the rule is outside the block. The
+ * claims are those whose ids `promptClaimIds` keeps, so an id that a composer made up lists nothing. An analysis sentence and a heading are told the rule they are held to.
+ */
+function describeAllowed(item: ReviseItem, byId: ReadonlyMap<string, Claim>): string {
+  if (item.kind === 'heading') return HEADING_HOLDS;
+  if (item.kind === 'analysis') return ANALYSIS_HOLDS;
+  const cited = promptClaimIds(item.claimIds, new Set(byId.keys())).kept.flatMap((id) => byId.get(id) ?? []);
+  const { numbers, dates, names } = licensedValues(cited);
+  const list = (values: string[]): string => (values.length === 0 ? 'none' : values.join('; '));
+  const listed = [`numbers: ${list(numbers)}`, `dates: ${list(dates)}`, `names: ${list(names)}`].join('\n');
+  return `Item ${item.id} may state only these numbers, dates and names, which are the values of the claims it cites. Any other number, date or name must be cut, or the claim that has it must be cited:\n${wrapSource(`${item.id}-values`, listed)}`;
+}
+
 /** The line before the block of an item: what it is, where it stands, what it cites (only the ids of the claims in `known`, see `promptClaimIds`). */
 function describeReviseItem(item: ReviseItem, known: ReadonlySet<string>): string {
   if (item.kind === 'heading') return `Item ${item.id} (the heading of a section):`;
@@ -234,15 +285,17 @@ function describeReviseItem(item: ReviseItem, known: ReadonlySet<string>): strin
 /**
  * The user message for the revision of a draft: the claims, as the writer was first given them, and then only the items that failed, in
  * the order given. Each item is in a block with its id, and the problems found in it are in a block of their own after it (a problem
- * can repeat a passage of a page, so it is data as well); what the Desk knows for itself stands outside the blocks.
+ * can repeat a passage of a page, so it is data as well); after them come what the item may state (see `describeAllowed`): for a fact sentence, a third block that lists the
+ * values of the claims it cites. What the Desk knows for itself stands outside the blocks.
  */
 export function buildReviseUser(claims: readonly Claim[], items: readonly ReviseItem[]): string {
   if (claims.length === 0) throw new Error('buildReviseUser needs at least one claim');
   if (items.length === 0) throw new Error('buildReviseUser needs at least one item: with none, the stage does not ask a model');
-  const known = new Set(claims.map((claim) => claim.id));
+  const byId = new Map(claims.map((claim) => [claim.id, claim]));
+  const known = new Set(byId.keys());
   const entries = items.map(
     (item) =>
-      `${describeReviseItem(item, known)}\n${wrapSource(item.id, item.text)}\nThe problems found in item ${item.id}:\n${wrapSource(`${item.id}-problems`, item.reasons.map((reason) => `- ${reason}`).join('\n'))}`,
+      `${describeReviseItem(item, known)}\n${wrapSource(item.id, item.text)}\nThe problems found in item ${item.id}:\n${wrapSource(`${item.id}-problems`, item.reasons.map((reason) => `- ${reason}`).join('\n'))}\n${describeAllowed(item, byId)}`,
   );
   return [`Claims (${claims.length}):`, '', claimEntries(claims), '', `Items to rewrite (${items.length}):`, '', entries.join('\n\n')].join('\n');
 }

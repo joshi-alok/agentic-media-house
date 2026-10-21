@@ -161,7 +161,8 @@ describe('runVerify: a draft that the gate sends back, and is mended by one revi
     expect(Object.keys(call ?? {}).sort()).toEqual(['effort', 'maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
     const user = call?.user ?? '';
     const blocks = blocksOf(user);
-    expect(blocks.filter((block) => !block.id.startsWith('c-')).map((block) => block.id)).toEqual([bad, `${bad}-problems`]);
+    expect(blocks.filter((block) => !block.id.startsWith('c-')).map((block) => block.id)).toEqual([bad, `${bad}-problems`, `${bad}-values`]);
+    expect(blocks.find((block) => block.id === `${bad}-values`)?.text).toBe('numbers: 12 kilograms; 1.4 metres\ndates: none\nnames: none');
     expect(blocks.find((block) => block.id === bad)?.text).toBe(INVENTED);
     expect(blocks.find((block) => block.id === `${bad}-problems`)?.text).toMatch(/^- G4_NUMBER_UNSUPPORTED: the number "15 kg" at takeaways, sentence 2 is not in any claim this sentence cites$/);
     expect(user).toBe(buildReviseUser(claims, [{ id: bad, kind: 'fact', section: 'takeaways', text: INVENTED, claimIds: ['c-8', 'c-9'], attributed: false, reasons: [blocks.find((block) => block.id === `${bad}-problems`)?.text.slice(2) as string] }]));
@@ -232,9 +233,11 @@ describe('runVerify: a draft that the gate passes and the verifier does not', ()
     await runVerify(ctx, claims, composed);
     const user = callsOf(fake, 'compose')[1]?.user ?? '';
     const blocks = blocksOf(user).filter((block) => !block.id.startsWith('c-'));
-    expect(blocks.map((block) => block.id)).toEqual([id, `${id}-problems`]);
+    // After the item and its problems comes what it may state: the values of c-1, the claim it cites (a fact sentence), in a block of their own.
+    expect(blocks.map((block) => block.id)).toEqual([id, `${id}-problems`, `${id}-values`]);
     expect(blocks[0]?.text).toBe(SENTENCE);
     expect(blocks[1]?.text).toBe(`- the model check judged it not entailed by the passages it relies on: The passages do not say it (${id}). Not stated: what the passages do not say`);
+    expect(blocks[2]?.text).toBe('numbers: none\ndates: none\nnames: Fixture Robotics; FX-1; Brindle Logistics; Tarnmoor');
     expect(outsideBlocks(user)).toContain(`Item ${id} (a fact sentence, a section, citing c-1):`);
     expect(user).not.toContain('Fixture Robotics begins');
   });
@@ -530,8 +533,9 @@ describe('reviseDraft', () => {
       { id: 'h0', reason: 'other heading problem' },
     ]);
     const blocks = blocksOf(made.fake.calls[0]?.user ?? '').filter((block) => !block.id.startsWith('c-'));
-    expect(blocks.map((block) => block.id)).toEqual(['s4', 's4-problems', 's9', 's9-problems', 'h0', 'h0-problems', 'h2', 'h2-problems']);
-    expect(blocks[3]?.text).toBe('- second\n- third');
+    // s4 and s9 are fact sentences, and each is followed by the values of its claims; the headings have none.
+    expect(blocks.map((block) => block.id)).toEqual(['s4', 's4-problems', 's4-values', 's9', 's9-problems', 's9-values', 'h0', 'h0-problems', 'h2', 'h2-problems']);
+    expect(blocks[4]?.text).toBe('- second\n- third');
   });
 
   it('sends the headings in the order of their sections whatever the order of the problems', async () => {
@@ -555,6 +559,38 @@ describe('reviseDraft', () => {
     expect(outside).toContain(`Item ${attributed} (a fact sentence, a section, citing c-19, marked attributed):`);
     expect(outside).toContain(`Item ${analysis} (an analysis sentence, a section, citing c-7, c-6):`);
     expect(outside).toContain('Item h0 (the heading of a section):');
+  });
+
+  // The failure of a real trial (runs/tune/20261021-161831/01/trial-1): the last rewrite of a sentence was "the triple costs 30000, and step 1 costs 3000", citing a claim whose numbers are
+  // 30000 and 3000. The gate does not license the 1 of "step 1" (G4_NUMBER_UNSUPPORTED), and the message to the composer did not say which numbers the claim does license, so that the composer
+  // wrote it again. The sentence is now sent back with the values of its claim, and the 1 is not among them.
+  it('sends a sentence that has "step 1" with the numbers 30000 and 3000 of the claim it cites, and the 1 is not one of them', async () => {
+    const made = stageContext(scratch);
+    const c20: Claim = {
+      ...structuredClone(GOLDEN_CLAIMS[0] as Claim),
+      id: 'c-20',
+      text: 'The triple costs 30000 gas, and step 1 costs 3000 plus a few keccak calls.',
+      label: 'the triple costs 30000',
+      span: { start: 7591, end: 7656, quote: 'the triple costs 30000, step 1 costs 3000 plus a few keccak calls' },
+      values: [{ kind: 'number', raw: '30000', normalised: '30000' }, { kind: 'number', raw: '3000', normalised: '3000' }],
+    };
+    const withIt = [...GOLDEN_CLAIMS, c20];
+    const original = draft();
+    const found = allSentences(original)[3] as { sentence: { text: string; claimIds: string[] } };
+    found.sentence.text = 'The paper says the triple costs 30000, and step 1 costs 3000 plus a few keccak calls.';
+    found.sentence.claimIds = ['c-20'];
+    const gate = runGate({ draft: original, claims: withIt }, gateContextOf(made.ctx));
+    const problems = problemsOf(original, gate, []).problems.filter((problem) => problem.id === 's3');
+    expect(problems.map((problem) => problem.reason)).toEqual([expect.stringMatching(/^G4_NUMBER_UNSUPPORTED: the number "1" at .* is not in any claim this sentence cites$/)]);
+
+    made.fake.script('compose', { replacements: [] });
+    await reviseDraft(made.ctx, withIt, original, problems);
+    const user = made.fake.calls[0]?.user ?? '';
+    const values = blocksOf(user).find((block) => block.id === 's3-values')?.text;
+    expect(values).toBe('numbers: 30000; 3000\ndates: none\nnames: none');
+    expect(values?.split('\n')[0]?.replace('numbers: ', '').split('; ')).not.toContain('1');
+    expect(outsideBlocks(user)).toContain('Item s3 may state only these numbers, dates and names, which are the values of the claims it cites.');
+    expect(blocksOf(user).find((block) => block.id === 's3-problems')?.text).toContain('the number "1" at');
   });
 
   describe('the claim ids that the composer wrote', () => {
