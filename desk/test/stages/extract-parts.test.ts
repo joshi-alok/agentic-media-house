@@ -191,6 +191,25 @@ describe('runExtract with extractChunkWords: dropped claims and duplicates', () 
     expect(logs.at(-1)).toBe('extract: 6 claims proposed, 4 kept, 0 dropped, 2 duplicates skipped');
   });
 
+  it('takes the place of a quotation to be where it starts and where it ends: a longer quotation from the same start is another place, and both claims are kept', async () => {
+    // part 1 quotes the sentence, and part 2 quotes the sentence and the words after it, which start at the same character of the page
+    const longer = fact(0, { quote: `${sentence(0)} and and` });
+    const { ctx, logs } = setup(CHUNKED(400), { claims: [fact(0)] }, { claims: [longer] }, { claims: [] });
+    const result = await runExtract(ctx, [LONG], selectedStory());
+    expect(result.artifact.claims).toHaveLength(2);
+    const [first, second] = result.artifact.claims;
+    expect(second?.span.start).toBe(first?.span.start);
+    expect(second?.span.end).toBeGreaterThan(first?.span.end ?? Number.POSITIVE_INFINITY);
+    expect(logs.at(-1)).toBe('extract: 2 claims proposed, 2 kept, 0 dropped');
+    // the same place in the other direction: the quotation that ends where the first does, and starts later
+    const shorter = fact(0, { quote: 'ships batch 0 of FX-1 arms to depot 0.', text: 'ships batch 0 of FX-1 arms to depot 0.', label: 'ships batch 0' });
+    const other = setup(CHUNKED(400), { claims: [fact(0)] }, { claims: [shorter] }, { claims: [] });
+    const again = await runExtract(other.ctx, [LONG], selectedStory());
+    expect(again.artifact.claims).toHaveLength(2);
+    expect(again.artifact.claims[1]?.span.end).toBe(again.artifact.claims[0]?.span.end);
+    expect(again.artifact.claims[1]?.span.start).toBeGreaterThan(again.artifact.claims[0]?.span.start ?? Number.POSITIVE_INFINITY);
+  });
+
   it('says duplicate in the singular for one', async () => {
     const { ctx, logs } = setup(CHUNKED(400), { claims: [fact(0)] }, { claims: [fact(0), fact(4)] }, { claims: [fact(8)] });
     await runExtract(ctx, [LONG], selectedStory());
@@ -224,6 +243,36 @@ describe('runExtract with extractChunkWords: dropped claims and duplicates', () 
     const { ctx, logs } = setup(CHUNKED(400), { claims: [fact(0, { label: 'Fixture Robotics ships batch 0 of FX-1' })] }, { claims: [fact(0), fact(4)] }, { claims: [fact(8)] });
     await runExtract(ctx, [LONG], selectedStory());
     expect(logs.at(-1)).toBe('extract: 4 claims proposed, 3 kept, 0 dropped, 1 label cut to 6 words, 1 duplicate skipped');
+  });
+
+  it('says how many duplicates were skipped in the reason for no story, and in the result, and says nothing of them when there are none', async () => {
+    const { ctx } = setup(CHUNKED(400), { claims: [fact(0)] }, { claims: [fact(0), fact(4, { quote: 'Not on the page.' })] }, { claims: [] });
+    const result = await runExtract(ctx, [LONG], selectedStory());
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe('1 of the 2 claims proposed survived the checks (1 more was a duplicate and was skipped), and at least 3 are needed to write a piece');
+    expect(result.duplicates).toBe(1);
+    const several = setup(CHUNKED(400), { claims: [fact(0), fact(1)] }, { claims: [fact(0), fact(1)] }, { claims: [] });
+    const two = await runExtract(several.ctx, [LONG], selectedStory());
+    expect(two.ok).toBe(false);
+    if (two.ok) return;
+    expect(two.reason).toBe('2 of the 2 claims proposed survived the checks (2 more were duplicates and were skipped), and at least 3 are needed to write a piece');
+    expect(two.duplicates).toBe(2);
+    const none = setup(CHUNKED(400), { claims: [fact(0)] }, { claims: [] }, { claims: [] });
+    const nothing = await runExtract(none.ctx, [LONG], selectedStory());
+    expect(nothing.ok).toBe(false);
+    if (nothing.ok) return;
+    expect(nothing.reason).toBe('1 of the 1 claims proposed survived the checks, and at least 3 are needed to write a piece');
+    expect(nothing).not.toHaveProperty('duplicates');
+  });
+
+  it('gives the number of duplicates in the result of a stage that goes on, too', async () => {
+    const { ctx } = setup(CHUNKED(400), { claims: [fact(0), fact(1), fact(2)] }, { claims: [fact(1)] }, { claims: [] });
+    const result = await runExtract(ctx, [LONG], selectedStory());
+    expect(result.ok).toBe(true);
+    expect(result.duplicates).toBe(1);
+    const whole = await runExtract(setup({}, listing).ctx, [LONG], selectedStory());
+    expect(whole).not.toHaveProperty('duplicates');
   });
 
   it('ends with no-story when too few claims survive all the parts together, with the reason of the stage', async () => {
@@ -293,10 +342,48 @@ describe('runExtract with extractChunkWords: more than one page', () => {
   });
 
   it('finds the places of duplicates page by page: the same place in another page is another place', async () => {
-    const twin: Snapshot = { ...REPORT, text: RELEASE.text };
-    const { ctx, logs } = setup(CHUNKED(400), { claims: [FROM_RELEASE] }, { claims: [{ ...FROM_RELEASE, basis: 'reported' }] });
-    const result = await runExtract(ctx, [RELEASE, twin], selectedStory());
+    // two pages with the same text, three parts each: the claim of the first part of the first page is at the same place as the claim of the first part of the second
+    const twin: Snapshot = { ...REPORT, text: LONG.text };
+    const { ctx, logs } = setup(CHUNKED(400), { claims: [fact(0)] }, { claims: [] }, { claims: [] }, { claims: [fact(0, { basis: 'reported' })] }, { claims: [] }, { claims: [] });
+    const result = await runExtract(ctx, [LONG, twin], selectedStory());
     expect(result.artifact.claims).toHaveLength(2);
+    expect(result.artifact.claims.map((claim) => claim.source.url)).toEqual([URLS.release, URLS.mercerArticle]);
     expect(logs.at(-1)).toBe('extract: 2 claims proposed, 2 kept, 0 dropped');
+  });
+});
+
+describe('runExtract with extractChunkWords: when no page is more than one part', () => {
+  // A size that is larger than every page (or pages that are short) changes nothing: the pages go to the model in the one call that the stage always made for all of them,
+  // and a recorded reply to that call is still the reply to it. Only when a page is cut does the stage call the model once for each part, and then a page that is one part is
+  // read in a call of its own (see 'more than one page' above).
+  it('makes the call it makes without the setting, for all the pages together: the same system prompt, user message and schema, so the same key of a recorded reply', async () => {
+    const reply = { claims: [{ ...fact(0), text: 'The FX-1 mounts on existing conveyor frames and needs no new safety cage.', label: 'existing conveyor frames', quote: 'The FX-1 mounts on existing conveyor frames and needs no new safety cage, the company said.', basis: 'announcement' }] };
+    const whole = setup({}, reply);
+    await runExtract(whole.ctx, SNAPSHOTS, selectedStory());
+    const sized = setup(CHUNKED(400), reply);
+    const result = await runExtract(sized.ctx, SNAPSHOTS, selectedStory());
+    expect(sized.fake.calls).toHaveLength(1);
+    expect(requestKey(sized.fake.calls[0] as ModelRequest<unknown>)).toBe(requestKey(whole.fake.calls[0] as ModelRequest<unknown>));
+    expect(blocksOf(sized.fake.calls[0]?.user ?? '').map((block) => block.id)).toEqual(['1', '2']);
+    expect(sized.fake.calls[0]?.system).toBe(extractSystem());
+    expect(sized.fake.calls[0]?.user).toBe(buildExtractUser([{ tier: 1, kind: 'company-newsroom', text: RELEASE.text }, { tier: 2, kind: 'tier2', outlet: 'Mercer Wire', text: REPORT.text }]));
+    expect(jsonSchemaOf(sized.fake.calls[0]?.schema)).toEqual(jsonSchemaOf(extractReplySchema(2)));
+    expect(sized.logs).toEqual(whole.logs);
+    expect(result.artifact).toEqual((await runExtract(setup({}, reply).ctx, SNAPSHOTS, selectedStory())).artifact);
+  });
+
+  it('takes a claim of the second page by its number, as it does without the setting', async () => {
+    const reported = { text: 'The arm is priced from $38,000.', label: 'priced from $38,000', type: 'number', quote: 'The arm is priced from $38,000, the outlet reported.', values: [{ kind: 'number', raw: '$38,000', normalised: '38000', unit: 'USD' }], basis: 'reported', status: 'unspecified', source: 2 };
+    const { ctx, fake } = setup(CHUNKED(400), { claims: [reported] });
+    const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
+    expect(fake.calls).toHaveLength(1);
+    expect(result.artifact.claims[0]?.source.url).toBe(URLS.mercerArticle);
+  });
+
+  it('cuts a page and calls once for each part, and the page that is whole in a call of its own, as soon as one page is more than one part', async () => {
+    const { ctx, fake } = setup(CHUNKED(400), { claims: [] }, { claims: [] }, { claims: [] }, { claims: [] });
+    await runExtract(ctx, [RELEASE, snapshotOf(pageOf(12))], selectedStory());
+    expect(fake.calls).toHaveLength(4);
+    expect(fake.calls.map((call) => (call.system === extractSystem({ inParts: true }) ? 'part' : 'whole'))).toEqual(['whole', 'part', 'part', 'part']);
   });
 });

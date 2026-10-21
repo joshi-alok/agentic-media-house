@@ -88,6 +88,7 @@ describe('the README: reading a page in parts', () => {
     const command = section('The desk command');
     expect(command).toContain('The setting `extractChunkWords` (none by default, so that each page is read whole in one call)');
     expect(command).toContain('into at most 6 parts');
+    expect(command).toContain('when no page of a story is more than one part, the run makes the one call for all the pages that it makes without the setting');
     expect(command).toContain('one call to the model for each part');
     expect(command).toContain('the claims of every part are still checked against the whole page');
     expect(command).toContain('`desk replay` reads the page in the same parts');

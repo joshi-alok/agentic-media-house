@@ -75,7 +75,9 @@ function wordsOf(text: string, count: number): { starts: Int32Array; breaks: Uin
 function placesOf(breaks: Uint8Array, count: number, limit: number): number[] {
   const paragraph = breaks.indexOf(0, 1) >= 0 ? 0 : 1;
   let places = [0, count];
-  for (let strength = 0; strength <= 3; strength++) {
+  for (let strength = paragraph; strength <= 3; strength++) {
+    // A piece that is at most `limit` words is never cut again, so when none is longer the work is done; this keeps a page of a million short lines from being copied four times.
+    if (strength > paragraph && !places.some((place, at) => at > 0 && place - (places[at - 1] as number) > limit)) break;
     const next = [0];
     for (let at = 0; at + 1 < places.length; at++) {
       const from = places[at] as number;

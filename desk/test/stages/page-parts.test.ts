@@ -172,6 +172,15 @@ describe('splitIntoParts: where it cuts', () => {
     // a last part of exactly half the target stays
     expect(sizesOf(splitIntoParts(paragraphs([330, 600, 200]), 400))).toEqual([330, 600, 200]);
   });
+
+  it('keeps joining while the last part is under half the target: the part that took the short one can be short itself', () => {
+    // 85 words and a target of 15: six parts of 18, 13, 18, 29, 6 and 1 words. The last (1 word) is joined to the one before it, which is then 7 words, under half of 15, and is joined in its turn.
+    const page = paragraphs([18, 13, 18, 29, 6, 1]);
+    const parts = splitIntoParts(page, 15);
+    expect(sizesOf(parts)).toEqual([18, 13, 18, 36]);
+    expect(parts.join('')).toBe(page);
+    expect(parts.at(-1)?.startsWith('p3w0 ')).toBe(true);
+  });
 });
 
 describe('splitIntoParts: whatever the page', () => {
@@ -242,9 +251,9 @@ describe('splitIntoParts: whatever the page', () => {
 });
 
 describe('splitIntoParts: a hostile page', () => {
-  // `maxBytes` lets a page of 2,000,000 bytes through the fetcher and `maxPageChars` cuts its text to 150,000 characters, but the split must not depend on either: it takes time in proportion
-  // to the length of the text, whatever the text is.
-  const SIZE = 2_000_000;
+  // `maxPageChars` cuts the text of a page to 150,000 characters before Extract sees it, but the split must not depend on that: it takes time in proportion to the length of the text, whatever
+  // the text is. These texts are six times as long as the cut allows, and a run of the whole suite has many files at work at once, so the limit is far from the time that one of them takes alone.
+  const SIZE = 1_000_000;
   const milliseconds = (run: () => void): number => {
     const start = performance.now();
     run();
@@ -254,11 +263,11 @@ describe('splitIntoParts: a hostile page', () => {
   it.each([
     ['one line of 150,000 characters of short words', 'ab '.repeat(50_000)],
     ['one line of 150,000 characters with no space', 'a'.repeat(150_000)],
-    ['one line of two million characters of short words', 'a '.repeat(SIZE / 2)],
+    ['one line of a million characters of short words', 'a '.repeat(SIZE / 2)],
     ['only line feeds', '\n'.repeat(SIZE)],
     ['only spaces and line feeds', ' \n'.repeat(SIZE / 2)],
     ['100,000 lines of one word', 'w\n'.repeat(100_000)],
-    ['a million lines of one word', 'w\n'.repeat(SIZE / 2)],
+    ['300,000 lines of one word', 'w\n'.repeat(300_000)],
     ['100,000 paragraphs of one word', 'w\n\n'.repeat(100_000)],
     ['sentences of one word', 'a. '.repeat(SIZE / 3)],
     ['full stops followed by a long run of closing brackets', `a.${')'.repeat(1000)} `.repeat(SIZE / 1004)],

@@ -278,14 +278,14 @@ https://<host in sources.yml>/<path of one page>
 
 ### 18. Run the first trial (outward: it spends money)
 
-Start with **one page, one trial, at most 10 calls**. A page goes through Extract (1 call), Compose (1 call) and Verify (1 call for the model check, and 2 more for each round of revision, counting the one extra round that a draft gets when the model check rejects it in the last round), so one trial is 3 to 9 calls. With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page, so a trial can be up to 14 calls and the `--max-calls` of this step and of the next may need raising. `--config desk.config.yml` gives the real user agent; the bucket is not used. The key is read from its file for this one command.
+Start with **one page, one trial, at most 14 calls**. A page goes through Extract (1 call), Compose (1 call) and Verify (1 call for the model check, and 2 more for each round of revision, counting the one extra round that a draft gets when the model check rejects it in the last round), so one trial is 3 to 9 calls for a page that is read whole. With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page: a page of 3 parts can reach 11 calls (a trial of one used 10: 3 for Extract, 1 for Compose, 3 model checks and 3 revisions), a page of 6 parts can reach 14, and the `--max-calls` of the next step may need raising too. `--config desk.config.yml` gives the real user agent; the bucket is not used. The key is read from its file for this one command.
 
 ```bash
 grep -m 1 '^https' runs/tune-urls.txt > runs/tune-first.txt
-ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-first.txt --config desk.config.yml --max-calls 10
+ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-first.txt --config desk.config.yml --max-calls 14
 ```
 
-**Expect:** a line `tune: 1 address, 1 trial each, at most 10 model calls, client api`, the folder `runs/tune/<stamp>`, then the block of the page: its kind, the claims proposed, dropped (and by which rule), and kept, what the gate said of the draft, what the model check said, how Verify ended, and the tokens; then the total. Exit code 0, unless the 10 calls ran out, which exits 1 and says so. Write down the tokens: they tell what a page costs. Add the prices of the model to a settings file of your own (not the committed one) if you want dollars: `prices:` with `inputPerMillion` and `outputPerMillion`, read from the Anthropic price list.
+**Expect:** a line `tune: 1 address, 1 trial each, at most 14 model calls, client api`, the folder `runs/tune/<stamp>`, then the block of the page: its kind, the claims proposed, dropped (and by which rule), and kept, what the gate said of the draft, what the model check said, how Verify ended, and the tokens; then the total. Exit code 0, unless the 14 calls ran out, which exits 1 and says so. Write down the tokens: they tell what a page costs. Add the prices of the model to a settings file of your own (not the committed one) if you want dollars: `prices:` with `inputPerMillion` and `outputPerMillion`, read from the Anthropic price list.
 
 ### 19. Read the table, and judge the pages (outward: it spends money)
 
@@ -556,7 +556,7 @@ gh secret set ANTHROPIC_API_KEY --repo joshi-alok/agentic-media-house < ~/.confi
 ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-first.txt --config desk.config.yml --max-calls 3
 ```
 
-**Expect:** the secret is set, and the tuning run (at most 3 calls) gets an answer from the model, with the new key. Then revoke the old key in the Console. A run of the workflow before then would still work, and after it would fail with an error of authentication.
+**Expect:** the secret is set, and the tuning run (at most 3 calls) gets an answer from the model, with the new key. Three calls are Extract, Compose and the model check of a first page that is read whole (one part, up to about 600 words). With `extractChunkWords` in `desk.config.yml`, a first page of 3 parts or more spends the 3 calls on its parts and the run ends `stopped` with exit code 1: the key worked all the same, as the answers show; for an exit code 0, put a short page in `runs/tune-first.txt` first. Then revoke the old key in the Console. A run of the workflow before then would still work, and after it would fail with an error of authentication.
 
 ### 38. Rotate the token that deploys and the key of the bucket (outward)
 

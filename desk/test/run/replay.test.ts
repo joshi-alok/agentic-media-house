@@ -9,6 +9,7 @@ import type { ModelRequest } from '../../src/model/types';
 import { LocalEvidenceStore } from '../../src/run/evidence';
 import { REPLAYED, refusingFetcher, replayRun } from '../../src/run/replay';
 import type { ReplayOptions } from '../../src/run/replay';
+import { extractSystem } from '../../src/prompts/extract';
 import { splitIntoParts } from '../../src/stages/page-parts';
 import { SELECT, recordOf, setupRun, unentailed } from '../support/run';
 import type { RunSetup } from '../support/run';
@@ -384,6 +385,42 @@ describe('replayRun: a run that read its page in parts (extractChunkWords)', () 
     expect(report.log).toContain(`extract: ${DEMO_URLS.release} is read in 3 parts`);
     expect(report.log).toContain(`extract: ${DEMO_URLS.mercerArticle} is read in 2 parts`);
     expect(report.log).toContain('extract: 7 claims proposed, 7 kept, 0 dropped');
+  });
+
+  it('reads the pages whole, in the one call that it always made for all of them, when no page is more than one part: a size of 400 on the made-up world is the run without a size, the same cassettes included', async () => {
+    const plain = await recordedRun();
+    const sized = await recordedRun({ config: { extractChunkWords: 400 } });
+    expect(sized.result.outcome).toBe('published');
+    expect(sized.fake.calls.filter((call) => call.role === 'extract')).toHaveLength(1);
+    expect(recordOf(sized.dir).extractChunkWords).toBe(400);
+    expect(sized.logs.some((line) => line.includes('is read in'))).toBe(false);
+    // the same requests, so the same keys of the cassettes, and the same artifacts
+    expect(cassettesOf(sized.dir).map((cassette) => cassette.key).sort()).toEqual(cassettesOf(plain.dir).map((cassette) => cassette.key).sort());
+    for (const name of REPLAYED) expect(readFileSync(path.join(sized.dir, `${name}.json`), 'utf8'), name).toBe(readFileSync(path.join(plain.dir, `${name}.json`), 'utf8'));
+    // it replays equal, with the size of the record or without any
+    expect((await replayRun(sized.dir, sized.replay)).equal).toBe(true);
+    const { extractChunkWords: _none, ...without } = sized.replay.config;
+    expect((await replayRun(sized.dir, { ...sized.replay, config: without })).equal).toBe(true);
+    // a record with no size replays whole, whatever the settings now say
+    expect((await replayRun(plain.dir, { ...plain.replay, config: { ...plain.replay.config, extractChunkWords: 400 } })).equal).toBe(true);
+  });
+
+  it('reads a page that is one part in a call of its own when another page of the story is several: the release in two parts and the article, one part, are three calls, and the replay is equal', async () => {
+    // 50 words: the release (119 words) is two parts, the article (68 words) is one
+    const fake = new FakeClient().script('select', SELECT).script('extract', partListing, partListing, partListing).script('compose', DEMO_REPLY).script('verify', clearingVerifier);
+    const { dir, replay, result } = await recordedRun({ config: { extractChunkWords: 50 }, fake });
+    expect(result.outcome).toBe('published');
+    const extracts = fake.calls.filter((call) => call.role === 'extract');
+    expect(extracts).toHaveLength(3);
+    expect(extracts.map((call) => blocksOf(call.user).map((block) => block.id))).toEqual([['1'], ['1'], ['1']]);
+    expect(extracts.map((call) => /The text is part (\d) of (\d)|The page has about (\d+) words/.exec(call.user)?.[0])).toEqual(['The text is part 1 of 2', 'The text is part 2 of 2', 'The page has about 70 words']);
+    expect(extracts.map((call) => call.system === extractSystem({ inParts: true }))).toEqual([true, true, false]);
+    expect(recordOf(dir).budget.spent.calls).toBe(6);
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.equal).toBe(true);
+    expect(report.log).toContain(`extract: ${DEMO_URLS.release} is read in 2 parts`);
+    expect(report.log.some((line) => line.includes(`${DEMO_URLS.mercerArticle} is read in`))).toBe(false);
   });
 
   it('keeps the numbers of the claims of the story, which are the order of the page, so that the piece cites what it cited', async () => {

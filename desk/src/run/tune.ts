@@ -106,8 +106,8 @@ export const TuneRow = z.strictObject({
   status: z.enum(TUNE_STATUSES),
   /** Why, for every status but `judged`. */
   note: z.string().nullable(),
-  /** Extract: what the model proposed, what survived, and which rule dropped how many (a claim with two reasons is counted under both). */
-  claims: z.strictObject({ proposed: count, survivors: count, dropped: codes }).nullable(),
+  /** Extract: what the model proposed, what survived, and which rule dropped how many (a claim with two reasons is counted under both). `duplicates`, when there are some, is how many of the claims proposed were skipped as duplicates of an earlier part's. */
+  claims: z.strictObject({ proposed: count, survivors: count, dropped: codes, duplicates: count.optional() }).nullable(),
   /** Compose: what the gate said of the draft that the composer wrote first. */
   composed: z.strictObject({ route: z.enum(ROUTES), codes, notes: codes.optional(), words: count.optional() }).nullable(),
   /** Verify: what the model check said of the first draft that the gate cleared (a draft that the gate fails is not shown to the model). */
@@ -206,7 +206,8 @@ export function rowLines(row: TuneRow, position: { page: number; pages: number; 
   const extras = (found: { notes?: Record<string, number>; words?: number }): string =>
     `${found.words === undefined ? '' : `; ${plural(found.words, 'word')}`}${found.notes === undefined ? '' : `; notes: ${listOf(found.notes)}`}`;
   if (row.claims !== null) {
-    lines.push(`  claims proposed: ${row.claims.proposed}`, `  claims dropped: ${listOf(row.claims.dropped)}`, `  claims surviving: ${row.claims.survivors}`);
+    const duplicates = row.claims.duplicates ?? 0;
+    lines.push(`  claims proposed: ${row.claims.proposed}${duplicates === 0 ? '' : ` (${plural(duplicates, 'duplicate')} skipped)`}`, `  claims dropped: ${listOf(row.claims.dropped)}`, `  claims surviving: ${row.claims.survivors}`);
   }
   if (row.composed !== null) lines.push(`  composed draft: the gate says ${row.composed.route}${row.composed.route === 'publish' ? '' : ` (${listOf(row.composed.codes)})`}${extras(row.composed)}`);
   if (row.modelCheck !== null) {
@@ -358,7 +359,8 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
     const extracted = await runExtract(ctx, [page.snapshot], page.selected);
     const dropped = countBy(extracted.artifact.dropped.flatMap((claim) => claim.reasons.map((reason) => reason.code)));
     const survivors = extracted.artifact.claims.length;
-    row.claims = { proposed: survivors + extracted.artifact.dropped.length, survivors, dropped };
+    const duplicates = extracted.duplicates ?? 0;
+    row.claims = { proposed: survivors + extracted.artifact.dropped.length + duplicates, survivors, dropped, ...(duplicates === 0 ? {} : { duplicates }) };
     if (!extracted.ok) {
       row.status = 'too-few-claims';
       row.note = extracted.reason;

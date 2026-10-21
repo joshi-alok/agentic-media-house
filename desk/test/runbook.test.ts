@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseArgs, USAGE } from '../src/cli';
+import { defaultConfig } from '../src/config';
 import { REASON_LABELS } from '../../site/src/lib/reasons';
 import { CHECK_IDS, severityOf } from '@robywire/gate';
 import { useScratch } from './support/context';
@@ -415,12 +416,36 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
     expect(step.text).toContain('a standard or a proposal');
   });
 
-  it('says, in the first trial, that with the size of the parts of a page in the settings Extract is one call for each part, at most 6, and that a trial is up to 14 calls', () => {
+  it('says, in the first trial, that with the size of the parts of a page in the settings Extract is one call for each part, at most 6, how many calls a page of 3 and a page of 6 parts can reach, and gives the command the 14 calls that the worst of them needs', () => {
     const step = stepTitled(/^Run the first trial/);
-    expect(step.text).toContain('so one trial is 3 to 9 calls');
-    expect(step.text).toContain('With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page, so a trial can be up to 14 calls and the `--max-calls` of this step and of the next may need raising.');
-    // 6 parts, the composer, the model check, and 2 calls for each of the 3 rounds of revision
-    expect(6 + 1 + 1 + 2 * 3).toBe(14);
+    const { maxRevisionRounds, modelCheckRevisions } = defaultConfig();
+    const rounds = maxRevisionRounds + modelCheckRevisions;
+    // the parts, the composer, a model check for the draft and for each round of revision, and a revision for each round
+    const calls = (parts: number): number => parts + 1 + (rounds + 1) + rounds;
+    expect(calls(1)).toBe(9);
+    expect(calls(3)).toBe(11);
+    expect(calls(6)).toBe(14);
+    expect(step.text).toContain('Start with **one page, one trial, at most 14 calls**.');
+    expect(step.text).toContain('so one trial is 3 to 9 calls for a page that is read whole.');
+    expect(step.text).toContain(
+      'With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page: a page of 3 parts can reach 11 calls (a trial of one used 10: 3 for Extract, 1 for Compose, 3 model checks and 3 revisions), a page of 6 parts can reach 14, and the `--max-calls` of the next step may need raising too.',
+    );
+    // the command and what is expected of it say the same number, and it is enough for the worst page
+    const command = step.blocks.flatMap((block) => block.lines).find((line) => line.includes('desk -- tune')) ?? '';
+    expect(Number(/--max-calls (\d+)/.exec(command)?.[1])).toBeGreaterThanOrEqual(calls(6));
+    expect(step.text).toContain('`tune: 1 address, 1 trial each, at most 14 model calls, client api`');
+    expect(step.text).toContain('unless the 14 calls ran out');
+    expect(step.text).not.toMatch(/\b10 (model )?calls/);
+  });
+
+  it('says, in the rotation of the key, that the 3 calls are the three steps of a page that is one part, and that a first page of 3 parts or more ends stopped with exit code 1', () => {
+    const step = stepTitled(/^Rotate the key of the model/);
+    const command = step.blocks.flatMap((block) => block.lines).find((line) => line.includes('desk -- tune')) ?? '';
+    expect(command).toContain('--max-calls 3');
+    expect(step.text).toContain('the tuning run (at most 3 calls) gets an answer from the model, with the new key.');
+    expect(step.text).toContain('Three calls are Extract, Compose and the model check of a first page that is read whole (one part, up to about 600 words).');
+    expect(step.text).toContain('With `extractChunkWords` in `desk.config.yml`, a first page of 3 parts or more spends the 3 calls on its parts and the run ends `stopped` with exit code 1: the key worked all the same, as the answers show');
+    expect(step.text).toContain('for an exit code 0, put a short page in `runs/tune-first.txt` first.');
   });
 
   it('records, in the questions that the trials left open, that the model check judges analysis', () => {

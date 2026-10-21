@@ -70,7 +70,8 @@ export const DeskConfig = z.strictObject({
    * Extract: read each page in parts of about this many words, one call to the model for each part, so that the model gives each part a full pass and a long page yields more claims
    * (a model given a whole page of fifteen hundred words takes the facts of its first paragraphs and stops). A page is cut by code, between paragraphs, into at most 6 parts, and a page
    * of at most one and a half times this many words is one part; the claims of every part are still checked against the whole page. Each part is a model call, so a page costs up to 6
-   * calls of the budget. Absent: one call for all the pages, which is what the tests and the demo use. The file of settings of the daily run names one.
+   * calls of the budget; when no page is more than one part, nothing is cut and the one call for all the pages is made, as without the setting. Absent: one call for all the pages, which is what the tests and the demo use.
+   * The file of settings of the daily run names one.
    */
   extractChunkWords: count.optional(),
   /** Verify: how many times a draft goes back to the composer before it is held (`modelCheckRevisions` adds rounds for a rejection by the model check). */

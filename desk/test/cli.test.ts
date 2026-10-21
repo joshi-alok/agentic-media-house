@@ -302,6 +302,27 @@ describe('main: usage errors', () => {
   });
 });
 
+describe('main: run --dry --client fake --sources fixtures, with a size of the parts of a page in the settings', () => {
+  it('runs the made-up story as it runs without the size, because neither of its two pages is more than one part of 400 words: one call for Extract, the same cassettes and artifacts, and a replay that is equal', async () => {
+    const plain = setup();
+    expect(await plain.call(...DRY_DEMO)).toBe(0);
+    const sized = setup();
+    sized.deps.config = { ...sized.deps.config!, extractChunkWords: 400 };
+    expect(await sized.call(...DRY_DEMO)).toBe(0);
+    expect(sized.err).toEqual([]);
+    expect(sized.out).toContain('outcome: published');
+    expect(sized.out.some((line) => line.includes('is read in'))).toBe(false);
+    const dirOf = (cwd: string): string => path.join(cwd, 'runs', DEMO_DATE);
+    expect(readdirSync(path.join(dirOf(sized.cwd), 'cassettes')).sort()).toEqual(readdirSync(path.join(dirOf(plain.cwd), 'cassettes')).sort());
+    for (const name of ['04-extract', '05-compose', '06-verify']) {
+      expect(readFileSync(path.join(dirOf(sized.cwd), `${name}.json`), 'utf8'), name).toBe(readFileSync(path.join(dirOf(plain.cwd), `${name}.json`), 'utf8'));
+    }
+    sized.out.length = 0;
+    expect(await sized.call('replay', dirOf(sized.cwd))).toBe(0);
+    expect(sized.out).toContain('replay: equal');
+  });
+});
+
 describe('main: run --dry --client fake --sources fixtures', () => {
   it('runs the made-up story and ends published, in a dry run, with exit code 0', async () => {
     const { call, out, err } = setup();

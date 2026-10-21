@@ -60,9 +60,12 @@ type ProposedClaim = z.infer<ReturnType<typeof extractReplySchema>>['claims'][nu
 /**
  * What the Extract stage hands on. With at least `config.minClaims` claims kept, `artifact` is what was written. With fewer there
  * is not enough to write a piece from, and the run ends with the outcome `no-story`; `reason` says why, and the artifact is
- * written all the same, with the claims that survived and the ones that did not.
+ * written all the same, with the claims that survived and the ones that did not. `duplicates`, present only when it is more than 0, is how many claims were skipped because
+ * a claim kept from an earlier part of the page was quoted at the same place (see `runExtract`): the artifact does not record them.
  */
-export type ExtractResult = { ok: true; artifact: ExtractArtifact } | { ok: false; outcome: 'no-story'; reason: string; artifact: ExtractArtifact };
+export type ExtractResult =
+  | { ok: true; artifact: ExtractArtifact; duplicates?: number }
+  | { ok: false; outcome: 'no-story'; reason: string; artifact: ExtractArtifact; duplicates?: number };
 
 /**
  * What kind of page a snapshot is, for the check of its claims' basis. A page of another outlet (tier 2) is `tier2` whatever its
@@ -89,10 +92,12 @@ const ALLOW_LIST = defaultContext().nameAllowList;
  * rest are kept, numbered `c-1`, `c-2` and so on in the order of the reply, with the quoted span as the page has it. A label of more than
  * six words is cut to six first (`shortenLabel`), so that a claim is not lost for the length of its label, and the log line says how many labels were cut.
  *
- * With `config.extractChunkWords` each page is read in parts instead (`splitIntoParts`), one call for each part, the pages in order and the parts of a page in order, each call showing
- * one block, numbered 1, that holds the part (a page that is one part is shown whole, in the call that it has without the setting). The claims of every part are checked against the
- * whole page, as above, and numbered `c-1`, `c-2` and so on across the parts; the place of a dropped claim is its place among all the claims proposed, over all the replies in the
- * order of the calls. A claim whose quotation is where a claim kept from an earlier part of the same page is quoted is a duplicate: it is skipped, is not a dropped claim, and the log says how many.
+ * With `config.extractChunkWords` the pages are cut into parts (`splitIntoParts`), and when at least one page is more than one part each page is read by itself, one call for each part, the pages
+ * in order and the parts of a page in order, each call showing one block, numbered 1, that holds the part (a page that is one part is shown whole, in a call of its own). When no page is more than
+ * one part, nothing is read in parts: the stage makes the one call for all the pages that it makes without the setting, so that a short page, or a size larger than the pages, changes nothing
+ * and a recorded reply to the call is still the reply to it. The claims of every part are checked against the whole page, as above, and numbered `c-1`, `c-2` and so on across the parts; the place
+ * of a dropped claim is its place among all the claims proposed, over all the replies in the order of the calls. A claim whose quotation is where a claim kept from an earlier part of the same page
+ * is quoted is a duplicate: it is skipped, is not a dropped claim, and the log says how many.
  */
 export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selected: SelectArtifact): Promise<ExtractResult> {
   if (selected.chosen === null) throw new Error('runExtract needs a story: the Select stage chose none');
@@ -150,12 +155,14 @@ export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selec
   };
 
   const chunkWords = ctx.config.extractChunkWords;
-  if (chunkWords !== undefined) {
+  const partsOfPages = chunkWords === undefined ? [] : pages.map(({ snapshot }) => splitIntoParts(snapshot.text, chunkWords));
+  if (partsOfPages.some((parts) => parts.length > 1)) {
     // One call for each part, one after the other: the claims of a part are numbered after those of the parts before it, and a part shows the model one block, numbered 1, whichever page it is of.
+    // A page that is one part is read whole, in a call of its own.
     let place = 0;
-    for (const page of pages) {
+    for (const [pageAt, page] of pages.entries()) {
       const { snapshot, kind } = page;
-      const parts = splitIntoParts(snapshot.text, chunkWords);
+      const parts = partsOfPages[pageAt] as string[];
       const whole = parts.length === 1;
       if (!whole) ctx.log(`extract: ${snapshot.url} is read in ${parts.length} parts`);
       const pageWords = wordsIn(snapshot.text);
@@ -200,9 +207,11 @@ export async function runExtract(ctx: StageContext, snapshots: Snapshot[], selec
   const cuts = cut === 0 ? '' : `, ${cut} ${cut === 1 ? 'label' : 'labels'} cut to ${MAX_LABEL_WORDS} words`;
   const skipped = duplicates === 0 ? '' : `, ${duplicates} ${duplicates === 1 ? 'duplicate' : 'duplicates'} skipped`;
   ctx.log(`extract: ${claims.length + dropped.length + duplicates} claims proposed, ${claims.length} kept, ${dropped.length} dropped${cuts}${skipped}`);
+  const skippedToo = duplicates === 0 ? {} : { duplicates };
   if (claims.length < ctx.config.minClaims) {
-    const why = pages.length === 0 ? 'no page of the story is a known kind of source' : `${claims.length} of the ${claims.length + dropped.length} claims proposed survived the checks`;
-    return { ok: false, outcome: 'no-story', reason: `${why}, and at least ${ctx.config.minClaims} are needed to write a piece`, artifact };
+    const more = duplicates === 0 ? '' : ` (${duplicates} more ${duplicates === 1 ? 'was a duplicate and was' : 'were duplicates and were'} skipped)`;
+    const why = pages.length === 0 ? 'no page of the story is a known kind of source' : `${claims.length} of the ${claims.length + dropped.length} claims proposed survived the checks${more}`;
+    return { ok: false, outcome: 'no-story', reason: `${why}, and at least ${ctx.config.minClaims} are needed to write a piece`, artifact, ...skippedToo };
   }
-  return { ok: true, artifact };
+  return { ok: true, artifact, ...skippedToo };
 }

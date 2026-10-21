@@ -889,6 +889,25 @@ describe('main: tune, the size of the parts of a page (extractChunkWords)', () =
     expect(made.record().total.calls).toBe(5);
   });
 
+  it('counts the duplicates that Extract skipped among the claims proposed, and says how many, in the table and in the record; and says nothing when there are none', async () => {
+    // the second part lists a claim of the first part again
+    const again = (request: ModelRequest<unknown>) => ({ claims: [...partListing(request).claims, DEMO_CLAIMS[0]] });
+    const client = new FakeClient().script('extract', partListing, again, partListing).script('compose', DEMO_REPLY).script('verify', clearingVerifier);
+    const made = tuning([RELEASE], { deps: { tuneClient: client } });
+    parted(made);
+    expect(await made.call('--client', 'fake')).toBe(0);
+    expect(made.out).toContain('  claims proposed: 8 (1 duplicate skipped)');
+    expect(made.out).toContain('  claims surviving: 7');
+    expect(made.record().rows[0]?.claims).toEqual({ proposed: 8, survivors: 7, dropped: {}, duplicates: 1 });
+    const plain = tuning([RELEASE], { deps: { tuneClient: partedStory() } });
+    parted(plain);
+    expect(await plain.call('--client', 'fake')).toBe(0);
+    expect(plain.out).toContain('  claims proposed: 7');
+    expect(plain.record().rows[0]?.claims).toEqual({ proposed: 7, survivors: 7, dropped: {} });
+    const lines = rowLines({ ...plain.record().rows[0]!, claims: { proposed: 9, survivors: 7, dropped: {}, duplicates: 2 } }, { page: 1, pages: 1, trials: 1 }, undefined);
+    expect(lines).toContain('  claims proposed: 9 (2 duplicates skipped)');
+  });
+
   it('reads the size from a file of settings, as it reads the prices', async () => {
     const client = partedStory();
     const made = tuning([RELEASE], { deps: { tuneClient: client, config: undefined } });
