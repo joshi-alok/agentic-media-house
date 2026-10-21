@@ -1,11 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseArgs, USAGE } from '../src/cli';
-import { tier1Newsrooms, tier2Feeds } from '../src/index';
 import { REASON_LABELS } from '../../site/src/lib/reasons';
-import { CHECK_IDS, loadSources } from '@robywire/gate';
+import { CHECK_IDS } from '@robywire/gate';
 import { useScratch } from './support/context';
 import { ISOLATED, git } from './support/repo';
 import { secretsIn } from './support/secrets';
@@ -360,15 +359,37 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
     expect(TEXT).toContain('G7 (`G7_ANALYSIS_*`');
   });
 
-  it('forces a hold in the rehearsal by a command that makes a registry that is valid and has no primary source and still has feeds', () => {
+  it('forces a hold in the rehearsal by a command that makes the least number of sections 99, so that no draft can be mended by a sentence', () => {
     const rehearsal = stepTitled(/^Rehearse a held piece/);
     const command = rehearsal.blocks.flatMap((block) => block.lines).find((line) => line.startsWith('node -e "'))!;
     const dir = scratch();
-    writeFileSync(path.join(dir, 'sources.yml'), readFileSync(`${ROOT}sources.yml`, 'utf8'));
-    execFileSync('bash', ['--noprofile', '--norc', '-e', '-c', command], { cwd: dir, env: { ...process.env, NODE_PATH: `${ROOT}node_modules` } });
-    const registry = loadSources(path.join(dir, 'sources.yml'));
-    expect(tier1Newsrooms(registry)).toEqual([]);
-    expect(tier2Feeds(registry).length).toBeGreaterThan(3);
+    mkdirSync(path.join(dir, 'gate/src/checks'), { recursive: true });
+    writeFileSync(path.join(dir, 'gate/src/checks/g2-structure.ts'), readFileSync(`${ROOT}gate/src/checks/g2-structure.ts`, 'utf8'));
+    execFileSync('bash', ['--noprofile', '--norc', '-e', '-c', command], { cwd: dir });
+    const changed = readFileSync(path.join(dir, 'gate/src/checks/g2-structure.ts'), 'utf8');
+    expect(changed).toContain('const MIN_SECTIONS = 99;');
+    expect(changed).not.toContain('const MIN_SECTIONS = 2;');
+    // Only that line changed.
+    expect(changed.replace('const MIN_SECTIONS = 99;', 'const MIN_SECTIONS = 2;')).toBe(readFileSync(`${ROOT}gate/src/checks/g2-structure.ts`, 'utf8'));
+  });
+
+  it('says that the rehearsal holds by the sections and at the first draft, and no longer says that a registry with no primary source makes a hold certain', () => {
+    const text = stepTitled(/^Rehearse a held piece/).text;
+    expect(text).toContain('G2_SECTIONS_MIN');
+    expect(text).toContain('without using a round of revision');
+    expect(text).not.toContain('A registry with no primary source no longer makes a hold certain');
+  });
+
+  it('tells the pages for the trials to be the pages a story is written from, and to look at them first with sources-check', () => {
+    const step = stepTitled(/^Choose the pages/);
+    expect(step.text).toContain('sources-check');
+    expect(step.text).toContain('a standard or a proposal');
+  });
+
+  it('records, in the questions that the trials left open, that the model check judges analysis', () => {
+    const step = stepTitled(/^Decide what the trials left open/);
+    expect(step.text).toContain('Decided in Plan 3b: yes');
+    expect(step.text).not.toContain('the model check never sees them');
   });
 
   it('never gives the repository of the rehearsal the secrets of Cloudflare, so that nothing can be deployed from it, and deletes only that repository', () => {

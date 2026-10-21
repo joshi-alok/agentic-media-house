@@ -520,19 +520,18 @@ describe('the README: blockers and notes, and another outlet', () => {
 describe('the runbook: what holds a piece', () => {
   const runbook = readFileSync(new URL('../../docs/runbook.md', import.meta.url), 'utf8');
 
-  it('does not say that a story with no primary source is held, because it is written in attributed form and published when it is cleared', () => {
-    expect(runbook).not.toContain('rehearsal: no primary source, so every piece is held');
+  it('does not say that a story with no primary source is held, because an explainer without a primary page is a day with no story, and holds the rehearsal by the sections instead', () => {
+    expect(runbook).not.toContain('rehearsal: no primary source');
     expect(runbook).not.toContain('(so every story that the Desk writes is written in attributed form and **held**, which is the rule of the design)');
-    expect(runbook).toContain('rehearsal: no primary source');
-    expect(runbook).toContain('is written in attributed form, and the gate and the model check publish it when they clear it; it is held only if one of them does not');
-    expect(runbook).toContain('**If the run publishes instead**');
+    expect(runbook).not.toContain('**If the run publishes instead**');
+    expect(runbook).toContain('rehearsal: no draft can have enough sections');
+    expect(runbook).toContain('**If the run ends `no-story`**');
   });
 
-  it('says that the share of analysis is only noted, and that the length of a piece is a note and not a hold', () => {
+  it('says that the model check judges analysis and the code checks of G7 stay as a second line, never that the share of analysis holds a piece, and that the length of a piece is a note and not a hold', () => {
     expect(runbook).not.toContain('how many, how they begin');
     expect(runbook).not.toContain('the share cap of G7 is the answer');
-    expect(runbook).toContain('their share of the piece is only noted');
-    expect(runbook).toContain('the label on every analysis sentence and the note of its share are the answer');
+    expect(runbook).toContain('the code checks of G7 stay as a second line');
     expect(runbook).not.toContain('A draft that fails G2 (`G2_BODY_LENGTH`, `G2_OPENING_LENGTH`, `G2_TAKEAWAYS_COUNT`, `G2_SECTIONS_MIN`) is held');
     expect(runbook).toContain('those codes are notes, and the piece is published with the note on its receipts page');
     expect(runbook).toContain('(`G2_SECTIONS_MIN`) is a blocker that no rewritten sentence can mend');
