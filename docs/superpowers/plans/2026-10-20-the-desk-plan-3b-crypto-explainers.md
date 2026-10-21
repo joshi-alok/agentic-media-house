@@ -45,7 +45,7 @@ Five part files in [`2026-10-20-the-desk-plan-3b-crypto-explainers/`](./2026-10-
 9. **The footer** says what is true: "Every factual sentence is traced to a passage of a source that the piece links; a sentence that rests on another outlet's reporting names the outlet; analysis is labelled. Nothing here is financial advice." (Task 7). The words "primary source" are dropped from reader-facing copy.
 10. **The ledger field** `gate.warnings` becomes `gate.notes` (Task 5), before any ledger is published. The code's own `GateResult.warnings` keeps its name.
 11. **Settings added** (all with defaults or none): `modelCheckRevisions` 1, `shortlistPerSource` 3, `maxPageChars` 150000, `profile` (none by default; `desk.config.yml` sets `explainer`).
-12. **A hold is rehearsed** by raising the least number of sections to 99 in the private copy of the rehearsal repository (Task 20): the run holds after its first draft, whatever the model writes, for two calls.
+12. **A hold is rehearsed** by raising the least number of sections to 99 in the private copy of the rehearsal repository (Task 20): the run holds after its first draft, whatever the model writes, for three calls (Select, Extract, Compose; found when Task 20 was executed, the plan said two): a draft that also fails in a sentence or a heading that a rewrite can mend first has the rounds that mend those, and the model check is never asked.
 
 ## Owner-only items
 
