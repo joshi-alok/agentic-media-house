@@ -1,6 +1,7 @@
 import type { CheckId, GateConfig } from '@robywire/gate';
 import { analysisLimit } from './copy';
-import { runGateConfig } from './run-config';
+import { timesInWords } from './format';
+import { runGateConfig, runRevisionRounds } from './run-config';
 
 // The words of the method page that a test needs to reach: the nine rules of
 // the gate, whose numbers come from the gate's own configuration, the known
@@ -208,7 +209,10 @@ export interface PipelineStage {
   text: string;
 }
 
-/** The seven stages of the Desk. They are the design the Desk is being built to, so each is in the future tense. */
+/**
+ * The seven stages of the Desk. They are the design the Desk is being built to, so each is in the future tense. The rounds of revision in the Verify stage are those of the run that
+ * desk.config.yml sets, read from it (`runRevisionRounds`), so the page cannot say a number that the run does not have.
+ */
 export const PIPELINE_STAGES: readonly PipelineStage[] = [
   {
     name: 'Discover',
@@ -232,7 +236,7 @@ export const PIPELINE_STAGES: readonly PipelineStage[] = [
   },
   {
     name: 'Verify',
-    text: 'The gate will check the draft. A blocker, such as a number or a date that no claim has, sends the draft back for revision with the exact failures, at most three times; a note, such as a length outside the target, is recorded and does not stop the piece.',
+    text: `The gate will check the draft. A blocker, such as a number or a date that no claim has, sends the draft back for revision with the exact failures, at most ${timesInWords(runRevisionRounds())}; a note, such as a length outside the target, is recorded and does not stop the piece.`,
   },
   {
     name: 'Publish or hold',

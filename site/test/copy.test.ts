@@ -268,18 +268,26 @@ describe('modelCheckText', () => {
 
 describe('holdsText', () => {
   const OFF =
-    "The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after three rounds of revision, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
+    "The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after four rounds of revision, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
   const ON =
-    "The gate holds a piece when it cannot clear it: a blocker still stands after three rounds of revision, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report.";
+    "The gate holds a piece when it cannot clear it: a blocker still stands after four rounds of revision, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report.";
 
   it.each(CASES)('says the pull request flow is running only when the Desk publishes (%s)', (_name, live) => {
     expect(holdsText(live)).toBe(live.publishing ? ON : OFF);
   });
 
+  // The number of rounds is not written in the page: it is that of the daily run, which desk.config.yml sets (two rounds, and two more while a problem that a sentence can mend is still there).
+  it.each(CASES)('says the number of rounds of the daily run, which is four, and the number it is given when it is given one (%s)', (_name, live) => {
+    expect(holdsText(live)).toBe(holdsText(live, 4));
+    expect(holdsText(live, 2)).toContain('after two rounds of revision');
+    expect(holdsText(live, 1)).toContain('after one round of revision');
+    expect(holdsText(live, 4)).not.toContain('three');
+  });
+
   // A piece that rests on another outlet is no longer a reason for a hold: the article labels it, and the gate publishes it.
   it.each([NONE, ALL])('names the two ways to a hold, and does not name another outlet or G6 as one', (live) => {
     const text = holdsText(live);
-    expect(text).toContain('three rounds of revision');
+    expect(text).toContain('four rounds of revision');
     expect(text).toContain('model check');
     expect(text).not.toContain('G6');
     expect(text).not.toContain('another outlet');

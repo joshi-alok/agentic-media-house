@@ -1,5 +1,6 @@
 import { PUBLICATION_NAME } from '@robywire/gate';
-import { runGateConfig } from './run-config';
+import { countInWords } from './format';
+import { runGateConfig, runRevisionRounds } from './run-config';
 import { LIVE } from './live';
 import type { Live } from './live';
 import { releaseNote } from './receipts';
@@ -87,11 +88,15 @@ export function modelCheckText(live: Live = LIVE): string {
     : 'On every piece, once the Desk is live, a second model call will read each sentence and each heading beside the passages it cites and judge whether they say the same thing, and whether the basis and status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. A basis that the passage does not support will hold the piece too; a status that it does not support will be lowered to "unspecified", which says nothing about how far the capability has got, and the piece will go on, with a note on its receipts page. This check will be a second layer on top of the nine rules for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read, it will be the only layer. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted. It is not running yet.';
 }
 
-/** The start of the section about holds: when a piece is held and where a held draft goes. The page adds what the holds page shows. */
-export function holdsText(live: Live = LIVE): string {
+/**
+ * The start of the section about holds: when a piece is held and where a held draft goes. The page adds what the holds page shows. The rounds of revision are those of the daily run
+ * (`runRevisionRounds`, which reads desk.config.yml), written in words, and not a number of this file.
+ */
+export function holdsText(live: Live = LIVE, rounds: number = runRevisionRounds()): string {
+  const after = `${countInWords(rounds)} ${rounds === 1 ? 'round' : 'rounds'} of revision`;
   return live.publishing
-    ? "The gate holds a piece when it cannot clear it: a blocker still stands after three rounds of revision, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report."
-    : "The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after three rounds of revision, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
+    ? `The gate holds a piece when it cannot clear it: a blocker still stands after ${after}, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report.`
+    : `The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after ${after}, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.`;
 }
 
 /** What the site shows for a held draft that the owner decides to publish. The words quoted are the ones the receipts page uses. */

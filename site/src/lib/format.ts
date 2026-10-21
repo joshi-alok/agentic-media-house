@@ -79,3 +79,16 @@ export function plural(n: number, one: string, many: string): string {
 export function documentTitle(page: string): string {
   return page.includes(PUBLICATION_NAME) ? page : `${page} ${EM_DASH} ${PUBLICATION_NAME}`;
 }
+
+const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+
+/** A count in words, as the page writes a small number ("four"); above twenty, in digits. A count that is not a whole number of at least 0 is a mistake of the caller. */
+export function countInWords(count: number): string {
+  if (!Number.isInteger(count) || count < 0) throw new Error(`${String(count)} is not a count: a whole number of at least 0`);
+  return COUNT_WORDS[count] ?? String(count);
+}
+
+/** How many times, in words: "once", "twice", then "three times" and so on. */
+export function timesInWords(count: number): string {
+  return count === 1 ? 'once' : count === 2 ? 'twice' : `${countInWords(count)} times`;
+}

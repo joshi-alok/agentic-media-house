@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseArgs, USAGE } from '../src/cli';
-import { defaultConfig } from '../src/config';
+import { loadConfig } from '../src/config';
 import { REASON_LABELS } from '../../site/src/lib/reasons';
 import { CHECK_IDS, severityOf } from '@robywire/gate';
 import { useScratch } from './support/context';
@@ -416,26 +416,30 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
     expect(step.text).toContain('a standard or a proposal');
   });
 
-  it('says, in the first trial, that with the size of the parts of a page in the settings Extract is one call for each part, at most 6, how many calls a page of 3 and a page of 6 parts can reach, and gives the command the 14 calls that the worst of them needs', () => {
+  it('says, in the first trial, that with the size of the parts of a page in the settings Extract is one call for each part, at most 6, how many calls a page of 3 and a page of 6 parts can reach with the rounds of desk.config.yml, and gives the command the 16 calls that the worst of them needs', () => {
     const step = stepTitled(/^Run the first trial/);
-    const { maxRevisionRounds, extraRevisionRounds } = defaultConfig();
+    // The command is run with `--config desk.config.yml`, so the rounds are those of the daily run (2 and 2 more), not the defaults of the Desk (2 and 1 more).
+    const { maxRevisionRounds, extraRevisionRounds } = loadConfig(path.join(ROOT, 'desk.config.yml'));
     const rounds = maxRevisionRounds + extraRevisionRounds;
+    expect(rounds).toBe(4);
     // the parts, the composer, a model check for the draft and for each round of revision, and a revision for each round
     const calls = (parts: number): number => parts + 1 + (rounds + 1) + rounds;
-    expect(calls(1)).toBe(9);
-    expect(calls(3)).toBe(11);
-    expect(calls(6)).toBe(14);
-    expect(step.text).toContain('Start with **one page, one trial, at most 14 calls**.');
-    expect(step.text).toContain('so one trial is 3 to 9 calls for a page that is read whole.');
+    expect(calls(1)).toBe(11);
+    expect(calls(3)).toBe(13);
+    expect(calls(6)).toBe(16);
+    expect(step.text).toContain('Start with **one page, one trial, at most 16 calls**.');
+    expect(step.text).toContain('so one trial is 3 to 11 calls for a page that is read whole.');
     expect(step.text).toContain(
-      'With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page: a page of 3 parts can reach 11 calls (a trial of one used 10: 3 for Extract, 1 for Compose, 3 model checks and 3 revisions), a page of 6 parts can reach 14, and the `--max-calls` of the next step may need raising too.',
+      'With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page: a page of 3 parts can reach 13 calls (a trial of one used 10, with the rounds of before the second extra round: 3 for Extract, 1 for Compose, 3 model checks and 3 revisions), a page of 6 parts can reach 16, and the `--max-calls` of the next step may need raising too.',
     );
     // the command and what is expected of it say the same number, and it is enough for the worst page
     const command = step.blocks.flatMap((block) => block.lines).find((line) => line.includes('desk -- tune')) ?? '';
     expect(Number(/--max-calls (\d+)/.exec(command)?.[1])).toBeGreaterThanOrEqual(calls(6));
-    expect(step.text).toContain('`tune: 1 address, 1 trial each, at most 14 model calls, client api`');
-    expect(step.text).toContain('unless the 14 calls ran out');
+    expect(command).toContain('--max-calls 16');
+    expect(step.text).toContain('`tune: 1 address, 1 trial each, at most 16 model calls, client api`');
+    expect(step.text).toContain('unless the 16 calls ran out');
     expect(step.text).not.toMatch(/\b10 (model )?calls/);
+    expect(step.text).not.toMatch(/\b14 (model )?calls/);
   });
 
   it('says, in the rotation of the key, that the 3 calls are the three steps of a page that is one part, and that a first page of 3 parts or more ends stopped with exit code 1', () => {

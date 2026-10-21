@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { PROFILES, defaultConfig, profileOverrides } from '@robywire/gate';
 import { analysisLimit } from '../src/lib/copy';
-import { gateConfigOf, runGateConfig, runProfile } from '../src/lib/run-config';
+import { gateConfigOf, runGateConfig, runProfile, runRevisionRounds } from '../src/lib/run-config';
+import { DEFAULT_EXTRA_REVISION_ROUNDS, DEFAULT_MAX_REVISION_ROUNDS } from '../src/lib/revision-defaults';
 import { gateRules } from '../src/lib/method';
 
 // The daily run writes explainers: desk.config.yml names the profile `explainer`, and the gate holds a piece to the ranges of that profile (as notes). The method page says what the gate
@@ -24,6 +25,43 @@ describe('the profile of the daily run', () => {
     expect(runProfile('')).toBeUndefined();
     expect(() => runProfile('profile: newsletter\n')).toThrow('desk.config.yml names the profile "newsletter", which the gate does not have');
     expect(() => runProfile('profile: 3\n')).toThrow('which the gate does not have');
+  });
+});
+
+// The method page says how many times a draft is sent back for revision. That is the number of the daily run, so the site reads it from desk.config.yml: the rounds of revision
+// (`maxRevisionRounds`, not in the file, so the default) and the rounds that follow them while a problem that a sentence can mend is still there (`extraRevisionRounds`, 2 in the
+// file). The site does not depend on the Desk, so it holds the defaults of the two settings in one file of its own (the Desk's tests compare them with its defaults).
+describe('the rounds of revision of the daily run', () => {
+  // This number is written here on purpose: changing the rounds of the daily run changes what the method page says ("four"), and must be done with its sentences read again.
+  it('are four: the two of the default and the two more that desk.config.yml sets', () => {
+    expect(SETTINGS).toMatch(/^extraRevisionRounds: 2$/m);
+    expect(SETTINGS).not.toMatch(/^maxRevisionRounds:/m);
+    expect(DEFAULT_MAX_REVISION_ROUNDS).toBe(2);
+    expect(runRevisionRounds()).toBe(4);
+  });
+
+  it('are read from the text of the settings over the defaults: what the file sets, and the default for what it leaves out', () => {
+    expect(runRevisionRounds('')).toBe(DEFAULT_MAX_REVISION_ROUNDS + DEFAULT_EXTRA_REVISION_ROUNDS);
+    expect(runRevisionRounds('runDir: runs\n')).toBe(3);
+    expect(runRevisionRounds('extraRevisionRounds: 0\n')).toBe(2);
+    expect(runRevisionRounds('extraRevisionRounds: 2\n')).toBe(4);
+    expect(runRevisionRounds('maxRevisionRounds: 1\n')).toBe(2);
+    expect(runRevisionRounds('maxRevisionRounds: 3\nextraRevisionRounds: 1\n')).toBe(4);
+    expect(runRevisionRounds('maxRevisionRounds: 0\nextraRevisionRounds: 0\n')).toBe(0);
+  });
+
+  it('are an error when the file sets a number that is not a whole number of rounds, so that the site does not build a page about a run that cannot start', () => {
+    for (const bad of ['-1', '1.5', '"2"', 'true', '[]']) {
+      expect(() => runRevisionRounds(`extraRevisionRounds: ${bad}\n`)).toThrow('desk.config.yml sets extraRevisionRounds');
+      expect(() => runRevisionRounds(`maxRevisionRounds: ${bad}\n`)).toThrow('desk.config.yml sets maxRevisionRounds');
+    }
+  });
+
+  it('keep the defaults in a file that imports nothing, so that the tests of the Desk can compare them with its own', () => {
+    const source = readFileSync(new URL('../src/lib/revision-defaults.ts', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/^import /m);
+    expect(source).toContain('export const DEFAULT_MAX_REVISION_ROUNDS = 2;');
+    expect(source).toContain('export const DEFAULT_EXTRA_REVISION_ROUNDS = 1;');
   });
 });
 

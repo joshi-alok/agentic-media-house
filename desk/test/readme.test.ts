@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { USAGE } from '../src/cli';
+import { defaultConfig } from '../src/config';
 
 // The README says what the Desk does and does not do, and a sentence that a later change makes untrue must fail a test. These tests
 // read the README of the repository and check the sections that state limits.
@@ -587,5 +588,14 @@ describe('the README: what the composer is told when a sentence is sent back', (
     expect(limits).toContain('they stand in a block of their own (`<id>-values`)');
     expect(limits).toContain('For an analysis sentence');
     expect(limits).toContain('lists no value');
+  });
+});
+
+describe('the README: the rounds of revision', () => {
+  // The defaults are 2 and 1 and the README says so; the file of settings of the daily run sets the extra rounds to 2, which makes four in all, and the method page says four from that file.
+  it('says the defaults of the rounds, and that desk.config.yml sets 2 extra rounds, so that a draft of the daily run goes back at most four times', () => {
+    expect(defaultConfig()).toMatchObject({ maxRevisionRounds: 2, extraRevisionRounds: 1 });
+    expect(section('The desk workspace')).toContain('`maxRevisionRounds` times (twice by default) and `extraRevisionRounds` more times (once by default; `desk.config.yml` sets 2, so a draft of the daily run goes back at most four times, and the method page says so from that file)');
+    expect(section('The desk command')).toContain('(`extraRevisionRounds`, 1 by default, and 2 in `desk.config.yml` for the daily run, so that a long piece can settle after a rewrite broke something; a blocker that no sentence can mend gets none)');
   });
 });

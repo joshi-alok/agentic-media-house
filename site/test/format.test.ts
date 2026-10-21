@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CATEGORY_VOCAB, PUBLICATION_NAME } from '@robywire/gate';
-import { beatBlurb, beatLabel, documentTitle, formatDate, formatDateTime, plural } from '../src/lib/format';
+import { beatBlurb, beatLabel, countInWords, documentTitle, formatDate, formatDateTime, plural, timesInWords } from '../src/lib/format';
 
 describe('formatDate', () => {
   it.each([
@@ -139,4 +139,20 @@ describe('documentTitle', () => {
     expect(documentTitle('Robywire')).toBe(`Robywire ${EM_DASH} Agentic Media House`); // the old name, on purpose
   });
 
+});
+
+describe('countInWords and timesInWords', () => {
+  it('write a small count in words, as the page does, and a count above twenty in digits', () => {
+    expect([0, 1, 2, 3, 4, 5, 10, 12, 20].map(countInWords)).toEqual(['zero', 'one', 'two', 'three', 'four', 'five', 'ten', 'twelve', 'twenty']);
+    expect(countInWords(21)).toBe('21');
+  });
+
+  it('say how many times, with "once" and "twice" for the first two', () => {
+    expect([1, 2, 3, 4, 7, 21].map(timesInWords)).toEqual(['once', 'twice', 'three times', 'four times', 'seven times', '21 times']);
+    expect(timesInWords(0)).toBe('zero times');
+  });
+
+  it('refuse a count that is not a whole number of at least 0', () => {
+    for (const bad of [-1, 1.5, Number.NaN]) expect(() => countInWords(bad)).toThrow('not a count');
+  });
 });
