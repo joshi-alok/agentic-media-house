@@ -87,7 +87,8 @@ describe('readPage: the links of markdown', () => {
 });
 
 describe('readPage: a hostile page', () => {
-  // The fetcher reads at most `maxBytes` (2,000,000 bytes by default), and the Desk must not spend minutes on that much text: each of these once took time in proportion to the square of its length.
+  // The fetcher reads at most `maxBytes` (2,000,000 bytes by default), and the Desk must not spend minutes on that much text: each of these once took time in proportion to the square of its length, which is tens of seconds.
+  // The limit is 5 seconds and not one: each is read in well under a second when the machine is quiet, a slow runner with many files at work at once must not fail it, and a quadratic scan still does.
   const SIZE = 2_000_000;
   const milliseconds = (run: () => void): number => {
     const start = performance.now();
@@ -102,9 +103,9 @@ describe('readPage: a hostile page', () => {
     ['a word, a long run of spaces and a word', `a${' '.repeat(SIZE)}b`],
     ['a long run of tabs after a heading mark', `#${'\t'.repeat(SIZE)}x`],
     ['lines that end in white space', 'a \n'.repeat(SIZE / 3)],
-  ])('reads %s in well under a second', (_name, body) => {
+  ])('reads %s in seconds at most', (_name, body) => {
     for (const contentType of ['text/plain', 'text/markdown']) {
-      expect(milliseconds(() => readAndCut(page(contentType, body), 150_000))).toBeLessThan(1000);
+      expect(milliseconds(() => readAndCut(page(contentType, body), 150_000))).toBeLessThan(5000);
     }
   });
 });

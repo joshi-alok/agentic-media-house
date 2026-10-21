@@ -162,9 +162,9 @@ export type ComposeArtifact = z.infer<typeof ComposeArtifact>;
 const VerifierRecord = z.strictObject({ model: text, passed: z.boolean(), notes: z.array(text) });
 
 /**
- * A status that the model check did not find in the passage of its claim, and that Verify lowered to `unspecified`, which says nothing about how far the thing has got and so is always
- * true: the round in which it was lowered, the claim, the status it had, and the reason that the failure carried (the model's own words are in it). A status that is `unspecified` is never
- * lowered, and a basis never is.
+ * A status that the model check did not find in the passage of its claim, and that Verify lowered to `unspecified`, which says nothing about how far the thing has got, so that the piece
+ * then says less and never more: the round in which it was lowered, the claim, the status it had, and the reason that the failure carried (the model's own words are in it). A status that is
+ * `unspecified` is never lowered, and a basis never is.
  */
 export const LoweredStatus = z.strictObject({
   round: z.number().int().nonnegative(),

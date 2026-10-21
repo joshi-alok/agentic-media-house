@@ -208,7 +208,8 @@ const loweringNote = (entry: StatusLowering): string => `claim ${entry.claimId}:
 function outcomeOf(model: string, plan: VerifyPlan, failures: VerifierFailure[], lowered: readonly StatusLowering[] = [], earlier: readonly StatusLowering[] = []): VerifierOutcome {
   const facts = plan.sentences.filter((item) => item.kind === 'fact').length;
   const checked = `Judged ${facts} fact sentences, ${plan.sentences.length - facts} analysis sentences and ${plan.headings.length} headings against the passages they rely on, and the basis and the status of ${plan.claims.length} claims;`;
-  const supported = lowered.length === 0 ? 'every one was supported.' : `every sentence, heading and basis was supported, and so was every status except the ${lowered.length} lowered below.`;
+  const changed = lowered.length + earlier.length;
+  const supported = changed === 0 ? 'every one was supported.' : `every sentence, heading and basis was supported, and so was every status except the ${changed} lowered below.`;
   const notes = [...(failures.length === 0 ? [`${checked} ${supported}`] : failures.map((failure) => noteOf(failure, plan))), ...earlier.map(loweringNote), ...lowered.map(loweringNote)];
   return { verifier: { model, passed: failures.length === 0, notes }, failures };
 }
@@ -218,29 +219,47 @@ export type StatusLowering = Omit<LoweredStatus, 'round'>;
 
 /**
  * Answer the failures of the model check that a lower status mends. The model check judges the status of a claim against its passage; one it does not find is lowered to
- * `unspecified`, which says nothing about how far the thing has got and so is always true: the piece then says less and never more. That is done for each failure that says a *status* was not
+ * `unspecified`, which says nothing about how far the thing has got, so that the piece then says less and never more. That is done for each failure that says a *status* was not
  * supported (`field` `status`, with the code `unsupported`) of a claim in `claims` whose status is not `unspecified` already. A basis that is not supported is not answered, because no basis
- * says nothing; neither is a label given no verdict, a status that is `unspecified` already, or a failure of a sentence or a heading.
+ * says nothing; neither is a label given no verdict, or a failure of a sentence or a heading.
+ *
+ * A claim whose status an earlier pass lowered (it is in `earlier`) is `unspecified` now, and the model check is asked about it again in every pass; if it rejects that status too, there is
+ * nothing lower to lower it to and the piece is not worse for it, so the failure is set aside: no new lowering and no new note, the failure removed, and the claim's id is in `repeated`
+ * so that the stage can say so. A claim that Extract itself gave as `unspecified` was never lowered, and a status of it that is rejected stays a failure.
  *
  * Returns the claims with those statuses lowered (a copy: the claims given are not changed, and when none is lowered they are returned as they are), what was lowered, in the order of the
- * claims, and the outcome of the check without the failures that were answered: it passes when no other failure is left, and its notes say what was lowered, and also what was lowered in the
- * passes before this one (`earlier`), which are given because the notes of the last pass are the ones that a published piece carries. Pure.
+ * claims, the claims whose lowered status was rejected again, and the outcome of the check without the failures that were answered: it passes when no other failure is left, and its notes
+ * say what was lowered, and also what was lowered in the passes before this one (`earlier`), which are given because the notes of the last pass are the ones that a published piece
+ * carries. Pure.
  */
-export function lowerRejectedStatuses(plan: VerifyPlan, claims: Claim[], outcome: VerifierOutcome, earlier: readonly StatusLowering[] = []): { claims: Claim[]; lowered: StatusLowering[]; outcome: VerifierOutcome } {
+export function lowerRejectedStatuses(
+  plan: VerifyPlan,
+  claims: Claim[],
+  outcome: VerifierOutcome,
+  earlier: readonly StatusLowering[] = [],
+): { claims: Claim[]; lowered: StatusLowering[]; repeated: string[]; outcome: VerifierOutcome } {
   const lowered: StatusLowering[] = [];
+  const repeated: string[] = [];
   const answered = new Set<VerifierFailure>();
   for (const claim of claims) {
     const failure = outcome.failures.find((candidate) => candidate.kind === 'label' && candidate.code === 'unsupported' && candidate.field === 'status' && candidate.id === claim.id);
-    if (failure === undefined || claim.status === 'unspecified') continue;
+    if (failure === undefined) continue;
+    if (earlier.some((entry) => entry.claimId === claim.id)) {
+      repeated.push(claim.id);
+      answered.add(failure);
+      continue;
+    }
+    if (claim.status === 'unspecified') continue;
     lowered.push({ claimId: claim.id, from: claim.status, to: 'unspecified', reason: failure.reason });
     answered.add(failure);
   }
   const ids = new Set(lowered.map((entry) => entry.claimId));
   const remaining = outcome.failures.filter((failure) => !answered.has(failure));
-  if (lowered.length === 0 && earlier.length === 0) return { claims, lowered, outcome };
+  if (lowered.length === 0 && earlier.length === 0) return { claims, lowered, repeated, outcome };
   return {
     claims: lowered.length === 0 ? claims : claims.map((claim): Claim => (ids.has(claim.id) ? { ...claim, status: 'unspecified' } : claim)),
     lowered,
+    repeated,
     outcome: outcomeOf(outcome.verifier.model, plan, remaining, lowered, earlier),
   };
 }

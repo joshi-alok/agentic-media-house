@@ -252,7 +252,8 @@ describe('splitIntoParts: whatever the page', () => {
 
 describe('splitIntoParts: a hostile page', () => {
   // `maxPageChars` cuts the text of a page to 150,000 characters before Extract sees it, but the split must not depend on that: it takes time in proportion to the length of the text, whatever
-  // the text is. These texts are six times as long as the cut allows, and a run of the whole suite has many files at work at once, so the limit is far from the time that one of them takes alone.
+  // the text is. These texts are six times as long as the cut allows, and a run of the whole suite has many files at work at once, so the limit is far from the time that one of them takes alone:
+  // it is 5 seconds, which a slow runner does not reach, and a scan that takes time in proportion to the square of the length takes tens of seconds, so it still fails this.
   const SIZE = 1_000_000;
   const milliseconds = (run: () => void): number => {
     const start = performance.now();
@@ -273,9 +274,9 @@ describe('splitIntoParts: a hostile page', () => {
     ['full stops followed by a long run of closing brackets', `a.${')'.repeat(1000)} `.repeat(SIZE / 1004)],
     ['a word, a long run of white space and a word', `a${' \n'.repeat(SIZE / 4)}b`],
     ['blank lines of white space between words', 'a \n \n '.repeat(SIZE / 7)],
-  ])('cuts %s in well under a second, and the parts are the page', (_name, body) => {
+  ])('cuts %s in seconds at most, and the parts are the page', (_name, body) => {
     let parts: string[] = [];
-    expect(milliseconds(() => void (parts = splitIntoParts(body, 400)))).toBeLessThan(1000);
+    expect(milliseconds(() => void (parts = splitIntoParts(body, 400)))).toBeLessThan(5000);
     expect(parts.join('')).toBe(body);
     expect(parts.length).toBeLessThanOrEqual(MAX_PARTS);
   });

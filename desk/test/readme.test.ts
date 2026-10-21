@@ -63,12 +63,12 @@ describe('the README: how a replay knows how the run was made', () => {
 });
 
 describe('the README: a status that the model check does not find', () => {
-  it('says that a basis it does not find holds the piece, that a status is lowered to unspecified in a copy of the claims and the piece goes on, where it is recorded, and that an unspecified status that is rejected stays a failure', () => {
+  it('says that a basis it does not find holds the piece, that a status is lowered to unspecified in a copy of the claims and the piece goes on, where it is recorded, and that a status Extract gave as unspecified stays a failure when rejected, and that a lowered status rejected again is set aside', () => {
     const stages = section('The desk workspace');
     expect(stages).toContain('A basis that it does not find holds the piece (no sentence and no other basis can mend it).');
-    expect(stages).toContain('A status that it does not find is lowered to `unspecified`, which says nothing about how far the capability has got and so is always true: in a copy of the claims (`04-extract.json` keeps what Extract said)');
+    expect(stages).toContain('A status that it does not find is lowered to `unspecified`, which says nothing about how far the capability has got, so that the piece then says less and never more: in a copy of the claims (`04-extract.json` keeps what Extract said)');
     expect(stages).toContain('`06-verify.json` lists each lowering in `lowered`, the log has a line for it, and the notes of the model check say it.');
-    expect(stages).toContain('A status that is `unspecified` already and is rejected stays a failure.');
+    expect(stages).toContain('A status that Extract itself gave as `unspecified` and that is rejected stays a failure; a status that was lowered and is rejected again in a later round is set aside, because there is nothing lower to lower it to.');
   });
 });
 
@@ -77,7 +77,7 @@ describe('the README: trying a model call again', () => {
     const models = section('The desk workspace');
     expect(models).toContain('A call that could not reach the API (a connection error, or a connection that timed out) is tried again at most twice, after 1 second and then 3');
     expect(models).toContain('a call that the API answered with a 429 or a 5xx, at most three times, after 1, 2 and 4 seconds');
-    expect(models).toContain('nothing else is tried again (a 4xx, a refusal, a reply cut off at the limit, a reply that is not usable after its one repair), and no call is tried again once a reply has arrived');
+    expect(models).toContain('nothing else is tried again (a 4xx, a refusal, a reply cut off at the limit, a reply that is not usable after its one repair), and a connection error is not tried again once a reply has arrived (in the repair request of a call, whose first reply was paid for)');
     expect(models).toContain('Every try is a call of the budget (`maxCalls`), so the retries cannot go over it');
     expect(models).toContain('`model: connection error, retrying (2 of 3)`');
   });

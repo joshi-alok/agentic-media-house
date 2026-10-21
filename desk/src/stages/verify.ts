@@ -222,8 +222,9 @@ export interface VerifyResult {
  * A status that the model check does not find in the passage is the one such failure that code can mend: the claim is changed, in a copy, to the status `unspecified` (the claims that
  * Extract proposed are not touched), the limitation sentences of the draft are made again from the claims, the gate is run on it again, and the failure is answered, so that it counts
  * neither for the model check passing nor as a problem that no sentence can mend. The sentences are not sent back for it. Every later round, the revision of the composer, the final
- * gate and the stages after this one use the lowered claims, which is why they are in the result. Each lowering is in the log and in `06-verify.json`. A basis that is not supported, a status
- * that is `unspecified` already and every other failure are handled as before.
+ * gate and the stages after this one use the lowered claims, which is why they are in the result. Each lowering is in the log and in `06-verify.json`. The model check is asked about the
+ * lowered claim again in the next round, and if it rejects the `unspecified` status too, that is set aside (it is logged, and nothing is lowered or noted again). A basis that is not
+ * supported, a status that Extract gave as `unspecified` and every other failure are handled as before.
  *
  * The outcome is `publish` only for a draft that the gate routes to `publish` and the model check passed. When the model check never saw the last draft,
  * `verifier` says so and is not passed.
@@ -245,6 +246,7 @@ export async function runVerify(ctx: StageContext, extracted: Claim[], composed:
       // The notes of this pass tell what was lowered in the passes before it, too: the last pass is the one a published piece carries on its receipts page.
       const lowering = lowerRejectedStatuses(verifyPlanOf(draft, claims), claims, checked, lowered);
       checked = lowering.outcome;
+      for (const id of lowering.repeated) ctx.log(`verify: the model check rejected the status of ${id} again after it was lowered to unspecified; that is not acted on, since it says nothing about how far the thing has got`);
       if (lowering.lowered.length > 0) {
         for (const entry of lowering.lowered) {
           ctx.log(`verify: the status of ${entry.claimId} is lowered from ${entry.from} to unspecified (the model check did not find it in the passage)`);

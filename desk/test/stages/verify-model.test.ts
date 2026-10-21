@@ -394,7 +394,8 @@ describe('runVerifier', () => {
 
 describe('lowerRejectedStatuses', () => {
   // The model check judges two labels of each claim against the passage. A status it does not find can be lowered to `unspecified`, which says nothing about how far the thing has
-  // got and so is always true; a basis it does not find cannot, because there is no basis that says nothing.
+  // got, so the piece then says less and never more; a basis it does not find cannot, because there is no basis that says nothing. A status that was lowered and is rejected again in a later
+  // round is not acted on: there is nothing lower to lower it to.
   const claimOf = (id: string) => GOLDEN_CLAIMS.find((claim) => claim.id === id)!;
   const outcomeOf = (options: Parameters<typeof verifierReply>[1]) => aggregateVerdicts(MODEL, PLAN, verifierReply(PLAN, options));
 
@@ -460,9 +461,11 @@ describe('lowerRejectedStatuses', () => {
     expect(quiet.claims).toBe(GOLDEN_CLAIMS);
     expect(quiet.outcome.verifier.passed).toBe(true);
     expect(quiet.outcome.verifier.notes).toHaveLength(2);
-    expect(quiet.outcome.verifier.notes[0]).toMatch(/; every one was supported\.$/);
+    // The last pass counts the status that an earlier pass lowered among those it did not take as they were, as it tells it in its notes.
+    expect(quiet.outcome.verifier.notes[0]).toMatch(/; every sentence, heading and basis was supported, and so was every status except the 1 lowered below\.$/);
     expect(quiet.outcome.verifier.notes[1]).toBe('claim c-5: the status "planned" was lowered to "unspecified" because the model check did not find it in the passage.');
     const both = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({ unsupportedStatus: ['c-27'] }), earlier);
+    expect(both.outcome.verifier.notes[0]).toMatch(/except the 2 lowered below\.$/);
     expect(both.outcome.verifier.notes.slice(1)).toEqual([
       'claim c-5: the status "planned" was lowered to "unspecified" because the model check did not find it in the passage.',
       'claim c-27: the status "demonstrated" was lowered to "unspecified" because the model check did not find it in the passage.',
@@ -470,6 +473,30 @@ describe('lowerRejectedStatuses', () => {
     const failing = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({ verdicts: { s3: 'not_entailed' } }), earlier);
     expect(failing.outcome.verifier.passed).toBe(false);
     expect(failing.outcome.verifier.notes).toHaveLength(2);
+  });
+
+  it('sets aside the rejection of a status that an earlier pass lowered: no new lowering, no new note, the failure removed, and the claims as they are', () => {
+    const earlier = [{ claimId: 'c-27', from: 'demonstrated' as const, to: 'unspecified' as const, reason: 'x' }];
+    const lowered = GOLDEN_CLAIMS.map((claim) => (claim.id === 'c-27' ? { ...claim, status: 'unspecified' as const } : claim));
+    const outcome = outcomeOf({ unsupportedStatus: ['c-27'] });
+    expect(outcome.failures).toMatchObject([{ id: 'c-27', field: 'status' }]);
+    const result = lowerRejectedStatuses(PLAN, lowered, outcome, earlier);
+    expect(result.lowered).toEqual([]);
+    expect(result.repeated).toEqual(['c-27']);
+    expect(result.claims).toBe(lowered);
+    expect(result.outcome.failures).toEqual([]);
+    expect(result.outcome.verifier.passed).toBe(true);
+    expect(result.outcome.verifier.notes).toHaveLength(2);
+    expect(result.outcome.verifier.notes[1]).toBe('claim c-27: the status "demonstrated" was lowered to "unspecified" because the model check did not find it in the passage.');
+    // A claim that Extract itself gave as unspecified is another thing: it was never lowered, and its rejected status stays a failure.
+    const given = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({ unsupportedStatus: ['c-8'] }), earlier);
+    expect(given.repeated).toEqual([]);
+    expect(given.outcome.failures).toMatchObject([{ id: 'c-8', field: 'status' }]);
+    // And the basis of the claim that was lowered is still judged.
+    const basis = lowerRejectedStatuses(PLAN, lowered, outcomeOf({ unsupported: ['c-27'] }), earlier);
+    expect(basis.repeated).toEqual(['c-27']);
+    expect(basis.outcome.failures).toMatchObject([{ id: 'c-27', field: 'basis' }]);
+    expect(basis.outcome.verifier.passed).toBe(false);
   });
 
   it('does not lower the status of a claim whose basis was rejected: the basis failure stays, and so does the check failing', () => {
