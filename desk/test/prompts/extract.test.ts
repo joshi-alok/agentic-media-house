@@ -63,10 +63,16 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('When in doubt, use unspecified, because a wrong deployed makes the Desk hold the piece.');
   });
 
-  it('says that demonstrated needs the quote itself to say that the thing was shown, demonstrated or tested, and that a figure the quote states without saying so is unspecified, also when the author measured it, because the model check held a page for a measured figure labelled demonstrated', () => {
+  it('says that demonstrated needs the quote itself to say that the thing was shown or demonstrated, as the model check words it, and that a figure the quote states without saying so is unspecified, also when the author measured it, because the model check held a page for a measured figure labelled demonstrated', () => {
     const status = EXTRACT_INSTRUCTIONS.split('\n').find((line) => line.startsWith('- "status": ')) ?? '';
-    const sentence = 'Use demonstrated only when the quote itself says that the thing was shown, demonstrated or tested ("in the demo", "in our test"): a size, cost, speed or other figure that the quote states without saying it was shown or tested is unspecified, also when the author measured it. When in doubt about demonstrated, use unspecified too.';
+    const sentence = 'Use demonstrated only when the quote itself says that the thing was shown or demonstrated ("in the demo"): a size, cost, speed or other figure that the quote states without saying it was shown or demonstrated is unspecified, also when the author measured it. When in doubt about demonstrated, use unspecified too.';
     expect(status).toContain(sentence);
+    // the words are the model check's own: "shown or demonstrated" in the sentence is "shown or demonstrated" in the definition of the model check, and "tested" is not added to it
+    const verifyWording = (/^- demonstrated: the passage says it was (.+)\.$/m.exec(verifySystem()) ?? [])[1];
+    expect(verifyWording).toBe('shown or demonstrated');
+    expect(sentence).toContain(`the thing was ${verifyWording} (`);
+    expect(sentence).toContain(`without saying it was ${verifyWording} is unspecified`);
+    expect(status).not.toContain('tested');
     // after the deployed guidance, and every sentence that was there is still there
     expect(status.indexOf(sentence)).toBeGreaterThan(status.indexOf('When in doubt, use unspecified, because a wrong deployed makes the Desk hold the piece.'));
     expect(status).toContain('demonstrated if it says it was shown, deployed if it says it is live in production or used by people outside the team, planned if it says it will happen, otherwise unspecified. ');
