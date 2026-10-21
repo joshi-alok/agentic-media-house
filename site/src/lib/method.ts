@@ -215,7 +215,7 @@ export const PIPELINE_STAGES: readonly PipelineStage[] = [
   },
   {
     name: 'Select',
-    text: 'A small model will rank what is new against a written rubric and pick one story, or none. A story with no reachable primary source can still be picked, but it will be written in attributed form, naming the outlet.',
+    text: 'A small model will rank what is new against a written rubric and pick one story, or none. The Desk will write only from a primary page: a story that another outlet reported will be used to find the news, never to write from. If the pick has no primary page, or its page has been used already, the model will be asked again without it, up to three times in all, and then the day will have no story.',
   },
   {
     name: 'Fetch',

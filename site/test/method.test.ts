@@ -405,10 +405,15 @@ describe('PIPELINE_STAGES', () => {
     }
   });
 
-  it('says what the gate sends back and what it only notes, and that a story from another outlet is written as an attribution and is not held for that', () => {
+  it('says what the gate sends back and what it only notes, and that the Desk writes only from a primary page and asks again for a story that has none', () => {
     const text = (name: string) => PIPELINE_STAGES.find((stage) => stage.name === name)?.text ?? '';
-    expect(text('Select')).toContain('but it will be written in attributed form, naming the outlet.');
+    expect(text('Select')).toBe(
+      'A small model will rank what is new against a written rubric and pick one story, or none. The Desk will write only from a primary page: a story that another outlet reported will be used to find the news, never to write from. If the pick has no primary page, or its page has been used already, the model will be asked again without it, up to three times in all, and then the day will have no story.',
+    );
+    expect(text('Select')).not.toContain('attributed');
     expect(text('Select')).not.toContain('held');
+    // "Three times in all" is the number of asks that Select makes for a story with no primary page.
+    expect(readFileSync(new URL('../../desk/src/stages/select.ts', import.meta.url), 'utf8')).toContain('export const SELECT_ATTEMPTS = 3;');
     expect(text('Verify')).toBe(
       'The gate will check the draft. A blocker, such as a number or a date that no claim has, sends the draft back for revision with the exact failures, at most twice; a note, such as a length outside the target, is recorded and does not stop the piece.',
     );
@@ -485,6 +490,12 @@ describe('the README: blockers and notes, and another outlet', () => {
     expect(readme).not.toContain('They are never the sole source of a claim');
   });
 
+  it('says that the daily run does not write a story with no reachable tier-1 source, and that without the profile explainer such a story is written in attributed form', () => {
+    expect(readme).toContain('If a story has no reachable tier-1 source, the daily run (the profile `explainer`, in `desk.config.yml`) does not write it: Select asks the model again without that story, at most three times in all, and then the day has no story.');
+    expect(readme).toContain('Without that profile such a story is written in attributed form: that fact goes in the piece, and it is never quietly laundered through a competitor\'s reporting.');
+    expect(readFileSync(new URL('../../desk.config.yml', import.meta.url), 'utf8')).toMatch(/^profile: explainer$/m);
+  });
+
   it('says that the fifth fixture was held by the model check, which is what its ledger records', () => {
     expect(readme).toContain('(`G10_AMBIGUOUS`: it could not tell if a sentence was supported)');
     expect(readme).not.toContain('so the gate holds it (`TIER2_ATTRIBUTION`)');
@@ -528,7 +539,7 @@ describe('the runbook: what holds a piece', () => {
     expect(runbook).toContain('**If the run ends `no-story`**');
   });
 
-  it('says that the model check judges analysis and the code checks of G7 stay as a second line, never that the share of analysis holds a piece, and that the length of a piece is a note and not a hold', () => {
+  it('says that the model check judges analysis and the code checks of G7 stay as a second line, and that the length of a piece is a note and not a hold', () => {
     expect(runbook).not.toContain('how many, how they begin');
     expect(runbook).not.toContain('the share cap of G7 is the answer');
     expect(runbook).toContain('the code checks of G7 stay as a second line');
