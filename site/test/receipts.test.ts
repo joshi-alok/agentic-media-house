@@ -125,7 +125,7 @@ describe('routeText', () => {
     expect(receiptsView(held).gate.routeText).toBe('This draft was held for the owner.');
   });
 
-  // A hold comes from a blocker that stood after two rounds of revision, or from the model check, which is not the gate: the words do not say which.
+  // A hold comes from a blocker that stood after three rounds of revision, or from the model check, which is not the gate: the words do not say which.
   it('does not say who held a draft, because a hold can come from the model check as well as from the gate', () => {
     expect(routeText('hold')).not.toMatch(/\bgate\b/i);
     expect(routeText('publish')).toBe('The gate cleared this piece.');

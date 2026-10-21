@@ -16,7 +16,8 @@ import type { VerifierFailure } from './verify-model';
 // it costs nothing; only a draft that it clears is shown to the verifier model. A draft that fails either is sent back to the
 // composer with only the sentences and headings that failed and the reasons, and the replacements are put into the draft in the
 // place of the sentences they replace; then the whole draft is judged again. This goes on for at most `config.maxRevisionRounds`
-// rounds, and, after them, for at most `config.modelCheckRevisions` more for a draft that only the model check rejects. A draft that is clean at
+// rounds, and, after them, for at most `config.extraRevisionRounds` more while a problem that a sentence can mend is still there, whether the gate or the model check found it
+// (the last rewrite of a sentence can bring a blocker of the gate that the sentence did not have). A draft that is clean at
 // the end is `publish`, and a draft that is not clean at the end is `hold`: nothing is ever published on the strength of a draft that was not cleared.
 // One failure of the model check is answered by code and not sent anywhere: a status that it does not find in the passage of its claim is lowered to `unspecified`
 // (see `lowerRejectedStatuses`), so that one over-read label does not hold a piece.
@@ -214,7 +215,8 @@ export interface VerifyResult {
  * Each round: the gate's verdict on the draft (its notes never block, never go back to the composer and never keep the model check from running;
  * Compose gave it for the first; later it is run again); when the gate found no failure, the model check (`runVerifier`; a draft that code has sent
  * back is not shown to the model). A draft with no failure of either is done. Otherwise, when rounds are left (`config.maxRevisionRounds`, and, after
- * them, `config.modelCheckRevisions` more for a draft that only the model check rejects) and there is something that a rewritten sentence or heading
+ * them, `config.extraRevisionRounds` more, for a blocker of the gate as for a rejection by the model check, because the last rewrite of a sentence can bring a
+ * blocker that the sentence did not have) and there is something that a rewritten sentence or heading
  * can mend (`problemsOf`), `reviseDraft` makes a new draft and the next round judges it; when there is not, the draft is held. A failure that no
  * sentence can mend (the number of sections, the categories, the basis of a claim) is not sent anywhere: it is recorded, and the draft is held when
  * the rounds that could mend the rest are over.
@@ -262,9 +264,10 @@ export async function runVerify(ctx: StageContext, extracted: Claim[], composed:
     verifier = checked?.verifier;
     const clean = gate.failures.length === 0 && checked?.verifier.passed === true;
     const { problems, unattached } = problemsOf(draft, gate, checked?.failures ?? []);
-    // The rounds are for any failure; a rejection by the model check after them gets `modelCheckRevisions` more.
-    const rejected = checked !== undefined && !checked.verifier.passed;
-    const allowed = round < ctx.config.maxRevisionRounds || (rejected && round < ctx.config.maxRevisionRounds + ctx.config.modelCheckRevisions);
+    // The rounds are for any failure, and so are the extra ones after them: a problem that a sentence or a heading can mend is sent back, whether the gate or the model check
+    // found it, because the last rewrite of a sentence can bring a blocker of the gate that it did not have, and no round would be left to answer it. A problem that no sentence can mend
+    // is not in `problems`, so it gets no round, now or after.
+    const allowed = round < ctx.config.maxRevisionRounds + ctx.config.extraRevisionRounds;
     const send = !clean && allowed && problems.length > 0;
     const ids = [...new Set(problems.map((problem) => problem.id))];
     history.push({ round, gate: structuredClone(gate), verifier: verifier ?? null, verifierFailures: structuredClone(checked?.failures ?? []), sent: send ? ids : [] });

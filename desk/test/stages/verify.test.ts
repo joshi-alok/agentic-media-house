@@ -300,18 +300,19 @@ describe('runVerify: a draft that is never mended is held', () => {
   it('is held after the last round when the gate keeps failing, and the model is never asked', async () => {
     const { ctx, fake, claims, composed, logs } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; });
     const bad = idOf(composed.draft, INVENTED);
-    fake.script('compose', rewriting(bad, BAD_TAKEAWAY), rewriting(bad, { ...BAD_TAKEAWAY, text: 'The datasheet lists a 16 kg rated payload and a 1.4 m maximum reach.' }));
+    fake.script('compose', rewriting(bad, BAD_TAKEAWAY), rewriting(bad, { ...BAD_TAKEAWAY, text: 'The datasheet lists a 16 kg rated payload and a 1.4 m maximum reach.' }), rewriting(bad, BAD_TAKEAWAY));
     const result = await runVerify(ctx, claims, composed);
     expect(result.outcome).toBe('hold');
-    expect(result.rounds).toBe(2);
+    expect(result.rounds).toBe(3);
     expect(result.history.map((pass) => [pass.round, pass.gate.route, pass.verifier, pass.sent])).toEqual([
       [0, 'revise', null, [bad]],
       [1, 'revise', null, [bad]],
-      [2, 'revise', null, []],
+      [2, 'revise', null, [bad]],
+      [3, 'revise', null, []],
     ]);
-    expect(callsOf(fake, 'compose')).toHaveLength(3);
+    expect(callsOf(fake, 'compose')).toHaveLength(4);
     expect(callsOf(fake, 'verify')).toHaveLength(0);
-    expect(logs.filter((line) => line.startsWith('verify: round')).at(-1)).toBe('verify: round 2: the gate says revise, the model check was not asked');
+    expect(logs.filter((line) => line.startsWith('verify: round')).at(-1)).toBe('verify: round 3: the gate says revise, the model check was not asked');
     expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G4_NUMBER_UNSUPPORTED']);
     expect(result.verifier).toEqual({ model: ctx.config.models.verify, passed: false, notes: ['The model check was not run on this draft: the gate found failures first.'] });
   });
@@ -339,7 +340,7 @@ describe('runVerify: a draft that is never mended is held', () => {
   });
 
   it('does not send a draft back at all when the configuration allows no revision round', async () => {
-    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: { config: { ...defaultConfig(), maxRevisionRounds: 0 } } });
+    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: { config: { ...defaultConfig(), maxRevisionRounds: 0, extraRevisionRounds: 0 } } });
     const result = await runVerify(ctx, claims, composed);
     expect(result.outcome).toBe('hold');
     expect(result.rounds).toBe(0);
@@ -349,7 +350,7 @@ describe('runVerify: a draft that is never mended is held', () => {
   });
 
   it('allows exactly as many revision rounds as the configuration says', async () => {
-    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: { config: { ...defaultConfig(), maxRevisionRounds: 1 } } });
+    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: { config: { ...defaultConfig(), maxRevisionRounds: 1, extraRevisionRounds: 0 } } });
     const bad = idOf(composed.draft, INVENTED);
     fake.script('compose', rewriting(bad, BAD_TAKEAWAY), rewriting(bad, BAD_TAKEAWAY));
     const result = await runVerify(ctx, claims, composed);
@@ -384,12 +385,12 @@ describe('runVerify: a draft that is never mended is held', () => {
   it('writes every draft and every pass, even for a draft that is held', async () => {
     const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; });
     const bad = idOf(composed.draft, INVENTED);
-    fake.script('compose', rewriting(bad, BAD_TAKEAWAY), rewriting(bad, BAD_TAKEAWAY));
+    fake.script('compose', rewriting(bad, BAD_TAKEAWAY), rewriting(bad, BAD_TAKEAWAY), rewriting(bad, BAD_TAKEAWAY));
     const result = await runVerify(ctx, claims, composed);
-    expect((await readArtifact(ctx.runDir, '05-compose', ComposeArtifact)).drafts).toHaveLength(3);
+    expect((await readArtifact(ctx.runDir, '05-compose', ComposeArtifact)).drafts).toHaveLength(4);
     const written = await readArtifact(ctx.runDir, '06-verify', VerifyArtifact);
-    expect(written).toMatchObject({ outcome: 'hold', rounds: 2, gate: result.gate, verifier: result.verifier });
-    expect(written.history).toHaveLength(3);
+    expect(written).toMatchObject({ outcome: 'hold', rounds: 3, gate: result.gate, verifier: result.verifier });
+    expect(written.history).toHaveLength(4);
   });
 });
 
@@ -832,108 +833,251 @@ describe('runVerify: a draft with notes and no blocker', () => {
   });
 });
 
-describe('runVerify: the extra round for a rejection by the model check', () => {
+describe('runVerify: the extra round of revision', () => {
   const SENTENCE = 'The company says the arm is built for tote picking and trailer unloading.';
   const REWRITTEN = { kind: 'fact' as const, text: 'The company says the arm is built for tote picking and for trailer unloading.', claimIds: ['c-1'] };
-  const withRounds = (maxRevisionRounds: number, modelCheckRevisions: number) => ({ config: { ...defaultConfig(), maxRevisionRounds, modelCheckRevisions } });
+  const STILL_BAD = (kilograms: number) => ({ ...BAD_TAKEAWAY, text: `The datasheet lists a ${kilograms} kg rated payload and a 1.4 m maximum reach.` });
+  /** A rewrite of `SENTENCE` that brings a blocker of the gate: a number that no cited claim has (G4_NUMBER_UNSUPPORTED). */
+  const BRINGS = (sites: number) => ({ ...REWRITTEN, text: `The company says the arm is built for tote picking and trailer unloading at ${sites} sites.` });
+  const withRounds = (maxRevisionRounds: number, extraRevisionRounds: number) => ({ config: { ...defaultConfig(), maxRevisionRounds, extraRevisionRounds } });
+  /** A verifier reply that rejects the sentence `id` of the first draft. The sentences that a test rewrites keep their ids, so it serves for every pass. */
+  const rejecting = (composed: { draft: Draft }, claims: Claim[], id: string) => verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } });
 
   it('has one extra round by default', () => {
-    expect(defaultConfig().modelCheckRevisions).toBe(1);
+    expect(defaultConfig().extraRevisionRounds).toBe(1);
   });
 
-  it('revises once more when the model check rejects the draft of the last round, and publishes the draft that it then clears', async () => {
-    const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 1) });
-    const id = idOf(composed.draft, SENTENCE);
-    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } }), CLEARS());
-    fake.script('compose', rewriting(id, REWRITTEN));
-    const result = await runVerify(ctx, claims, composed);
-    expect(result.outcome).toBe('publish');
-    expect(result.rounds).toBe(1);
-    expect(callsOf(fake, 'compose')).toHaveLength(2);
-    expect(callsOf(fake, 'verify')).toHaveLength(2);
-    expect(result.history.map((pass) => [pass.round, pass.sent])).toEqual([[0, [id]], [1, []]]);
+  describe('for a rejection by the model check', () => {
+    it('revises once more when the model check rejects the draft of the last round, and publishes the draft that it then clears', async () => {
+      const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 1) });
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id), CLEARS());
+      fake.script('compose', rewriting(id, REWRITTEN));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(1);
+      expect(callsOf(fake, 'compose')).toHaveLength(2);
+      expect(callsOf(fake, 'verify')).toHaveLength(2);
+      expect(result.history.map((pass) => [pass.round, pass.sent])).toEqual([[0, [id]], [1, []]]);
+    });
+
+    it('holds when the extra round does not clear it, and asks for no third', async () => {
+      const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 1) });
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id), rejecting(composed, claims, id));
+      fake.script('compose', rewriting(id, REWRITTEN));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('hold');
+      expect(result.rounds).toBe(1);
+      expect(callsOf(fake, 'compose')).toHaveLength(2);
+    });
+
+    it('gives the extra round after the ordinary rounds, not instead of them', async () => {
+      const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(1, 1) });
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id), rejecting(composed, claims, id), CLEARS());
+      fake.script('compose', rewriting(id, REWRITTEN), rewriting(id, { ...REWRITTEN, text: 'The company says the arm is built for tote picking.' }));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(2);
+    });
+
+    it('does not give it when the setting is 0', async () => {
+      const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 0) });
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('hold');
+      expect(result.rounds).toBe(0);
+      expect(callsOf(fake, 'compose')).toHaveLength(1);
+    });
+
+    it('gives as many extra rounds as the setting says: two, when the model check rejects the first revision too and clears the second', async () => {
+      const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 2) });
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id), rejecting(composed, claims, id), CLEARS());
+      fake.script('compose', rewriting(id, REWRITTEN), rewriting(id, { ...REWRITTEN, text: 'The company says the arm is built for tote picking.' }));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(2);
+      expect(callsOf(fake, 'compose')).toHaveLength(3);
+      expect(callsOf(fake, 'verify')).toHaveLength(3);
+    });
+
+    it('gives the extra round to a draft that the gate sent back first: a blocker mended in an ordinary round, then a rejection by the model check', async () => {
+      const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: withRounds(1, 1) });
+      const bad = idOf(composed.draft, INVENTED);
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id), CLEARS());
+      fake.script('compose', rewriting(bad, GOOD_TAKEAWAY), rewriting(id, REWRITTEN));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(2);
+      expect(callsOf(fake, 'compose')).toHaveLength(3);
+      expect(callsOf(fake, 'verify')).toHaveLength(2);
+      expect(result.history.map((pass) => [pass.round, pass.gate.route, pass.sent])).toEqual([[0, 'revise', [bad]], [1, 'publish', [id]], [2, 'publish', []]]);
+    });
   });
 
-  it('holds when the extra round does not clear it, and asks for no third', async () => {
-    const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 1) });
-    const id = idOf(composed.draft, SENTENCE);
-    const fails = () => verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } });
-    fake.script('verify', fails(), fails());
-    fake.script('compose', rewriting(id, REWRITTEN));
-    const result = await runVerify(ctx, claims, composed);
-    expect(result.outcome).toBe('hold');
-    expect(result.rounds).toBe(1);
-    expect(callsOf(fake, 'compose')).toHaveLength(2);
+  describe('for a blocker of the gate that a sentence or a heading has', () => {
+    it('mends what the last of the ordinary rewrites brought: the model check rejects a sentence twice, its second rewrite has a number that no claim has, the extra round mends that, and the piece is published after 3 rounds', async () => {
+      const { ctx, fake, claims, composed } = await start();
+      const id = idOf(composed.draft, SENTENCE);
+      expect(defaultConfig()).toMatchObject({ maxRevisionRounds: 2, extraRevisionRounds: 1 });
+      // The verifier is asked about the draft of rounds 0, 1 and 3; the gate stops round 2 first, so that the model is not asked about it.
+      fake.script('verify', rejecting(composed, claims, id), rejecting(composed, claims, id), CLEARS());
+      fake.script('compose', rewriting(id, REWRITTEN), rewriting(id, BRINGS(9)), rewriting(id, { ...REWRITTEN, text: 'The company says the arm is built for tote picking.' }));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(3);
+      expect(result.gate.failures).toEqual([]);
+      expect(callsOf(fake, 'compose')).toHaveLength(4);
+      expect(callsOf(fake, 'verify')).toHaveLength(3);
+      expect(result.history.map((pass) => [pass.round, pass.gate.route, pass.verifier === null ? null : pass.verifier.passed, pass.sent])).toEqual([
+        [0, 'publish', false, [id]],
+        [1, 'publish', false, [id]],
+        [2, 'revise', null, [id]],
+        [3, 'publish', true, []],
+      ]);
+      expect(result.history[2]?.gate.failures.map((failure) => failure.code)).toEqual(['G4_NUMBER_UNSUPPORTED']);
+      expect((await readArtifact(ctx.runDir, '06-verify', VerifyArtifact)).rounds).toBe(3);
+      expect((await readArtifact(ctx.runDir, '05-compose', ComposeArtifact)).drafts).toHaveLength(4);
+    });
+
+    it('holds when the extra round brings the blocker again, with rounds 3 and no fourth', async () => {
+      const { ctx, fake, claims, composed, logs } = await start();
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id), rejecting(composed, claims, id));
+      fake.script('compose', rewriting(id, REWRITTEN), rewriting(id, BRINGS(9)), rewriting(id, BRINGS(8)), rewriting(id, REWRITTEN));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('hold');
+      expect(result.rounds).toBe(3);
+      expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G4_NUMBER_UNSUPPORTED']);
+      // the fourth reply is never asked for, and the model is not asked about the last draft
+      expect(callsOf(fake, 'compose')).toHaveLength(4);
+      expect(callsOf(fake, 'verify')).toHaveLength(2);
+      expect(result.history.map((pass) => [pass.round, pass.sent])).toEqual([[0, [id]], [1, [id]], [2, [id]], [3, []]]);
+      expect(logs.filter((line) => line.startsWith('verify: round')).at(-1)).toBe('verify: round 3: the gate says revise, the model check was not asked');
+    });
+
+    it('holds a blocker that stands from the first draft after the 3 rounds it can have, and asks for no fourth', async () => {
+      const { ctx, fake, claims, composed, logs } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; });
+      const bad = idOf(composed.draft, INVENTED);
+      fake.script('compose', rewriting(bad, STILL_BAD(16)), rewriting(bad, STILL_BAD(17)), rewriting(bad, STILL_BAD(18)), rewriting(bad, GOOD_TAKEAWAY));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('hold');
+      expect(result.rounds).toBe(3);
+      expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G4_NUMBER_UNSUPPORTED']);
+      // the fourth reply is never asked for
+      expect(callsOf(fake, 'compose')).toHaveLength(4);
+      expect(callsOf(fake, 'verify')).toHaveLength(0);
+      expect(result.history.map((pass) => [pass.round, pass.sent])).toEqual([[0, [bad]], [1, [bad]], [2, [bad]], [3, []]]);
+      expect(logs.filter((line) => line.startsWith('verify: round')).at(-1)).toBe('verify: round 3: the gate says revise, the model check was not asked');
+    });
+
+    it('is given by a blocker that stands from the first draft when the ordinary rounds are none: the setting of the extra rounds is the rounds that are left', async () => {
+      const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: withRounds(0, 1) });
+      const bad = idOf(composed.draft, INVENTED);
+      fake.script('compose', rewriting(bad, GOOD_TAKEAWAY));
+      fake.script('verify', CLEARS());
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(1);
+      expect(callsOf(fake, 'compose')).toHaveLength(2);
+      expect(callsOf(fake, 'verify')).toHaveLength(1);
+    });
+
+    it('is given to a heading as it is to a sentence', async () => {
+      const { ctx, fake, claims, composed } = await start((reply) => { (reply.sections[0] as Reply['sections'][number]).heading = 'What shipped in 2026'; }, { overrides: withRounds(0, 1) });
+      expect(composed.gate.failures.map((failure) => failure.code)).toEqual(['G4_HEADING_NUMBER']);
+      fake.script('compose', { replacements: [{ id: 'h0', heading: 'What shipped' }] });
+      fake.script('verify', CLEARS());
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(1);
+      expect(result.history.map((pass) => pass.sent)).toEqual([['h0'], []]);
+    });
+
+    it('is given to a blocker that the extra round of a rejection brings: with two extra rounds the second mends it', async () => {
+      const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 2) });
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id), CLEARS());
+      fake.script('compose', rewriting(id, BRINGS(9)), rewriting(id, REWRITTEN));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(2);
+      expect(result.history.map((pass) => [pass.round, pass.gate.route, pass.sent])).toEqual([[0, 'publish', [id]], [1, 'revise', [id]], [2, 'publish', []]]);
+    });
+
+    it('is not given when the setting is 0: the blocker that the last ordinary rewrite brought holds the piece, as it did', async () => {
+      const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(1, 0) });
+      const id = idOf(composed.draft, SENTENCE);
+      fake.script('verify', rejecting(composed, claims, id));
+      fake.script('compose', rewriting(id, BRINGS(9)), rewriting(id, REWRITTEN));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('hold');
+      expect(result.rounds).toBe(1);
+      expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G4_NUMBER_UNSUPPORTED']);
+      expect(callsOf(fake, 'compose')).toHaveLength(2);
+      expect(callsOf(fake, 'verify')).toHaveLength(1);
+    });
+
+    it('is not given when the setting is 0 to a blocker that stands from the first draft either: the ordinary rounds are all there are', async () => {
+      const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: withRounds(1, 0) });
+      const bad = idOf(composed.draft, INVENTED);
+      fake.script('compose', rewriting(bad, STILL_BAD(16)), rewriting(bad, GOOD_TAKEAWAY));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('hold');
+      expect(result.rounds).toBe(1);
+      expect(callsOf(fake, 'compose')).toHaveLength(2);
+    });
+
+    it('gives as many extra rounds as the setting says: two, when the second mends the blocker', async () => {
+      const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: withRounds(0, 2) });
+      const bad = idOf(composed.draft, INVENTED);
+      fake.script('compose', rewriting(bad, STILL_BAD(16)), rewriting(bad, GOOD_TAKEAWAY));
+      fake.script('verify', CLEARS());
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('publish');
+      expect(result.rounds).toBe(2);
+      expect(callsOf(fake, 'compose')).toHaveLength(3);
+    });
+
+    it('gives as many extra rounds as the setting says, and no more: two, when the blocker is still there after them', async () => {
+      const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: withRounds(0, 2) });
+      const bad = idOf(composed.draft, INVENTED);
+      fake.script('compose', rewriting(bad, STILL_BAD(16)), rewriting(bad, STILL_BAD(17)), rewriting(bad, GOOD_TAKEAWAY));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('hold');
+      expect(result.rounds).toBe(2);
+      expect(callsOf(fake, 'compose')).toHaveLength(3);
+    });
   });
 
-  it('gives the extra round after the ordinary rounds, not instead of them', async () => {
-    const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(1, 1) });
-    const id = idOf(composed.draft, SENTENCE);
-    const fails = () => verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } });
-    fake.script('verify', fails(), fails(), CLEARS());
-    fake.script('compose', rewriting(id, REWRITTEN), rewriting(id, { ...REWRITTEN, text: 'The company says the arm is built for tote picking.' }));
-    const result = await runVerify(ctx, claims, composed);
-    expect(result.outcome).toBe('publish');
-    expect(result.rounds).toBe(2);
-  });
+  describe('for a blocker that no sentence can mend', () => {
+    it('holds with no round at all, whatever the setting of the extra rounds is', async () => {
+      for (const extra of [0, 1, 2]) {
+        const { ctx, fake, claims, composed } = await start((reply) => { reply.sections = reply.sections.slice(0, 1); }, { overrides: withRounds(2, extra) });
+        expect(composed.gate.failures.map((failure) => failure.code)).toEqual(['G2_SECTIONS_MIN']);
+        const result = await runVerify(ctx, claims, composed);
+        expect(result.outcome, `extra ${extra}`).toBe('hold');
+        expect(result.rounds, `extra ${extra}`).toBe(0);
+        expect(callsOf(fake, 'compose'), `extra ${extra}`).toHaveLength(1);
+        expect(callsOf(fake, 'verify'), `extra ${extra}`).toHaveLength(0);
+        expect(result.history.map((pass) => pass.sent), `extra ${extra}`).toEqual([[]]);
+      }
+    });
 
-  it('does not give it when the setting is 0', async () => {
-    const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 0) });
-    const id = idOf(composed.draft, SENTENCE);
-    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } }));
-    const result = await runVerify(ctx, claims, composed);
-    expect(result.outcome).toBe('hold');
-    expect(result.rounds).toBe(0);
-    expect(callsOf(fake, 'compose')).toHaveLength(1);
-  });
-
-  it('does not give it to a blocker of the gate that still stands in the last round', async () => {
-    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: withRounds(0, 1) });
-    const result = await runVerify(ctx, claims, composed);
-    expect(result.outcome).toBe('hold');
-    expect(result.rounds).toBe(0);
-    expect(callsOf(fake, 'compose')).toHaveLength(1);
-    expect(callsOf(fake, 'verify')).toHaveLength(0);
-  });
-
-  it('gives as many extra rounds as the setting says: two, when the model check rejects the first revision too and clears the second', async () => {
-    const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 2) });
-    const id = idOf(composed.draft, SENTENCE);
-    const fails = () => verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } });
-    fake.script('verify', fails(), fails(), CLEARS());
-    fake.script('compose', rewriting(id, REWRITTEN), rewriting(id, { ...REWRITTEN, text: 'The company says the arm is built for tote picking.' }));
-    const result = await runVerify(ctx, claims, composed);
-    expect(result.outcome).toBe('publish');
-    expect(result.rounds).toBe(2);
-    expect(callsOf(fake, 'compose')).toHaveLength(3);
-    expect(callsOf(fake, 'verify')).toHaveLength(3);
-  });
-
-  it('gives no further round to an extra round that breaks the gate: the blocker that it brings holds the piece', async () => {
-    const { ctx, fake, claims, composed } = await start(undefined, { overrides: withRounds(0, 2) });
-    const id = idOf(composed.draft, SENTENCE);
-    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } }));
-    fake.script('compose', rewriting(id, BAD_TAKEAWAY));
-    const result = await runVerify(ctx, claims, composed);
-    expect(result.outcome).toBe('hold');
-    expect(result.rounds).toBe(1);
-    expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G4_NUMBER_UNSUPPORTED']);
-    expect(callsOf(fake, 'compose')).toHaveLength(2);
-    expect(callsOf(fake, 'verify')).toHaveLength(1);
-  });
-
-  it('gives the extra round to a draft that the gate sent back first: a blocker mended in an ordinary round, then a rejection by the model check', async () => {
-    const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; }, { overrides: withRounds(1, 1) });
-    const bad = idOf(composed.draft, INVENTED);
-    const id = idOf(composed.draft, SENTENCE);
-    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' } }), CLEARS());
-    fake.script('compose', rewriting(bad, GOOD_TAKEAWAY), rewriting(id, REWRITTEN));
-    const result = await runVerify(ctx, claims, composed);
-    expect(result.outcome).toBe('publish');
-    expect(result.rounds).toBe(2);
-    expect(callsOf(fake, 'compose')).toHaveLength(3);
-    expect(callsOf(fake, 'verify')).toHaveLength(2);
-    expect(result.history.map((pass) => [pass.round, pass.gate.route, pass.sent])).toEqual([[0, 'revise', [bad]], [1, 'publish', [id]], [2, 'publish', []]]);
+    it('holds a piece whose only blocker is of that kind after the rounds that mend the rest, and the extra round is for the rest too', async () => {
+      const { ctx, fake, claims, composed } = await start((reply) => { reply.takeaways[1] = BAD_TAKEAWAY; reply.sections = reply.sections.slice(0, 1); }, { overrides: withRounds(0, 1) });
+      const bad = idOf(composed.draft, INVENTED);
+      fake.script('compose', rewriting(bad, GOOD_TAKEAWAY));
+      const result = await runVerify(ctx, claims, composed);
+      expect(result.outcome).toBe('hold');
+      expect(result.rounds).toBe(1);
+      expect(result.gate.failures.map((failure) => failure.code)).toEqual(['G2_SECTIONS_MIN']);
+      expect(callsOf(fake, 'compose')).toHaveLength(2);
+    });
   });
 });
 

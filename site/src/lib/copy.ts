@@ -90,8 +90,8 @@ export function modelCheckText(live: Live = LIVE): string {
 /** The start of the section about holds: when a piece is held and where a held draft goes. The page adds what the holds page shows. */
 export function holdsText(live: Live = LIVE): string {
   return live.publishing
-    ? "The gate holds a piece when it cannot clear it: a blocker still stands after two rounds of revision, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report."
-    : "The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after two rounds of revision, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
+    ? "The gate holds a piece when it cannot clear it: a blocker still stands after three rounds of revision, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report."
+    : "The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after three rounds of revision, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
 }
 
 /** What the site shows for a held draft that the owner decides to publish. The words quoted are the ones the receipts page uses. */

@@ -416,7 +416,7 @@ describe('PIPELINE_STAGES', () => {
     // "Three times in all" is the number of asks that Select makes for a story with no primary page.
     expect(readFileSync(new URL('../../desk/src/stages/select.ts', import.meta.url), 'utf8')).toContain('export const SELECT_ATTEMPTS = 3;');
     expect(text('Verify')).toBe(
-      'The gate will check the draft. A blocker, such as a number or a date that no claim has, sends the draft back for revision with the exact failures, at most twice; a note, such as a length outside the target, is recorded and does not stop the piece.',
+      'The gate will check the draft. A blocker, such as a number or a date that no claim has, sends the draft back for revision with the exact failures, at most three times; a note, such as a length outside the target, is recorded and does not stop the piece.',
     );
     expect(text('Publish or hold')).toBe(
       'A draft with no blocker, that the model check clears, will be built and published, with its notes on its receipts page. A draft that does not will be held for the owner as a draft pull request that carries the gate report.',

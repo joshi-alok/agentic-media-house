@@ -32,10 +32,10 @@ function failure(yaml: string): string {
 }
 
 describe('defaultConfig', () => {
-  it('has a budget of calls that holds the worst case of a piece that the model check holds', () => {
-    // Select, Extract, Compose, a revision and a model check for each round, and one more model check: the worst case of a hold by the model check, without retries.
-    const { budget, maxRevisionRounds, modelCheckRevisions } = defaultConfig();
-    expect(budget.maxCalls).toBeGreaterThanOrEqual(3 + 2 * (maxRevisionRounds + modelCheckRevisions) + 1);
+  it('has a budget of calls that holds the worst case of a piece that is held after every round', () => {
+    // Select, Extract, Compose, a revision and a model check for each round, and one more model check: the worst case of a hold after the last round, without retries.
+    const { budget, maxRevisionRounds, extraRevisionRounds } = defaultConfig();
+    expect(budget.maxCalls).toBeGreaterThanOrEqual(3 + 2 * (maxRevisionRounds + extraRevisionRounds) + 1);
   });
 
   it('holds the settings of the design', () => {
@@ -45,7 +45,7 @@ describe('defaultConfig', () => {
       shortlistPerSource: 3,
       minClaims: 3,
       maxRevisionRounds: 2,
-      modelCheckRevisions: 1,
+      extraRevisionRounds: 1,
       maxAttemptsPerDay: 3,
       userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
       requestIntervalMs: 1000,
@@ -133,8 +133,8 @@ describe('loadConfig with a file', () => {
   });
 
   it('accepts a setting at the edge of what is allowed', () => {
-    const config = loadConfig(configFile('maxRevisionRounds: 0\nmodelCheckRevisions: 0\nrequestIntervalMs: 0\nminClaims: 1\nmaxAttemptsPerDay: 1\nrunDir: r\n'));
-    expect([config.maxRevisionRounds, config.modelCheckRevisions, config.requestIntervalMs, config.minClaims, config.maxAttemptsPerDay, config.runDir]).toEqual([0, 0, 0, 1, 1, 'r']);
+    const config = loadConfig(configFile('maxRevisionRounds: 0\nextraRevisionRounds: 0\nrequestIntervalMs: 0\nminClaims: 1\nmaxAttemptsPerDay: 1\nrunDir: r\n'));
+    expect([config.maxRevisionRounds, config.extraRevisionRounds, config.requestIntervalMs, config.minClaims, config.maxAttemptsPerDay, config.runDir]).toEqual([0, 0, 0, 1, 1, 'r']);
   });
 
   it('takes the number of tries that a day may have from the file', () => {
@@ -177,6 +177,11 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
     expect(failure('recencyDays: 3\n')).toBe('desk config <file>: Unrecognized key: "recencyDays"');
   });
 
+  it('the old name of the setting for the extra rounds of revision, which a file of settings would otherwise leave silently wrong', () => {
+    expect(failure('modelCheckRevisions: 1\n')).toBe('desk config <file>: Unrecognized key: "modelCheckRevisions"');
+    expect(failure('maxRevisionRounds: 2\nmodelCheckRevisions: 0\n')).toBe('desk config <file>: Unrecognized key: "modelCheckRevisions"');
+  });
+
   it('a setting that does not exist inside the budget or the models, naming where', () => {
     expect(failure('budget:\n  maxCall: 3\n')).toBe('desk config <file>: budget: Unrecognized key: "maxCall"');
     expect(failure('models:\n  summarise: x\n')).toBe('desk config <file>: models: Unrecognized key: "summarise"');
@@ -198,7 +203,7 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
 
   it('a negative number of revision rounds, or a negative pause between requests', () => {
     expect(failure('maxRevisionRounds: -1\n')).toBe('desk config <file>: maxRevisionRounds: Too small: expected number to be >=0');
-    expect(failure('modelCheckRevisions: -1\n')).toBe('desk config <file>: modelCheckRevisions: Too small: expected number to be >=0');
+    expect(failure('extraRevisionRounds: -1\n')).toBe('desk config <file>: extraRevisionRounds: Too small: expected number to be >=0');
     expect(failure('requestIntervalMs: -5\n')).toBe('desk config <file>: requestIntervalMs: Too small: expected number to be >=0');
   });
 

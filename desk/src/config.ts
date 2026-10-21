@@ -74,14 +74,15 @@ export const DeskConfig = z.strictObject({
    * The file of settings of the daily run names one.
    */
   extractChunkWords: count.optional(),
-  /** Verify: how many times a draft goes back to the composer before it is held (`modelCheckRevisions` adds rounds for a rejection by the model check). */
+  /** Verify: how many times a draft goes back to the composer before it is held (`extraRevisionRounds` adds more for a problem that is still there after them). */
   maxRevisionRounds: z.number().int().nonnegative(),
   /**
-   * Verify: after the `maxRevisionRounds` rounds, a draft that has no blocker of the gate and that the model check rejects goes back up to this many more times; a draft
-   * with a blocker of the gate, including one that a revision of these rounds brings, is held. The model check is the only layer that reads meaning, and a rejection found
-   * when the rounds are spent has had no answer.
+   * Verify: after the `maxRevisionRounds` rounds, a draft that still has a problem a sentence can mend, from the gate or from the model check, goes back up to this many more
+   * times. The rounds are not for the model check alone: the last rewrite of a sentence can bring a blocker of the gate of its own (a number that no claim has, a description
+   * a few characters too long), and a piece that was fine but for that is not held for the one thing its final rewrite broke. A problem that no sentence can mend (the number
+   * of sections, the basis of a claim) gets no round, now or after.
    */
-  modelCheckRevisions: z.number().int().nonnegative(),
+  extraRevisionRounds: z.number().int().nonnegative(),
   /** Run: how many runs one day may have, the first and every one after it (a day that failed is run again, and `--force-new` runs a day again). The run after the last is refused. */
   maxAttemptsPerDay: count,
   /** Fetch: what the Desk calls itself to every site. It must link to the /method page, which says who the Desk is. */
@@ -117,7 +118,7 @@ export function defaultConfig(): DeskConfig {
     shortlistPerSource: 3,
     minClaims: 3,
     maxRevisionRounds: 2,
-    modelCheckRevisions: 1,
+    extraRevisionRounds: 1,
     maxAttemptsPerDay: 3,
     userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
     requestIntervalMs: 1000,

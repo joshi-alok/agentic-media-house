@@ -87,7 +87,7 @@ export const contentOf = (repoDir: string): string[] => filesBelow(path.join(rep
 /** The content folders of a site that has no piece. */
 export const EMPTY_CONTENT = ['ledger/.gitkeep', 'news/.gitkeep'];
 
-/** A model that says the story but whose verifier finds the title not entailed in every pass, so that the piece is revised three times (twice, and once more for the rejection of the model check) and held. */
+/** A model that says the story but whose verifier finds the title not entailed in every pass, so that the piece is revised three times (the two rounds and the extra round) and held. */
 export function unentailed(): FakeClient {
   const rejecting = (request: Parameters<typeof clearingVerifier>[0]) => {
     const reply = clearingVerifier(request);

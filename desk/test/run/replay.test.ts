@@ -62,6 +62,36 @@ describe('replayRun: a run that is replayed as it was', () => {
     expect(report.equal).toBe(true);
   });
 
+  it('replays a run whose last ordinary rewrite brought a blocker of the gate and whose extra round mended it, with 3 rounds of revision recorded, finding the artifacts equal', async () => {
+    const rejecting = (request: ModelRequest<unknown>) => {
+      const reply = clearingVerifier(request);
+      return { ...reply, verdicts: reply.verdicts.map((verdict, at) => (at === 0 ? { ...verdict, reason: 'The passages do not say it.', missing: ['what the passages do not say'], verdict: 'not_entailed' as const } : verdict)) };
+    };
+    const retitled = (text: string) => ({ replacements: [{ id: 's0', sentence: { kind: 'fact' as const, text, claimIds: ['c-1'] } }] });
+    const fake = new FakeClient()
+      .script('select', SELECT)
+      .script('extract', { claims: DEMO_CLAIMS })
+      .script(
+        'compose',
+        DEMO_REPLY,
+        retitled('Fixture Robotics begins FX-1 deliveries to a second plant'),
+        // the last of the two ordinary rewrites brings a number that no claim has
+        retitled('Fixture Robotics begins FX-1 deliveries to 9 more plants'),
+        // a title of its own: a draft that is the same as an earlier one is the same request, and so the same cassette
+        retitled('Fixture Robotics starts FX-1 deliveries to a second Brindle Logistics plant'),
+      )
+      .script('verify', rejecting, rejecting, clearingVerifier);
+    const { dir, replay, result } = await recordedRun({ fake });
+    expect(result.outcome).toBe('published');
+    const stored = read(path.join(dir, '06-verify.json')) as { rounds: number; history: { gate: { route: string }; sent: string[] }[] };
+    expect(stored.rounds).toBe(3);
+    expect(stored.history.map((pass) => [pass.gate.route, pass.sent])).toEqual([['publish', ['s0']], ['publish', ['s0']], ['revise', ['s0']], ['publish', []]]);
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.artifacts).toEqual(REPLAYED.map((name) => ({ name, status: 'equal', detail: null })));
+    expect(report.equal).toBe(true);
+  });
+
   it('replays a run that lowered a status that the model check did not find, finding the artifacts equal: the lowering follows from the reply that was recorded', async () => {
     const lowering = (request: ModelRequest<unknown>) => {
       const reply = clearingVerifier(request);

@@ -418,8 +418,8 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
 
   it('says, in the first trial, that with the size of the parts of a page in the settings Extract is one call for each part, at most 6, how many calls a page of 3 and a page of 6 parts can reach, and gives the command the 14 calls that the worst of them needs', () => {
     const step = stepTitled(/^Run the first trial/);
-    const { maxRevisionRounds, modelCheckRevisions } = defaultConfig();
-    const rounds = maxRevisionRounds + modelCheckRevisions;
+    const { maxRevisionRounds, extraRevisionRounds } = defaultConfig();
+    const rounds = maxRevisionRounds + extraRevisionRounds;
     // the parts, the composer, a model check for the draft and for each round of revision, and a revision for each round
     const calls = (parts: number): number => parts + 1 + (rounds + 1) + rounds;
     expect(calls(1)).toBe(9);

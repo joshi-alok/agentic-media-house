@@ -76,7 +76,7 @@ describe('holdReasonsOf', () => {
   });
 
   it('has a reason for a hold made of gate failures alone, and is empty only for a piece that nothing holds', async () => {
-    const { verified } = await verdictOn({ reply: { ...replyFromDraft(), takeaways: [INVENTED(15), ...replyFromDraft().takeaways.slice(1)] }, revisions: [{ replacements: [] }, { replacements: [] }] });
+    const { verified } = await verdictOn({ reply: { ...replyFromDraft(), takeaways: [INVENTED(15), ...replyFromDraft().takeaways.slice(1)] }, revisions: [{ replacements: [] }, { replacements: [] }, { replacements: [] }] });
     expect(holdReasonsOf(verified)).toEqual(['G4_NUMBER_UNSUPPORTED']);
     const clean = await verdictOn({ verifier: (plan) => [verifierReply(plan)] });
     expect(holdReasonsOf(clean.verified)).toEqual([]);
@@ -105,7 +105,7 @@ describe('runHold: a piece that cites another outlet, which the gate clears and 
       reasons: ['G10_NOT_ENTAILED'],
       draft: verified.draft,
       claims: citedClaims(verified.draft, claims),
-      rounds: defaultConfig().maxRevisionRounds + defaultConfig().modelCheckRevisions,
+      rounds: defaultConfig().maxRevisionRounds + defaultConfig().extraRevisionRounds,
       gate: verified.gate,
       verifier: verified.verifier,
       history: verified.history,
@@ -169,15 +169,15 @@ describe('runHold: a draft that the gate or the model check did not clear', () =
   it('records the codes of the failures that were never mended, and the held file has every pass', async () => {
     const reply = replyFromDraft();
     reply.takeaways[1] = INVENTED(15);
-    const { ctx, claims, verified } = await verdictOn({ reply, revisions: [{ replacements: [] }, { replacements: [] }] });
+    const { ctx, claims, verified } = await verdictOn({ reply, revisions: [{ replacements: [] }, { replacements: [] }, { replacements: [] }] });
     expect(verified.outcome).toBe('hold');
-    expect(verified.rounds).toBe(2);
+    expect(verified.rounds).toBe(3);
     const { repoDir, target } = setup();
     const result = await runHold(ctx, target, claims, verified, RUN);
     expect(result.reasons).toEqual(['G4_NUMBER_UNSUPPORTED']);
     const held = HeldArtifact.parse(JSON.parse(readFileSync(result.file, 'utf8')));
-    expect(held.history.map((pass) => pass.round)).toEqual([0, 1, 2]);
-    expect(held.rounds).toBe(2);
+    expect(held.history.map((pass) => pass.round)).toEqual([0, 1, 2, 3]);
+    expect(held.rounds).toBe(3);
     expect((await readDeskState(path.join(repoDir, STATE))).holds[0]?.reasons).toEqual(['G4_NUMBER_UNSUPPORTED']);
   });
 

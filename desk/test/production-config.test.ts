@@ -66,8 +66,9 @@ describe('desk.config.yml', () => {
     expect(DEFAULTS.extractChunkWords).toBeUndefined();
     // The daily run reads one primary page (the profile explainer), which is at most MAX_PARTS parts. The worst case of a run, without retries: Select asks up to SELECT_ATTEMPTS times, Extract once for each part,
     // Compose once, and Verify asks the model check once in each round (the first and every round of revision) and asks the composer once for each round of revision.
-    const { budget, maxRevisionRounds, modelCheckRevisions } = loadConfig(FILE);
-    const rounds = maxRevisionRounds + modelCheckRevisions;
+    // The extra rounds are for a problem of the gate as for one of the model check, and a round is still at most one revision and one model check, so the count does not grow.
+    const { budget, maxRevisionRounds, extraRevisionRounds } = loadConfig(FILE);
+    const rounds = maxRevisionRounds + extraRevisionRounds;
     const worstCase = SELECT_ATTEMPTS + MAX_PARTS + 1 + (rounds + 1) + rounds;
     expect(worstCase).toBe(17);
     expect(budget.maxCalls).toBeGreaterThanOrEqual(worstCase);

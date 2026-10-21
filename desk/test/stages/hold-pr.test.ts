@@ -184,8 +184,8 @@ describe('holdPrBody', () => {
     const failed = (held.history.at(-1) as HeldArtifact['history'][number]).verifierFailures;
     expect(failed).toHaveLength(1);
     expect(held.reasons).toEqual(['G10_NOT_ENTAILED']);
-    // The model check holds it in the extra round that only its rejection gets, so the rounds that the run did are more than `maxRevisionRounds`.
-    expect(held.rounds).toBe(defaultConfig().maxRevisionRounds + defaultConfig().modelCheckRevisions);
+    // The model check holds it after the extra round too, so the rounds that the run did are more than `maxRevisionRounds`.
+    expect(held.rounds).toBe(defaultConfig().maxRevisionRounds + defaultConfig().extraRevisionRounds);
     expect(holdPrBody(held)).toBe(
       [
         `# Held by the Desk: \`${slug}\``,
@@ -253,7 +253,7 @@ describe('holdPrBody', () => {
     expect(body).toContain(`- \`G4_NUMBER_UNSUPPORTED\`: ${REASON_LABELS.G4_NUMBER_UNSUPPORTED}`);
     expect(body).toContain('8 of 9 checks passed. Failed: `G4`. It found 1 failure in the last draft.');
     expect(body).toContain('G4_NUMBER_UNSUPPORTED: the number "15 kg"');
-    expect(body).toContain(`| Rounds of revision | ${defaultConfig().maxRevisionRounds} |`);
+    expect(body).toContain(`| Rounds of revision | ${defaultConfig().maxRevisionRounds + defaultConfig().extraRevisionRounds} |`);
     // The model was not asked about a draft that the gate had sent back, and the text says so.
     expect(body).toContain('was not asked about the last draft: the gate had sent it back');
     expect(body).not.toContain('What it did not clear');

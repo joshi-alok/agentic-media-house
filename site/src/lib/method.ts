@@ -232,7 +232,7 @@ export const PIPELINE_STAGES: readonly PipelineStage[] = [
   },
   {
     name: 'Verify',
-    text: 'The gate will check the draft. A blocker, such as a number or a date that no claim has, sends the draft back for revision with the exact failures, at most twice; a note, such as a length outside the target, is recorded and does not stop the piece.',
+    text: 'The gate will check the draft. A blocker, such as a number or a date that no claim has, sends the draft back for revision with the exact failures, at most three times; a note, such as a length outside the target, is recorded and does not stop the piece.',
   },
   {
     name: 'Publish or hold',

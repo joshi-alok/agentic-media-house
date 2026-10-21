@@ -149,8 +149,8 @@ export function buildComposeUser(claims: readonly Claim[], date: string): string
 
 /**
  * What the writer is told to check in each replacement before it replies, with the limit of the description of `config`. A revision that brings a new blocker (a description that has
- * grown past its limit, a heading that has a number written in words) may have no round left to answer it, and the piece is held. It says only what the rules below already state, and
- * only the prompt of a revision has it: the first draft is not changed.
+ * grown past its limit, a heading that has a number written in words) is answered by another round while one is left, and the piece is held when the revision of the last round brings it.
+ * It says only what the rules below already state, and only the prompt of a revision has it: the first draft is not changed.
  */
 export function replacementChecklist(config: GateConfig = GATE): string[] {
   return [

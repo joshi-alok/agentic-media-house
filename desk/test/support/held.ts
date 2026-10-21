@@ -19,10 +19,8 @@ import { verifierReply } from './verifier';
 /** The run that holds in these tests. */
 export const HOLD_RUN = { runId: '2026-10-05-043100', at: '2026-10-05T04:31:00.000Z' };
 
-/** How many times a draft that the gate holds goes back to the composer: the limit of the configuration, so that a change of the limit does not break the helpers below. */
-const ROUNDS = defaultConfig().maxRevisionRounds;
-/** How many times a draft that the model check holds goes back: those rounds, and the ones that only a rejection by the model check gets. */
-const MODEL_CHECK_ROUNDS = ROUNDS + defaultConfig().modelCheckRevisions;
+/** How many times a draft that is held goes back to the composer: every round that the configuration allows (`maxRevisionRounds` and `extraRevisionRounds`), so that a change of the limits does not break the helpers below. */
+const ROUNDS = defaultConfig().maxRevisionRounds + defaultConfig().extraRevisionRounds;
 /** What the composer says to each revision when it mends nothing: one reply for each of `rounds`. */
 const UNMENDED = (rounds: number) => Array.from({ length: rounds }, () => ({ replacements: [] }));
 /** One verifier reply for each time the draft is judged when it is sent back in each of `rounds`: the first draft and the draft after each round. */
@@ -59,10 +57,10 @@ export function verdicts(scratch: () => string) {
     return verdictOn({
       reply: replyFromDraft(variant.draft),
       claims: variant.claims,
-      revisions: UNMENDED(MODEL_CHECK_ROUNDS),
+      revisions: UNMENDED(ROUNDS),
       verifier: (plan) => {
         const attributed = plan.sentences.find((item) => item.text.startsWith(TIER2_OUTLET))?.id as string;
-        return PASSES(MODEL_CHECK_ROUNDS, () => verifierReply(plan, { verdicts: { [attributed]: 'not_entailed' } }));
+        return PASSES(ROUNDS, () => verifierReply(plan, { verdicts: { [attributed]: 'not_entailed' } }));
       },
     });
   }
@@ -80,8 +78,8 @@ export function verdicts(scratch: () => string) {
     const sentence = plan.sentences[3]?.id as string;
     const claim = plan.claims[0]?.id as string;
     return verdictOn({
-      revisions: UNMENDED(MODEL_CHECK_ROUNDS),
-      verifier: () => PASSES(MODEL_CHECK_ROUNDS, () => verifierReply(plan, { verdicts: { [sentence]: 'ambiguous' }, unsupported: [claim], omit: [plan.sentences[5]?.id as string] })),
+      revisions: UNMENDED(ROUNDS),
+      verifier: () => PASSES(ROUNDS, () => verifierReply(plan, { verdicts: { [sentence]: 'ambiguous' }, unsupported: [claim], omit: [plan.sentences[5]?.id as string] })),
     });
   }
 
