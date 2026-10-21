@@ -145,6 +145,26 @@ describe('packRun: the list of fields is the only way in', () => {
     }
   });
 
+  it('does not take a status that was lowered, or its reason, which a model wrote: 06-verify.json is packed as before', async () => {
+    const dir = scratch();
+    writeHostileRun(dir);
+    const before = await packRun(dir);
+    const file = path.join(dir, '06-verify.json');
+    const data = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    writeFileSync(file, JSON.stringify({ ...data, lowered: [{ round: 0, claimId: 'c-1', from: 'planned', to: 'unspecified', reason: `the status "planned" is not supported: ${HOSTILE}` }] }));
+    const pack = await packRun(dir);
+    for (const [name, text] of Object.entries(pack)) {
+      expect(text, name).not.toContain(MARKER);
+      expect(text, name).not.toContain('lowered');
+    }
+    // The file is another file now (its length and hash are in the pack), and what is said of it is the same.
+    const strip = (text: string | undefined): unknown => {
+      const { sourceBytes: _bytes, sourceSha256: _hash, ...rest } = JSON.parse(text as string) as Record<string, unknown>;
+      return rest;
+    };
+    expect(strip(pack['06-verify.json'])).toEqual(strip(before['06-verify.json']));
+  });
+
   it('does not pack a stage that it does not know, and counts it', async () => {
     const dir = scratch();
     writeHostileRun(dir);

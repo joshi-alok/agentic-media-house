@@ -62,6 +62,16 @@ describe('the README: how a replay knows how the run was made', () => {
   });
 });
 
+describe('the README: a status that the model check does not find', () => {
+  it('says that a basis it does not find holds the piece, that a status is lowered to unspecified in a copy of the claims and the piece goes on, where it is recorded, and that an unspecified status that is rejected stays a failure', () => {
+    const stages = section('The desk workspace');
+    expect(stages).toContain('A basis that it does not find holds the piece (no sentence and no other basis can mend it).');
+    expect(stages).toContain('A status that it does not find is lowered to `unspecified`, which says nothing about how far the capability has got and so is always true: in a copy of the claims (`04-extract.json` keeps what Extract said)');
+    expect(stages).toContain('`06-verify.json` lists each lowering in `lowered`, the log has a line for it, and the notes of the model check say it.');
+    expect(stages).toContain('A status that is `unspecified` already and is rejected stays a failure.');
+  });
+});
+
 describe('the README: trying a model call again', () => {
   it('says which failures a call is tried again after, how often and after how long, what is not tried again, that every try is a call of the budget, and that a retry is logged', () => {
     const models = section('The desk workspace');

@@ -1,14 +1,15 @@
-import { allSentences, describeLocation, runGate } from '@robywire/gate';
+import { allSentences, buildLimitations, citedClaims, describeLocation, runGate } from '@robywire/gate';
 import type { Claim, Draft, Failure, GateResult } from '@robywire/gate';
 import { z } from 'zod';
 import { ComposeArtifact, VerifyArtifact, writeArtifact } from '../index';
+import type { LoweredStatus } from '../index';
 import { buildReviseUser, promptClaimIds, reviseSystem } from '../prompts/compose';
 import type { ReviseItem } from '../prompts/compose';
 import { COMPOSE_EFFORT, COMPOSE_MAX_OUTPUT_TOKENS, gateContextOf } from './compose';
 import type { ComposeResult } from './compose';
 import type { StageContext } from './context';
 import { ReplySentence, finishDraft } from './draft-assembly';
-import { runVerifier } from './verify-model';
+import { lowerRejectedStatuses, runVerifier, verifyPlanOf } from './verify-model';
 import type { VerifierFailure } from './verify-model';
 
 // Stage 6, Verify: the gate, then the model check (G10), and what follows a no. The gate (G1 to G9) judges the draft first, because
@@ -17,6 +18,8 @@ import type { VerifierFailure } from './verify-model';
 // place of the sentences they replace; then the whole draft is judged again. This goes on for at most `config.maxRevisionRounds`
 // rounds, and, after them, for at most `config.modelCheckRevisions` more for a draft that only the model check rejects. A draft that is clean at
 // the end is `publish`, and a draft that is not clean at the end is `hold`: nothing is ever published on the strength of a draft that was not cleared.
+// One failure of the model check is answered by code and not sent anywhere: a status that it does not find in the passage of its claim is lowered to `unspecified`
+// (see `lowerRejectedStatuses`), so that one over-read label does not hold a piece.
 
 /** What was found wrong with one sentence or heading of a draft: its id (`s3`, the sentence, or `h1`, the heading of a section) and why. */
 export interface Problem {
@@ -186,6 +189,13 @@ export async function reviseDraft(ctx: StageContext, claims: Claim[], draft: Dra
 
 /** What the Verify stage hands on. */
 export interface VerifyResult {
+  /**
+   * The claims the piece goes on with: the ones Verify was given, except that the status of a claim that the model check did not find in its passage is `unspecified` (see `lowered`).
+   * Everything after Verify (the ledger and the receipts, the held draft) is made from these and not from the claims that Extract proposed, which its own record keeps as they were.
+   */
+  claims: Claim[];
+  /** The statuses that were lowered, round by round; absent when none was. */
+  lowered?: LoweredStatus[];
   /** `publish` only when the gate cleared the last draft and the model check passed; `hold` otherwise, whatever the reason. */
   outcome: 'publish' | 'hold';
   /** The last draft, and what the gate and the model check said of it. */
@@ -209,22 +219,46 @@ export interface VerifyResult {
  * sentence can mend (the number of sections, the categories, the basis of a claim) is not sent anywhere: it is recorded, and the draft is held when
  * the rounds that could mend the rest are over.
  *
+ * A status that the model check does not find in the passage is the one such failure that code can mend: the claim is changed, in a copy, to the status `unspecified` (the claims that
+ * Extract proposed are not touched), the limitation sentences of the draft are made again from the claims, the gate is run on it again, and the failure is answered, so that it counts
+ * neither for the model check passing nor as a problem that no sentence can mend. The sentences are not sent back for it. Every later round, the revision of the composer, the final
+ * gate and the stages after this one use the lowered claims, which is why they are in the result. Each lowering is in the log and in `06-verify.json`. A basis that is not supported, a status
+ * that is `unspecified` already and every other failure are handled as before.
+ *
  * The outcome is `publish` only for a draft that the gate routes to `publish` and the model check passed. When the model check never saw the last draft,
  * `verifier` says so and is not passed.
  *
  * Writes `05-compose.json` (every draft, the first and each revision) and `06-verify.json` (every pass). Nothing is written when a call fails: the error ends the run.
  */
-export async function runVerify(ctx: StageContext, claims: Claim[], composed: ComposeResult): Promise<VerifyResult> {
+export async function runVerify(ctx: StageContext, extracted: Claim[], composed: ComposeResult): Promise<VerifyResult> {
   const gateContext = gateContextOf(ctx);
   const drafts: Draft[] = [composed.draft];
   const history: VerifyArtifact['history'] = [];
+  const lowered: LoweredStatus[] = [];
+  let claims = extracted;
   let { draft, gate } = composed;
   let verifier: VerifyArtifact['verifier'] | undefined;
 
   for (let round = 0; ; round++) {
-    const checked = gate.failures.length === 0 ? await runVerifier(ctx, draft, claims) : undefined;
+    let checked = gate.failures.length === 0 ? await runVerifier(ctx, draft, claims) : undefined;
+    if (checked !== undefined) {
+      // The notes of this pass tell what was lowered in the passes before it, too: the last pass is the one a published piece carries on its receipts page.
+      const lowering = lowerRejectedStatuses(verifyPlanOf(draft, claims), claims, checked, lowered);
+      checked = lowering.outcome;
+      if (lowering.lowered.length > 0) {
+        for (const entry of lowering.lowered) {
+          ctx.log(`verify: the status of ${entry.claimId} is lowered from ${entry.from} to unspecified (the model check did not find it in the passage)`);
+          lowered.push({ round, ...entry });
+        }
+        claims = lowering.claims;
+        // The sentences are the ones the model check judged. Only the limitation sentences follow from the claims, so they are made again, and the draft that stands in this round is this one.
+        draft = { ...draft, limitations: buildLimitations(citedClaims(draft, claims)) };
+        drafts[drafts.length - 1] = draft;
+        gate = runGate({ draft, claims }, gateContext);
+      }
+    }
     verifier = checked?.verifier;
-    const clean = checked?.verifier.passed === true;
+    const clean = gate.failures.length === 0 && checked?.verifier.passed === true;
     const { problems, unattached } = problemsOf(draft, gate, checked?.failures ?? []);
     // The rounds are for any failure; a rejection by the model check after them gets `modelCheckRevisions` more.
     const rejected = checked !== undefined && !checked.verifier.passed;
@@ -247,6 +281,7 @@ export async function runVerify(ctx: StageContext, claims: Claim[], composed: Co
   const outcome = gate.route === 'publish' && last.passed ? 'publish' : 'hold';
   const rounds = drafts.length - 1;
   await writeArtifact(ctx.runDir, '05-compose', { date: ctx.date, drafts }, ComposeArtifact);
-  await writeArtifact(ctx.runDir, '06-verify', { date: ctx.date, outcome, rounds, gate: structuredClone(gate), verifier: last, history }, VerifyArtifact);
-  return { outcome, draft, gate, verifier: last, rounds, history };
+  const lowerings = lowered.length === 0 ? {} : { lowered };
+  await writeArtifact(ctx.runDir, '06-verify', { date: ctx.date, outcome, rounds, gate: structuredClone(gate), verifier: last, history, ...lowerings }, VerifyArtifact);
+  return { outcome, draft, gate, verifier: last, rounds, history, claims, ...lowerings };
 }

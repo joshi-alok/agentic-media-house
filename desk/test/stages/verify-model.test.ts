@@ -6,7 +6,7 @@ import { FakeClient } from '../../src/model/fake';
 import { ModelError } from '../../src/model/types';
 import { buildVerifyUser, verifySystem } from '../../src/prompts/verify';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
-import { VERIFY_EFFORT, VERIFY_MAX_OUTPUT_TOKENS, VerifyReply, aggregateVerdicts, judgePlan, runVerifier, verifyPlanOf } from '../../src/stages/verify-model';
+import { VERIFY_EFFORT, VERIFY_MAX_OUTPUT_TOKENS, VerifyReply, aggregateVerdicts, judgePlan, lowerRejectedStatuses, runVerifier, verifyPlanOf } from '../../src/stages/verify-model';
 import { stageContext, useScratch } from '../support/context';
 import { blocksOf, outsideBlocks } from '../support/prompts';
 import { verifierReply } from '../support/verifier';
@@ -162,14 +162,15 @@ describe('aggregateVerdicts', () => {
     reply.labels[1] = { id: 'c-2', basisSupported: true, statusSupported: false, reason: 'It is not planned.' };
     const { verifier, failures } = aggregateVerdicts(MODEL, PLAN, reply);
     expect(failures).toEqual([
-      { id: 'c-1', kind: 'label', code: 'unsupported', reason: 'the basis "announcement" is not supported: It is not an announcement.' },
-      { id: 'c-2', kind: 'label', code: 'unsupported', reason: 'the status "unspecified" is not supported: It is not planned.' },
+      { id: 'c-1', kind: 'label', code: 'unsupported', field: 'basis', reason: 'the basis "announcement" is not supported: It is not an announcement.' },
+      { id: 'c-2', kind: 'label', code: 'unsupported', field: 'status', reason: 'the status "unspecified" is not supported: It is not planned.' },
     ]);
     expect(verifier.notes).toEqual(['claim c-1: the basis "announcement" is not supported: It is not an announcement.', 'claim c-2: the status "unspecified" is not supported: It is not planned.']);
   });
 
-  it('fails twice a claim whose basis and status are both unsupported', () => {
+  it('fails twice a claim whose basis and status are both unsupported, once for each field', () => {
     const { failures } = aggregateVerdicts(MODEL, PLAN, verifierReply(PLAN, { unsupported: ['c-8'] }));
+    expect(failures.map((failure) => failure.field)).toEqual(['basis', 'status']);
     expect(failures.map((failure) => failure.reason)).toEqual([
       'the basis "docs" is not supported: The passage does not support the label.',
       'the status "unspecified" is not supported: The passage does not support the label.',
@@ -178,7 +179,9 @@ describe('aggregateVerdicts', () => {
 
   it('fails a claim that the verifier gave no judgement on', () => {
     const { failures } = aggregateVerdicts(MODEL, PLAN, verifierReply(PLAN, { omit: ['c-8'] }));
+    // A label with no verdict at all is neither a basis nor a status that was rejected, so it names no field.
     expect(failures).toEqual([{ id: 'c-8', kind: 'label', code: 'missing', reason: 'the verifier gave no verdict on the basis "docs" and the status "unspecified"' }]);
+    expect('field' in (failures[0] as object)).toBe(false);
   });
 
   it('lists every failure, items first and then claims, and fails when there are several', () => {
@@ -386,5 +389,128 @@ describe('runVerifier', () => {
     const made = stageContext(scratch);
     await expect(runVerifier(made.ctx, draft, GOLDEN_CLAIMS)).rejects.toThrow('runVerifier needs a draft with at least one fact sentence, analysis sentence or heading to judge');
     expect(made.fake.calls).toEqual([]);
+  });
+});
+
+describe('lowerRejectedStatuses', () => {
+  // The model check judges two labels of each claim against the passage. A status it does not find can be lowered to `unspecified`, which says nothing about how far the thing has
+  // got and so is always true; a basis it does not find cannot, because there is no basis that says nothing.
+  const claimOf = (id: string) => GOLDEN_CLAIMS.find((claim) => claim.id === id)!;
+  const outcomeOf = (options: Parameters<typeof verifierReply>[1]) => aggregateVerdicts(MODEL, PLAN, verifierReply(PLAN, options));
+
+  it('changes nothing when no label was rejected: the same claims and the same outcome', () => {
+    const outcome = outcomeOf({});
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcome);
+    expect(result.lowered).toEqual([]);
+    expect(result.claims).toBe(GOLDEN_CLAIMS);
+    expect(result.outcome).toBe(outcome);
+  });
+
+  it('lowers the status of a claim whose status was rejected, in a copy, and keeps the reason the model check gave', () => {
+    const before = structuredClone(GOLDEN_CLAIMS);
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({ unsupportedStatus: ['c-27'] }));
+    expect(result.lowered).toEqual([{ claimId: 'c-27', from: 'demonstrated', to: 'unspecified', reason: 'the status "demonstrated" is not supported: The passage does not support the label.' }]);
+    expect(result.claims.find((claim) => claim.id === 'c-27')?.status).toBe('unspecified');
+    expect(result.claims.filter((claim) => claim.id !== 'c-27')).toEqual(GOLDEN_CLAIMS.filter((claim) => claim.id !== 'c-27'));
+    expect(result.claims.map((claim) => claim.id)).toEqual(GOLDEN_CLAIMS.map((claim) => claim.id));
+    // Nothing is changed in what it was given.
+    expect(GOLDEN_CLAIMS).toEqual(before);
+    expect(claimOf('c-27').status).toBe('demonstrated');
+  });
+
+  it('answers the failure: the check passes when nothing else failed, and says in its notes what was lowered, with no word that the model wrote', () => {
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({ unsupportedStatus: ['c-27'] }));
+    expect(result.outcome.failures).toEqual([]);
+    expect(result.outcome.verifier.passed).toBe(true);
+    const facts = PLAN.sentences.filter((item) => item.kind === 'fact').length;
+    expect(result.outcome.verifier.notes).toEqual([
+      `Judged ${facts} fact sentences, ${PLAN.sentences.length - facts} analysis sentences and 3 headings against the passages they rely on, and the basis and the status of ${PLAN.claims.length} claims; every sentence, heading and basis was supported, and so was every status except the 1 lowered below.`,
+      'claim c-27: the status "demonstrated" was lowered to "unspecified" because the model check did not find it in the passage.',
+    ]);
+  });
+
+  it('lowers every status that was rejected, in the order of the claims, whatever the status was', () => {
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({ unsupportedStatus: ['c-28', 'c-5', 'c-20'] }));
+    expect(result.lowered.map((entry) => [entry.claimId, entry.from, entry.to])).toEqual([
+      ['c-5', 'planned', 'unspecified'],
+      ['c-20', 'deployed', 'unspecified'],
+      ['c-28', 'demonstrated', 'unspecified'],
+    ]);
+    expect(result.claims.filter((claim) => claim.status !== 'unspecified').map((claim) => claim.id)).toEqual(
+      GOLDEN_CLAIMS.filter((claim) => claim.status !== 'unspecified' && !['c-5', 'c-20', 'c-28'].includes(claim.id)).map((claim) => claim.id),
+    );
+    expect(result.outcome.verifier.passed).toBe(true);
+    expect(result.outcome.verifier.notes).toHaveLength(4);
+    expect(result.outcome.verifier.notes[0]).toContain('and so was every status except the 3 lowered below.');
+  });
+
+  it('leaves the other failures as they were, with their notes, and adds the notes of what was lowered after them', () => {
+    const outcome = outcomeOf({ verdicts: { s3: 'not_entailed' }, unsupportedStatus: ['c-27'] });
+    expect(outcome.failures.map((failure) => failure.id)).toEqual(['s3', 'c-27']);
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcome);
+    expect(result.outcome.failures).toEqual([outcome.failures[0]]);
+    expect(result.outcome.verifier.passed).toBe(false);
+    expect(result.outcome.verifier.notes).toEqual([outcome.verifier.notes[0], 'claim c-27: the status "demonstrated" was lowered to "unspecified" because the model check did not find it in the passage.']);
+  });
+
+  it('tells, after its own notes, the statuses that were lowered in the passes before it, which are the ones a published piece carries on its receipts page', () => {
+    const earlier = [{ claimId: 'c-5', from: 'planned' as const, to: 'unspecified' as const, reason: 'x' }];
+    const quiet = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({}), earlier);
+    expect(quiet.lowered).toEqual([]);
+    expect(quiet.claims).toBe(GOLDEN_CLAIMS);
+    expect(quiet.outcome.verifier.passed).toBe(true);
+    expect(quiet.outcome.verifier.notes).toHaveLength(2);
+    expect(quiet.outcome.verifier.notes[0]).toMatch(/; every one was supported\.$/);
+    expect(quiet.outcome.verifier.notes[1]).toBe('claim c-5: the status "planned" was lowered to "unspecified" because the model check did not find it in the passage.');
+    const both = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({ unsupportedStatus: ['c-27'] }), earlier);
+    expect(both.outcome.verifier.notes.slice(1)).toEqual([
+      'claim c-5: the status "planned" was lowered to "unspecified" because the model check did not find it in the passage.',
+      'claim c-27: the status "demonstrated" was lowered to "unspecified" because the model check did not find it in the passage.',
+    ]);
+    const failing = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcomeOf({ verdicts: { s3: 'not_entailed' } }), earlier);
+    expect(failing.outcome.verifier.passed).toBe(false);
+    expect(failing.outcome.verifier.notes).toHaveLength(2);
+  });
+
+  it('does not lower the status of a claim whose basis was rejected: the basis failure stays, and so does the check failing', () => {
+    const outcome = outcomeOf({ unsupportedBasis: ['c-27'] });
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcome);
+    expect(result.lowered).toEqual([]);
+    expect(result.claims).toBe(GOLDEN_CLAIMS);
+    expect(result.outcome).toBe(outcome);
+    expect(result.outcome.failures).toMatchObject([{ id: 'c-27', field: 'basis' }]);
+  });
+
+  it('lowers the status of a claim whose basis was rejected too, and leaves the basis failure, so the check still fails', () => {
+    const outcome = outcomeOf({ unsupported: ['c-27'] });
+    expect(outcome.failures.map((failure) => failure.field)).toEqual(['basis', 'status']);
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcome);
+    expect(result.lowered.map((entry) => entry.claimId)).toEqual(['c-27']);
+    expect(result.claims.find((claim) => claim.id === 'c-27')).toMatchObject({ basis: 'demo', status: 'unspecified' });
+    expect(result.outcome.failures).toMatchObject([{ id: 'c-27', kind: 'label', code: 'unsupported', field: 'basis' }]);
+    expect(result.outcome.verifier.passed).toBe(false);
+  });
+
+  it('does not lower a status that is already unspecified: that failure stays a failure', () => {
+    const outcome = outcomeOf({ unsupportedStatus: ['c-8'] });
+    expect(outcome.failures).toMatchObject([{ id: 'c-8', field: 'status' }]);
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcome);
+    expect(result.lowered).toEqual([]);
+    expect(result.claims).toBe(GOLDEN_CLAIMS);
+    expect(result.outcome).toBe(outcome);
+  });
+
+  it('does not lower a status for a label that the model check gave no verdict on, because nothing was rejected', () => {
+    const outcome = outcomeOf({ omit: ['c-27'] });
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS, outcome);
+    expect(result.lowered).toEqual([]);
+    expect(result.outcome).toBe(outcome);
+  });
+
+  it('does not lower the status of a claim it does not have', () => {
+    const outcome = outcomeOf({ unsupportedStatus: ['c-27'] });
+    const result = lowerRejectedStatuses(PLAN, GOLDEN_CLAIMS.filter((claim) => claim.id !== 'c-27'), outcome);
+    expect(result.lowered).toEqual([]);
+    expect(result.outcome).toBe(outcome);
   });
 });

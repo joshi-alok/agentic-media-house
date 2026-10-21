@@ -34,7 +34,7 @@ const VERIFIER = { model: 'model-a', passed: true, notes: ['Judged every fact se
 function cleared(): VerifyResult {
   const gate = runGate({ draft: GOLDEN_DRAFT, claims: GOLDEN_CLAIMS }, defaultContext());
   expect(gate.route).toBe('publish');
-  return { outcome: 'publish', draft: GOLDEN_DRAFT, gate, verifier: VERIFIER, rounds: 0, history: [] };
+  return { outcome: 'publish', draft: GOLDEN_DRAFT, gate, verifier: VERIFIER, rounds: 0, history: [], claims: GOLDEN_CLAIMS };
 }
 
 /** A context whose evidence store keeps whatever it is asked to keep: the hashes of the golden piece are not those of any page that a store holds. */
@@ -186,8 +186,8 @@ describe('runPublish', () => {
     // the hold of the owner flow (a gate result with the route hold, as the fixture generator makes it) and the hold of the model check (the gate cleared it and the verifier did not).
     expect(gate.route).toBe('publish');
     expect(gate.holdReasons).toEqual([]);
-    const holdOfTheOwnerFlow: VerifyResult = { outcome: 'hold', draft: variant.draft, gate: { ...gate, route: 'hold', holdReasons: ['G10_AMBIGUOUS'] }, verifier: VERIFIER, rounds: 0, history: [] };
-    const holdOfTheModelCheck: VerifyResult = { outcome: 'hold', draft: variant.draft, gate, verifier: { ...VERIFIER, passed: false }, rounds: 2, history: [] };
+    const holdOfTheOwnerFlow: VerifyResult = { outcome: 'hold', draft: variant.draft, gate: { ...gate, route: 'hold', holdReasons: ['G10_AMBIGUOUS'] }, verifier: VERIFIER, rounds: 0, history: [], claims: variant.claims };
+    const holdOfTheModelCheck: VerifyResult = { outcome: 'hold', draft: variant.draft, gate, verifier: { ...VERIFIER, passed: false }, rounds: 2, history: [], claims: variant.claims };
     for (const held of [holdOfTheOwnerFlow, holdOfTheModelCheck]) {
       await expect(runPublish(ctx, target, variant.claims, held, RUN)).rejects.toThrow('needs a piece that Verify cleared');
       await expect(runPublish(ctx, target, variant.claims, { ...held, outcome: 'publish' }, RUN)).rejects.toThrow('needs a piece that Verify cleared');

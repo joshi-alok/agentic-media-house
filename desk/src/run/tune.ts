@@ -296,12 +296,16 @@ const blank = (url: string, kind: SourceKind, trial: number | null): TuneRow => 
 /** A row for a page that no trial was made of. */
 const untried = (url: string, kind: SourceKind, status: 'not-fetched' | 'unknown-kind', note: string): TuneRow => ({ ...blank(url, kind, null), status, note });
 
-/** What the model check said of the first draft that it was shown, from the artifacts that Verify wrote. */
-async function modelCheckOf(dir: string, claims: Claim[], verified: VerifyResult): Promise<TuneRow['modelCheck']> {
+/**
+ * What the model check said of the first draft that it was shown, from the artifacts that Verify wrote. A status that it did not find was lowered by Verify and so is not among the
+ * failures of the pass, but it is a label that the model check did not support, and it is counted with them.
+ */
+async function modelCheckOf(dir: string, verified: VerifyResult): Promise<TuneRow['modelCheck']> {
   const asked = verified.history.find((pass) => pass.verifier !== null);
   if (asked === undefined) return null;
   const drafts = (await readArtifact(dir, '05-compose', ComposeArtifact)).drafts;
-  const plan = verifyPlanOf(drafts[asked.round] as Draft, claims);
+  const plan = verifyPlanOf(drafts[asked.round] as Draft, verified.claims);
+  const lowered = (verified.lowered ?? []).filter((entry) => entry.round === asked.round).length;
   const items = asked.verifierFailures.filter((failure) => failure.kind !== 'label');
   const judged = plan.sentences.length + plan.headings.length;
   const some = (code: string): number => items.filter((failure) => failure.code === code).length;
@@ -313,7 +317,7 @@ async function modelCheckOf(dir: string, claims: Claim[], verified: VerifyResult
     ambiguous: some('ambiguous'),
     missing: some('missing'),
     claims: plan.claims.length,
-    labelProblems: asked.verifierFailures.length - items.length,
+    labelProblems: asked.verifierFailures.length - items.length + lowered,
   };
 }
 
@@ -364,7 +368,7 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
       row.composed = { route: composed.gate.route, codes: countBy(composed.gate.failures.map((failure) => failure.code)), ...extrasOf(composed.draft, composed.gate.warnings) };
       const verified = await runVerify(ctx, claims, composed);
       row.verdict = { outcome: verified.outcome, rounds: verified.rounds, route: verified.gate.route, codes: countBy(verified.gate.failures.map((failure) => failure.code)), ...extrasOf(verified.draft, verified.gate.warnings) };
-      row.modelCheck = await modelCheckOf(dir, claims, verified);
+      row.modelCheck = await modelCheckOf(dir, verified);
     }
   } catch (error) {
     row.status = error instanceof CallLimitReached ? 'stopped' : 'failed';

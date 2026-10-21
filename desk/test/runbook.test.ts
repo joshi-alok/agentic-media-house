@@ -563,6 +563,11 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
+  it('tells, in the step that records each day, where a status that the model check did not find is written, and that it does not fail the piece', () => {
+    const step = stepTitled(/^Record each day/);
+    expect(step.text).toContain('in `lowered` each status that the model check did not find and that was lowered to `unspecified`, which does not fail the piece');
+  });
+
   it('rehearses on GitHub with nothing that can publish, in the order that the check of it needs: the key, the run with dry, the pack, and the proof that main and the deploy did not move', () => {
     const lines = stepTitled(/^Rehearse on GitHub/).blocks.flatMap((block) => block.lines);
     const at = (needle: string): number => lines.findIndex((line) => line.includes(needle));

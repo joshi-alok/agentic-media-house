@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { allSentences, buildLimitations, citedClaims, defaultContext, runGate } from '@robywire/gate';
+import { STATUS_NOTES, allSentences, buildLimitations, citedClaims, defaultContext, runGate } from '@robywire/gate';
 import type { Claim, Draft } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
@@ -9,9 +9,10 @@ import { FakeClient } from '../../src/model/fake';
 import { ModelError } from '../../src/model/types';
 import { buildReviseUser, reviseSystem } from '../../src/prompts/compose';
 import { ComposeArtifact, VerifyArtifact, readArtifact } from '../../src/run/artifacts';
-import { COMPOSE_EFFORT, runCompose } from '../../src/stages/compose';
+import { COMPOSE_EFFORT, gateContextOf, runCompose } from '../../src/stages/compose';
 import type { StageContext } from '../../src/stages/context';
 import { assembleDraft } from '../../src/stages/draft-assembly';
+import { holdReasonsOf } from '../../src/stages/hold';
 import { problemsOf, reviseDraft, reviseReplySchema, runVerify } from '../../src/stages/verify';
 import { verifyPlanOf } from '../../src/stages/verify-model';
 import { stageContext, useScratch } from '../support/context';
@@ -933,5 +934,204 @@ describe('runVerify: the extra round for a rejection by the model check', () => 
     expect(callsOf(fake, 'compose')).toHaveLength(3);
     expect(callsOf(fake, 'verify')).toHaveLength(2);
     expect(result.history.map((pass) => [pass.round, pass.gate.route, pass.sent])).toEqual([[0, 'revise', [bad]], [1, 'publish', [id]], [2, 'publish', []]]);
+  });
+});
+
+describe('runVerify: a status that the model check does not find in the passage', () => {
+  // The model check judges the basis and the status of each claim against its passage. A basis that it does not find holds the piece, because no basis says nothing. A status that it does not
+  // find is lowered to `unspecified`, which says nothing about how far the thing has got and so is always true: the claim is changed in a copy, the limitation sentences are made again from the
+  // claims, the gate is run again, and the piece goes on with the lowered claims, in this round and in every step after it.
+  const SENTENCE = 'The company says the arm is built for tote picking and trailer unloading.';
+  const REWRITTEN = { kind: 'fact' as const, text: 'The company says the arm is built for tote picking and for trailer unloading.', claimIds: ['c-1'] };
+  const LOWERED_LINE = (id: string, from: string): string => `verify: the status of ${id} is lowered from ${from} to unspecified (the model check did not find it in the passage)`;
+  const statusOf = (claims: readonly Claim[], id: string): string | undefined => claims.find((claim) => claim.id === id)?.status;
+  const textsOf = (draft: Draft, template: 'basis' | 'status'): string[] => draft.limitations.filter((limitation) => limitation.template === template).map((limitation) => limitation.text);
+
+  it('lowers one claim and publishes in the same round when nothing else fails, without a call to the composer or a second call to the verifier', async () => {
+    const { ctx, fake, claims, composed, logs } = await start();
+    const before = structuredClone(claims);
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedStatus: ['c-27'] }));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('publish');
+    expect(result.rounds).toBe(0);
+    expect(callsOf(fake, 'verify')).toHaveLength(1);
+    expect(callsOf(fake, 'compose')).toHaveLength(1);
+    expect(result.verifier.passed).toBe(true);
+    expect(result.gate.route).toBe('publish');
+    // The claims it returns are the ones the run goes on with; the ones it was given are not changed.
+    expect(statusOf(result.claims, 'c-27')).toBe('unspecified');
+    expect(result.claims.filter((claim) => claim.id !== 'c-27')).toEqual(claims.filter((claim) => claim.id !== 'c-27'));
+    expect(claims).toEqual(before);
+    expect(result.lowered).toEqual([{ round: 0, claimId: 'c-27', from: 'demonstrated', to: 'unspecified', reason: 'the status "demonstrated" is not supported: The passage does not support the label.' }]);
+    expect(logs).toContain(LOWERED_LINE('c-27', 'demonstrated'));
+    expect(logs.filter((line) => line.startsWith('verify: round'))).toEqual(['verify: round 0: the gate says publish, the model check passed']);
+  });
+
+  it('answers the failure in the record of the pass: it holds no failure of the label, the check passed, and the notes say what was lowered', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedStatus: ['c-27'] }));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.history).toHaveLength(1);
+    expect(result.history[0]).toMatchObject({ round: 0, verifierFailures: [], sent: [], verifier: { passed: true } });
+    expect(result.verifier.notes).toHaveLength(2);
+    expect(result.verifier.notes[1]).toBe('claim c-27: the status "demonstrated" was lowered to "unspecified" because the model check did not find it in the passage.');
+  });
+
+  it('makes the limitation sentences again from the lowered claims, runs the gate again on them, and the check of the limitations passes', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    expect(textsOf(composed.draft, 'status')).toEqual([STATUS_NOTES.demonstrated, STATUS_NOTES.planned]);
+    expect(composed.draft.limitations.find((limitation) => limitation.template === 'status' && limitation.text === STATUS_NOTES.demonstrated)?.claimIds).toEqual(['c-27', 'c-28']);
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedStatus: ['c-27'] }));
+    const result = await runVerify(ctx, claims, composed);
+    // The sentence of the demonstrated claims now covers the one claim that is still demonstrated, and the basis sentences are as they were.
+    expect(result.draft.limitations.find((limitation) => limitation.template === 'status' && limitation.text === STATUS_NOTES.demonstrated)?.claimIds).toEqual(['c-28']);
+    expect(textsOf(result.draft, 'basis')).toEqual(textsOf(composed.draft, 'basis'));
+    expect(result.draft.limitations).toEqual(buildLimitations(citedClaims(result.draft, result.claims)));
+    expect(result.gate).toEqual(runGate({ draft: result.draft, claims: result.claims }, gateContextOf(ctx)));
+    expect(result.gate.checks.G8).toBe('pass');
+    expect(result.gate.checks.G2).toBe('pass');
+    // The sentences are the ones the model check judged.
+    expect(allSentences(result.draft).filter((item) => item.sentence.kind !== 'limitation').map((item) => item.sentence)).toEqual(allSentences(composed.draft).filter((item) => item.sentence.kind !== 'limitation').map((item) => item.sentence));
+    // The gate would refuse the lowered draft with the old limitation sentences: that they were made again is what lets it pass.
+    const stale = runGate({ draft: composed.draft, claims: result.claims }, gateContextOf(ctx));
+    expect(stale.failures.some((failure) => failure.code.startsWith('G8_'))).toBe(true);
+  });
+
+  it('gives no sentence of a status once every claim of that status is lowered, and none for a deployed claim that is lowered, which never had one', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedStatus: ['c-27', 'c-28', 'c-20'] }));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('publish');
+    expect(result.lowered?.map((entry) => [entry.claimId, entry.from])).toEqual([['c-20', 'deployed'], ['c-27', 'demonstrated'], ['c-28', 'demonstrated']]);
+    expect(textsOf(result.draft, 'status')).toEqual([STATUS_NOTES.planned]);
+    expect(result.gate.checks.G8).toBe('pass');
+    expect(result.verifier.notes).toHaveLength(4);
+  });
+
+  it('lowers two claims in the same round', async () => {
+    const { ctx, fake, claims, composed, logs } = await start();
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedStatus: ['c-5', 'c-27'] }));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('publish');
+    expect(result.claims.filter((claim) => claim.status !== claims.find((original) => original.id === claim.id)?.status).map((claim) => claim.id)).toEqual(['c-5', 'c-27']);
+    expect(result.lowered?.map((entry) => [entry.round, entry.claimId, entry.from])).toEqual([[0, 'c-5', 'planned'], [0, 'c-27', 'demonstrated']]);
+    expect(logs.filter((line) => line.startsWith('verify: the status'))).toEqual([LOWERED_LINE('c-5', 'planned'), LOWERED_LINE('c-27', 'demonstrated')]);
+    expect(result.draft.limitations.find((limitation) => limitation.text === STATUS_NOTES.planned)?.claimIds).toEqual(['c-6', 'c-7', 'c-25', 'c-26']);
+  });
+
+  it('goes on with the lowered claims when a sentence fails in the same round: the rounds are counted as they are today, and the composer and the verifier are shown the lowered claims', async () => {
+    const { ctx, fake, claims, composed, logs } = await start();
+    const id = idOf(composed.draft, SENTENCE);
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' }, unsupportedStatus: ['c-27'] }), CLEARS());
+    fake.script('compose', rewriting(id, REWRITTEN));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('publish');
+    expect(result.rounds).toBe(1);
+    expect(callsOf(fake, 'compose')).toHaveLength(2);
+    expect(callsOf(fake, 'verify')).toHaveLength(2);
+    expect(result.history[0]).toMatchObject({ round: 0, sent: [id], verifier: { passed: false }, verifierFailures: [{ id, kind: 'sentence', code: 'not_entailed' }] });
+    expect(result.history[1]).toMatchObject({ round: 1, sent: [], verifier: { passed: true }, verifierFailures: [] });
+    expect(logs).toContain(LOWERED_LINE('c-27', 'demonstrated'));
+    expect(logs.filter((line) => line.startsWith('verify: round'))).toEqual([`verify: round 0: the gate says publish, the model check failed; sent back: ${id}`, 'verify: round 1: the gate says publish, the model check passed']);
+    // The lowering is of round 0, and it stands in round 1.
+    expect(result.lowered).toEqual([{ round: 0, claimId: 'c-27', from: 'demonstrated', to: 'unspecified', reason: 'the status "demonstrated" is not supported: The passage does not support the label.' }]);
+    expect(statusOf(result.claims, 'c-27')).toBe('unspecified');
+    expect(callsOf(fake, 'compose')[1]?.user).toContain('Claim c-27 (basis: demo, status: unspecified,');
+    expect(callsOf(fake, 'verify')[1]?.user).toContain('Claim c-27 (basis: demo, status: unspecified,');
+    expect(callsOf(fake, 'verify')[0]?.user).toContain('Claim c-27 (basis: demo, status: demonstrated,');
+    // The draft of the revision has the limitation sentences of the lowered claims, and the gate passes it.
+    expect(result.draft.limitations).toEqual(buildLimitations(citedClaims(result.draft, result.claims)));
+    expect(result.gate.checks.G8).toBe('pass');
+    // The lowering was made in round 0 and its note is in the record of that pass. The last pass is the one a published piece carries, so it tells the lowering too, after its own words
+    // and without saying that a status was lowered in it, since none was.
+    const note = 'claim c-27: the status "demonstrated" was lowered to "unspecified" because the model check did not find it in the passage.';
+    expect(result.history[0]?.verifier?.notes.at(-1)).toBe(note);
+    expect(result.verifier.notes).toHaveLength(2);
+    expect(result.verifier.notes[0]).toMatch(/; every one was supported\.$/);
+    expect(result.verifier.notes[1]).toBe(note);
+    expect(result.history[1]?.verifier).toEqual(result.verifier);
+  });
+
+  it('writes the lowering in 06-verify.json, the draft that stands in 05-compose.json, and the record reads back', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedStatus: ['c-27'] }));
+    const result = await runVerify(ctx, claims, composed);
+    const written = await readArtifact(ctx.runDir, '06-verify', VerifyArtifact);
+    expect(written.lowered).toEqual([{ round: 0, claimId: 'c-27', from: 'demonstrated', to: 'unspecified', reason: 'the status "demonstrated" is not supported: The passage does not support the label.' }]);
+    expect(written).toMatchObject({ outcome: 'publish', rounds: 0, gate: result.gate, verifier: result.verifier, history: result.history });
+    // The last draft of 05-compose.json is the one that stands, which has the limitation sentences of the lowered claims.
+    const drafts = (await readArtifact(ctx.runDir, '05-compose', ComposeArtifact)).drafts;
+    expect(drafts).toHaveLength(1);
+    expect(drafts.at(-1)).toEqual(result.draft);
+  });
+
+  it('writes no field of the lowering when nothing was lowered, so that the record is the record of before', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    fake.script('verify', CLEARS());
+    const result = await runVerify(ctx, claims, composed);
+    expect('lowered' in result).toBe(false);
+    expect(result.claims).toBe(claims);
+    expect('lowered' in (await readArtifact(ctx.runDir, '06-verify', VerifyArtifact))).toBe(false);
+  });
+
+  it('holds a claim whose basis and status were both rejected, as it did before; the status is lowered all the same and says so in the record, and the basis stays the reason', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupported: ['c-27'] }));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('hold');
+    expect(result.rounds).toBe(0);
+    expect(callsOf(fake, 'compose')).toHaveLength(1);
+    expect(result.verifier.passed).toBe(false);
+    expect(result.history[0]?.verifierFailures).toMatchObject([{ id: 'c-27', kind: 'label', code: 'unsupported', field: 'basis' }]);
+    expect(result.history[0]?.sent).toEqual([]);
+    expect(result.lowered).toEqual([{ round: 0, claimId: 'c-27', from: 'demonstrated', to: 'unspecified', reason: 'the status "demonstrated" is not supported: The passage does not support the label.' }]);
+    expect(statusOf(result.claims, 'c-27')).toBe('unspecified');
+    expect(holdReasonsOf(result)).toEqual(['G10_LABEL_UNSUPPORTED']);
+  });
+
+  it('holds a basis that was rejected, and lowers nothing', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedBasis: ['c-27'] }));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('hold');
+    expect(result.claims).toBe(claims);
+    expect('lowered' in result).toBe(false);
+    expect(result.history[0]?.verifierFailures).toMatchObject([{ id: 'c-27', field: 'basis' }]);
+  });
+
+  it('holds a status that is already unspecified and was rejected, as it did before', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedStatus: ['c-8'] }));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('hold');
+    expect(result.claims).toBe(claims);
+    expect('lowered' in result).toBe(false);
+    expect(result.history[0]?.verifierFailures).toMatchObject([{ id: 'c-8', kind: 'label', code: 'unsupported', field: 'status' }]);
+  });
+
+  it('holds a claim whose lowered status the model check rejects in the next round, because a status that says nothing is not lowered again', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    const id = idOf(composed.draft, SENTENCE);
+    fake.script('verify', verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' }, unsupportedStatus: ['c-27'] }), verifierReply(verifyPlanOf(composed.draft, claims), { unsupportedStatus: ['c-27'] }));
+    fake.script('compose', rewriting(id, REWRITTEN));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('hold');
+    expect(result.lowered).toHaveLength(1);
+    expect(result.history[1]?.verifierFailures).toMatchObject([{ id: 'c-27', kind: 'label', field: 'status' }]);
+  });
+
+  it('keeps the claims of a hold that other failures end, lowered, for the held file', async () => {
+    const { ctx, fake, claims, composed } = await start();
+    const id = idOf(composed.draft, SENTENCE);
+    const fails = () => verifierReply(verifyPlanOf(composed.draft, claims), { verdicts: { [id]: 'not_entailed' }, unsupportedStatus: ['c-27'] });
+    fake.script('verify', fails(), fails(), fails(), fails());
+    fake.script('compose', rewriting(id, REWRITTEN), rewriting(id, REWRITTEN), rewriting(id, REWRITTEN));
+    const result = await runVerify(ctx, claims, composed);
+    expect(result.outcome).toBe('hold');
+    expect(result.rounds).toBe(3);
+    // Lowered once: after that the claim is unspecified, and its status is rejected again (the scripted verifier says so in every pass), which is a failure that stays.
+    expect(result.lowered).toHaveLength(1);
+    expect(statusOf(result.claims, 'c-27')).toBe('unspecified');
+    expect(holdReasonsOf(result)).toContain('G10_NOT_ENTAILED');
   });
 });

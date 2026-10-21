@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEMO_CLAIMS, demoClient } from '../../src/demo/story';
+import { DEMO_CLAIMS, DEMO_REPLY, clearingVerifier, demoClient } from '../../src/demo/story';
 import { DEMO_DATE, DEMO_URLS, demoFetcher, demoRegistry } from '../../src/demo/world';
 import type { DeskConfig } from '../../src/config';
 import { FetchError } from '../../src/fetch/http';
@@ -17,6 +17,8 @@ import { R2EvidenceStore } from '../../src/run/r2-evidence';
 import type { RunDeskOptions, Stages } from '../../src/run/orchestrate';
 import { refuseApiOnFixtures } from '../../src/run/spending';
 import { sitePaths } from '../../src/run/target';
+import { STATUS_NOTES } from '@robywire/gate';
+import type { LedgerEntry } from '@robywire/gate';
 import { runDiscover } from '../../src/stages/discover';
 import { runFetch } from '../../src/stages/fetch';
 import { FETCHED_AT, useScratch, withPages } from '../support/context';
@@ -144,6 +146,63 @@ describe('runDesk: a clean story', () => {
     expect(second.outcome).toBe('no-story');
     expect(fake.calls[0]?.user).not.toContain('FX-1 deliveries to Brindle');
     expect(fake.calls[0]?.user).toContain('Northwind Handling');
+  });
+});
+
+describe('runDesk: a status that the model check does not find in the passage', () => {
+  // The model check judged the status of a claim and did not find it in the passage: the claim is lowered to unspecified in Verify, and everything after Verify uses the lowered claim.
+  const rejectingStatus = (id: string) => (request: Parameters<typeof clearingVerifier>[0]) => {
+    const reply = clearingVerifier(request);
+    return { ...reply, labels: reply.labels.map((label) => (label.id === id ? { ...label, statusSupported: false, reason: 'The passage does not say it is planned.' } : label)) };
+  };
+  const telling = (verifier: (request: Parameters<typeof clearingVerifier>[0]) => unknown): FakeClient =>
+    new FakeClient().script('select', SELECT).script('extract', { claims: DEMO_CLAIMS }).script('compose', DEMO_REPLY).script('verify', verifier);
+  const ledgerOf = (repoDir: string, slug: string): LedgerEntry => JSON.parse(readFileSync(path.join(repoDir, sitePaths().ledgerFile(slug)), 'utf8')) as LedgerEntry;
+
+  it('publishes the piece in the same run, with the lowered claim in its ledger and its page, and the limitation sentence made again from the claims', async () => {
+    const clean = setup();
+    const cleanResult = await clean.run();
+    const cleanLedger = ledgerOf(clean.repoDir, cleanResult.slug as string);
+    expect(cleanLedger.claims.find((claim) => claim.id === 'c-5')?.status).toBe('planned');
+
+    const made = setup({ fake: telling(rejectingStatus('c-5')) });
+    const result = await made.run();
+    expect(result.outcome).toBe('published');
+    const ledger = ledgerOf(made.repoDir, result.slug as string);
+    expect(ledger.claims.find((claim) => claim.id === 'c-5')?.status).toBe('unspecified');
+    expect(ledger.claims.filter((claim) => claim.id !== 'c-5')).toEqual(cleanLedger.claims.filter((claim) => claim.id !== 'c-5'));
+    expect(ledger.gate.route).toBe('publish');
+    expect(ledger.verifier?.passed).toBe(true);
+    expect(ledger.verifier?.notes.at(-1)).toBe('claim c-5: the status "planned" was lowered to "unspecified" because the model check did not find it in the passage.');
+    // The sentence "planned, not delivered" covers the planned claims that are left.
+    const mdx = readFileSync(path.join(made.repoDir, sitePaths().newsFile(result.slug as string)), 'utf8');
+    expect(mdx).toContain(STATUS_NOTES.planned);
+    const planned = ledger.sentences.find((sentence) => sentence.kind === 'limitation' && sentence.text === STATUS_NOTES.planned);
+    expect(planned?.claimIds).toEqual(['c-6', 'c-7']);
+    const cleanPlanned = cleanLedger.sentences.find((sentence) => sentence.kind === 'limitation' && sentence.text === STATUS_NOTES.planned);
+    expect(cleanPlanned?.claimIds).toEqual(['c-5', 'c-6', 'c-7']);
+    // The record of what Extract said is as it was, and the record of Verify says what was lowered.
+    expect(readFileSync(path.join(made.dir, '04-extract.json'), 'utf8')).toBe(readFileSync(path.join(clean.dir, '04-extract.json'), 'utf8'));
+    const verify = JSON.parse(readFileSync(path.join(made.dir, '06-verify.json'), 'utf8')) as { lowered: unknown; history: { verifierFailures: unknown[] }[] };
+    expect(verify.lowered).toEqual([{ round: 0, claimId: 'c-5', from: 'planned', to: 'unspecified', reason: 'the status "planned" is not supported: The passage does not say it is planned.' }]);
+    expect(verify.history[0]?.verifierFailures).toEqual([]);
+    expect(made.logs).toContain('verify: the status of c-5 is lowered from planned to unspecified (the model check did not find it in the passage)');
+    expect(recordOf(made.dir).log).toEqual(made.logs);
+    expect(recordOf(made.dir).budget.spent.calls).toBe(4);
+  });
+
+  it('holds a piece whose basis was rejected as well as its status, and the held file has the claim lowered and the list of what was lowered', async () => {
+    const basis = (request: Parameters<typeof clearingVerifier>[0]) => {
+      const reply = clearingVerifier(request);
+      return { ...reply, labels: reply.labels.map((label) => (label.id === 'c-5' ? { ...label, basisSupported: false, statusSupported: false, reason: 'No.' } : label)) };
+    };
+    const made = setup({ fake: telling(basis) });
+    const result = await made.run();
+    expect(result.outcome).toBe('held');
+    const held = JSON.parse(readFileSync(path.join(made.dir, 'held', `${result.slug as string}.json`), 'utf8')) as { claims: { id: string; status: string }[]; lowered: { claimId: string }[]; reasons: string[] };
+    expect(held.reasons).toEqual(['G10_LABEL_UNSUPPORTED']);
+    expect(held.claims.find((claim) => claim.id === 'c-5')?.status).toBe('unspecified');
+    expect(held.lowered.map((entry) => entry.claimId)).toEqual(['c-5']);
   });
 });
 

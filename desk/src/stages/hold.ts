@@ -98,6 +98,7 @@ export async function runHold(ctx: StageContext, target: PublishTarget, claims: 
     gate: verified.gate,
     verifier: verified.verifier,
     history: verified.history,
+    ...(verified.lowered === undefined ? {} : { lowered: verified.lowered }),
   };
   await writeJsonFile(file, `the held draft ${draft.slug}.json`, held, HeldArtifact);
 

@@ -397,7 +397,7 @@ If R2 refuses what the Desk sends (it has only been tried against a stand-in tha
 
 ### 25. Record each day
 
-Copy this table into a file that is not in the repository (`runs/shadow-week.md`), and fill a row each day. All the numbers are in the folder of the run: `runs/<date>/run.json` (the outcome, the stage, the reason, `budget.spent`), `runs/<date>/06-verify.json` (the gate and the model check of each round) and `runs/<date>/05-compose.json` (every draft).
+Copy this table into a file that is not in the repository (`runs/shadow-week.md`), and fill a row each day. All the numbers are in the folder of the run: `runs/<date>/run.json` (the outcome, the stage, the reason, `budget.spent`), `runs/<date>/06-verify.json` (the gate and the model check of each round, and in `lowered` each status that the model check did not find and that was lowered to `unspecified`, which does not fail the piece, so count those among the claims the verifier doubts) and `runs/<date>/05-compose.json` (every draft).
 
 ```text
 | Day | Outcome | Stage | Reason (if not published) | Claims kept | Rounds | Gate codes | Model check failures | Tokens in / out | Cost | Would you publish it? Why not? |

@@ -415,6 +415,49 @@ describe('VerifyArtifact', () => {
   });
 });
 
+describe('VerifyArtifact: the statuses that were lowered', () => {
+  // A record has the field only when a status was lowered, and every record from before there was one is still valid.
+  const lowering = () => ({ round: 0, claimId: 'c-27', from: 'demonstrated', to: 'unspecified', reason: 'The passage does not say the arm was demonstrated.' });
+  const withLowered = (...entries: object[]): VerifyArtifact => ({ ...verifyArtifact(), lowered: entries as never });
+
+  it('accepts a record with no list of lowerings, as every record from before it was written, and a record with a list', () => {
+    expect('lowered' in verifyArtifact()).toBe(false);
+    expect(problem(VerifyArtifact, verifyArtifact())).toBe('');
+    expect(problem(VerifyArtifact, withLowered(lowering()))).toBe('');
+    expect(problem(VerifyArtifact, withLowered(lowering(), { ...lowering(), round: 1, claimId: 'c-5', from: 'planned' }, { ...lowering(), claimId: 'c-20', from: 'deployed' }))).toBe('');
+    expect(problem(VerifyArtifact, withLowered())).toBe('');
+  });
+
+  it('refuses a lowering to anything but unspecified, from unspecified, with no reason, with a field it does not know, or for a round that is not a number', () => {
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), to: 'planned' }))).not.toBe('');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), from: 'unspecified' }))).not.toBe('');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), from: 'announced' }))).not.toBe('');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), reason: '' }))).toBe('lowered.0.reason: Too small: expected string to have >=1 characters');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), note: 'x' }))).toBe('lowered.0: Unrecognized key: "note"');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), round: -1 }))).not.toBe('');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), claimId: '' }))).not.toBe('');
+  });
+
+  it('says in a failure of the model check whether it is the basis or the status of a label, and a failure with no field is still valid', () => {
+    const artifact = verifyArtifact();
+    const failure = { id: 'c-27', kind: 'label', code: 'unsupported', reason: 'the basis "demo" is not supported: x' };
+    for (const extra of [{}, { field: 'basis' }, { field: 'status' }]) {
+      artifact.history[1] = { ...(artifact.history[1] as object), verifierFailures: [{ ...failure, ...extra }] } as never;
+      expect(problem(VerifyArtifact, artifact), JSON.stringify(extra)).toBe('');
+    }
+    artifact.history[1] = { ...(artifact.history[1] as object), verifierFailures: [{ ...failure, field: 'both' }] } as never;
+    expect(problem(VerifyArtifact, artifact)).not.toBe('');
+  });
+
+  it('is in a held draft too, which has the claims as they were lowered', () => {
+    const held = heldArtifact();
+    expect('lowered' in held).toBe(false);
+    expect(problem(HeldArtifact, held)).toBe('');
+    expect(problem(HeldArtifact, { ...held, lowered: [lowering()] })).toBe('');
+    expect(problem(HeldArtifact, { ...held, lowered: [{ ...lowering(), to: 'deployed' }] })).not.toBe('');
+  });
+});
+
 describe('HeldArtifact', () => {
   it('accepts a held draft with the reasons for the hold, the claims it cites and every pass that led there', () => {
     expect(problem(HeldArtifact, heldArtifact())).toBe('');

@@ -265,16 +265,17 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
       const composed = await stages.compose(ctx, claims);
       stage = 'verify';
       const verified = await stages.verify(ctx, claims, composed);
+      // From here on the claims are the ones Verify hands on: a status that the model check did not find in its passage has been lowered, and the piece is published or held with that.
       if (verified.outcome === 'publish') {
         stage = 'publish';
-        const published = await stages.publish(ctx, target, claims, verified, run);
+        const published = await stages.publish(ctx, target, verified.claims, verified, run);
         return { outcome: 'published', stage: 'publish', slug: published.slug, commit: published.commit, files: published.files };
       }
       stage = 'hold';
       // The hold remembers the story so that the next run does not choose it again while the pull request is open. An explainer is written from its primary page, which another
       // article about the same release leads to as well, so the hold of an explainer remembers that page.
       const sourceUrl = ctx.profile === 'explainer' ? (selected.tier1Url ?? selected.chosen.url) : selected.chosen.url;
-      const held = await stages.hold(ctx, target, claims, verified, { ...run, sourceUrl, attempt: day.attempt }, options.forge);
+      const held = await stages.hold(ctx, target, verified.claims, verified, { ...run, sourceUrl, attempt: day.attempt }, options.forge);
       const where = held.pullRequest !== null ? `; draft pull request ${held.pullRequest.url}` : held.note !== null ? `; no pull request: ${held.note}` : '';
       return { outcome: 'held', stage: 'hold', slug: held.slug, reason: `held for ${held.reasons.join(', ')}${where}`, pullRequest: held.pullRequest?.url ?? null, commit: held.commit, files: held.files };
     };

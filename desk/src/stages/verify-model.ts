@@ -2,7 +2,7 @@ import { allSentences, citedClaims, describeLocation } from '@robywire/gate';
 import type { Claim, Draft, LedgerEntry, LedgerSection } from '@robywire/gate';
 import { z } from 'zod';
 import { ModelError } from '../index';
-import type { ModelClient, ModelEffort, ModelUsage } from '../index';
+import type { LoweredStatus, ModelClient, ModelEffort, ModelUsage } from '../index';
 import { buildVerifyUser, verifySystem } from '../prompts/verify';
 import type { StageContext } from './context';
 
@@ -121,6 +121,11 @@ export interface VerifierFailure {
   code: 'not_entailed' | 'ambiguous' | 'unsupported' | 'missing';
   /** The verifier's reason, followed by what it says no passage states; or, where the Desk overrules the verdict or finds none, what the Desk found. */
   reason: string;
+  /**
+   * For a label that is not supported (`code` `unsupported`): which of the two it is, the `basis` or the `status`. Absent for a sentence or a heading, and for a label that was given no verdict
+   * (`missing`), which says nothing about either. A failure in a record from before there was the field has none.
+   */
+  field?: 'basis' | 'status';
 }
 
 /** What G10 decided: the value of the `verifier` of a ledger, and each failure, for the revision that follows. */
@@ -186,16 +191,58 @@ export function aggregateVerdicts(model: string, plan: VerifyPlan, reply: Verify
       failures.push({ id: claim.id, kind: 'label', code: 'missing', reason: `the verifier gave no verdict on the basis "${claim.basis}" and the status "${claim.status}"` });
       continue;
     }
-    if (!label.basisSupported) failures.push({ id: claim.id, kind: 'label', code: 'unsupported', reason: `the basis "${claim.basis}" is not supported: ${label.reason}` });
-    if (!label.statusSupported) failures.push({ id: claim.id, kind: 'label', code: 'unsupported', reason: `the status "${claim.status}" is not supported: ${label.reason}` });
+    if (!label.basisSupported) failures.push({ id: claim.id, kind: 'label', code: 'unsupported', field: 'basis', reason: `the basis "${claim.basis}" is not supported: ${label.reason}` });
+    if (!label.statusSupported) failures.push({ id: claim.id, kind: 'label', code: 'unsupported', field: 'status', reason: `the status "${claim.status}" is not supported: ${label.reason}` });
   }
+  return outcomeOf(model, plan, failures);
+}
 
+/** The note for a status that was lowered, in words that hold nothing that a model wrote, because the notes of a piece that is published go on its receipts page. */
+const loweringNote = (entry: StatusLowering): string => `claim ${entry.claimId}: the status "${entry.from}" was lowered to "${entry.to}" because the model check did not find it in the passage.`;
+
+/**
+ * The outcome for `failures` of `plan`: passed only with none, and a note for each failure, or, for a pass, what was checked. `lowered` are the statuses that were lowered in this pass to
+ * answer failures that are not in `failures` any more (see `lowerRejectedStatuses`), and `earlier` those lowered in the passes before it; each has a note after the rest, the earlier ones first,
+ * so that the last pass, which is the one a piece carries, tells all of them.
+ */
+function outcomeOf(model: string, plan: VerifyPlan, failures: VerifierFailure[], lowered: readonly StatusLowering[] = [], earlier: readonly StatusLowering[] = []): VerifierOutcome {
   const facts = plan.sentences.filter((item) => item.kind === 'fact').length;
-  const notes =
-    failures.length === 0
-      ? [`Judged ${facts} fact sentences, ${plan.sentences.length - facts} analysis sentences and ${plan.headings.length} headings against the passages they rely on, and the basis and the status of ${plan.claims.length} claims; every one was supported.`]
-      : failures.map((failure) => noteOf(failure, plan));
+  const checked = `Judged ${facts} fact sentences, ${plan.sentences.length - facts} analysis sentences and ${plan.headings.length} headings against the passages they rely on, and the basis and the status of ${plan.claims.length} claims;`;
+  const supported = lowered.length === 0 ? 'every one was supported.' : `every sentence, heading and basis was supported, and so was every status except the ${lowered.length} lowered below.`;
+  const notes = [...(failures.length === 0 ? [`${checked} ${supported}`] : failures.map((failure) => noteOf(failure, plan))), ...earlier.map(loweringNote), ...lowered.map(loweringNote)];
   return { verifier: { model, passed: failures.length === 0, notes }, failures };
+}
+
+/** A status that was lowered: a `LoweredStatus` without the round, which only the stage that loops over rounds knows. */
+export type StatusLowering = Omit<LoweredStatus, 'round'>;
+
+/**
+ * Answer the failures of the model check that a lower status mends. The model check judges the status of a claim against its passage; one it does not find is lowered to
+ * `unspecified`, which says nothing about how far the thing has got and so is always true: the piece then says less and never more. That is done for each failure that says a *status* was not
+ * supported (`field` `status`, with the code `unsupported`) of a claim in `claims` whose status is not `unspecified` already. A basis that is not supported is not answered, because no basis
+ * says nothing; neither is a label given no verdict, a status that is `unspecified` already, or a failure of a sentence or a heading.
+ *
+ * Returns the claims with those statuses lowered (a copy: the claims given are not changed, and when none is lowered they are returned as they are), what was lowered, in the order of the
+ * claims, and the outcome of the check without the failures that were answered: it passes when no other failure is left, and its notes say what was lowered, and also what was lowered in the
+ * passes before this one (`earlier`), which are given because the notes of the last pass are the ones that a published piece carries. Pure.
+ */
+export function lowerRejectedStatuses(plan: VerifyPlan, claims: Claim[], outcome: VerifierOutcome, earlier: readonly StatusLowering[] = []): { claims: Claim[]; lowered: StatusLowering[]; outcome: VerifierOutcome } {
+  const lowered: StatusLowering[] = [];
+  const answered = new Set<VerifierFailure>();
+  for (const claim of claims) {
+    const failure = outcome.failures.find((candidate) => candidate.kind === 'label' && candidate.code === 'unsupported' && candidate.field === 'status' && candidate.id === claim.id);
+    if (failure === undefined || claim.status === 'unspecified') continue;
+    lowered.push({ claimId: claim.id, from: claim.status, to: 'unspecified', reason: failure.reason });
+    answered.add(failure);
+  }
+  const ids = new Set(lowered.map((entry) => entry.claimId));
+  const remaining = outcome.failures.filter((failure) => !answered.has(failure));
+  if (lowered.length === 0 && earlier.length === 0) return { claims, lowered, outcome };
+  return {
+    claims: lowered.length === 0 ? claims : claims.map((claim): Claim => (ids.has(claim.id) ? { ...claim, status: 'unspecified' } : claim)),
+    lowered,
+    outcome: outcomeOf(outcome.verifier.model, plan, remaining, lowered, earlier),
+  };
 }
 
 /**

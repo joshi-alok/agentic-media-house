@@ -336,6 +336,19 @@ describe('main: tune, what the model check found', () => {
     };
   };
 
+  it('counts a status that the model check did not find, which Verify lowered and so answered, among the label problems, and the trial goes on to publish with it', async () => {
+    const lowering = (request: Parameters<typeof clearingVerifier>[0]) => {
+      const clear = clearingVerifier(request);
+      return { ...clear, labels: clear.labels.map((label, at) => (at === 4 ? { ...label, statusSupported: false } : label)) };
+    };
+    const reading = new FakeClient().script('extract', { claims: DEMO_CLAIMS }).script('compose', DEMO_REPLY).script('verify', lowering);
+    const { call, out, record } = tuning([RELEASE], { deps: { tuneClient: reading } });
+    expect(await call('--client', 'fake')).toBe(0);
+    expect(out).toContain('  model check: round 0 judged 40 items: entailed 40, not entailed 0, ambiguous 0, missing 0; label problems 1 (7 claims)');
+    expect(out.some((line) => line.startsWith('  verify: publish after 0 revision rounds'))).toBe(true);
+    expect(record().rows[0]).toMatchObject({ modelCheck: { round: 0, judged: 40, labelProblems: 1 }, verdict: { outcome: 'publish', rounds: 0 }, usage: { calls: 3 } });
+  });
+
   it('counts, for the first draft that the model was shown, the sentences that were not entailed, ambiguous and not judged, and the labels that were not supported, and says that the piece is held after the rounds of revision', async () => {
     const reading = new FakeClient()
       .script('extract', { claims: DEMO_CLAIMS })

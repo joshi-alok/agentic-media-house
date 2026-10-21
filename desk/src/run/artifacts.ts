@@ -161,6 +161,20 @@ export type ComposeArtifact = z.infer<typeof ComposeArtifact>;
 /** What the model check decided, as a ledger's `verifier` field has it. */
 const VerifierRecord = z.strictObject({ model: text, passed: z.boolean(), notes: z.array(text) });
 
+/**
+ * A status that the model check did not find in the passage of its claim, and that Verify lowered to `unspecified`, which says nothing about how far the thing has got and so is always
+ * true: the round in which it was lowered, the claim, the status it had, and the reason that the failure carried (the model's own words are in it). A status that is `unspecified` is never
+ * lowered, and a basis never is.
+ */
+export const LoweredStatus = z.strictObject({
+  round: z.number().int().nonnegative(),
+  claimId: text,
+  from: z.enum(['demonstrated', 'deployed', 'planned']),
+  to: z.literal('unspecified'),
+  reason: text,
+});
+export type LoweredStatus = z.infer<typeof LoweredStatus>;
+
 /** One pass of the verification: what the gate said of the draft of that round, what the model check said (none when the gate failed first), and which items went back. */
 const VerifyRound = z.strictObject({
   /** 0 for the draft that the composer wrote, then 1, 2 and so on for each revision. */
@@ -168,7 +182,8 @@ const VerifyRound = z.strictObject({
   gate: GateReport,
   /** Null when the gate found failures: the model is not asked about a draft that code has already sent back. */
   verifier: VerifierRecord.nullable(),
-  verifierFailures: z.array(z.strictObject({ id: text, kind: z.enum(['sentence', 'heading', 'label']), code: z.enum(['not_entailed', 'ambiguous', 'unsupported', 'missing']), reason: text })),
+  // `field` says, for a label that is not supported, whether it is the basis or the status; a record from before there was the field has none, and neither has a label that was given no verdict.
+  verifierFailures: z.array(z.strictObject({ id: text, kind: z.enum(['sentence', 'heading', 'label']), code: z.enum(['not_entailed', 'ambiguous', 'unsupported', 'missing']), field: z.enum(['basis', 'status']).optional(), reason: text })),
   /** The ids of the sentences and headings that were sent back to the composer after this pass; none after the last. */
   sent: z.array(text),
 });
@@ -185,7 +200,8 @@ function checkHistory(record: { rounds: number; history: readonly { round: numbe
 
 /**
  * What the Verify stage decided: `publish` only when the gate cleared the last draft and the model check passed, otherwise `hold`; how many
- * revision rounds were used; the gate and the model check of the last draft; and every pass, in order.
+ * revision rounds were used; the gate and the model check of the last draft; and every pass, in order. `lowered` is there only when a status was lowered (see `LoweredStatus`); a
+ * record without it is one in which none was, and every record from before there was the field is valid.
  */
 export const VerifyArtifact = z
   .strictObject({
@@ -195,6 +211,7 @@ export const VerifyArtifact = z
     gate: GateReport,
     verifier: VerifierRecord,
     history: z.array(VerifyRound).min(1),
+    lowered: z.array(LoweredStatus).optional(),
   })
   .superRefine((artifact, context) => {
     checkHistory(artifact, context);
@@ -221,6 +238,8 @@ export const HeldArtifact = z
     gate: GateReport,
     verifier: VerifierRecord,
     history: z.array(VerifyRound).min(1),
+    /** The statuses that were lowered on the way to this draft, when any were (see `VerifyArtifact`): the `claims` above have them lowered. */
+    lowered: z.array(LoweredStatus).optional(),
   })
   .superRefine(checkHistory);
 export type HeldArtifact = z.infer<typeof HeldArtifact>;

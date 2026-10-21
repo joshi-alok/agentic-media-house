@@ -61,6 +61,33 @@ describe('replayRun: a run that is replayed as it was', () => {
     expect(report.equal).toBe(true);
   });
 
+  it('replays a run that lowered a status that the model check did not find, finding the artifacts equal: the lowering follows from the reply that was recorded', async () => {
+    const lowering = (request: ModelRequest<unknown>) => {
+      const reply = clearingVerifier(request);
+      return { ...reply, labels: reply.labels.map((label) => (label.id === 'c-5' ? { ...label, statusSupported: false, reason: 'The passage does not say it is planned.' } : label)) };
+    };
+    const fake = new FakeClient().script('select', SELECT).script('extract', { claims: DEMO_CLAIMS }).script('compose', DEMO_REPLY).script('verify', lowering);
+    const { dir, replay, result } = await recordedRun({ fake });
+    expect(result.outcome).toBe('published');
+    expect((read(path.join(dir, '06-verify.json')) as { lowered: unknown[] }).lowered).toHaveLength(1);
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.artifacts).toEqual(REPLAYED.map((name) => ({ name, status: 'equal', detail: null })));
+    expect(report.equal).toBe(true);
+    expect(report.log).toContain('verify: the status of c-5 is lowered from planned to unspecified (the model check did not find it in the passage)');
+  });
+
+  it('replays a record that has no list of lowerings as it did before, and finds it different when the list is added to it by hand', async () => {
+    const { dir, replay } = await recordedRun();
+    const stored = read(path.join(dir, '06-verify.json')) as Record<string, unknown>;
+    expect('lowered' in stored).toBe(false);
+    expect((await replayRun(dir, replay)).equal).toBe(true);
+    write(path.join(dir, '06-verify.json'), { ...stored, lowered: [{ round: 0, claimId: 'c-5', from: 'planned', to: 'unspecified', reason: 'x' }] });
+    const report = await replayRun(dir, replay);
+    expect(report.equal).toBe(false);
+    expect(report.artifacts.find((artifact) => artifact.name === '06-verify')).toMatchObject({ status: 'different', detail: 'lowered was not replayed' });
+  });
+
   it('replays a run that stopped at Extract, which has the artifact of that stage and no more', async () => {
     const fake = new FakeClient().script('select', SELECT).script('extract', { claims: DEMO_CLAIMS.slice(0, 2) });
     const { dir, replay, result } = await recordedRun({ fake });
