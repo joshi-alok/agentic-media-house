@@ -10,6 +10,9 @@ userAgent: AgenticMediaHouseDesk/0.1 (+https://agentic-media-house.joshi-alok.wo
 # The kind of piece the daily run writes: an explainer from one primary page. It sets the ranges the writer is asked for and the gate holds the piece to as notes.
 profile: explainer
 
+# Each page is read in parts of about 400 words, one call to the model for each part (at most 6 for a page), so that a long page yields more claims.
+extractChunkWords: 400
+
 # The snapshots of the pages that a run reads are kept in the private bucket, so that a run that starts from a fresh checkout every day does not lose them.
 evidence:
   kind: r2

@@ -107,7 +107,10 @@ export const FetchArtifact = z.strictObject({
 });
 export type FetchArtifact = z.infer<typeof FetchArtifact>;
 
-/** A claim that a model proposed and code dropped: its place in the reply of the model (counting from 0), what it said, and every reason, each with the code of a check that claims go through (`CLAIM_PROBLEM_CODES`). */
+/**
+ * A claim that a model proposed and code dropped: its place in the reply of the model (counting from 0; for pages read in parts, its place among the claims of all the replies, in the order of the calls, so that
+ * each dropped claim has a place of its own), what it said, and every reason, each with the code of a check that claims go through (`CLAIM_PROBLEM_CODES`).
+ */
 const DroppedClaim = z.strictObject({
   index: z.number().int().nonnegative(),
   text,
@@ -252,6 +255,8 @@ const RECORD_FIELDS = {
   models: DeskConfig.shape.models,
   /** The profile the run was written with; absent for a run that had none, and for a record from before there was one. A replay takes it from here. */
   profile: z.enum(PROFILE_IDS).optional(),
+  /** The size of the parts the pages were read in (`extractChunkWords`); absent for a run that read each page whole, and for a record from before there was the setting. A replay takes it from here. */
+  extractChunkWords: DeskConfig.shape.extractChunkWords,
   budget: z.strictObject({
     limit: DeskConfig.shape.budget,
     spent: z.strictObject({ calls: count, inputTokens: count, outputTokens: count }),

@@ -62,6 +62,21 @@ describe('the README: how a replay knows how the run was made', () => {
   });
 });
 
+describe('the README: reading a page in parts', () => {
+  it('says what the setting extractChunkWords does, that it is off by default, that every part is a call, that the claims are checked against the whole page, and that a replay reads the same parts', () => {
+    const command = section('The desk command');
+    expect(command).toContain('The setting `extractChunkWords` (none by default, so that each page is read whole in one call)');
+    expect(command).toContain('into at most 6 parts');
+    expect(command).toContain('one call to the model for each part');
+    expect(command).toContain('the claims of every part are still checked against the whole page');
+    expect(command).toContain('`desk replay` reads the page in the same parts');
+  });
+
+  it('lists it among what desk.config.yml holds, with the size that the file sets', () => {
+    expect(section('The desk command')).toContain('(`profile: explainer`), the size of the parts of a page (`extractChunkWords: 400`)');
+  });
+});
+
 describe('the README: a day whose run failed', () => {
   it('says that a failed day is run again with no flag, how many runs a day may have, where the earlier run is kept, and what --force-new is for', () => {
     const workspace = section('The desk workspace');

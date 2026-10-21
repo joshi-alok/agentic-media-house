@@ -46,6 +46,7 @@ import { runDesk } from './run/orchestrate';
 import type { RunResult, Stages } from './run/orchestrate';
 import { replayRun } from './run/replay';
 import { checkSources, formatSourceCheck } from './run/sources-check';
+import { MAX_PARTS } from './stages/page-parts';
 import { TUNE_DEFAULT_CALLS, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRefused, parseUrlList, runTune } from './run/tune';
 
 // The command line of the Desk: `desk run`, `desk replay <folder of a run>`, `desk status`, `desk sources-check`, `desk retract <slug>`, `desk tune`, `desk push` and `desk pack-artifact`. The arguments are read by hand, with no library, and a
@@ -569,7 +570,7 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
   }
   const choice: ClientChoice =
     args.client === 'fake'
-      ? { kind: 'fake', fake: deps.tuneClient ?? new FakeClient().script('extract', ...Array.from({ length: listed.urls.length * args.trials }, () => ({ claims: [] }))) }
+      ? { kind: 'fake', fake: deps.tuneClient ?? new FakeClient().script('extract', ...Array.from({ length: listed.urls.length * args.trials * (config.extractChunkWords === undefined ? 1 : MAX_PARTS) }, () => ({ claims: [] }))) }
       : { kind: 'api' };
   const buildClient = (wrap: (client: ModelClient) => ModelClient): BuiltClient => clientFromConfig(config, choice, deps.env, deps.retry ?? {}, undefined, wrap);
   try {
@@ -583,6 +584,7 @@ async function tuneCommand(args: Extract<Parsed, { command: 'tune' }>, deps: Cli
   const profile = args.profile ?? config.profile;
   deps.out(`tune: ${listed.urls.length} ${listed.urls.length === 1 ? 'address' : 'addresses'}, ${args.trials} ${args.trials === 1 ? 'trial' : 'trials'} each, at most ${args.maxCalls} model calls, client ${args.client}`);
   if (profile !== undefined) deps.out(`profile: ${profile}`);
+  if (config.extractChunkWords !== undefined) deps.out(`extractChunkWords: ${config.extractChunkWords}`);
   deps.out(`folder: ${shownPath(deps.cwd, path.join(config.runDir, 'tune', stamp))}`);
   try {
     const { record } = await runTune({

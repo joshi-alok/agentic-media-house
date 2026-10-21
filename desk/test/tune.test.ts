@@ -8,6 +8,7 @@ import { DEMO_CLAIMS, DEMO_REPLY, clearingVerifier } from '../src/demo/story';
 import { DEMO_REGISTRY_YAML, DEMO_URLS, demoFetcher, demoRegistry } from '../src/demo/world';
 import { clientFromConfig } from '../src/model/factory';
 import { FakeClient } from '../src/model/fake';
+import type { ModelRequest } from '../src/model/types';
 import { composeSystem } from '../src/prompts/compose';
 import { extractSystem } from '../src/prompts/extract';
 import { verifySystem } from '../src/prompts/verify';
@@ -16,6 +17,7 @@ import { FakeGit } from '../src/run/git';
 import { TUNE_DEFAULT_CALLS, TUNE_FOLDER, TUNE_MAX_CALLS, TUNE_MAX_TRIALS, TuneRecord, TuneRefused, rowLines, runTune } from '../src/run/tune';
 import type { TuneOptions, TuneRow } from '../src/run/tune';
 import { useScratch } from './support/context';
+import { blocksOf } from './support/prompts';
 import { publicLookup } from './support/lookup';
 import { COMMITTED_STATE, filesBelow, makeSite } from './support/site';
 import { START, clock } from './support/run';
@@ -831,5 +833,87 @@ describe('runTune: the same rule about money as a run', () => {
     expect(record.rows.map((row) => row.status)).toEqual(['judged']);
     expect(lines).toContain('  claims proposed: 7');
     expect(path.relative(root, dir)).toBe('runs/tune/made-up');
+  });
+});
+
+describe('main: tune, the size of the parts of a page (extractChunkWords)', () => {
+  // The settings of `desk tune` are the settings of a run: with the size of the parts in them, the model steps read the page in parts, one call to the model for each part, and every call is a call of
+  // the table and of the budget of the invocation. The release has 119 words, so with parts of about 40 words it is read in three calls.
+  const SIZE = 40;
+  const partListing = (request: ModelRequest<unknown>) => {
+    const shown = blocksOf(request.user)[0]?.text ?? '';
+    return { claims: DEMO_CLAIMS.filter((claim) => shown.includes(claim.quote)) };
+  };
+  const partedStory = (): FakeClient => new FakeClient().script('extract', partListing, partListing, partListing).script('compose', DEMO_REPLY).script('verify', clearingVerifier);
+  const parted = (made: ReturnType<typeof tuning>): void => {
+    made.deps.config = { ...made.deps.config!, extractChunkWords: SIZE };
+  };
+
+  it('reads the page in parts, counts every part as a model call in the row and in the total, and says the size of the parts', async () => {
+    const client = partedStory();
+    const made = tuning([RELEASE], { deps: { tuneClient: client } });
+    parted(made);
+    expect(await made.call('--client', 'fake')).toBe(0);
+    expect(made.err).toEqual([]);
+    expect(client.calls.filter((request) => request.role === 'extract')).toHaveLength(3);
+    // three parts, the composer and the model check
+    expect(made.out.find((line) => line.startsWith('  tokens:'))).toMatch(/, 5 model calls$/);
+    expect(made.out.find((line) => line.startsWith('total:'))).toMatch(/^total: 1 page, 1 trial, 5 of 40 model calls, /);
+    expect(made.out).toContain('extractChunkWords: 40');
+    expect(made.out).toContain('  claims proposed: 7');
+    expect(made.out).toContain('  claims surviving: 7');
+    expect(made.record().extractChunkWords).toBe(SIZE);
+    expect(made.record().rows[0]?.usage.calls).toBe(5);
+    expect(made.record().total.calls).toBe(5);
+  });
+
+  it('reads the size from a file of settings, as it reads the prices', async () => {
+    const client = partedStory();
+    const made = tuning([RELEASE], { deps: { tuneClient: client, config: undefined } });
+    writeFileSync(path.join(made.cwd, 'desk.yml'), `userAgent: "${TEST_AGENT}"\nrequestIntervalMs: 0\nextractChunkWords: ${SIZE}\n`);
+    expect(await made.call('--client', 'fake', '--config', 'desk.yml')).toBe(0);
+    expect(client.calls.filter((request) => request.role === 'extract')).toHaveLength(3);
+    expect(made.out).toContain('extractChunkWords: 40');
+    expect(made.record().extractChunkWords).toBe(SIZE);
+  });
+
+  it('prints no such line and writes no such field, and makes one call for the page, when the settings have no size of parts', async () => {
+    const client = story();
+    const made = tuning([RELEASE], { deps: { tuneClient: client } });
+    expect(await made.call('--client', 'fake')).toBe(0);
+    expect(made.out.some((line) => line.startsWith('extractChunkWords:'))).toBe(false);
+    expect(made.record()).not.toHaveProperty('extractChunkWords');
+    expect(client.calls.filter((request) => request.role === 'extract')).toHaveLength(1);
+  });
+
+  it('holds each part to the budget of the invocation: with 4 calls the third part is read, the composer is asked, and the model check is the call that is refused', async () => {
+    const made = tuning([RELEASE], { deps: { tuneClient: partedStory() } });
+    parted(made);
+    expect(await made.call('--client', 'fake', '--max-calls', '4')).toBe(1);
+    expect(made.err[0]).toContain('the budget of 4 model calls (--max-calls) ran out, so the run stopped during trial 1 of page 1');
+    expect(made.record().rows[0]).toMatchObject({ status: 'stopped', usage: { calls: 4 } });
+    const two = tuning([RELEASE], { deps: { tuneClient: partedStory() } });
+    parted(two);
+    expect(await two.call('--client', 'fake', '--max-calls', '2')).toBe(1);
+    expect(two.record().rows[0]).toMatchObject({ status: 'stopped', usage: { calls: 2 } });
+  });
+
+  it('is what --client fake does with no story given: Extract is told for every part that there are no claims, and a page of several parts is not a failure', async () => {
+    const made = tuning([RELEASE, ARTICLE]);
+    parted(made);
+    expect(await made.call('--client', 'fake')).toBe(0);
+    expect(made.err).toEqual([]);
+    expect(made.record().rows.map((row) => row.status)).toEqual(['too-few-claims', 'too-few-claims']);
+    // the release is three parts and the article two
+    expect(made.record().rows.map((row) => row.usage.calls)).toEqual([3, 2]);
+    expect(made.out.find((line) => line.startsWith('total:'))).toMatch(/^total: 2 pages, 2 trials, 5 of 40 model calls, /);
+  });
+
+  it('counts the parts of every trial', async () => {
+    const client = new FakeClient().script('extract', ...Array.from({ length: 6 }, () => ({ claims: [] })));
+    const made = tuning([RELEASE], { deps: { tuneClient: client } });
+    parted(made);
+    expect(await made.call('--client', 'fake', '--trials', '2')).toBe(0);
+    expect(made.record().rows.map((row) => row.usage.calls)).toEqual([3, 3]);
   });
 });

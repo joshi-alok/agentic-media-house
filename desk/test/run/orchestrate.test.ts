@@ -922,6 +922,15 @@ describe('runDesk: the profile of the settings', () => {
     expect(recordOf(without.dir)).not.toHaveProperty('profile');
   });
 
+  it('writes the size of the parts the pages are read in into the record of the run, and nothing when the pages are read whole', async () => {
+    const parted = setup({ config: { extractChunkWords: 400 }, stages: noting([]), dry: true });
+    await parted.run();
+    expect(recordOf(parted.dir).extractChunkWords).toBe(400);
+    const whole = setup({ stages: noting([]), dry: true });
+    await whole.run();
+    expect(recordOf(whole.dir)).not.toHaveProperty('extractChunkWords');
+  });
+
   it('writes an explainer from the primary page alone: the article of the outlet that led to it is not kept as evidence', async () => {
     const { run, dir } = setup({ config: { profile: 'explainer' }, dry: true });
     const result = await run();

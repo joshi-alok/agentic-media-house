@@ -415,6 +415,14 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
     expect(step.text).toContain('a standard or a proposal');
   });
 
+  it('says, in the first trial, that with the size of the parts of a page in the settings Extract is one call for each part, at most 6, and that a trial is up to 14 calls', () => {
+    const step = stepTitled(/^Run the first trial/);
+    expect(step.text).toContain('so one trial is 3 to 9 calls');
+    expect(step.text).toContain('With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page, so a trial can be up to 14 calls and the `--max-calls` of this step and of the next may need raising.');
+    // 6 parts, the composer, the model check, and 2 calls for each of the 3 rounds of revision
+    expect(6 + 1 + 1 + 2 * 3).toBe(14);
+  });
+
   it('records, in the questions that the trials left open, that the model check judges analysis', () => {
     const step = stepTitled(/^Decide what the trials left open/);
     expect(step.text).toContain('Decided in Plan 3b: yes');

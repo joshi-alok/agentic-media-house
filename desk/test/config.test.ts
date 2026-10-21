@@ -156,6 +156,16 @@ describe('loadConfig with a file', () => {
     expect(loadConfig(configFile('profile: explainer\n')).profile).toBe('explainer');
     expect(loadConfig(configFile('profile: brief\n')).profile).toBe('brief');
   });
+
+  it('reads a page whole by default, and takes the size of the parts of a page from the file', () => {
+    // Absent is today's behaviour: one call for all the pages. The setting is not in the defaults, so no default can turn the parts on.
+    expect(defaultConfig().extractChunkWords).toBeUndefined();
+    expect('extractChunkWords' in defaultConfig()).toBe(false);
+    expect(loadConfig(configFile('# nothing\n')).extractChunkWords).toBeUndefined();
+    expect(loadConfig(configFile('extractChunkWords: 400\n')).extractChunkWords).toBe(400);
+    expect(loadConfig(configFile('extractChunkWords: 1\n')).extractChunkWords).toBe(1);
+    expect(DeskConfig.parse({ ...defaultConfig(), extractChunkWords: 250 }).extractChunkWords).toBe(250);
+  });
 });
 
 describe('loadConfig refuses a mistake, and says where it is', () => {
@@ -190,6 +200,14 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
     expect(failure('maxRevisionRounds: -1\n')).toBe('desk config <file>: maxRevisionRounds: Too small: expected number to be >=0');
     expect(failure('modelCheckRevisions: -1\n')).toBe('desk config <file>: modelCheckRevisions: Too small: expected number to be >=0');
     expect(failure('requestIntervalMs: -5\n')).toBe('desk config <file>: requestIntervalMs: Too small: expected number to be >=0');
+  });
+
+  it('a size of the parts of a page that is zero, negative, not a whole number or not a number', () => {
+    expect(failure('extractChunkWords: 0\n')).toBe('desk config <file>: extractChunkWords: Too small: expected number to be >0');
+    expect(failure('extractChunkWords: -400\n')).toBe('desk config <file>: extractChunkWords: Too small: expected number to be >0');
+    expect(failure('extractChunkWords: 400.5\n')).toBe('desk config <file>: extractChunkWords: Invalid input: expected int, received number');
+    expect(failure('extractChunkWords: lots\n')).toBe('desk config <file>: extractChunkWords: Invalid input: expected number, received string');
+    expect(() => DeskConfig.parse({ ...defaultConfig(), extractChunkWords: 0 })).toThrow();
   });
 
   it('refuses a profile that is not one of the three', () => {

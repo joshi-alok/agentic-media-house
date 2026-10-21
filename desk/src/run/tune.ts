@@ -124,6 +124,8 @@ export const TuneRecord = z.strictObject({
   date: z.iso.date(),
   client: z.enum(['api', 'fake']),
   profile: z.enum(PROFILE_IDS).optional(),
+  /** The size of the parts the pages were read in, when the settings had one; a call for each part is a call of the table. */
+  extractChunkWords: DeskConfig.shape.extractChunkWords,
   trials: z.number().int().positive(),
   maxCalls: z.number().int().positive(),
   models: DeskConfig.shape.models,
@@ -432,6 +434,7 @@ export async function runTune(options: TuneOptions): Promise<TuneResult> {
       date: options.date,
       client: options.clientKind as 'api' | 'fake',
       ...(options.profile === undefined ? {} : { profile: options.profile }),
+      ...(options.config.extractChunkWords === undefined ? {} : { extractChunkWords: options.config.extractChunkWords }),
       trials: options.trials,
       maxCalls: options.maxCalls,
       models: { ...options.config.models },

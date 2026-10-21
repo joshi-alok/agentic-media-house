@@ -555,6 +555,27 @@ describe('RunRecord: the profile', () => {
   });
 });
 
+describe('RunRecord: the size of the parts of a page', () => {
+  it('may name the size of the parts the pages were read in (extractChunkWords), a whole number of words of 1 or more, and may leave it out: a record from before there was one has none, and the run read each page whole', () => {
+    expect(problem(RunRecord, { ...runRecord(), extractChunkWords: 400 })).toBe('');
+    expect(runRecord()).not.toHaveProperty('extractChunkWords');
+    expect(problem(RunRecord, runRecord())).toBe('');
+  });
+
+  it('refuses a size that is not a whole number of words of 1 or more', () => {
+    for (const extractChunkWords of [0, -400, 400.5, '400', null]) expect(problem(RunRecord, { ...runRecord(), extractChunkWords }), String(extractChunkWords)).toContain('extractChunkWords:');
+  });
+
+  it('is a field of the record from before records said how a run was made, too', async () => {
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = runRecord();
+    expect(problem(LegacyRunRecord, { ...before, extractChunkWords: 400 })).toBe('');
+    const dir = freshDir();
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'run.json'), JSON.stringify({ ...before, extractChunkWords: 400 }));
+    expect((await readRunRecord(path.join(dir, 'run.json'))).extractChunkWords).toBe(400);
+  });
+});
+
 describe('readRunRecord', () => {
   const written = (record: unknown): string => {
     const dir = freshDir();

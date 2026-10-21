@@ -320,6 +320,7 @@ export async function runDesk(options: RunDeskOptions): Promise<RunResult> {
       attempt: day.attempt,
       models: { ...config.models },
       ...(config.profile === undefined ? {} : { profile: config.profile }),
+      ...(config.extractChunkWords === undefined ? {} : { extractChunkWords: config.extractChunkWords }),
       budget: { limit: { ...config.budget }, spent: options.model.spent() },
       artifacts: await artifactsIn(dir),
       log: lines,

@@ -1,16 +1,19 @@
 import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEMO_CLAIMS } from '../../src/demo/story';
-import { DEMO_DATE, demoRegistry } from '../../src/demo/world';
+import { DEMO_CLAIMS, DEMO_REPLY, clearingVerifier } from '../../src/demo/story';
+import { DEMO_DATE, DEMO_URLS, demoRegistry } from '../../src/demo/world';
 import { FetchError } from '../../src/fetch/http';
 import { FakeClient } from '../../src/model/fake';
+import type { ModelRequest } from '../../src/model/types';
 import { LocalEvidenceStore } from '../../src/run/evidence';
 import { REPLAYED, refusingFetcher, replayRun } from '../../src/run/replay';
 import type { ReplayOptions } from '../../src/run/replay';
+import { splitIntoParts } from '../../src/stages/page-parts';
 import { SELECT, recordOf, setupRun, unentailed } from '../support/run';
 import type { RunSetup } from '../support/run';
 import { useScratch } from '../support/context';
+import { blocksOf } from '../support/prompts';
 import { filesBelow } from '../support/site';
 
 // A replay runs Extract, Compose and Verify again from what a run kept: the pages in the evidence store, the replies of the model in the cassettes, and
@@ -310,5 +313,91 @@ describe('replayRun: a folder that cannot be replayed', () => {
   it('is for the day of the run: it reads the date from the record', async () => {
     const { dir } = await recordedRun();
     expect(recordOf(dir).date).toBe(DEMO_DATE);
+  });
+});
+
+describe('replayRun: a run that read its page in parts (extractChunkWords)', () => {
+  // The made-up release has 119 words in nine lines and the article of the outlet that cites it fewer; with parts of about 40 words the release is read in three calls and the article in two
+  // (the pages of a story are read one after the other, the release first). The replies are matched to the calls by the key of the request (`requestKey`: the
+  // role, the model, the system prompt, the user message and the schema of the reply), and the user message of each part says which part it is, so each call has a key of its own and a
+  // cassette of its own. The record of the run says the size of the parts, so a replay reads the page in the parts the run did, whatever the settings it is given.
+  const SIZE = 40;
+  /** The model of the made-up story, answering each part with the claims whose quotations the part holds. */
+  const partListing = (request: ModelRequest<unknown>) => {
+    const shown = blocksOf(request.user)[0]?.text ?? '';
+    return { claims: DEMO_CLAIMS.filter((claim) => shown.includes(claim.quote)) };
+  };
+  const parted = (): FakeClient =>
+    new FakeClient().script('select', SELECT).script('extract', partListing, partListing, partListing, partListing, partListing).script('compose', DEMO_REPLY).script('verify', clearingVerifier);
+
+  const cassettesOf = (dir: string) =>
+    readdirSync(path.join(dir, 'cassettes')).map((name) => read(path.join(dir, 'cassettes', name)) as { key: string; request: { role: string; userHash: string } });
+
+  it('records one reply for each part, in a cassette of its own, and replays them to the same artifacts', async () => {
+    const { dir, replay, result, fake } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    expect(result.outcome).toBe('published');
+    expect(fake.calls.filter((call) => call.role === 'extract')).toHaveLength(5);
+    const fetched = read(path.join(dir, '03-fetch.json')) as { documents: { hash: string }[] };
+    const evidence = new LocalEvidenceStore(replay.config.evidenceDir);
+    expect(fetched.documents).toHaveLength(2);
+    expect(splitIntoParts((await evidence.get(fetched.documents[0]?.hash as string)).text, SIZE)).toHaveLength(3);
+    expect(splitIntoParts((await evidence.get(fetched.documents[1]?.hash as string)).text, SIZE)).toHaveLength(2);
+    // select, three parts of the release, two parts of the article, compose, verify
+    const cassettes = cassettesOf(dir);
+    expect(cassettes.map((cassette) => cassette.request.role).sort()).toEqual(['compose', 'extract', 'extract', 'extract', 'extract', 'extract', 'select', 'verify']);
+    expect(new Set(cassettes.map((cassette) => cassette.key)).size).toBe(8);
+    expect(new Set(cassettes.filter((cassette) => cassette.request.role === 'extract').map((cassette) => cassette.request.userHash)).size).toBe(5);
+    expect(recordOf(dir).budget.spent.calls).toBe(8);
+    expect(recordOf(dir).artifacts).toEqual(['01-discover.json', '02-select.json', '03-fetch.json', '04-extract.json', '05-compose.json', '06-verify.json']);
+
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.artifacts).toEqual(REPLAYED.map((name) => ({ name, status: 'equal', detail: null })));
+    expect(report.equal).toBe(true);
+    expect(report.log).toContain(`extract: ${DEMO_URLS.release} is read in 3 parts`);
+    expect(report.log).toContain(`extract: ${DEMO_URLS.mercerArticle} is read in 2 parts`);
+    expect(report.log).toContain('extract: 7 claims proposed, 7 kept, 0 dropped');
+  });
+
+  it('keeps the numbers of the claims of the story, which are the order of the page, so that the piece cites what it cited', async () => {
+    const { dir } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    const stored = read(path.join(dir, '04-extract.json')) as { claims: { id: string; text: string }[]; dropped: unknown[] };
+    expect(stored.claims.map((claim) => claim.id)).toEqual(['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7']);
+    expect(stored.claims.map((claim) => claim.text)).toEqual(DEMO_CLAIMS.map((claim) => claim.text));
+    expect(stored.dropped).toEqual([]);
+  });
+
+  it('takes the size of the parts from the record of the run and not from the settings it is given: with none, or another, the replay reads the page as the run did', async () => {
+    const { dir, replay } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    expect(recordOf(dir).extractChunkWords).toBe(SIZE);
+    const { extractChunkWords: _none, ...without } = replay.config;
+    expect((await replayRun(dir, { ...replay, config: without })).equal).toBe(true);
+    expect((await replayRun(dir, { ...replay, config: { ...replay.config, extractChunkWords: 400 } })).equal).toBe(true);
+  });
+
+  it('replays a run that read its page whole, with settings that now name a size of parts: the record has none, so the page is read whole', async () => {
+    const { dir, replay } = await recordedRun();
+    expect(recordOf(dir)).not.toHaveProperty('extractChunkWords');
+    const report = await replayRun(dir, { ...replay, config: { ...replay.config, extractChunkWords: SIZE } });
+    expect(report.error).toBeNull();
+    expect(report.equal).toBe(true);
+    expect(report.log.some((line) => line.includes('is read in'))).toBe(false);
+  });
+
+  it('replays a record from before records said how a run was made, and a record that has no size of parts, as it always did', async () => {
+    const { dir, replay } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = read(path.join(dir, 'run.json')) as Record<string, unknown>;
+    write(path.join(dir, 'run.json'), before);
+    expect((await replayRun(dir, replay)).equal).toBe(true);
+  });
+
+  it('reports the part whose reply was never recorded, as the reply of a request that is not on file', async () => {
+    const { dir, replay } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    const second = cassettesOf(dir).filter((cassette) => cassette.request.role === 'extract')[1];
+    rmSync(path.join(dir, 'cassettes', `${second?.key}.json`));
+    const report = await replayRun(dir, replay);
+    expect(report.equal).toBe(false);
+    expect(report.error).toContain('no recorded response for this extract request');
+    expect(report.artifacts.map((artifact) => [artifact.name, artifact.status])).toEqual([['04-extract', 'missing'], ['05-compose', 'missing'], ['06-verify', 'missing']]);
   });
 });
