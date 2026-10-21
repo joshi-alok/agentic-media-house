@@ -63,10 +63,28 @@ describe('extractSystem', () => {
     expect(EXTRACT_INSTRUCTIONS).toContain('When in doubt, use unspecified, because a wrong deployed makes the Desk hold the piece.');
   });
 
+  it('says that demonstrated needs the quote itself to say that the thing was shown, demonstrated or tested, and that a figure the quote states without saying so is unspecified, also when the author measured it, because the model check held a page for a measured figure labelled demonstrated', () => {
+    const status = EXTRACT_INSTRUCTIONS.split('\n').find((line) => line.startsWith('- "status": ')) ?? '';
+    const sentence = 'Use demonstrated only when the quote itself says that the thing was shown, demonstrated or tested ("in the demo", "in our test"): a size, cost, speed or other figure that the quote states without saying it was shown or tested is unspecified, also when the author measured it. When in doubt about demonstrated, use unspecified too.';
+    expect(status).toContain(sentence);
+    // after the deployed guidance, and every sentence that was there is still there
+    expect(status.indexOf(sentence)).toBeGreaterThan(status.indexOf('When in doubt, use unspecified, because a wrong deployed makes the Desk hold the piece.'));
+    expect(status).toContain('demonstrated if it says it was shown, deployed if it says it is live in production or used by people outside the team, planned if it says it will happen, otherwise unspecified. ');
+    expect(status).toContain('does not say how far it has got, so its status is unspecified.');
+    expect(status).toContain('Use deployed only when the quote itself says that it is live in production or that people outside the team use it');
+    // one bullet, and the example quotes are not facts about any project
+    expect(status.endsWith(sentence)).toBe(true);
+    expect(EXTRACT_INSTRUCTIONS.split('\n').filter((line) => line.includes('Use demonstrated only when'))).toHaveLength(1);
+    expect(sentence).not.toMatch(/zkapi|ethereum|groth16|poseidon|openai|ollama|erc-?\d|eip-?\d|leanvm|kib/i);
+  });
+
   it('gives the status the same meaning as the model check does, and names no real project in the guidance', () => {
     const status = EXTRACT_INSTRUCTIONS.split('\n').find((line) => line.startsWith('- "status": ')) ?? '';
     expect(status).toContain('live in production or used by people outside the team');
     expect(verifySystem()).toContain('- deployed: the passage says it is live in production or used by people outside the team.');
+    // the same for demonstrated: the Extract bullet says "was shown", the model check says "shown or demonstrated", and the sentence below keeps the two the same
+    expect(status).toContain('demonstrated if it says it was shown');
+    expect(verifySystem()).toContain('- demonstrated: the passage says it was shown or demonstrated.');
     expect(status).not.toMatch(/zkapi|ethereum|groth16|openai|ollama/i);
   });
 
