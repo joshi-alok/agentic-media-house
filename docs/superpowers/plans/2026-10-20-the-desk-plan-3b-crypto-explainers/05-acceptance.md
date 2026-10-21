@@ -277,17 +277,72 @@ This is step 20 of the runbook, on the new set, and then step 27 for the floors.
 
 Say, in one line: "Task 18 measures the model check on 90 sentences with the real model: 9 calls, about US$0.3, publishes nothing. Go?" Do not run anything until the answer is yes.
 
-- [ ] **Step 2: Run it**
+- [ ] **Step 2: Run it, with the script that also lists the wrong items (one paid run)**
 
-```bash
-ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run evals:verifier -- --client api | tee runs/verifier-3b-1.out
+(Changed after the final review of the plan. `npm run evals:verifier -- --client api` prints only the table: the harness keeps no list of the wrong items and loses the kind of a failure, so a second paid run would be needed to read them; and `--batch 3` is 30 calls, which goes over the budget of 24 calls and dies at call 25 after paying for 24. The script below does Steps 2 and 3 in one run, with the same prompt and the same budget as the harness, ten items to a call, so nine calls. `desk/evals/run-verifier.ts` now refuses a `--batch` that needs more calls than the budget has.)
+
+Write this to `runs/verifier-wrong-items.ts` (`runs/` is ignored by git), run it first with the scripted verifier (free, prints `WRONG ITEMS: 0 of 90`), then once with the real one:
+
+```ts
+// runs/verifier-wrong-items.ts: scratch, git-ignored. Task 18 Steps 2 and 3 in ONE paid run (same prompt, same budget as the harness).
+//   free:  npx tsx runs/verifier-wrong-items.ts
+//   paid:  ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npx tsx runs/verifier-wrong-items.ts --client api | tee runs/verifier-3b-1.out
+import { writeFileSync } from 'node:fs';
+import { clientFromConfig, defaultConfig } from '../desk/src/index';
+import { judgePlan } from '../desk/src/stages/verify-model';
+import { formatReport, loadVerifierSet, planOf, scoreOf } from '../desk/evals/run-verifier';
+import { perfectVerifier } from '../desk/evals/scripted';
+
+const config = defaultConfig(), model = config.models.verify, set = loadVerifierSet();
+const SIZE = 10; // 9 calls. Never below 4: the budget is 24 calls (batch 3 = 30 calls fails at call 25, after paying for 24).
+const built = process.argv.includes('api') ? clientFromConfig(config, { kind: 'api' }, process.env) : undefined;
+const client = built?.client ?? perfectVerifier(set);
+const results: { id: string; label: 'supported' | 'unsupported' | 'distorted'; cleared: boolean }[] = [];
+const failures: Record<string, { kind: string; id: string; code: string; reason: string }[]> = {};
+const usage = { inputTokens: 0, outputTokens: 0 };
+let calls = 0, failed = '';
+try {
+  for (let from = 0; from < set.items.length; from += SIZE) {
+    const batch = set.items.slice(from, from + SIZE), plan = planOf(batch);
+    const judged = await judgePlan(client, model, plan);
+    calls += 1; usage.inputTokens += judged.usage.inputTokens; usage.outputTokens += judged.usage.outputTokens;
+    batch.forEach((item, at) => {
+      const id = `${item.kind === 'heading' ? 'h' : 's'}${at}`, entry = [...plan.sentences, ...plan.headings].find((e) => e.id === id)!;
+      const mine = judged.outcome.failures.filter((f) => f.id === id || (f.kind === 'label' && entry.claimIds.includes(f.id)));
+      failures[item.id] = mine; results.push({ id: item.id, label: item.label, cleared: mine.length === 0 });
+    });
+    console.error(`batch ${calls} done`);
+  }
+} catch (e) { failed = (e as Error).message; console.error(`FAILED after ${calls} calls: ${failed}`, built?.spent()); }
+
+for (const line of formatReport(scoreOf(results, calls, usage), model)) console.log(line);
+if (failed) console.log(`PARTIAL: ${results.length} of ${set.items.length} items; choose no floors from it`);
+const wrong = results.filter((r) => r.cleared !== (r.label === 'supported')), item = (id: string) => set.items.find((i) => i.id === id)!;
+console.log(`\nWRONG ITEMS: ${wrong.length} of ${results.length}`);
+for (const r of wrong) {
+  const kinds = [...new Set(failures[r.id]!.map((f) => f.kind))].join('+') || 'none'; // label | sentence | heading
+  console.log(`${r.id} [${item(r.id).kind ?? 'fact'}, ${r.label}] ${r.cleared ? 'CLEARED (a danger)' : 'FLAGGED though supported (a cost)'}; failure kind: ${kinds}\n    ${item(r.id).sentence}`);
+  for (const f of failures[r.id]!) console.log(`    ${f.kind} ${f.id} ${f.code}: ${f.reason}`);
+}
+const labelOnly = (id: string) => failures[id]!.length > 0 && failures[id]!.every((f) => f.kind === 'label');
+console.log(`\nsupported, flagged ONLY for a label: ${wrong.filter((r) => !r.cleared && labelOnly(r.id)).map((r) => r.id).join(' ') || 'none'}`);
+console.log(`unsupported or distorted, caught ONLY by a label (sentence cleared, scored as right): ${results.filter((r) => r.label !== 'supported' && labelOnly(r.id)).map((r) => r.id).join(' ') || 'none'}`);
+const reasons = Object.values(failures).flat().map((f) => f.reason);
+console.log(`overruled by the Desk: ${reasons.filter((r) => r.startsWith('the verifier said entailed, but')).length} entailed-over-a-list; ${reasons.filter((r) => r.startsWith('the verifier said not entailed but named nothing')).length} not-entailed-naming-nothing`);
+writeFileSync('runs/verifier-3b-1.results.json', JSON.stringify({ model, calls, usage, failed, results, failures }, null, 2));
+process.exit(failed ? 1 : 0);
 ```
 
-Expected: `verifier evaluation: 90 sentences in 9 calls, model claude-sonnet-5-5`, a table of the recall for each label, the precision and recall of what it cleared and of what it flagged, the accuracy and the tokens. Exit code 0. `runs/` is ignored by git; the output holds no key.
+```bash
+npx tsx runs/verifier-wrong-items.ts
+ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npx tsx runs/verifier-wrong-items.ts --client api | tee runs/verifier-3b-1.out
+```
+
+Expected: `verifier evaluation: 90 sentences in 9 calls, model claude-sonnet-5-5`, the table of the recall for each label, the precision and recall of what it cleared and of what it flagged, the accuracy and the tokens, then `WRONG ITEMS: n of 90` with each wrong item, the kind of its failure (`label`, `sentence` or `heading`) and the reason. Exit code 0 (1 if a call failed: the output then says `PARTIAL` and no floor is chosen from it). `runs/` is ignored by git; the output holds no key. Before the paid run, check that `echo $ANTHROPIC_BASE_URL` prints nothing or the public API host: the SDK reads that variable and sends the key and the prompts there.
 
 - [ ] **Step 3: Read it, per kind, not only in total**
 
-The table is by label. Look at the items it got wrong, by id: `node -e` over `runs/verifier-3b-1.out` does not show them (the report has no list of wrong items); add `--batch 3` to a second run only if a label's recall is below 0.8, and ask which of the thirty new items were wrong by running the harness through `tsx` in a scratch file that prints `report.results.filter((r) => r.cleared !== (r.label === 'supported'))`. Say which kinds of item the model check missed: headings (e-61 to e-63), analysis (e-76 to e-78), attribution (e-73 to e-75), plans told as done (e-70 to e-72, e-79 to e-81), moved dates and swapped comparisons (e-82 to e-87).
+The table is by label. Read `WRONG ITEMS` by id and by kind. A supported item flagged ONLY for a label (`label` and no `sentence`) is the verdict on the basis or the status of a passage, not a miss of entailment: look at the passage before concluding that the model check is strict. An unsupported or distorted item caught ONLY by a label has its sentence cleared and is scored as right: the script lists those too, and they count against the model check, not for it. Say which kinds of item the model check missed: headings (e-61 to e-63), analysis (e-76 to e-78), attribution (e-73 to e-75), plans told as done (e-70 to e-72, e-79 to e-81), moved dates and swapped comparisons (e-82 to e-87), and what the labels of the passages (the set has `docs`, `demo`, `announcement`, `filing`, `paper` and `reported`, and no passage of a page of an open protocol or of a regulator's statement) do not show.
 
 - [ ] **Step 4: Decide, and record**
 
@@ -319,11 +374,21 @@ Expected: the table of Task 13, with under each feed that was read the newest th
 
 Say, in one line: "Task 19 runs six pages through the explainer path with the real model: up to 60 calls, about US$0.9, nothing is published. Go?" Do not run anything until the answer is yes.
 
+- [ ] **Step 2b: A free rehearsal of the fetching (added after the final review)**
+
+```bash
+npm run desk -- tune --urls runs/tune-urls-explainers.txt --config desk.config.yml --client fake
+```
+
+It costs nothing: it fetches and sorts the six pages as the Desk does and shows which can be read (a scripted model proposes no claims). Replace a page that `robots.txt` does not allow or that cannot be read before paying for it.
+
 - [ ] **Step 3: One page first**
+
+(The private settings `runs/tune-settings.yml` hold the same user agent as `desk.config.yml` and the `prices` of the model, so that the table shows dollars; `desk.config.yml` has no `prices`. They have no profile, so the profile is given by the flag. The key is read from `ANTHROPIC_API_KEY` only. Before a paid run, `echo $ANTHROPIC_BASE_URL` must print nothing or the public API host. The cap `--max-calls` counts the calls of the pipeline; a repair request that the client makes inside a call is not counted, so the figure of US$1 is an estimate, not a bound.)
 
 ```bash
 grep -m 1 '^https' runs/tune-urls-explainers.txt > runs/tune-first-explainer.txt
-ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-first-explainer.txt --config desk.config.yml --max-calls 12
+ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-first-explainer.txt --config runs/tune-settings.yml --profile explainer --max-calls 12
 ```
 
 Expected: `profile: explainer` in the first lines, then the block of the page. If it fails for a reason that is a bug (not a result), stop and report; do not go on to the six.
@@ -331,10 +396,10 @@ Expected: `profile: explainer` in the first lines, then the block of the page. I
 - [ ] **Step 4: The six**
 
 ```bash
-ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-urls-explainers.txt --config desk.config.yml --max-calls 60 | tee runs/tune-explainers-1.out
+ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-urls-explainers.txt --config runs/tune-settings.yml --profile explainer --max-calls 60 | tee runs/tune-explainers-1.out
 ```
 
-Expected: a block for each page and `total: 6 pages, 6 trials, M of 60 model calls, ...`.
+Expected: a block for each page and `total: 6 pages, 6 trials, M of 60 model calls, ...`. (This repeats the first page, about US$0.15; start the list at the second page if the first page's result is already read.)
 
 - [ ] **Step 5: Read every draft, as a reader and as the owner**
 
