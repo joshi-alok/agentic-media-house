@@ -1,3 +1,5 @@
+import { checkG4, defaultContext, severityOf } from '@robywire/gate';
+import type { Claim, ClaimValue, GateInput } from '@robywire/gate';
 import { describe, expect, it } from 'vitest';
 import { EXTRACT_INSTRUCTIONS, MAX_CLAIMS, buildExtractUser, extractSystem } from '../../src/prompts/extract';
 import type { ExtractSource } from '../../src/prompts/extract';
@@ -126,6 +128,92 @@ describe('extractSystem', () => {
       const claim = (basis: 'measured' | 'docs') => ({ text: 'It signs a 32-byte input', label: 'signs a 32-byte input', quote: 'one of them signs a 32-byte input', values: [], basis });
       expect(claimProblems(claim('measured'), page, 'research', new Set()).map((problem) => problem.code)).toEqual(['basis-not-allowed']);
       expect(claimProblems(claim('docs'), page, 'research', new Set())).toEqual([]);
+    });
+  });
+
+  describe('a range is two values, one for each end', () => {
+    // In a real trial a claim listed "162 to 235 KiB" and "10 to 20 ms" as one number value each. The checks of the Desk accept that (a raw that is not one number is not compared),
+    // but G4 reads the raw text of a value as one number token, finds none, and licenses only the number in `normalised`: the first end. A sentence that states the second end
+    // ("235", "20 ms") fails G4_NUMBER_UNSUPPORTED in every round, whatever the writer does. A value for each end licenses both.
+    const sentence = 'A range is two values, one for each end, and never one value for the whole range, because the piece may state only the numbers that are values: for "3 to 5 s" list "3" (no unit) and "5 s" (unit s), each "raw" exactly as the quote writes it.';
+
+    const number = (raw: string, normalised: string, unit?: string): ClaimValue => (unit === undefined ? { kind: 'number', raw, normalised } : { kind: 'number', raw, normalised, unit });
+    const claimOf = (quote: string, values: ClaimValue[]): Claim => ({
+      id: 'c-1',
+      text: 'A claim.',
+      label: 'a claim',
+      type: 'spec',
+      source: { url: 'https://example.test/a', tier: 1, snapshotHash: 'a'.repeat(64), retrievedAt: '2026-10-04T04:30:00Z' },
+      span: { start: 0, end: quote.length, quote },
+      basis: 'docs',
+      status: 'unspecified',
+      values,
+    });
+    /** The blockers of G4 for a fact sentence (the title of a tiny draft) that cites the claim: what keeps a piece from publishing. */
+    const blockersOf = (claim: Claim, text: string): string[] => {
+      const input: GateInput = {
+        draft: {
+          slug: 'a-slug',
+          publishedAt: '2026-10-04',
+          categories: ['payments-commerce'],
+          author: { name: 'Agentic Media House Desk' },
+          title: { kind: 'fact', text, claimIds: [claim.id] },
+          description: { kind: 'fact', text: 'It is fine.', claimIds: [claim.id] },
+          opening: [],
+          takeaways: [],
+          sections: [],
+          limitations: [],
+        },
+        claims: [claim],
+      };
+      return checkG4(input, defaultContext()).failures.filter((failure) => severityOf(failure.code) === 'blocker').map((failure) => `${failure.code} ${failure.message}`);
+    };
+    /** What the checks of the Extract stage say about a claim whose text is the sentence of the quote, with a label made of words of the quote. */
+    const problemsOf = (quote: string, text: string, label: string, values: ClaimValue[]): string[] =>
+      claimProblems({ text, label, quote, values, basis: 'docs' }, quote, 'research', new Set()).map((problem) => problem.code);
+
+    it('says that a range is two values, one for each end, never one value for the whole range, and how the two are written', () => {
+      expect(EXTRACT_INSTRUCTIONS).toContain(sentence);
+      // it sits with the rule about the "raw" of a value, after it, in the same bullet, and that rule is as it was
+      const line = EXTRACT_INSTRUCTIONS.split('\n').find((candidate) => candidate.includes(sentence)) ?? '';
+      expect(line.startsWith('- Every "raw" of a value must appear in the quote. ')).toBe(true);
+      expect(line.endsWith(sentence)).toBe(true);
+      // the example is invented, and the sentence is short
+      expect(sentence).not.toMatch(/zkapi|ethereum|kib|ms\b|erc-?\d|eip-?\d|x402|a2a/i);
+      expect(sentence.split(/\s+/).length).toBeLessThanOrEqual(60);
+    });
+
+    it('is true of the code for the form the prompt gives: "3" without a unit and "5 s" with the unit s pass the checks of the Extract stage, and G4 licenses both ends of the sentence', () => {
+      const quote = 'setup takes 3 to 5 s';
+      const values = [number('3', '3'), number('5 s', '5', 's')];
+      expect(problemsOf(quote, 'Setup takes 3 to 5 s.', 'setup takes 3 to 5 s', values)).toEqual([]);
+      for (const text of ['Setup takes 3 to 5 s.', 'Setup takes 5 s.']) expect(blockersOf(claimOf(quote, values), text), text).toEqual([]);
+    });
+
+    it('is true of the code for the figures of the trial: "162", "235 KiB", "10" and "20 ms" (unit ms) pass the checks and license every number of the sentences that state the ranges', () => {
+      const quote = 'the proof is 162 to 235 KiB, verification is 10 to 20 ms';
+      const values = [number('162', '162'), number('235 KiB', '235'), number('10', '10'), number('20 ms', '20', 'ms')];
+      expect(problemsOf(quote, 'The proof is 162 to 235 KiB and verification is 10 to 20 ms.', 'proof is 162 to 235 KiB', values)).toEqual([]);
+      for (const text of ['The proof is 162 to 235 KiB.', 'Verification is 10 to 20 ms.', 'The proof is 162 to 235 KiB and verification is 10 to 20 ms.']) {
+        expect(blockersOf(claimOf(quote, values), text), text).toEqual([]);
+      }
+    });
+
+    it('shows what the sentence prevents: a range as one value passes the checks of the Extract stage and then G4 refuses the second end in every sentence that states it', () => {
+      const quote = 'the proof is 162 to 235 KiB, verification is 10 to 20 ms';
+      const oneEach = [number('162 to 235 KiB', '162'), number('10 to 20 ms', '10')];
+      expect(problemsOf(quote, 'The proof is 162 to 235 KiB and verification is 10 to 20 ms.', 'proof is 162 to 235 KiB', oneEach)).toEqual([]);
+      expect(blockersOf(claimOf(quote, oneEach), 'The proof is 162 to 235 KiB.').join('\n')).toContain('G4_NUMBER_UNSUPPORTED the number "235"');
+      expect(blockersOf(claimOf(quote, oneEach), 'Verification is 10 to 20 ms.').join('\n')).toContain('G4_NUMBER_UNSUPPORTED the number "20 ms"');
+    });
+
+    it('is true of the code for what the sentence leaves to the rules that were there: the unit goes with the end that has it, and a unit on the other end is refused', () => {
+      const quote = 'setup takes 3 to 5 s';
+      const label = 'setup takes 3 to 5 s';
+      expect(problemsOf(quote, 'Setup takes 3 to 5 s.', label, [number('3', '3', 's'), number('5 s', '5', 's')])).toEqual(['value-normalised-mismatch']);
+      expect(problemsOf(quote, 'Setup takes 3 to 5 s.', label, [number('3', '3'), number('5 s', '5')])).toEqual(['value-normalised-mismatch']);
+      // "3 s" is not in the quote, so the unit cannot be written on both ends
+      expect(problemsOf(quote, 'Setup takes 3 to 5 s.', label, [number('3 s', '3', 's'), number('5 s', '5', 's')])).toEqual(['value-not-in-quote']);
     });
   });
 
