@@ -22,7 +22,7 @@ export function scriptedVerifier(set: EvalSet, decide: (item: EvalItem) => Verdi
     async json<T>(request: ModelRequest<T>): Promise<ModelResponse<T>> {
       const blocks = blocksOf(request.user);
       const verdicts = blocks
-        .filter((block) => /^s\d+$/.test(block.id))
+        .filter((block) => /^[sh]\d+$/.test(block.id))
         .map((block) => {
           const item = set.items.find((candidate) => candidate.sentence === block.text);
           if (item === undefined) throw new Error(`the scripted verifier was asked about a sentence that is not in the set: ${JSON.stringify(block.text)}`);

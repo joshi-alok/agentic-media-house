@@ -306,13 +306,13 @@ ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run d
 
 ### 20. Measure the verifier on the real model (outward: it spends money)
 
-The labelled set of 60 sentences (20 supported, 20 unsupported, 20 distorted) goes to the real model in 6 calls, through the same prompt and the same reading of the reply that the pipeline uses.
+The labelled set of 90 sentences (30 supported, 30 unsupported, 30 distorted) goes to the real model in 9 calls, through the same prompt and the same reading of the reply that the pipeline uses. The first sixty are about a made-up robot arm; the last thirty are about made-up projects in AI agents and crypto, and include headings, analysis sentences and a sentence that names the outlet that reported.
 
 ```bash
 ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run evals:verifier -- --client api
 ```
 
-**Expect:** `verifier evaluation: 60 sentences in 6 calls, model ...`, a table of the recall for each label, the precision and recall of what it cleared and of what it flagged, the accuracy and the tokens. Exit code 0 (no floor was asked for). Write the numbers down. What a floor should be is a decision, made in step 27 from these numbers and not before.
+**Expect:** `verifier evaluation: 90 sentences in 9 calls, model ...`, a table of the recall for each label, the precision and recall of what it cleared and of what it flagged, the accuracy and the tokens. Exit code 0 (no floor was asked for). Write the numbers down. What a floor should be is a decision, made in step 27 from these numbers and not before.
 
 ### 21. Change the prompts, if the trials say so
 
