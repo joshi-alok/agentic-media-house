@@ -533,7 +533,7 @@
       "kind": "heading",
       "sentence": "How a payment is settled",
       "passages": [
-        { "quote": "Harbor Pay settles each agent payment in a single on-chain transfer of USDC, with no intermediary holding the funds.", "basis": "docs", "status": "deployed" }
+        { "quote": "Harbor Pay settles each agent payment in a single on-chain transfer of USDC, with no intermediary holding the funds.", "basis": "docs", "status": "unspecified" }
       ]
     },
     {
@@ -542,7 +542,7 @@
       "kind": "heading",
       "sentence": "Why Harbor Pay will win the market",
       "passages": [
-        { "quote": "Harbor Pay settles each agent payment in a single on-chain transfer of USDC, with no intermediary holding the funds.", "basis": "docs", "status": "deployed" }
+        { "quote": "Harbor Pay settles each agent payment in a single on-chain transfer of USDC, with no intermediary holding the funds.", "basis": "docs", "status": "unspecified" }
       ],
       "flaw": "Nothing in the passage says that Harbor Pay will win a market."
     },
@@ -552,7 +552,7 @@
       "kind": "heading",
       "sentence": "How a payment is settled through an escrow",
       "passages": [
-        { "quote": "Harbor Pay settles each agent payment in a single on-chain transfer of USDC, with no intermediary holding the funds.", "basis": "docs", "status": "deployed" }
+        { "quote": "Harbor Pay settles each agent payment in a single on-chain transfer of USDC, with no intermediary holding the funds.", "basis": "docs", "status": "unspecified" }
       ],
       "flaw": "The passage says that no intermediary holds the funds, so there is no escrow."
     },
@@ -561,7 +561,7 @@
       "label": "supported",
       "sentence": "Lumen Wallet adds session keys, which let an agent sign only the payments that its owner has allowed.",
       "passages": [
-        { "quote": "Lumen Wallet adds session keys, so that an agent can sign only the payments that its owner has allowed, up to a limit set by the owner.", "basis": "docs", "status": "deployed" }
+        { "quote": "Lumen Wallet adds session keys, so that an agent can sign only the payments that its owner has allowed, up to a limit set by the owner.", "basis": "docs", "status": "unspecified" }
       ]
     },
     {
@@ -569,7 +569,7 @@
       "label": "unsupported",
       "sentence": "Lumen Wallet adds session keys, built with Ketch Protocol, which let an agent sign only the payments that its owner has allowed.",
       "passages": [
-        { "quote": "Lumen Wallet adds session keys, so that an agent can sign only the payments that its owner has allowed, up to a limit set by the owner.", "basis": "docs", "status": "deployed" }
+        { "quote": "Lumen Wallet adds session keys, so that an agent can sign only the payments that its owner has allowed, up to a limit set by the owner.", "basis": "docs", "status": "unspecified" }
       ],
       "flaw": "The passage does not say that session keys were built with Ketch Protocol."
     },
@@ -578,7 +578,7 @@
       "label": "distorted",
       "sentence": "Lumen Wallet adds session keys, so that an agent can sign any payment, up to a limit set by Lumen Wallet.",
       "passages": [
-        { "quote": "Lumen Wallet adds session keys, so that an agent can sign only the payments that its owner has allowed, up to a limit set by the owner.", "basis": "docs", "status": "deployed" }
+        { "quote": "Lumen Wallet adds session keys, so that an agent can sign only the payments that its owner has allowed, up to a limit set by the owner.", "basis": "docs", "status": "unspecified" }
       ],
       "flaw": "The agent signs only the payments its owner allowed, and the owner sets the limit, not the wallet."
     },
@@ -664,9 +664,9 @@
       "id": "e-76",
       "label": "supported",
       "kind": "analysis",
-      "sentence": "For an agent, proving who controls it is one signed transaction, which keeps the check simple.",
+      "sentence": "For an agent, proving who controls it takes one transaction, which keeps the check simple.",
       "passages": [
-        { "quote": "Ketch Protocol lets an agent prove who controls it by signing a challenge with the key of its owner. The check takes one transaction.", "basis": "docs", "status": "deployed" }
+        { "quote": "Ketch Protocol lets an agent prove who controls it by signing a challenge with the key of its owner. The check takes one transaction.", "basis": "docs", "status": "unspecified" }
       ]
     },
     {
@@ -675,7 +675,7 @@
       "kind": "analysis",
       "sentence": "This is likely to make Ketch Protocol the default identity layer for agents on Ethereum.",
       "passages": [
-        { "quote": "Ketch Protocol lets an agent prove who controls it by signing a challenge with the key of its owner. The check takes one transaction.", "basis": "docs", "status": "deployed" }
+        { "quote": "Ketch Protocol lets an agent prove who controls it by signing a challenge with the key of its owner. The check takes one transaction.", "basis": "docs", "status": "unspecified" }
       ],
       "flaw": "A prediction about adoption that the passage does not support."
     },
@@ -685,7 +685,7 @@
       "kind": "analysis",
       "sentence": "This shows that an agent must send a transaction for every payment it makes.",
       "passages": [
-        { "quote": "Ketch Protocol lets an agent prove who controls it by signing a challenge with the key of its owner. The check takes one transaction.", "basis": "docs", "status": "deployed" }
+        { "quote": "Ketch Protocol lets an agent prove who controls it by signing a challenge with the key of its owner. The check takes one transaction.", "basis": "docs", "status": "unspecified" }
       ],
       "flaw": "The passage describes one transaction for the identity check, not one for each payment."
     },
@@ -720,7 +720,7 @@
       "label": "supported",
       "sentence": "The Lowmoor Safety Board invited comments on its guidance on agent wallets until 30 April 2027.",
       "passages": [
-        { "quote": "The Lowmoor Safety Board published its guidance on agent wallets on 12 March 2027 and invited comments until 30 April 2027.", "basis": "filing", "status": "unspecified" }
+        { "quote": "In a notice filed on 12 March 2027, the Lowmoor Safety Board published its guidance on agent wallets and invited comments until 30 April 2027.", "basis": "filing", "status": "unspecified" }
       ]
     },
     {
@@ -728,7 +728,7 @@
       "label": "unsupported",
       "sentence": "The Lowmoor Safety Board invited comments on its guidance on agent wallets until 30 April 2027, and will make the guidance binding in 2028.",
       "passages": [
-        { "quote": "The Lowmoor Safety Board published its guidance on agent wallets on 12 March 2027 and invited comments until 30 April 2027.", "basis": "filing", "status": "unspecified" }
+        { "quote": "In a notice filed on 12 March 2027, the Lowmoor Safety Board published its guidance on agent wallets and invited comments until 30 April 2027.", "basis": "filing", "status": "unspecified" }
       ],
       "flaw": "The passage says nothing about the guidance becoming binding."
     },
@@ -737,7 +737,7 @@
       "label": "distorted",
       "sentence": "The Lowmoor Safety Board invited comments on its guidance on agent wallets until 12 March 2027.",
       "passages": [
-        { "quote": "The Lowmoor Safety Board published its guidance on agent wallets on 12 March 2027 and invited comments until 30 April 2027.", "basis": "filing", "status": "unspecified" }
+        { "quote": "In a notice filed on 12 March 2027, the Lowmoor Safety Board published its guidance on agent wallets and invited comments until 30 April 2027.", "basis": "filing", "status": "unspecified" }
       ],
       "flaw": "The date of publication has been given as the date when comments close."
     },
@@ -746,7 +746,7 @@
       "label": "supported",
       "sentence": "In the test, Harbor Pay finished 1,000 payments faster than Ketch Protocol.",
       "passages": [
-        { "quote": "In the test, Harbor Pay finished 1,000 payments in 40 seconds, while Ketch Protocol took 90 seconds.", "basis": "docs", "status": "demonstrated" }
+        { "quote": "In the test, Harbor Pay finished 1,000 payments in 40 seconds, while Ketch Protocol took 90 seconds.", "basis": "demo", "status": "demonstrated" }
       ]
     },
     {
@@ -754,7 +754,7 @@
       "label": "unsupported",
       "sentence": "In the test, Harbor Pay finished 1,000 payments faster than Ketch Protocol, and at a lower cost.",
       "passages": [
-        { "quote": "In the test, Harbor Pay finished 1,000 payments in 40 seconds, while Ketch Protocol took 90 seconds.", "basis": "docs", "status": "demonstrated" }
+        { "quote": "In the test, Harbor Pay finished 1,000 payments in 40 seconds, while Ketch Protocol took 90 seconds.", "basis": "demo", "status": "demonstrated" }
       ],
       "flaw": "The passage says nothing about cost."
     },
@@ -763,7 +763,7 @@
       "label": "distorted",
       "sentence": "In the test, Ketch Protocol finished 1,000 payments in 40 seconds, faster than Harbor Pay.",
       "passages": [
-        { "quote": "In the test, Harbor Pay finished 1,000 payments in 40 seconds, while Ketch Protocol took 90 seconds.", "basis": "docs", "status": "demonstrated" }
+        { "quote": "In the test, Harbor Pay finished 1,000 payments in 40 seconds, while Ketch Protocol took 90 seconds.", "basis": "demo", "status": "demonstrated" }
       ],
       "flaw": "The two times are swapped between the two projects."
     },
@@ -772,8 +772,8 @@
       "label": "supported",
       "sentence": "Lumen Wallet supports session keys, which reduced approval prompts by 80 percent in the authors' evaluation.",
       "passages": [
-        { "quote": "Lumen Wallet supports session keys.", "basis": "docs", "status": "deployed" },
-        { "quote": "In the authors' evaluation, session keys reduced approval prompts by 80 percent.", "basis": "paper", "status": "unspecified" }
+        { "quote": "Lumen Wallet supports session keys.", "basis": "docs", "status": "unspecified" },
+        { "quote": "In the authors' independent evaluation, Lumen Wallet's session keys reduced approval prompts by 80 percent.", "basis": "paper", "status": "unspecified" }
       ]
     },
     {
@@ -781,8 +781,8 @@
       "label": "unsupported",
       "sentence": "Lumen Wallet supports session keys, which reduced approval prompts by 80 percent for every user.",
       "passages": [
-        { "quote": "Lumen Wallet supports session keys.", "basis": "docs", "status": "deployed" },
-        { "quote": "In the authors' evaluation, session keys reduced approval prompts by 80 percent.", "basis": "paper", "status": "unspecified" }
+        { "quote": "Lumen Wallet supports session keys.", "basis": "docs", "status": "unspecified" },
+        { "quote": "In the authors' independent evaluation, Lumen Wallet's session keys reduced approval prompts by 80 percent.", "basis": "paper", "status": "unspecified" }
       ],
       "flaw": "The 80 percent is from the authors' evaluation, not from every user."
     },
@@ -791,8 +791,8 @@
       "label": "distorted",
       "sentence": "Lumen Wallet supports session keys, which reduced approval prompts by 80 percent in Lumen Wallet's own evaluation.",
       "passages": [
-        { "quote": "Lumen Wallet supports session keys.", "basis": "docs", "status": "deployed" },
-        { "quote": "In the authors' evaluation, session keys reduced approval prompts by 80 percent.", "basis": "paper", "status": "unspecified" }
+        { "quote": "Lumen Wallet supports session keys.", "basis": "docs", "status": "unspecified" },
+        { "quote": "In the authors' independent evaluation, Lumen Wallet's session keys reduced approval prompts by 80 percent.", "basis": "paper", "status": "unspecified" }
       ],
       "flaw": "The evaluation was the authors', not that of Lumen Wallet."
     }

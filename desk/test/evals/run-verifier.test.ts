@@ -154,7 +154,7 @@ describe('evaluateVerifier: what it asks, and how', () => {
     }
   });
 
-  it('puts ten sentences in each call by default, in the order of the set, each sentence once, with the claims of its passages numbered from c-1', async () => {
+  it('puts ten items in each call by default, in the order of the set, each once, with the claims of its passages numbered from c-1', async () => {
     const { client, requests } = spy(perfectVerifier(SET));
     const report = await evaluateVerifier(client, SET, { model: MODEL });
     expect(DEFAULT_BATCH_SIZE).toBe(10);
@@ -162,14 +162,21 @@ describe('evaluateVerifier: what it asks, and how', () => {
     const seen: string[] = [];
     requests.forEach((request, call) => {
       const blocks = blocksOf(request.user);
-      // A heading is shown as h and its place in the batch, after the sentences, so the items of a call are put back in the order of the batch.
-      const items = blocks.filter((block) => /^[sh]\d+$/.test(block.id)).sort((a, b) => Number(a.id.slice(1)) - Number(b.id.slice(1)));
-      const expected = SET.items.slice(call * 10, call * 10 + 10).map((item, at) => `${item.kind === 'heading' ? 'h' : 's'}${at}`);
-      expect(items.map((block) => block.id)).toEqual(expected);
+      const batch = SET.items.slice(call * 10, call * 10 + 10);
+      // The id of an item is s or h, by its kind, and its place in the batch.
+      const idOf = (item: (typeof batch)[number], at: number): string => `${item.kind === 'heading' ? 'h' : 's'}${at}`;
+      // The prompt lists the sentences, then the headings, each in the order of the batch: the s ids ascend and the h ids ascend, in the order in which the prompt lists them.
+      const items = blocks.filter((block) => /^[sh]\d+$/.test(block.id));
+      expect(items.filter((block) => block.id.startsWith('s')).map((block) => block.id)).toEqual(batch.flatMap((item, at) => (item.kind === 'heading' ? [] : [idOf(item, at)])));
+      expect(items.filter((block) => block.id.startsWith('h')).map((block) => block.id)).toEqual(batch.flatMap((item, at) => (item.kind === 'heading' ? [idOf(item, at)] : [])));
+      expect(items.map((block) => block.id.charAt(0)).join('')).toMatch(/^s*h*$/);
+      // Each id carries the text of the item at that place.
+      for (const block of items) expect(block.text, block.id).toBe(batch[Number(block.id.slice(1))]?.sentence);
       expect(blocks.filter((block) => block.id.startsWith('c-'))[0]?.id).toBe('c-1');
       seen.push(...items.map((block) => block.text));
     });
-    expect(seen).toEqual(SET.items.map((item) => item.sentence));
+    expect(seen).toHaveLength(SET.items.length);
+    expect(new Set(seen)).toEqual(new Set(SET.items.map((item) => item.sentence)));
   });
 
   it('takes the size of a batch from the options: 7 gives thirteen calls, the last with 6 items, and 90 gives one call', async () => {

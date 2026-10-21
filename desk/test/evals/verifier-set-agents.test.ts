@@ -25,7 +25,7 @@ describe('the ten sets of passages added for AI agents in crypto', () => {
   it('name an outlet for the set that another outlet reported, and use the bases of the domain', () => {
     const passages = NEW.flatMap((item) => item.passages);
     expect(passages.some((passage) => passage.basis === 'reported' && passage.outlet === 'Mercer Wire')).toBe(true);
-    expect(new Set(passages.map((passage) => passage.basis))).toEqual(new Set(['docs', 'announcement', 'reported', 'filing', 'paper']));
+    expect(new Set(passages.map((passage) => passage.basis))).toEqual(new Set(['docs', 'announcement', 'reported', 'filing', 'paper', 'demo']));
   });
 
   it('refuse a kind that is not fact, analysis or heading', () => {
