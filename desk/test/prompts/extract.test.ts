@@ -3,7 +3,7 @@ import { EXTRACT_INSTRUCTIONS, MAX_CLAIMS, buildExtractUser, extractSystem } fro
 import type { ExtractSource } from '../../src/prompts/extract';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { verifySystem } from '../../src/prompts/verify';
-import { COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH, claimProblems } from '../../src/stages/claim-grounding';
+import { ALLOWED_BASES, COMMON_WORDS, MAX_LABEL_WORDS, MAX_QUOTE_LENGTH, claimProblems } from '../../src/stages/claim-grounding';
 import { blocksOf, outsideBlocks } from '../support/prompts';
 
 // The words that the Extract stage says to a model. What matters here is not the wording but the rules that the wording
@@ -68,6 +68,41 @@ describe('extractSystem', () => {
     expect(status).toContain('live in production or used by people outside the team');
     expect(verifySystem()).toContain('- deployed: the passage says it is live in production or used by people outside the team.');
     expect(status).not.toMatch(/zkapi|ethereum|groth16|openai|ollama/i);
+  });
+
+  describe('the basis is one that the message lists, and never measured', () => {
+    // In a real trial three claims of a research post, whose author says he ran the proof side and gives the figures, were dropped for the basis "measured"
+    // (`basis-not-allowed`): the reply schema offers every basis, and "measured" reads as the right one for a figure that someone ran. The Desk allows it from no page,
+    // because a figure that a source says it measured is that source's own statement, and the basis "measured" would excuse the piece from saying so.
+    const basis = (): string => EXTRACT_INSTRUCTIONS.split('\n').find((line) => line.startsWith('- "basis": ')) ?? '';
+
+    it('says to use only a basis that the message lists for that source, also for a figure that the source says its author measured or ran, and that "measured" is never one of them', () => {
+      expect(basis()).toContain('Use only a basis that the message lists for that source, also for a figure that the source says its author measured or ran: "measured" is never one of them.');
+    });
+
+    it('keeps the sentence that was there, and adds the clause to the same bullet after it', () => {
+      expect(basis()).toContain('what the figure rests on. For each source the message lists the bases you may use for claims from it. ');
+      expect(basis().indexOf('Use only a basis that the message lists')).toBeGreaterThan(basis().indexOf('lists the bases you may use for claims from it.'));
+      // one bullet, and it does not name a basis for any kind of page, because the bases differ from one kind to another
+      expect(EXTRACT_INSTRUCTIONS.split('\n').filter((line) => line.includes('"measured" is never one of them'))).toHaveLength(1);
+      expect(basis().slice(basis().indexOf('Use only a basis'))).not.toMatch(/announcement|briefing|demo|paper|docs|filing|standard|reported/);
+    });
+
+    it('is true of the code: no kind of page allows the basis measured, so no message lists it', () => {
+      for (const [kind, bases] of Object.entries(ALLOWED_BASES)) expect(bases, kind).not.toContain('measured');
+      for (const kind of ['company-newsroom', 'arxiv', 'sec', 'research', 'standard'] as const) {
+        const message = outsideBlocks(buildExtractUser([{ tier: 1, kind, text: 'x' }]));
+        expect(message, kind).toContain('The basis of a claim from it is one of: ');
+        expect(message, kind).not.toContain('measured');
+      }
+      expect(outsideBlocks(buildExtractUser([REPORT]))).not.toContain('measured');
+      // a figure that a research post says its author ran is that post's own statement: the page kind lists paper and docs, and the Desk drops the basis measured for it
+      expect(ALLOWED_BASES.research).toEqual(['paper', 'docs']);
+      const page = 'i ran the proof side on leanvm.\n8 keys in the tree, one of them signs a 32-byte input. 11,776 vm cycles';
+      const claim = (basis: 'measured' | 'docs') => ({ text: 'It signs a 32-byte input', label: 'signs a 32-byte input', quote: 'one of them signs a 32-byte input', values: [], basis });
+      expect(claimProblems(claim('measured'), page, 'research', new Set()).map((problem) => problem.code)).toEqual(['basis-not-allowed']);
+      expect(claimProblems(claim('docs'), page, 'research', new Set())).toEqual([]);
+    });
   });
 
   it('says that the text and the label may hold no number, date or capitalised word that the quote lacks, and no word that says how much', () => {
