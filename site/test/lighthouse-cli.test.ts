@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { measureRoutes } from '../scripts/lighthouse-lib.mjs';
 import { main } from '../scripts/lighthouse.mjs';
 
 const SLUG = 'fixture-robotics-ships-fx-1-to-second-plant';
@@ -127,5 +128,89 @@ describe('the Lighthouse command', () => {
     });
     expect(code).toBe(2);
     expect(output).toContain('Lighthouse failed: the page did not load');
+  });
+});
+
+/** The scores of the runs of each page in turn: the measurement of one page (a route) gives its next entry, and its last one again when the list is used up. */
+function runsOf(table: Record<string, number[]>) {
+  const calls: string[] = [];
+  const runOnce = async (route: string) => {
+    const list = table[route] ?? [1];
+    const performance = list[Math.min(calls.filter((call) => call === route).length, list.length - 1)]!;
+    calls.push(route);
+    return { ...PERFECT, performance };
+  };
+  return { calls, measure: ((_baseUrl: string, routes: string[]) => measureRoutes(routes, runOnce)) as NonNullable<Measure> };
+}
+
+const LEAD = `/news/${SLUG}/`;
+
+describe('the Lighthouse command: a page that is below the floor on its first run', () => {
+  it('measures a page that passes on its first run once, and says nothing about repeats', async () => {
+    const { calls, measure } = runsOf({});
+    const { code, output } = await run(dist(goodHome), measure);
+    expect(code).toBe(0);
+    expect(calls).toEqual(['/', LEAD, `${LEAD}receipts/`]);
+    expect(output).not.toContain('measured');
+    expect(output).toContain('All scores are 95 or more.');
+  });
+
+  it('measures it twice more, passes it when the median is high, and says so in one line', async () => {
+    const { calls, measure } = runsOf({ [LEAD]: [0.87, 1, 1] });
+    const { code, output } = await run(dist(goodHome), measure);
+    expect(code).toBe(0);
+    expect(calls).toEqual(['/', LEAD, LEAD, LEAD, `${LEAD}receipts/`]);
+    expect(output.split('\n')).toContain(`  ${LEAD} measured 3 times (lowest score of each run: 87, 100, 100), lowest median 100`);
+    expect(output).toContain('All scores are 95 or more.');
+    expect(output).not.toContain('Below 95:');
+  });
+
+  it('shows the median row in the table, not the first run', async () => {
+    const { output } = await run(dist(goodHome), runsOf({ [LEAD]: [0.87, 1, 1] }).measure);
+    const line = output.split('\n').find((text) => text.startsWith(LEAD) && text.includes('  '))!;
+    expect(line.split(/\s{2,}/)).toEqual([LEAD, '100', '100', '100', '100']);
+  });
+
+  it('fails a page that is low in the first run and in the second: 87, 88, 100 has the median 88', async () => {
+    const { code, output } = await run(dist(goodHome), runsOf({ [LEAD]: [0.87, 0.88, 1] }).measure);
+    expect(code).toBe(1);
+    expect(output).toContain('Below 95:');
+    expect(output).toContain(`  ${LEAD} performance 88 (median of 3 runs)`);
+    expect(output).toContain(`  ${LEAD} measured 3 times (lowest score of each run: 87, 88, 100), lowest median 88`);
+    expect(output).not.toContain('All scores are 95 or more.');
+  });
+
+  it('fails a page that is low in the first run and in the third: 87, 100, 87 has the median 87', async () => {
+    const { code, output } = await run(dist(goodHome), runsOf({ [LEAD]: [0.87, 1, 0.87] }).measure);
+    expect(code).toBe(1);
+    expect(output).toContain(`  ${LEAD} performance 87 (median of 3 runs)`);
+  });
+
+  it('measures a page that is low every time three times and no more, and fails it', async () => {
+    const { calls, measure } = runsOf({ '/': [0.5] });
+    const { code, output } = await run(dist(goodHome), measure);
+    expect(code).toBe(1);
+    expect(calls.filter((call) => call === '/')).toHaveLength(3);
+    expect(calls).toHaveLength(5);
+    expect(output).toContain('  / performance 50 (median of 3 runs)');
+  });
+
+  it('does not add the number of runs to a page that was measured once and is low', async () => {
+    const { output } = await run(dist(goodHome), async (_baseUrl, routes) => routes.map((url) => ({ url, scores: { ...PERFECT, seo: 0.9 } })));
+    expect(output).toContain('  / seo 90\n');
+    expect(output).not.toContain('median');
+  });
+
+  it('exits 2 when a repeat run cannot be measured', async () => {
+    let count = 0;
+    const { code, output } = await run(dist(goodHome), (_baseUrl, routes) =>
+      measureRoutes(routes, async () => {
+        count += 1;
+        if (count === 2) throw new Error('Chrome crashed');
+        return { ...PERFECT, performance: 0.8 };
+      }),
+    );
+    expect(code).toBe(2);
+    expect(output).toContain('Lighthouse failed: Chrome crashed');
   });
 });

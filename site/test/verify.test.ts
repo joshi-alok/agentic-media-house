@@ -84,6 +84,10 @@ describe('the README', () => {
     expect(readme).toContain('ROBYWIRE_FIXTURES=1');
   });
 
+  it('says that a page below 95 on its first Lighthouse run is measured twice more and judged by the median', () => {
+    expect(readme).toContain('A page that is below 95 on its first run is measured twice more and judged by the median of the three runs');
+  });
+
   it('is plain ASCII, like the rest of the source', () => {
     expect([...readme].every((character) => character.charCodeAt(0) < 128)).toBe(true);
   });

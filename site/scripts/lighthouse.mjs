@@ -1,21 +1,27 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { CATEGORIES, THRESHOLD, chromeFlags, formatScores, isFixtureBuild, lowScores, pagesToTest } from './lighthouse-lib.mjs';
+import { CATEGORIES, THRESHOLD, chromeFlags, formatScores, isFixtureBuild, lowScores, measureRoutes, pagesToTest, repeatNote } from './lighthouse-lib.mjs';
 import { serve } from './serve-dist.mjs';
 
 // `npm run lighthouse` measures the built fixture site with Lighthouse: the
 // home page, the lead article and its receipts page, and an article that rests
 // on another outlet with its receipts page, in all four categories.
-// It builds nothing. It exits 0 if every score is 95 or more, 1 if any is
-// lower, and 2 if it could not measure (no fixture build, no Chrome).
+// A page that is below 95 in any category on its first run is measured twice
+// more and judged by the median of the three runs, category by category, so
+// that one slow run on a shared machine does not fail the check and a real
+// regression still does. A page that passes on its first run is measured once.
+// It builds nothing. It exits 0 if every score (the median, for a page that was
+// measured three times) is 95 or more, 1 if any is lower, and 2 if it could not
+// measure (no fixture build, no Chrome).
 
 const DEFAULT_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 
 /**
  * Measure the pages at `baseUrl` with Lighthouse in a headless Chrome. Chrome is found by chrome-launcher, which
  * uses the CHROME_PATH environment variable first. Lighthouse's own defaults apply: a phone-sized screen and
- * simulated slow network.
+ * simulated slow network. Each page is measured once, or three times when the first run is below the floor (see
+ * measureRoute); all the runs share the one Chrome.
  *
  * @param {string} baseUrl
  * @param {string[]} routes
@@ -26,14 +32,11 @@ async function measureWithChrome(baseUrl, routes) {
   const { launch } = await import('chrome-launcher');
   const chrome = await launch({ chromeFlags: chromeFlags(process.env) });
   try {
-    /** @type {import('./lighthouse-lib.mjs').ScoreRow[]} */
-    const rows = [];
-    for (const route of routes) {
+    return await measureRoutes(routes, async (route) => {
       const result = await lighthouse(baseUrl + route, { port: chrome.port, output: 'json', logLevel: 'error', onlyCategories: CATEGORIES });
       const categories = result?.lhr.categories ?? {};
-      rows.push({ url: route, scores: Object.fromEntries(CATEGORIES.map((category) => [category, categories[category]?.score ?? null])) });
-    }
-    return rows;
+      return Object.fromEntries(CATEGORIES.map((category) => [category, categories[category]?.score ?? null]));
+    });
   } finally {
     chrome.kill();
   }
@@ -78,13 +81,20 @@ export async function main({ dist = DEFAULT_DIST, print = console.log, measure =
     const rows = await measure(server.url, pagesToTest(home, (route) => readPage(dist, route)));
     print(`Lighthouse, ${rows.length} pages (phone screen, simulated slow network)`);
     print(formatScores(rows));
+    for (const row of rows) {
+      const note = repeatNote(row);
+      if (note !== undefined) print(note);
+    }
     const low = lowScores(rows);
     if (low.length === 0) {
       print(`All scores are ${THRESHOLD * 100} or more.`);
       return 0;
     }
     print(`Below ${THRESHOLD * 100}:`);
-    for (const item of low) print(`  ${item.url} ${item.category} ${item.score === null ? 'no score' : Math.round(item.score * 100)}`);
+    for (const item of low) {
+      const runs = rows.find((row) => row.url === item.url)?.runs?.length ?? 1;
+      print(`  ${item.url} ${item.category} ${item.score === null ? 'no score' : Math.round(item.score * 100)}${runs > 1 ? ` (median of ${runs} runs)` : ''}`);
+    }
     return 1;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
