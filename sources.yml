@@ -1,33 +1,28 @@
-# sources.yml - the Desk's tiered source registry.
+# Agentic Media House — source list for the daily desk
 #
-# Provenance: copied on 2026-10-04 from the Robywire docs (docs/sources.yml in
-# the robywire-astro project) and adapted for the Desk:
-#   - every "verified" status was reset to "unverified", because the Desk has
-#     not fetched anything yet and cannot vouch for a feed;
-#   - the documented "blocked" (arXiv RSS) and "n/a" statuses were kept;
-#   - the status legend below replaces the original one and adds "n/a".
-# gate/src/sources.ts validates this file and gate/test/sources.test.ts checks it.
+# The Desk's source registry, checked by gate/src/sources.ts (loadSources) and gate/test/sources.test.ts.
 #
 # Status values:
-#   verified   = fetched by the Desk and confirmed current
-#   unverified = plausible URL, the first run must check it
-#   blocked    = our fetcher cannot reach it; needs another route
-#   n/a        = no fixed URL (the entry says where to look instead)
-#
-# Agentic Media House — source list for the daily desk
+#   verified   = fetched by the Desk (desk sources-check) and confirmed readable
+#   unverified = plausible address, not yet checked
+#   blocked    = the Desk cannot read it (robots.txt, an answer of 403, no feed); the note says why
+#   n/a        = no fixed address (the entry says where to look instead)
 #
 # Two tiers, and the distinction is the whole editorial model:
 #
-#   TIER 1 (primary)   — what we WRITE FROM. The company's own announcement,
-#                        the paper, the filing, the standard, the results sheet.
-#   TIER 2 (secondary) — what we use to DISCOVER. Other outlets' feeds tell us
-#                        something happened. They are never the sole source for
-#                        a claim, and never the thing we paraphrase.
+#   TIER 1 (primary)   — what we WRITE FROM. A project's own post or documentation, a standard or a
+#                        proposal, a paper, a regulator's statement, a filing.
+#   TIER 2 (secondary) — what we use to DISCOVER. Other outlets' feeds tell us something happened.
+#                        They are never the source of a claim, and never what we paraphrase.
 #
-# House rule: discover in tier 2, verify and write from tier 1. If a story has
-# no reachable tier 1 source, that fact goes in the piece — it does not get
-# quietly laundered through a competitor's reporting.
+# Entry fields: name (what this file and the reports call it), short (what a sentence calls it),
+# url (a page of the source: where its pages are), feed (RSS or Atom, read instead of the page),
+# keywords (an item of a feed is a candidate only if its title or summary has one of these words,
+# whole words, so "agent" is not "agents"), beats (the beats of its stories, when the group is not a beat).
+# An address on a host where many people publish (github.com, medium.com, substack.com, ...) names a path.
 #
+# House rule: discover in tier 2 or in a primary feed, write from tier 1. A story whose primary page
+# cannot be reached is not written.
 
 # ---------------------------------------------------------------------------
 # TIER 1 — PRIMARY
@@ -35,142 +30,207 @@
 
 primary:
 
-  # Company newsrooms and press kits. The single most important tier and the
-  # one entirely missing from the original list. Press kits are also where
-  # licensed imagery comes from (see the image policy in the content contract).
+  # Projects and companies that publish in public. Groups are named for beats.
   companies:
-    humanoids:
-      - { name: Figure,              url: "https://www.figure.ai/news",            status: unverified }
-      - { name: Agility Robotics,    url: "https://www.agilityrobotics.com/news",  status: unverified }
-      - { name: Boston Dynamics,     url: "https://bostondynamics.com/news/",      status: unverified }
-      - { name: Unitree,             url: "https://www.unitree.com/news",          status: unverified }
-      - { name: Apptronik,           url: "https://apptronik.com/news",            status: unverified }
-      - { name: 1X,                  url: "https://www.1x.tech/discover",          status: unverified }
-      - { name: Beijing X-Humanoid,  url: "https://www.x-humanoid.com/",           status: unverified }
-    industrial:
-      - { name: ABB Robotics,        url: "https://new.abb.com/products/robotics", status: unverified }
-      - { name: FANUC,               url: "https://www.fanuc.eu/uk/en/news",       status: unverified }
-      - { name: KUKA,                url: "https://www.kuka.com/en-de/press",      status: unverified }
-      - { name: Universal Robots,    url: "https://www.universal-robots.com/about-universal-robots/news-centre/", status: unverified }
-    software:
-      - { name: Physical Intelligence, url: "https://www.physicalintelligence.company/blog", status: unverified }
-      - { name: NVIDIA Robotics,     url: "https://blogs.nvidia.com/blog/category/robotics/", status: unverified }
+    payments-commerce:
+      - name: Stripe blog
+        short: Stripe
+        url: "https://stripe.com/blog"
+        feed: "https://stripe.com/blog/feed.rss"
+        keywords: [stablecoin, stablecoins, USDC, crypto, x402, agentic commerce, agentic payments, agent payments, machine payments]
+        status: verified
+      - name: Coinbase blog
+        short: Coinbase
+        url: "https://www.coinbase.com/blog"
+        feed: "https://www.coinbase.com/blog/rss.xml"
+        beats: [payments-commerce, wallets-keys]
+        status: blocked
+        note: Answers 403 with a bot challenge (checked 2026-10-20). Needs another route; the Desk does not work around it.
+    protocols-standards:
+      - name: Ethereum Foundation blog
+        short: Ethereum Foundation
+        url: "https://blog.ethereum.org/"
+        feed: "https://blog.ethereum.org/en/feed.xml"
+        status: verified
+      - name: Vitalik Buterin's blog
+        short: Vitalik Buterin's blog
+        url: "https://vitalik.eth.limo/"
+        feed: "https://vitalik.eth.limo/feed.xml"
+        status: blocked
+        note: "The feed at vitalik.eth.limo is read (176 items), but every item links to vitalik.ca, which did not resolve (ENOTFOUND) when checked and is not a page of any source of the registry. The Desk keeps an item of a primary feed only when its link is a page of a primary source of the registry (any entry, not only this one), so the feed would yield nothing (checked 2026-10-20). desk sources-check skips blocked entries: to re-check this one, set its status back to unverified, run desk sources-check, and set url to the host the items link to if it resolves."
+      - name: a16z crypto
+        short: a16z crypto
+        url: "https://a16zcrypto.com/"
+        feed: "https://a16zcrypto.com/feed.xml"
+        beats: [protocols-standards, agent-infrastructure, policy-regulation]
+        keywords: [agent, agents, agentic, AI, x402, stablecoin, stablecoins]
+        status: verified
+    agent-infrastructure:
+      - name: Cloudflare blog
+        short: Cloudflare
+        url: "https://blog.cloudflare.com/"
+        feed: "https://blog.cloudflare.com/rss/"
+        beats: [agent-infrastructure, payments-commerce]
+        keywords: [x402, stablecoin, stablecoins, pay per crawl, Web Bot Auth, NET Dollar, crypto, blockchain, payments, agentic payments]
+        status: verified
+        note: "20 items, 0 with a keyword, 20 on a primary page (checked 2026-10-20). The keywords may need to change."
+      - name: Chainlink blog
+        short: Chainlink
+        url: "https://chain.link/blog"
+        status: verified
+        note: The old feed address redirects to the page, so the Desk reads the page.
 
-  # Research. Papers are primary; a press release about a paper is not.
+  # Research. A paper is primary; a press release about a paper is not.
   research:
-    - name: arXiv cs.RO
-      url: "http://export.arxiv.org/rss/cs.RO"
-      status: blocked
-      note: >
-        robots.txt disallows our fetcher on the RSS endpoint. Use the arXiv API
-        (export.arxiv.org/api/query?search_query=cat:cs.RO) instead, which is the
-        sanctioned programmatic route.
+    - name: arXiv cs.MA
+      short: arXiv
+      url: "https://arxiv.org/list/cs.MA/recent"
+      feed: "https://rss.arxiv.org/rss/cs.MA"
+      beats: [agent-infrastructure]
+      keywords: [blockchain, onchain, on-chain, smart contract, smart contracts, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets, stablecoin, stablecoins]
+      status: verified
+    - name: arXiv cs.AI
+      short: arXiv
+      url: "https://arxiv.org/list/cs.AI/recent"
+      feed: "https://rss.arxiv.org/rss/cs.AI"
+      beats: [agent-infrastructure]
+      keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets]
+      status: verified
+      note: The page of a paper is its abstract; the Desk does not read PDFs. The API and the Atom feeds are closed to the Desk by robots.txt; rss.arxiv.org is open.
+    - name: arXiv cs.CR
+      short: arXiv
+      url: "https://arxiv.org/list/cs.CR/recent"
+      feed: "https://rss.arxiv.org/rss/cs.CR"
+      beats: [security-incidents]
+      keywords: [agentic payments, agent payments, agentic commerce, trustless agents, machine payments, x402, ERC-8004, smart contract, smart contracts, onchain, on-chain, stablecoin, stablecoins, DeFi, cryptocurrency, cryptocurrencies, wallet, wallets, account abstraction]
+      status: verified
+    - name: IACR ePrint
+      short: IACR ePrint
+      url: "https://eprint.iacr.org/"
+      feed: "https://eprint.iacr.org/rss/rss.xml"
+      beats: [identity-trust, security-incidents]
+      keywords: [agent, agents, agentic, blockchain, smart contract, smart contracts, wallet, wallets, account abstraction]
+      status: verified
+      note: "100 items, 0 with a keyword, 100 on a primary page (checked 2026-10-20). The keywords may need to change."
+    - name: Ethereum Research
+      short: Ethereum Research
+      url: "https://ethresear.ch/"
+      feed: "https://ethresear.ch/latest.rss"
+      beats: [protocols-standards, wallets-keys]
+      keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, ERC8004, ERC-4337, EIP-7702]
+      status: verified
+    - name: Ethereum Magicians
+      short: Ethereum Magicians
+      url: "https://ethereum-magicians.org/"
+      feed: "https://ethereum-magicians.org/latest.rss"
+      beats: [protocols-standards, identity-trust]
+      keywords: [agent, agents, agentic, AI, account abstraction, wallet, wallets, ERC-8004, x402, session keys, ERC8004, ERC-4337, EIP-7702]
+      status: verified
 
-  # Standards, regulation and safety. Underserved and highly checkable.
+  # Standards, open protocols and regulators. Underserved and highly checkable. An entry with no feed is a place the Desk
+  # recognises as primary when a story links to it.
   standards:
-    - { name: ISO TC 299 (robotics),  url: "https://www.iso.org/committee/5915511.html", status: unverified }
-    - { name: OSHA newsroom,          url: "https://www.osha.gov/news",                  status: unverified }
-    - { name: EU Machinery Regulation, url: "https://single-market-economy.ec.europa.eu/sectors/mechanical-engineering/machinery_en", status: unverified }
+    - { name: Ethereum Improvement Proposals, short: EIPs, url: "https://eips.ethereum.org/", status: verified }
+    - { name: Ethereum Requests for Comment, short: ERCs, url: "https://ercs.ethereum.org/", status: verified }
+    - { name: Model Context Protocol, short: Model Context Protocol, url: "https://modelcontextprotocol.io/", status: verified }
+    - { name: x402 documentation, short: x402, url: "https://docs.x402.org/", status: verified }
+    - { name: x402 site, short: x402, url: "https://www.x402.org/", status: verified }
+    - { name: x402 repository, short: x402, url: "https://github.com/coinbase/x402", status: verified, note: "Pages only: the Atom feed of releases is closed to the Desk by robots.txt." }
+    - { name: Agent2Agent protocol, short: Agent2Agent, url: "https://a2a-protocol.org/", status: verified }
+    - { name: Agent2Agent repository, short: Agent2Agent, url: "https://github.com/a2aproject/A2A", status: verified }
+    - { name: W3C, short: W3C, url: "https://www.w3.org/", status: verified }
+    - { name: IETF datatracker, short: IETF, url: "https://datatracker.ietf.org/", status: verified }
+    - name: SEC press releases
+      short: SEC
+      url: "https://www.sec.gov/newsroom/press-releases"
+      feed: "https://www.sec.gov/news/pressreleases.rss"
+      beats: [policy-regulation]
+      keywords: [crypto, digital asset, digital assets, blockchain, stablecoin, stablecoins, token, tokens, cryptocurrency, cryptocurrencies, AI, artificial intelligence, agentic]
+      status: verified
+    - name: CFTC press releases
+      short: CFTC
+      url: "https://www.cftc.gov/PressRoom/PressReleases"
+      feed: "https://www.cftc.gov/RSS/RSSGP/rssgp.xml"
+      beats: [policy-regulation]
+      keywords: [crypto, digital asset, digital assets, blockchain, stablecoin, stablecoins, token, tokens, cryptocurrency, cryptocurrencies, AI, artificial intelligence, agentic]
+      status: verified
+    - name: Federal Reserve press releases
+      short: Federal Reserve
+      url: "https://www.federalreserve.gov/newsevents/pressreleases.htm"
+      feed: "https://www.federalreserve.gov/feeds/press_all.xml"
+      beats: [policy-regulation]
+      keywords: [stablecoin, stablecoins, digital asset, digital assets, crypto, payment, payments, AI, artificial intelligence, agentic]
+      status: verified
 
-  # Money. Filings and the company's own announcement beat any coverage of them.
+  # Money. A filing or the project's own announcement beats any coverage of it.
   funding:
-    - { name: SEC EDGAR full-text,  url: "https://efts.sec.gov/LATEST/search-index?q=robotics", status: unverified }
-    - { name: Company announcement, url: "(the round is always announced on the company's own site first)", status: n/a }
+    - { name: Project announcement, url: "(the round is always announced on the project's own site first)", status: n/a }
 
-  # Events — for the calendar and for field-notes planning.
-  events:
-    - { name: ICRA,     url: "https://www.ieee-ras.org/conferences-workshops/fully-sponsored/icra/", status: unverified }
-    - { name: IROS,     url: "https://www.ieee-ras.org/conferences-workshops/technically-co-sponsored/iros", status: unverified }
-    - { name: Automate, url: "https://www.automateshow.com/",  status: unverified }
-    - { name: iREX,     url: "https://irex.nikkan.co.jp/en/",  status: unverified }
+  events: []
 
 # ---------------------------------------------------------------------------
 # TIER 2 — SECONDARY (discovery only)
 # ---------------------------------------------------------------------------
-# Every one of these is a competitor. Reading them to learn what happened is
-# normal practice. Rewriting them is not — it is the behaviour Google's
-# scaled-content-abuse policy names, and it is also just bad journalism.
+# Every one of these is a competitor. Reading them to learn what happened is normal practice.
+# Rewriting them is not. Most of what they publish is prices and markets, which this publication
+# does not cover, so every feed is narrowed by keywords.
 
 secondary:
-  - name: The Robot Report
-    feed: "https://www.therobotreport.com/feed/"
-    status: unverified          # RSS 2.0 per the Robywire docs; the Desk has not checked it
-    beats: [industrial-warehouse, humanoids, funding]
-    note: Strongest on business, funding and commercial humanoid deployments.
+  - name: CoinDesk
+    short: CoinDesk
+    feed: "https://www.coindesk.com/arc/outboundfeeds/rss"
+    status: verified
+    beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
+  - name: Cointelegraph
+    short: Cointelegraph
+    feed: "https://cointelegraph.com/rss"
+    status: verified
+    beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
+  - name: Decrypt
+    short: Decrypt
+    feed: "https://decrypt.co/feed"
+    status: verified
+    beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
+  - name: The Block
+    short: The Block
+    feed: "https://www.theblock.co/rss.xml"
+    status: verified
+    beats: [payments-commerce, wallets-keys, security-incidents, policy-regulation, funding]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
+  - name: The Defiant
+    short: The Defiant
+    feed: "https://thedefiant.io/api/feed"
+    status: blocked
+    beats: [payments-commerce, funding]
+    keywords: [agent, agents, agentic, AI, x402, ERC-8004, MCP, autonomous agent, autonomous agents, LLM, Claude, ChatGPT, OpenAI, Anthropic]
+    note: robots.txt does not allow the Desk to read the feed (checked 2026-10-20).
 
-  - name: IEEE Spectrum — Robotics
-    feed: "https://spectrum.ieee.org/feeds/topic/robotics.rss"
-    status: unverified
-    beats: [software-autonomy, humanoids, components-supply-chain]
-    note: Engineering journalism. Often the only outlet that reads the paper.
-
-  - name: Robotics 24/7
-    feed: "https://www.robotics247.com/rss"
-    status: unverified
-    beats: [industrial-warehouse, field-mobility]
-
-  - name: Robohub
-    feed: "https://robohub.org/feed/"
-    status: unverified
-    beats: [software-autonomy, policy-standards]
-    note: Academic and community. Good early signal on research moving to product.
-
-  - name: Robotics Tomorrow
-    feed: "https://www.roboticstomorrow.com/rss"
-    status: unverified
-    beats: [industrial-warehouse, components-supply-chain]
-
-  - name: Tech Xplore — Robotics
-    feed: "https://techxplore.com/rss-feed/robotics-news/"
-    status: unverified
-    beats: [software-autonomy, components-supply-chain]
-    note: Rewrites university press releases. Always trace to the paper.
-
-  - name: ScienceDaily — Robotics
-    feed: "https://www.sciencedaily.com/rss/computers_math/robotics.xml"
-    status: unverified
-    beats: [software-autonomy]
-    note: Aggregates press releases. Discovery only, never a source.
-
-  - name: New Atlas — Robotics
-    feed: "https://newatlas.com/robotics/index.rss"
-    status: unverified
-    beats: [home-consumer, field-mobility]
-    note: One of the few covering consumer and home. Enthusiastic — verify claims.
-
-  - name: Robotics Business News
-    feed: "https://roboticsbusinessnews.com/feed/"
-    status: unverified
-    beats: [funding, industrial-warehouse]
-
-# Dropped from the supplied list:
-#   Phys.org robotics — near-total overlap with Tech Xplore (same publisher
-#   network) and ScienceDaily. Three feeds of the same university press
-#   releases is three times the noise for no extra coverage.
+# The owner adds the projects, exchanges and wallets they follow under `primary.companies`, in the group of the beat
+# they belong to, in the form above. Check an entry with `npm run desk -- sources-check` before relying on it.
 
 # ---------------------------------------------------------------------------
 # EDITORIAL BAR
 # ---------------------------------------------------------------------------
-# One post a day. On a quiet day, publish the smaller true thing rather than
-# inflating the biggest available thing.
+# One piece a day. On a quiet day, publish the smaller true thing rather than inflating the biggest available thing.
 
 bar:
   publish_if_any:
-    - A product shipped, was priced, or reached a customer site.
-    - A funding round, acquisition or shutdown with a named amount or acquirer.
-    - A specification, benchmark or results sheet was published that can be read.
-    - A standard, regulation or safety finding changed what is permitted.
-    - A claim we previously covered turned out to be wrong, early or overstated.
+    - A protocol, a standard or a proposal for agents was published or changed, and its text can be read.
+    - A project shipped something agents can use, with documentation that says what it does.
+    - A paper or a post explains how agents pay, prove who they are, hold keys or are attacked.
+    - A regulator or a standards body said something about agents or about the money they handle.
+    - An incident that involved an agent, with a write-up by the people who found or fixed it.
 
   do_not_publish:
-    - A demo video with no specification, price or deployment behind it.
+    - A price, a market move, a listing, or a token to buy.
+    - A partnership or a memorandum with no deliverable and no date.
     - A funding rumour with no named source.
-    - A "partnership" or MoU with no deliverable and no date.
     - A restatement of another outlet's story with nothing added.
-    - A paper we have not read past the abstract.
+    - A technical claim that only a trade outlet makes.
 
   quiet_day_fallback:
-    - "A spec-sheet primer or explainer (format: explainer) on something in the
-       week's news that readers keep mis-reading."
-    - "A follow-up: what happened to a launch we covered 6 or 12 months ago.
-       This is the cheapest genuinely original reporting available to us."
+    - A primer on a standard or a protocol that readers keep mis-reading.
+    - A follow-up on a proposal or a launch covered months ago.

@@ -106,12 +106,29 @@ export function afterOpeners(text: string): string {
 
 /**
  * Does a sentence start with an uppercase letter (of any alphabet) or a digit, once the opening quotation marks
- * and brackets in front are skipped? The first-word rule of G4 looks for a capitalised first word, so a sentence
- * that opens in lowercase would not be read by it: G2 requires this of every sentence. A text with nothing
- * after the openers has no first character, so it does not.
+ * and brackets in front are skipped? G7 requires this of every analysis sentence: its rule for the opening word
+ * looks for a capitalised first word, so an analysis sentence that opens in lowercase would not be read by it,
+ * and the model check holds analysis only to adding nothing the passages do not support, so code is the strict reader of its opening word.
+ * A fact sentence has no such rule, because the model check judges it. A text
+ * with nothing after the openers has no first character, so it does not.
  */
 export function startsWithCapitalOrDigit(text: string): boolean {
   return /^[\p{Lu}\p{Nd}]/u.test(afterOpeners(text));
+}
+
+/** `text` and `phrase` already folded (lowercase, plain quotes): does `phrase` occur in `text` as whole words, with no letter or digit next to it on either side? */
+export function hasWholePhrase(text: string, phrase: string): boolean {
+  if (phrase === '') return false;
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(phrase, from);
+    if (at === -1) return false;
+    const before = text[at - 1];
+    const after = text[at + phrase.length];
+    const edge = (char: string | undefined) => char === undefined || !/[\p{L}\p{N}]/u.test(char);
+    if (edge(before) && edge(after)) return true;
+    from = at + 1;
+  }
 }
 
 /** Jaccard similarity of two sets: shared items over all items. Two empty sets score 0. */

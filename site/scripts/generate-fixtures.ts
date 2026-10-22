@@ -21,20 +21,20 @@ export interface FixturePiece {
   runId: string;
   input: GateInput;
   /**
-   * What the gate must decide for the fixture. `publish` is an ordinary piece. `hold` is a piece that
-   * rests on another outlet: the gate holds it, and the fixture stands for one that the owner released.
+   * What the fixture stands for. `publish` is an ordinary piece. `hold` is a piece that the owner released
+   * after a hold: the gate clears it and the ledger says it was held.
    */
   route: 'publish' | 'hold';
 }
 
 // Each variant is the golden story about the next product, one day earlier. The last one is written the way
-// a piece that rests on another outlet must be (see makeTier2Variant), so the gate holds it, and it is
-// dated the day of the 'TIER2_ATTRIBUTION' hold in the desk state: the owner released that draft.
+// a piece that rests on another outlet must be (see makeTier2Variant), so the gate clears it, and it is
+// dated the day of the 'G10_AMBIGUOUS' hold in the desk state: the model check could not tell, and the owner released that draft.
 const VARIANTS = [
-  { n: 2, publishedAt: '2026-10-03', categories: ['humanoids'], tier2: false },
-  { n: 3, publishedAt: '2026-10-02', categories: ['policy-standards'], tier2: false },
-  { n: 4, publishedAt: '2026-10-01', categories: ['home-consumer', 'field-mobility'], tier2: false },
-  { n: 5, publishedAt: '2026-09-29', categories: ['policy-standards', 'funding'], tier2: true },
+  { n: 2, publishedAt: '2026-10-03', categories: ['payments-commerce'], tier2: false },
+  { n: 3, publishedAt: '2026-10-02', categories: ['policy-regulation'], tier2: false },
+  { n: 4, publishedAt: '2026-10-01', categories: ['wallets-keys', 'identity-trust'], tier2: false },
+  { n: 5, publishedAt: '2026-09-29', categories: ['policy-regulation', 'funding'], tier2: true },
 ];
 
 const GOLDEN_RETRIEVED_AT = '2026-10-04T04:30:00Z';
@@ -61,6 +61,9 @@ export function fixturePieces(): FixturePiece[] {
 
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 
+/** The reason that the hold of the fixture released by the owner goes by: the model check could not tell if a sentence was supported. */
+const OWNER_HOLD_REASON = 'G10_AMBIGUOUS';
+
 function deskState(all: readonly FixturePiece[]): DeskState {
   const [latest, corrected] = [all[0]!, all[1]!];
   return DeskState.parse({
@@ -68,11 +71,11 @@ function deskState(all: readonly FixturePiece[]): DeskState {
     holds: [
       {
         at: '2026-09-30T04:38:05Z',
-        categories: ['humanoids'],
+        categories: ['payments-commerce'],
         reasons: ['G4_NUMBER_UNSUPPORTED'],
         prUrl: 'https://github.example/agentic-media-house/agentic-media-house/pull/12',
       },
-      { at: '2026-09-29T04:36:40Z', categories: ['policy-standards', 'funding'], reasons: ['TIER2_ATTRIBUTION'] },
+      { at: '2026-09-29T04:36:40Z', categories: ['policy-regulation', 'funding'], reasons: [OWNER_HOLD_REASON] },
     ],
     corrections: [
       {
@@ -87,24 +90,26 @@ function deskState(all: readonly FixturePiece[]): DeskState {
 
 /**
  * Every fixture file as a map from its path under the fixtures folder to its
- * content, in sorted order. A piece for which the gate decides anything but
- * what the fixture stands for stops the generator: a fixture must be something
- * the real pipeline could publish, by itself or, for a hold, with the owner's
- * release (the ledger says which). A piece that has a correction in the desk
- * state gets `updatedAt`, the day of its latest one, as the site requires.
+ * content, in sorted order. A piece that the gate does not clear stops the
+ * generator: a fixture must be something the real pipeline could publish, by
+ * itself or, for a hold, with the owner's release (the ledger says which). A
+ * piece that has a correction in the desk state gets `updatedAt`, the day of
+ * its latest one, as the site requires.
  */
 export function fixtureFiles(all: readonly FixturePiece[] = fixturePieces()): Map<string, string> {
   const files = new Map<string, string>();
   const state = deskState(all);
   for (const piece of all) {
     const result = runGate(piece.input, defaultContext());
-    if (result.route !== piece.route) {
+    if (result.route !== 'publish') {
       const codes = [...result.failures.map((failure) => failure.code), ...result.holdReasons].join(', ');
-      throw new Error(`generate-fixtures: the fixture ${piece.slug} does not ${piece.route} (route ${result.route}: ${codes === '' ? 'none' : codes})`);
+      throw new Error(`generate-fixtures: the fixture ${piece.slug} is not cleared by the gate (route ${result.route}: ${codes === '' ? 'none' : codes})`);
     }
+    // A draft that the owner released was held: its ledger says route hold and gives the reasons of the hold, as the hold flow writes it.
+    const gate = piece.route === 'hold' ? { ...result, route: 'hold' as const, holdReasons: [OWNER_HOLD_REASON] } : result;
     const updatedAt = latestCorrectionDay(state.corrections, piece.slug);
     const release = piece.route === 'publish' ? 'auto' : 'owner';
-    const meta = { runId: piece.runId, gate: result, release, ...(updatedAt === undefined ? {} : { updatedAt }) } as const;
+    const meta = { runId: piece.runId, gate, release, ...(updatedAt === undefined ? {} : { updatedAt }) } as const;
     const { mdx, ledger } = renderDraft(piece.input.draft, piece.input.claims, meta);
     files.set(`news/${piece.slug}.mdx`, mdx);
     files.set(`ledger/${piece.slug}.json`, json(ledger));

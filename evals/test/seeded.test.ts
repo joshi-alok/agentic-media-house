@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ALL_CHECKS, ALL_FAILURE_CODES, CHECK_IDS, allSentences, checkG3, checkG4, runGateWith } from '@robywire/gate';
+import { ALL_CHECKS, ALL_FAILURE_CODES, CHECK_IDS, checkG3, checkG4, runGateWith } from '@robywire/gate';
 import { cloneGolden } from '@robywire/gate/fixtures';
 import { sentenceWith } from '../src/cases/support';
 import { runSeeded } from '../src/run';
@@ -177,26 +177,6 @@ describe('runSeeded', () => {
   });
 });
 
-describe('the case lowercase-sentence-start', () => {
-  it('changes one sentence and one letter of it: the first letter is made lowercase and nothing else is touched', () => {
-    const item = SEEDED_CASES.find((candidate) => candidate.id === 'lowercase-sentence-start')!;
-    const before = allSentences(cloneGolden().draft);
-    const after = allSentences(item.apply(cloneGolden()).draft);
-    const changed = after.filter((located, at) => located.sentence.text !== before[at]!.sentence.text);
-    expect(changed).toHaveLength(1);
-    const original = before[changed[0]!.index]!.sentence.text;
-    expect(original).toMatch(/^[A-Z]/);
-    expect(changed[0]!.sentence.text).toBe(`${original.charAt(0).toLowerCase()}${original.slice(1)}`);
-  });
-
-  it('breaks the sentence rule and nothing else: the first-word rule of G4 reads only capitalised words, so G2 has to refuse the sentence', () => {
-    const only = SEEDED_CASES.filter((item) => item.id === 'lowercase-sentence-start');
-    expect(runSeeded(ALL_CHECKS, only).cases).toEqual([
-      { id: 'lowercase-sentence-start', check: 'G2', code: 'G2_SENTENCE_START', caught: true, gotCodes: ['G2_SENTENCE_START'] },
-    ]);
-  });
-});
-
 describe('the cases that rewrite sources and limitation sentences', () => {
   // Each of these changes several sentences and claims at once, so each is run alone and must break the rule it names and no other.
   it.each([
@@ -206,7 +186,9 @@ describe('the cases that rewrite sources and limitation sentences', () => {
     ['tier2-claim-wrong-basis', 'G6_TIER2_BASIS'],
     ['primary-claim-called-reported', 'G6_TIER1_REPORTED'],
     ['limitation-two-outlets', 'G8_LIMITATION_GROUP'],
-    ['limitation-group-too-large', 'G8_LIMITATION_GROUP_SIZE'],
+    ['policy-price-target', 'G9_POLICY_PHRASE'],
+    ['policy-buy-advice', 'G9_POLICY_PHRASE'],
+    ['policy-cashtag', 'G9_POLICY_PHRASE'],
   ])('%s breaks the rule it names and no other', (id, code) => {
     const only = SEEDED_CASES.filter((item) => item.id === id);
     expect(runSeeded(ALL_CHECKS, only).cases.map((item) => item.gotCodes)).toEqual([[code]]);
@@ -219,7 +201,7 @@ describe('the cases that rewrite sources and limitation sentences', () => {
     const without = (input: typeof before) => ({ ...input, draft: { ...input.draft, limitations: [] } });
     expect(without(after)).toEqual(without(before));
     const changed = after.draft.limitations.filter((sentence, at) => JSON.stringify(sentence) !== JSON.stringify(before.draft.limitations[at]));
-    expect(changed.map((sentence) => sentence.claimIds)).toEqual([['c-13', 'c-14', 'c-15']]);
+    expect(changed.map((sentence) => sentence.claimIds)).toEqual([['c-8', 'c-9', 'c-10', 'c-11', 'c-13', 'c-14', 'c-15']]);
   });
 });
 

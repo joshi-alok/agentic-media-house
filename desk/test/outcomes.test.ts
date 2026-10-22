@@ -96,7 +96,7 @@ describe('what each outcome commits, and where', () => {
   it('held, with a draft that cannot be written as a piece: one commit on main with the desk state alone, with no address, and no branch; the forge is not asked', async () => {
     const unwritable = structuredClone(DEMO_REPLY);
     unwritable.takeaways[0] = { kind: 'fact', text: DEMO_REPLY.takeaways[0]?.text ?? '', claimIds: ['c-99'] };
-    const fake = new FakeClient().script('select', SELECT).script('extract', { claims: DEMO_CLAIMS }).script('compose', unwritable, { replacements: [] }, { replacements: [] });
+    const fake = new FakeClient().script('select', SELECT).script('extract', { claims: DEMO_CLAIMS }).script('compose', unwritable, { replacements: [] }, { replacements: [] }, { replacements: [] });
     const { result, left } = await ranWith({ fake });
     expect(result.outcome).toBe('held');
     expect(result.pullRequest).toBeNull();

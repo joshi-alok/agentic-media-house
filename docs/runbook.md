@@ -70,7 +70,7 @@ The checkout may already have a remote called `origin` that points at the addres
 gh auth status
 git remote -v
 git remote remove origin
-gh repo create joshi-alok/agentic-media-house --public --description "A robotics news site whose every factual sentence traces to a primary source. The pipeline that writes it is in this repository."
+gh repo create joshi-alok/agentic-media-house --public --description "A publication about AI agents in crypto whose every factual sentence traces to a passage of a source. The pipeline that writes it is in this repository."
 gh repo view joshi-alok/agentic-media-house --json visibility,isEmpty --jq '.visibility + " " + (.isEmpty | tostring)'
 git remote add origin https://github.com/joshi-alok/agentic-media-house.git
 ```
@@ -259,7 +259,7 @@ gh api repos/joshi-alok/agentic-media-house/subscription --jq '{subscribed, igno
 
 ### 17. Choose the pages
 
-`desk tune` takes a list of addresses of real pages and tells what each step of the pipeline found. Choose **three to five** pages of hosts that `sources.yml` lists (a company's own announcement is the best, because it is a primary source; one article of an outlet that the registry lists as a feed, to see a tier-2 page). Use pages that are public and that `robots.txt` allows: the command says if one is not allowed, and does not fetch it. A line that is not an address is refused with its number. The file is in `runs/`, which git ignores.
+`desk tune` takes a list of addresses of real pages and tells what each step of the pipeline found. The Desk writes an explainer from one primary page, so choose **three to six** pages that a story would be written from: a standard or a proposal, a thread of a forum of proposals, a paper's abstract, a project's post or documentation, a regulator's statement. Look first at what the sources have: `npm run desk -- sources-check --items --config desk.config.yml` fetches every entry of `sources.yml` as the Desk does (free, no key) and lists the newest three items of each feed that hold a keyword (for the feed of a primary source, only those that link to a primary page). Use pages that are public and that `robots.txt` allows: the command says if one is not allowed, and does not fetch it. A line that is not an address is refused with its number. The file is in `runs/`, which git ignores.
 
 ```bash
 mkdir -p runs
@@ -270,49 +270,49 @@ grep -c '^https' runs/tune-urls.txt
 The file has one address to a line, and a `#` starts a comment (a note about why the page was chosen is welcome):
 
 ```text
-# a company's announcement of a product
+# a proposal for agents, published this week
 https://<host in sources.yml>/<path of one page>
 ```
 
-**Expect:** `grep -c` prints the number of addresses, from 3 to 5.
+**Expect:** `grep -c` prints the number of addresses, from 3 to 6.
 
 ### 18. Run the first trial (outward: it spends money)
 
-Start with **one page, one trial, at most 10 calls**. A page goes through Extract (1 call), Compose (1 call) and Verify (1 call for the model check, and 2 more for each round of revision), so one trial is 3 to 7 calls. `--config desk.config.yml` gives the real user agent; the bucket is not used. The key is read from its file for this one command.
+Start with **one page, one trial, at most 16 calls**. A page goes through Extract (1 call), Compose (1 call) and Verify (1 call for the model check, and 2 more for each round of revision, counting the two extra rounds that `desk.config.yml` gives a draft when a problem that a sentence can mend, of the gate or of the model check, is still there after the two others), so one trial is 3 to 11 calls for a page that is read whole. With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page: a page of 3 parts can reach 13 calls (a trial of one used 10, with the rounds of before the second extra round: 3 for Extract, 1 for Compose, 3 model checks and 3 revisions), a page of 6 parts can reach 16, and the `--max-calls` of the next step may need raising too. `--config desk.config.yml` gives the real user agent; the bucket is not used. The key is read from its file for this one command.
 
 ```bash
 grep -m 1 '^https' runs/tune-urls.txt > runs/tune-first.txt
-ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-first.txt --config desk.config.yml --max-calls 10
+ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-first.txt --config desk.config.yml --max-calls 16
 ```
 
-**Expect:** a line `tune: 1 address, 1 trial each, at most 10 model calls, client api`, the folder `runs/tune/<stamp>`, then the block of the page: its kind, the claims proposed, dropped (and by which rule), and kept, what the gate said of the draft, what the model check said, how Verify ended, and the tokens; then the total. Exit code 0, unless the 10 calls ran out, which exits 1 and says so. Write down the tokens: they tell what a page costs. Add the prices of the model to a settings file of your own (not the committed one) if you want dollars: `prices:` with `inputPerMillion` and `outputPerMillion`, read from the Anthropic price list.
+**Expect:** a line `tune: 1 address, 1 trial each, at most 16 model calls, client api`, the folder `runs/tune/<stamp>`, then the block of the page: its kind, the claims proposed, dropped (and by which rule), and kept, what the gate said of the draft, what the model check said, how Verify ended, and the tokens; then the total. Exit code 0, unless the 16 calls ran out, which exits 1 and says so. Write down the tokens: they tell what a page costs. Add the prices of the model to a settings file of your own (not the committed one) if you want dollars: `prices:` with `inputPerMillion` and `outputPerMillion`, read from the Anthropic price list.
 
 ### 19. Read the table, and judge the pages (outward: it spends money)
 
-The command measures; **you judge**. For each page, open `runs/tune/<stamp>/evidence/` (the text of the page as the Desk read it) and `runs/tune/<stamp>/01/trial-1/04-extract.json`, `05-compose.json` and `06-verify.json`, and ask:
+The command measures; **you judge**. For each page, open `runs/tune/<stamp>/evidence/` (the text of the page as the Desk read it) and `runs/tune/<stamp>/01/trial-1/04-extract.json`, `05-compose.json` and `06-verify.json` (and `log.txt` beside them, the lines the stages logged), and ask:
 
-- **Claims proposed and dropped.** Were the claims that survived really in the page, and were the ones that were dropped dropped for a good reason? Many `quote-not-found` means that the model is paraphrasing instead of quoting; `value-normalised-mismatch` or `value-not-in-quote` means that it is getting numbers wrong; `label-too-long` or `label-not-in-quote` means that it is not following the shape of a label. Each is a thing to fix in the prompt. **The rules are never loosened to make more claims survive.**
-- **The gate on the draft.** Which codes, and in which sentences? Codes of the check G4 (`G4_*`: a number, a date or a name in a sentence that the claims it cites do not have), of G5 (`G5_QUOTE_NOT_VERBATIM`: a quotation that is not word for word) and of G7 (`G7_ANALYSIS_*`: analysis where only facts are allowed, too much of it, or a number, date or name of its own) say what the composer needs to be told; the codes of G2 (`G2_*`) say that a part of the piece had the wrong shape or length.
+- **Claims proposed and dropped.** Were the claims that survived really in the page, and were the ones that were dropped dropped for a good reason? Many `quote-not-found` means that the model is paraphrasing instead of quoting; `value-normalised-mismatch` or `value-not-in-quote` means that it is getting numbers wrong; `label-not-in-quote` means that it is not following the shape of a label. A label of more than six words does not cost a claim: Extract cuts it to its first six words and says how many it cut in its log line (`extract: ... 3 labels cut to 6 words`); many cuts mean that the prompt does not yet make the model write short labels. Each is a thing to fix in the prompt. **The rules are never loosened to make more claims survive.**
+- **The gate on the draft.** Which codes, and in which sentences? Codes of the check G4 (`G4_*`: a number, a date or a name in a sentence that the claims it cites do not have), of G5 (`G5_QUOTE_NOT_VERBATIM`: a quotation that is not word for word) and of G7 (`G7_ANALYSIS_*`: analysis where only facts are allowed, or a number, date or name of its own (too much analysis, `G7_ANALYSIS_SHARE`, is only a note)) say what the composer needs to be told; the codes of G2 (`G2_*`) say that a part of the piece had the wrong shape or length.
 - **The model check.** Does the verifier clear the sentences that are really supported, and flag the ones that are not? Read three of each. A verifier that clears everything is as bad as one that flags everything.
 - **The piece.** Would you publish it? Could a reader check every sentence against its quotation?
 
-Then widen: all the pages, one trial (`--max-calls 40`), and last `--trials 3` on the two most interesting pages, to see how much the answers differ from one try to the next. Stay inside the US$10 of the plan, and write down the cost of every invocation. A page that says `too few claims` is a result, not a failure: a day with no story is a valid day.
+Then widen: all the pages, one trial (`--max-calls 60`), and last `--trials 3` on the two most interesting pages, to see how much the answers differ from one try to the next. Stay inside the US$10 of the plan, and write down the cost of every invocation. A page that says `too few claims` is a result, not a failure: a day with no story is a valid day.
 
 ```bash
-ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-urls.txt --config desk.config.yml --max-calls 40
+ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-urls.txt --config desk.config.yml --max-calls 60
 ```
 
-**Expect:** a block for each page, and the total; `total: N pages, N trials, M of 40 model calls, ...` with M not above 40. Report what you found to the owner: the table, your judgement of each page, and the cost.
+**Expect:** a block for each page, and the total; `total: N pages, N trials, M of 60 model calls, ...` with M not above 60. Report what you found to the owner: the table, your judgement of each page, and the cost.
 
 ### 20. Measure the verifier on the real model (outward: it spends money)
 
-The labelled set of 60 sentences (20 supported, 20 unsupported, 20 distorted) goes to the real model in 6 calls, through the same prompt and the same reading of the reply that the pipeline uses.
+The labelled set of 90 sentences (30 supported, 30 unsupported, 30 distorted) goes to the real model in 9 calls, through the same prompt and the same reading of the reply that the pipeline uses. The first sixty are about a made-up robot arm; the last thirty are about made-up projects in AI agents and crypto, and include headings, analysis sentences and a sentence that names the outlet that reported.
 
 ```bash
 ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run evals:verifier -- --client api
 ```
 
-**Expect:** `verifier evaluation: 60 sentences in 6 calls, model ...`, a table of the recall for each label, the precision and recall of what it cleared and of what it flagged, the accuracy and the tokens. Exit code 0 (no floor was asked for). Write the numbers down. What a floor should be is a decision, made in step 27 from these numbers and not before.
+**Expect:** `verifier evaluation: 90 sentences in 9 calls, model ...`, a table of the recall for each label, the precision and recall of what it cleared and of what it flagged, the accuracy and the tokens. Exit code 0 (no floor was asked for). Write the numbers down. What a floor should be is a decision, made in step 27 from these numbers and not before.
 
 ### 21. Change the prompts, if the trials say so
 
@@ -348,7 +348,7 @@ gh run list --workflow deploy.yml --repo joshi-alok/agentic-media-house --limit 
 
 ### 23. Rehearse a held piece, in a private repository of its own (outward: it spends money)
 
-A held piece is sent to the owner as a draft pull request: the Desk pushes a branch with `git`, opens the pull request with `gh`, with the token of the workflow, and records the hold on `main`. Only a run that is not dry does this, so the rehearsal of step 22 did not try it, and a real run that holds is the first time that it happens, unless it is tried first, in a repository where it does no harm. This makes a **private** copy of the repository, in which the registry of sources has no primary source at all (so every story that the Desk writes is written in attributed form and **held**, which is the rule of the design), pushes it, gives it the secrets that a run needs and **not the secrets of Cloudflare** (so its Deploy workflow can deploy nothing), starts the daily workflow by hand, looks at the pull request, and deletes the repository. The copy is made in a new folder: this checkout is not touched, and nothing is pushed from it.
+A held piece is sent to the owner as a draft pull request: the Desk pushes a branch with `git`, opens the pull request with `gh`, with the token of the workflow, and records the hold on `main`. Only a run that is not dry does this, so the rehearsal of step 22 did not try it, and a real run that holds is the first time that it happens, unless it is tried first, in a repository where it does no harm. This makes a **private** copy of the repository, in which the least number of sections a piece must have is 99 (check G2, `G2_SECTIONS_MIN`), pushes it, gives it the secrets that a run needs and **not the secrets of Cloudflare** (so its Deploy workflow can deploy nothing), starts the daily workflow by hand, looks at the pull request, and deletes the repository. No draft can have that many sections, and no rewritten sentence can mend that, so the run is held whatever the model writes, and without using a round of revision for it: it holds after its first draft, unless that draft also fails in a sentence or a heading that a rewrite can mend, and then after the rounds that try to mend those. The model check is never asked, because the gate fails first. The run costs three calls of the model, those of Select, Extract and Compose, and one more for each story that Select leaves out (a story with no primary page, or whose primary page a published piece or a held piece has already used; two at most) and for each round of revision. The copy is made in a new folder: this checkout is not touched, and nothing is pushed from it.
 
 ```bash
 REPO="$(pwd)"
@@ -356,8 +356,8 @@ REHEARSAL="$(mktemp -d)/rehearsal"
 git clone --quiet "$REPO" "$REHEARSAL"
 cd "$REHEARSAL"
 git remote remove origin
-node -e "const fs=require('fs');const {parse,stringify}=require('yaml');const t=parse(fs.readFileSync('sources.yml','utf8'));t.primary={companies:{},research:[],standards:[],funding:[],events:[]};fs.writeFileSync('sources.yml',stringify(t))"
-git commit -q -a -m "rehearsal: no primary source, so every piece is held"
+node -e "const fs=require('fs');const f='gate/src/checks/g2-structure.ts';const t=fs.readFileSync(f,'utf8');if(!t.includes('const MIN_SECTIONS = 2;'))throw new Error('MIN_SECTIONS not found');fs.writeFileSync(f,t.replace('const MIN_SECTIONS = 2;','const MIN_SECTIONS = 99;'))"
+git commit -q -a -m "rehearsal: no draft can have enough sections"
 gh repo create joshi-alok/rehearsal-of-the-desk --private --source . --remote origin --push
 gh api -X PUT repos/joshi-alok/rehearsal-of-the-desk/actions/permissions/workflow -f default_workflow_permissions=write -F can_approve_pull_request_reviews=true
 gh secret set ANTHROPIC_API_KEY --repo joshi-alok/rehearsal-of-the-desk < ~/.config/agentic-media-house/anthropic.key
@@ -373,7 +373,7 @@ gh repo delete joshi-alok/rehearsal-of-the-desk --yes
 rm -rf "$(dirname "$REHEARSAL")"
 ```
 
-**Expect:** `gh repo create` prints the address of the new repository, which is private. The push starts CI and Deploy in it; the Deploy fails at its last step, for want of the secrets of Cloudflare, and that is the point: nothing can be deployed from this repository. The run of the Desk ends green, and its log says `outcome: held` and `draft pull request https://github.com/joshi-alok/rehearsal-of-the-desk/pull/1`. `gh pr list` shows one open pull request titled `Held: ...`, and `gh pr view` prints `true hold/<day>-<slug> main`: a draft, from the branch of the hold, into `main`. After the `git pull`, `status` says `last run: held` and `holds: 1`. Read the pull request on GitHub before you delete the repository: the text says why the piece was held, with what the models wrote in grey boxes, and what to do. **If the run fails instead**, the message says at which of the steps it failed (the push of the branch, the pull request, the record of the hold on `main`, with `git` and `gh` as GitHub answers them): that is what this step is for. Copy the message, delete the repository, and fix the cause with a test first (the messages of `git` and `gh` are classified by what they say, in `desk/src/run/forge.ts`, and the classifiers were written from messages that were captured offline). The last two commands delete the repository on GitHub and the copy on this machine; the second of them is the folder that `mktemp` made.
+**Expect:** `gh repo create` prints the address of the new repository, which is private. The push starts CI and Deploy in it; CI fails at its Test step, because the gate of the copy wants 99 sections and the tests expect a piece with two sections to pass (only the push that made the copy starts CI: the branch and the pull request of the hold are made with the token of the workflow, which does not start CI); the Deploy fails at its last step, for want of the secrets of Cloudflare, and that is the point: nothing can be deployed from this repository. The run of the Desk ends green, and its log says `outcome: held` and `draft pull request https://github.com/joshi-alok/rehearsal-of-the-desk/pull/1`. `gh pr list` shows one open pull request titled `Held: ...`, and `gh pr view` prints `true hold/<day>-<slug> main`: a draft, from the branch of the hold, into `main`. After the `git pull`, `status` says `last run: held` and `holds: 1`. Read the pull request on GitHub before you delete the repository: the text says why the piece was held (`G2_SECTIONS_MIN`; the words beside the code say "fewer than two sections", which is the rule of the real gate, and the message of the gate in the grey box says `there must be at least 99`), with what the models wrote in grey boxes, and what to do. **If the run ends `no-story`** (for example no story with a primary page, a primary page that could not be fetched, or too few claims; `reason:` in the log says which), no hold was tried: delete the repository and rehearse again on another day. **If the run fails instead**, the message says at which of the steps it failed (the push of the branch, the pull request, the record of the hold on `main`, with `git` and `gh` as GitHub answers them): that is what this step is for. Copy the message, delete the repository, and fix the cause with a test first (the messages of `git` and `gh` are classified by what they say, in `desk/src/run/forge.ts`, and the classifiers were written from messages that were captured offline). The last two commands delete the repository on GitHub and the copy on this machine; the second of them is the folder that `mktemp` made.
 
 ### 24. Run the Desk every day for five days, without publishing (outward: it spends money)
 
@@ -397,7 +397,7 @@ If R2 refuses what the Desk sends (it has only been tried against a stand-in tha
 
 ### 25. Record each day
 
-Copy this table into a file that is not in the repository (`runs/shadow-week.md`), and fill a row each day. All the numbers are in the folder of the run: `runs/<date>/run.json` (the outcome, the stage, the reason, `budget.spent`), `runs/<date>/06-verify.json` (the gate and the model check of each round) and `runs/<date>/05-compose.json` (every draft).
+Copy this table into a file that is not in the repository (`runs/shadow-week.md`), and fill a row each day. All the numbers are in the folder of the run: `runs/<date>/run.json` (the outcome, the stage, the reason, `budget.spent`), `runs/<date>/06-verify.json` (the gate and the model check of each round, and in `lowered` each status that the model check did not find and that was lowered to `unspecified`, which does not fail the piece, so count those among the claims the verifier doubts) and `runs/<date>/05-compose.json` (every draft).
 
 ```text
 | Day | Outcome | Stage | Reason (if not published) | Claims kept | Rounds | Gate codes | Model check failures | Tokens in / out | Cost | Would you publish it? Why not? |
@@ -418,7 +418,7 @@ A run can be run again from what it kept, with no model and no network for the m
 
 ## Part 6. Going live
 
-Go live only when: the first trials were read and judged (steps 18 and 19), the verifier was measured (step 20), the five days of the shadow week are recorded (step 25) and the owner is content with what they show, and a real run has written to the bucket and been replayed (steps 24 and 26), the rehearsals of steps 22 and 23 worked, and the four questions of step 28 have an answer.
+Go live only when: the first trials were read and judged (steps 18 and 19), the verifier was measured (step 20), the explainers of the trials (six, in Plan 3b) were read by the owner (step 19), the five days of the shadow week are recorded (step 25) and the owner is content with what they show, and a real run has written to the bucket and been replayed (steps 24 and 26), the rehearsals of steps 22 and 23 worked, and the four questions of step 28 have an answer.
 
 ### 27. Freeze the floor of the verifier (outward: it spends money)
 
@@ -434,8 +434,8 @@ ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run e
 
 Four questions were left open by the design, because only real runs can answer them. Each has the evidence that decides it, which comes from the folders of the shadow week (step 25) and from the first real month, and each is decided by the owner, on that evidence, and written down (a commit to the plan or to the design, or a line in the notes of the week). None is decided by a loosened rule.
 
-1. **Should the model check (G10) judge the analysis sentences?** Today only the gate reads them (G7: where they stand, how many, how they begin and what numbers, dates and names they bring in) and the model check never sees them. Evidence: read every sentence labelled Analysis in the drafts of the week. If one of them says what its claims do not support, G10 should judge them (a task, with the tests first); if none does in a week of drafts, the share cap of G7 is the answer, and the design says so.
-2. **Should a piece that has the wrong length or shape be written again?** A draft that fails G2 (`G2_BODY_LENGTH`, `G2_OPENING_LENGTH`, `G2_TAKEAWAYS_COUNT`, `G2_SECTIONS_MIN`) is held without using its rounds of revision, because the composer rewrites sentences and does not reshape a piece. Evidence: how many days of the week were held for those codes. If it is more than one day in five, add a round that asks the composer for a new draft in that case (a task); if it is less, record the decision to wait.
+1. **Should the model check (G10) judge the analysis sentences?** Decided in Plan 3b: yes. The model check reads every analysis sentence beside the passages of the claims it cites and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support; the code checks of G7 stay as a second line. Evidence: keep reading the sentences labelled Analysis in the drafts of the week, and the rejections of the model check on them. If it rejects good analysis often, report it with the examples; the lever is the prompt of the model check, not the rule.
+2. **Should a piece that has the wrong length or shape be written again?** A draft that is outside the ranges of its kind (`G2_BODY_LENGTH`, `G2_OPENING_LENGTH`, `G2_TAKEAWAYS_COUNT`) is not held for it: those codes are notes, and the piece is published with the note on its receipts page. A draft with fewer than two sections (`G2_SECTIONS_MIN`) is a blocker that no rewritten sentence can mend, so no round of revision is used for it: it is held at once when nothing else in it can be mended by a rewritten sentence, and after the rounds that mend the rest when something can, because the composer rewrites sentences and does not reshape a piece. Evidence: how many pieces of the week carry those notes, and how many days were held for `G2_SECTIONS_MIN`. If the notes are on more than one piece in five, or a day was held for the sections, add a round that asks the composer for a new draft in that case (a task); if not, record the decision to wait.
 3. **What is an unreachable source?** Discover skips a source that cannot be read, and says so in the artifact and the log, and writes nothing to `sources.yml`. Evidence: which sources were skipped, and on how many days. A source that is skipped on most days should be marked `blocked` in `sources.yml` by hand; if the skipped sources differ from day to day, the design should say that they are noted in the artifact and the log, and not in the registry.
 4. **Should the snapshots of a hold that the owner releases be kept?** A held piece that the owner publishes by merging its pull request is published by GitHub and not by a run, so nothing moves its snapshots from `pending/`, which the bucket empties after 90 days, to `published/`, and its receipts page would point at hashes that are gone. Evidence: the first held piece that you merge. If there is one in the first month, a small command that keeps the snapshots of the pieces on the site (`desk keep`: read the ledgers, call `keep` for each hash; it is cheap and does nothing twice) must be built before that piece is 90 days old; if there is none, decide after the first month.
 
@@ -556,7 +556,7 @@ gh secret set ANTHROPIC_API_KEY --repo joshi-alok/agentic-media-house < ~/.confi
 ANTHROPIC_API_KEY="$(cat ~/.config/agentic-media-house/anthropic.key)" npm run desk -- tune --urls runs/tune-first.txt --config desk.config.yml --max-calls 3
 ```
 
-**Expect:** the secret is set, and the tuning run (at most 3 calls) gets an answer from the model, with the new key. Then revoke the old key in the Console. A run of the workflow before then would still work, and after it would fail with an error of authentication.
+**Expect:** the secret is set, and the tuning run (at most 3 calls) gets an answer from the model, with the new key. Three calls are Extract, Compose and the model check of a first page that is read whole (one part, up to about 600 words). With `extractChunkWords` in `desk.config.yml`, a first page of 3 parts or more spends the 3 calls on its parts and the run ends `stopped` with exit code 1: the key worked all the same, as the answers show; for an exit code 0, put a short page in `runs/tune-first.txt` first. Then revoke the old key in the Console. A run of the workflow before then would still work, and after it would fail with an error of authentication.
 
 ### 38. Rotate the token that deploys and the key of the bucket (outward)
 

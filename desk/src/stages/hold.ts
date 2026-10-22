@@ -9,8 +9,8 @@ import type { HoldPullRequest } from './hold-pr';
 import type { VerifyResult } from './verify';
 import type { VerifierFailure } from './verify-model';
 
-// Stage 7, the other way: a draft that cannot be published by itself is held. The gate holds it (a check still fails after the rounds of revision, or
-// the piece cites another outlet) or the model check does not clear it. A hold is the Desk saying "not by myself", and it has three parts. The draft,
+// Stage 7, the other way: a draft that cannot be published by itself is held. A hold comes from a blocker of the gate that stands after the rounds of
+// revision, or from the model check, which does not clear the draft. A hold is the Desk saying "not by myself", and it has three parts. The draft,
 // the claims it cites and what every check said of it are written in the folder of the run, where the owner can read them and, later, release the
 // piece. The desk state gets a record that a draft was held, with the reasons as codes, which the site's page of holds shows with a label for each.
 // And nothing reaches the pages of the site: no piece and no ledger. The held text itself is never shown on the site.
@@ -23,7 +23,7 @@ import type { VerifierFailure } from './verify-model';
 export interface HoldRun {
   runId: string;
   at: string;
-  /** The address of the story that was chosen, as Discover found it. It is recorded with the hold, so that the next run does not choose the same story while the pull request of this hold is open. */
+  /** The address by which the story is remembered: that of the story that was chosen, as Discover found it, or, for an explainer, that of the primary page it was written from. It is recorded with the hold, so that the next run does not choose the same story while the pull request of this hold is open. */
   sourceUrl?: string;
   /** Which try of its day the run is, from the record of the run (1 for the first). A try after the first has a branch of its own for the piece, so that the branch that an earlier try left on the remote does not stand in its way. */
   attempt?: number;
@@ -54,7 +54,8 @@ const REASON_OF: Readonly<Record<VerifierFailure['code'], VerifierReason>> = {
 
 /**
  * Why a piece was held, as codes, each once: the codes of the failures of the gate on the last draft, in the order the gate found them, then the gate's
- * hold reasons (`TIER2_ATTRIBUTION`), then what the model check said of the last draft (one reason for each way it failed). The model check says nothing of a draft
+ * hold reasons (no check reports one now: `TIER2_ATTRIBUTION` is a retired reason that only a hold made earlier carries), then what the model check
+ * said of the last draft (one reason for each way it failed). The model check says nothing of a draft
  * that the gate sent back, so a hold is made of the codes of the gate alone then. An earlier draft, which the composer rewrote, is not why the last one is held.
  */
 export function holdReasonsOf(verified: Pick<VerifyResult, 'gate' | 'verifier' | 'history'>): string[] {
@@ -97,6 +98,7 @@ export async function runHold(ctx: StageContext, target: PublishTarget, claims: 
     gate: verified.gate,
     verifier: verified.verifier,
     history: verified.history,
+    ...(verified.lowered === undefined ? {} : { lowered: verified.lowered }),
   };
   await writeJsonFile(file, `the held draft ${draft.slug}.json`, held, HeldArtifact);
 

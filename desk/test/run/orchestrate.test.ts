@@ -1,13 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEMO_CLAIMS, demoClient } from '../../src/demo/story';
+import { DEMO_CLAIMS, DEMO_REPLY, clearingVerifier, demoClient } from '../../src/demo/story';
 import { DEMO_DATE, DEMO_URLS, demoFetcher, demoRegistry } from '../../src/demo/world';
 import type { DeskConfig } from '../../src/config';
 import { FetchError } from '../../src/fetch/http';
 import { FakeClient } from '../../src/model/fake';
+import { ModelError } from '../../src/model/types';
+import type { ModelClient } from '../../src/model/types';
 import { clientFromConfig } from '../../src/model/factory';
-import { VerifyArtifact, readArtifact } from '../../src/run/artifacts';
+import { FetchArtifact, VerifyArtifact, readArtifact } from '../../src/run/artifacts';
 import { readDeskState } from '../../src/run/desk-state';
 import { EvidenceError, LocalEvidenceStore } from '../../src/run/evidence';
 import { LOCK_FILE, RunRefused } from '../../src/run/lock';
@@ -15,6 +17,8 @@ import { R2EvidenceStore } from '../../src/run/r2-evidence';
 import type { RunDeskOptions, Stages } from '../../src/run/orchestrate';
 import { refuseApiOnFixtures } from '../../src/run/spending';
 import { sitePaths } from '../../src/run/target';
+import { STATUS_NOTES } from '@robywire/gate';
+import type { LedgerEntry } from '@robywire/gate';
 import { runDiscover } from '../../src/stages/discover';
 import { runFetch } from '../../src/stages/fetch';
 import { FETCHED_AT, useScratch, withPages } from '../support/context';
@@ -114,6 +118,26 @@ describe('runDesk: a clean story', () => {
     expect(logs.some((line) => line.startsWith('extract: 7 claims proposed, 7 kept, 0 dropped'))).toBe(true);
   });
 
+  it('puts a retry of a model call in the log of the run and in its record, counts the try in what the run spent, and still publishes', async () => {
+    const made = setup();
+    let failed = false;
+    const flaky = (inner: ModelClient): ModelClient => ({
+      json: async (call) => {
+        if (!failed) {
+          failed = true;
+          throw new ModelError('transport', 'the Anthropic API could not be reached: Connection error.', { unreached: true });
+        }
+        return inner.json(call);
+      },
+    });
+    const model = clientFromConfig(made.config, { kind: 'fake', fake: demoClient() }, {}, { sleep: async () => undefined }, undefined, flaky);
+    const result = await made.run({ model });
+    expect(result.outcome).toBe('published');
+    expect(made.logs.filter((line) => line.startsWith('model:'))).toEqual(['model: connection error, retrying (2 of 3)']);
+    expect(recordOf(made.dir).log).toEqual(made.logs);
+    expect(recordOf(made.dir).budget.spent.calls).toBe(5);
+  });
+
   it('gives each stage the same date and folder, and reads the published pieces from the ledger folder: a story that is already published is not on the shortlist', async () => {
     const first = setup();
     await first.run();
@@ -122,6 +146,63 @@ describe('runDesk: a clean story', () => {
     expect(second.outcome).toBe('no-story');
     expect(fake.calls[0]?.user).not.toContain('FX-1 deliveries to Brindle');
     expect(fake.calls[0]?.user).toContain('Northwind Handling');
+  });
+});
+
+describe('runDesk: a status that the model check does not find in the passage', () => {
+  // The model check judged the status of a claim and did not find it in the passage: the claim is lowered to unspecified in Verify, and everything after Verify uses the lowered claim.
+  const rejectingStatus = (id: string) => (request: Parameters<typeof clearingVerifier>[0]) => {
+    const reply = clearingVerifier(request);
+    return { ...reply, labels: reply.labels.map((label) => (label.id === id ? { ...label, statusSupported: false, reason: 'The passage does not say it is planned.' } : label)) };
+  };
+  const telling = (verifier: (request: Parameters<typeof clearingVerifier>[0]) => unknown): FakeClient =>
+    new FakeClient().script('select', SELECT).script('extract', { claims: DEMO_CLAIMS }).script('compose', DEMO_REPLY).script('verify', verifier);
+  const ledgerOf = (repoDir: string, slug: string): LedgerEntry => JSON.parse(readFileSync(path.join(repoDir, sitePaths().ledgerFile(slug)), 'utf8')) as LedgerEntry;
+
+  it('publishes the piece in the same run, with the lowered claim in its ledger and its page, and the limitation sentence made again from the claims', async () => {
+    const clean = setup();
+    const cleanResult = await clean.run();
+    const cleanLedger = ledgerOf(clean.repoDir, cleanResult.slug as string);
+    expect(cleanLedger.claims.find((claim) => claim.id === 'c-5')?.status).toBe('planned');
+
+    const made = setup({ fake: telling(rejectingStatus('c-5')) });
+    const result = await made.run();
+    expect(result.outcome).toBe('published');
+    const ledger = ledgerOf(made.repoDir, result.slug as string);
+    expect(ledger.claims.find((claim) => claim.id === 'c-5')?.status).toBe('unspecified');
+    expect(ledger.claims.filter((claim) => claim.id !== 'c-5')).toEqual(cleanLedger.claims.filter((claim) => claim.id !== 'c-5'));
+    expect(ledger.gate.route).toBe('publish');
+    expect(ledger.verifier?.passed).toBe(true);
+    expect(ledger.verifier?.notes.at(-1)).toBe('claim c-5: the status "planned" was lowered to "unspecified" because the model check did not find it in the passage.');
+    // The sentence "planned, not delivered" covers the planned claims that are left.
+    const mdx = readFileSync(path.join(made.repoDir, sitePaths().newsFile(result.slug as string)), 'utf8');
+    expect(mdx).toContain(STATUS_NOTES.planned);
+    const planned = ledger.sentences.find((sentence) => sentence.kind === 'limitation' && sentence.text === STATUS_NOTES.planned);
+    expect(planned?.claimIds).toEqual(['c-6', 'c-7']);
+    const cleanPlanned = cleanLedger.sentences.find((sentence) => sentence.kind === 'limitation' && sentence.text === STATUS_NOTES.planned);
+    expect(cleanPlanned?.claimIds).toEqual(['c-5', 'c-6', 'c-7']);
+    // The record of what Extract said is as it was, and the record of Verify says what was lowered.
+    expect(readFileSync(path.join(made.dir, '04-extract.json'), 'utf8')).toBe(readFileSync(path.join(clean.dir, '04-extract.json'), 'utf8'));
+    const verify = JSON.parse(readFileSync(path.join(made.dir, '06-verify.json'), 'utf8')) as { lowered: unknown; history: { verifierFailures: unknown[] }[] };
+    expect(verify.lowered).toEqual([{ round: 0, claimId: 'c-5', from: 'planned', to: 'unspecified', reason: 'the status "planned" is not supported: The passage does not say it is planned.' }]);
+    expect(verify.history[0]?.verifierFailures).toEqual([]);
+    expect(made.logs).toContain('verify: the status of c-5 is lowered from planned to unspecified (the model check did not find it in the passage)');
+    expect(recordOf(made.dir).log).toEqual(made.logs);
+    expect(recordOf(made.dir).budget.spent.calls).toBe(4);
+  });
+
+  it('holds a piece whose basis was rejected as well as its status, and the held file has the claim lowered and the list of what was lowered', async () => {
+    const basis = (request: Parameters<typeof clearingVerifier>[0]) => {
+      const reply = clearingVerifier(request);
+      return { ...reply, labels: reply.labels.map((label) => (label.id === 'c-5' ? { ...label, basisSupported: false, statusSupported: false, reason: 'No.' } : label)) };
+    };
+    const made = setup({ fake: telling(basis) });
+    const result = await made.run();
+    expect(result.outcome).toBe('held');
+    const held = JSON.parse(readFileSync(path.join(made.dir, 'held', `${result.slug as string}.json`), 'utf8')) as { claims: { id: string; status: string }[]; lowered: { claimId: string }[]; reasons: string[] };
+    expect(held.reasons).toEqual(['G10_LABEL_UNSUPPORTED']);
+    expect(held.claims.find((claim) => claim.id === 'c-5')?.status).toBe('unspecified');
+    expect(held.lowered.map((entry) => entry.claimId)).toEqual(['c-5']);
   });
 });
 
@@ -187,7 +268,25 @@ describe('runDesk: a piece that is held', () => {
     const state = await readDeskState(path.join(repoDir, STATE));
     expect(state.lastRun).toEqual({ at: START.toISOString(), outcome: 'held', runId: result.runId, slug: result.slug });
     // It remembers the piece and the address of the story that was chosen, so that the next run does not choose the story again while the hold is open.
-    expect(state.holds).toEqual([{ at: START.toISOString(), categories: ['humanoids'], reasons: ['G10_NOT_ENTAILED'], slug: result.slug, sourceUrl: DEMO_URLS.mercerArticle }]);
+    expect(state.holds).toEqual([{ at: START.toISOString(), categories: ['payments-commerce'], reasons: ['G10_NOT_ENTAILED'], slug: result.slug, sourceUrl: DEMO_URLS.mercerArticle }]);
+  });
+
+  it('remembers, for an explainer, the primary page that the piece was written from, and not the article of the outlet that led to it', async () => {
+    const { run, repoDir } = setup({ config: { profile: 'explainer' }, fake: unentailed() });
+    const result = await run();
+    expect(result.outcome).toBe('held');
+    const state = await readDeskState(path.join(repoDir, STATE));
+    expect(state.holds.map((hold) => hold.sourceUrl)).toEqual([DEMO_URLS.release]);
+  });
+
+  it('does not write a second explainer from the page of one that is held, whichever article leads to it', async () => {
+    const made = setup({ config: { profile: 'explainer' }, fake: unentailed() });
+    expect((await made.run()).outcome).toBe('held');
+    // The article of the outlet is still a candidate, and its primary page is the one the held piece was written from.
+    const fake = new FakeClient().script('select', SELECT, { chosenId: null, reasons: ['Nothing else is good enough.'] });
+    const second = await again(made, { forceNew: true }, fake);
+    expect(second).toMatchObject({ outcome: 'no-story', stage: 'select' });
+    expect(second.reason).toContain('was left out: its primary page is already covered by a published piece, and an explainer is written from a primary page.');
   });
 });
 
@@ -869,5 +968,75 @@ describe('runDesk: the evidence store', () => {
       expect(result.reason).toMatch(/^the evidence [0-9a-f]{64} has been changed: its text no longer matches its hash$/);
       expect(contentOf(made.repoDir)).toEqual(EMPTY_CONTENT);
     });
+  });
+});
+
+describe('runDesk: the profile of the settings', () => {
+  /** A Discover that notes the profile its context has and then stops the run. */
+  const noting = (seen: (string | undefined)[]): Partial<Stages> => ({
+    discover: async (ctx) => {
+      seen.push(ctx.profile);
+      throw new Error('stop');
+    },
+  });
+
+  it('gives every stage the profile of the settings', async () => {
+    const seen: (string | undefined)[] = [];
+    const { run } = setup({ config: { profile: 'explainer' }, stages: noting(seen) });
+    await run();
+    expect(seen).toEqual(['explainer']);
+  });
+
+  it('gives none when the settings name none', async () => {
+    const seen: (string | undefined)[] = [];
+    const { run } = setup({ stages: noting(seen) });
+    await run();
+    expect(seen).toEqual([undefined]);
+  });
+
+  it('writes the profile into the record of the run, and nothing when there is none', async () => {
+    const withProfile = setup({ config: { profile: 'explainer' }, stages: noting([]), dry: true });
+    await withProfile.run();
+    expect(recordOf(withProfile.dir).profile).toBe('explainer');
+    const without = setup({ stages: noting([]), dry: true });
+    await without.run();
+    expect(recordOf(without.dir)).not.toHaveProperty('profile');
+  });
+
+  it('writes the size of the parts the pages are read in into the record of the run, and nothing when the pages are read whole', async () => {
+    const parted = setup({ config: { extractChunkWords: 400 }, stages: noting([]), dry: true });
+    await parted.run();
+    expect(recordOf(parted.dir).extractChunkWords).toBe(400);
+    const whole = setup({ stages: noting([]), dry: true });
+    await whole.run();
+    expect(recordOf(whole.dir)).not.toHaveProperty('extractChunkWords');
+  });
+
+  it('writes an explainer from the primary page alone: the article of the outlet that led to it is not kept as evidence', async () => {
+    const { run, dir } = setup({ config: { profile: 'explainer' }, dry: true });
+    const result = await run();
+    expect(result.outcome).toBe('published');
+    const fetched = await readArtifact(dir, '03-fetch', FetchArtifact);
+    expect(fetched.documents.map((document) => [document.url, document.tier])).toEqual([[DEMO_URLS.release, 1]]);
+  });
+
+  it('ends an explainer with no story, at Select, when the story it chose has no primary page and the model chooses none of the rest, and fetches nothing', async () => {
+    const page = '<html><head><title>No links</title></head><body><article><p>Fixture Robotics shipped something.</p></article></body></html>';
+    const fake = new FakeClient().script('select', SELECT, { chosenId: null, reasons: ['Nothing else is good enough.'] });
+    const fetcher = withPages(demoFetcher(() => FETCHED_AT), { [DEMO_URLS.mercerArticle]: page });
+    const { run, dir } = setup({ config: { profile: 'explainer' }, dry: true, fake, fetcher });
+    const result = await run();
+    expect(result).toMatchObject({ outcome: 'no-story', stage: 'select', slug: null });
+    expect(result.reason).toContain('was left out: the page of the story has no link to a primary source, and an explainer is written from a primary page.');
+    expect(existsSync(path.join(dir, '03-fetch.json'))).toBe(false);
+  });
+
+  it('still writes a story with no primary page, in attributed form, when the settings name no profile', async () => {
+    const page = '<html><head><title>No links</title></head><body><article><p>Fixture Robotics shipped something.</p></article></body></html>';
+    const fetcher = withPages(demoFetcher(() => FETCHED_AT), { [DEMO_URLS.mercerArticle]: page });
+    const { run, dir } = setup({ dry: true, fetcher });
+    await run();
+    const fetched = await readArtifact(dir, '03-fetch', FetchArtifact);
+    expect(fetched.documents.map((document) => [document.url, document.tier])).toEqual([[DEMO_URLS.mercerArticle, 2]]);
   });
 });

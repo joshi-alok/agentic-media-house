@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_BANNED_PHRASES, DEFAULT_NAME_ALLOW_LIST, defaultConfig, defaultContext } from '../src/config';
+import { DEFAULT_BANNED_PHRASES, DEFAULT_NAME_ALLOW_LIST, DEFAULT_POLICY_PHRASES, defaultConfig, defaultContext } from '../src/config';
 
 describe('defaultConfig', () => {
   it('holds the thresholds from the design spec', () => {
@@ -14,6 +14,7 @@ describe('defaultConfig', () => {
       titleSimilarityThreshold: 0.6,
       titleWindowDays: 14,
       bannedPhrases: DEFAULT_BANNED_PHRASES,
+      policyPhrases: DEFAULT_POLICY_PHRASES,
     });
   });
 
@@ -28,7 +29,9 @@ describe('defaultConfig', () => {
 
 describe('DEFAULT_BANNED_PHRASES', () => {
   it.each([
-    "in today's fast-moving world of robotics",
+    "in today's fast-moving world of crypto",
+    'in the ever-changing world of web3',
+    'the future of finance is here',
     'game-changer',
     'game changer',
     'revolutionary',
@@ -44,11 +47,62 @@ describe('DEFAULT_BANNED_PHRASES', () => {
     expect(DEFAULT_BANNED_PHRASES).toContain(phrase);
   });
 
+  it('has no phrase about robotics, and has the filler of the new domain', () => {
+    expect(DEFAULT_BANNED_PHRASES.some((phrase) => /robot/.test(phrase))).toBe(false);
+    expect(DEFAULT_BANNED_PHRASES).toContain("in today's fast-moving world of crypto");
+  });
+
   it('is written in lowercase with plain apostrophes, ready to compare against lowercased text', () => {
     for (const phrase of DEFAULT_BANNED_PHRASES) {
       expect(phrase, phrase).toBe(phrase.toLowerCase());
       expect(phrase, phrase).not.toMatch(/[^\x20-\x7E]/);
     }
+  });
+});
+
+describe('DEFAULT_POLICY_PHRASES', () => {
+  it.each([
+    'price target',
+    'price targets',
+    'price prediction',
+    'price predictions',
+    'price forecast',
+    'price forecasts',
+    'will skyrocket',
+    'will moon',
+    'to the moon',
+    'buy the dip',
+    'buying the dip',
+    'guaranteed return',
+    'guaranteed returns',
+    'guaranteed profit',
+    'guaranteed profits',
+    'risk-free return',
+    'risk-free returns',
+    'you should buy',
+    'you should sell',
+    'we recommend buying',
+    'we recommend selling',
+    'is a strong buy',
+    'is a strong sell',
+    'load up on',
+    'not financial advice',
+  ])('refuses %j', (phrase) => {
+    expect(DEFAULT_POLICY_PHRASES).toContain(phrase);
+  });
+
+  it('is written in lowercase with plain characters, ready to compare against lowercased text, and lists no phrase twice', () => {
+    for (const phrase of DEFAULT_POLICY_PHRASES) {
+      expect(phrase, phrase).toBe(phrase.toLowerCase());
+      expect(phrase, phrase).not.toMatch(/[^\x20-\x7E]/);
+    }
+    expect(new Set(DEFAULT_POLICY_PHRASES).size).toBe(DEFAULT_POLICY_PHRASES.length);
+  });
+
+  it('is copied into each new config, so one caller cannot change the phrases of another', () => {
+    const first = defaultConfig();
+    expect(first.policyPhrases).not.toBe(DEFAULT_POLICY_PHRASES);
+    expect(first.policyPhrases).not.toBe(defaultConfig().policyPhrases);
   });
 });
 

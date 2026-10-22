@@ -12,7 +12,7 @@ const INPUT: GateInput = {
   draft: {
     slug: 'a-slug',
     publishedAt: '2026-10-04',
-    categories: ['humanoids'],
+    categories: ['payments-commerce'],
     author: { name: 'Agentic Media House Desk' },
     title: { kind: 'fact', text: 'A title', claimIds: [] },
     description: { kind: 'fact', text: 'A description', claimIds: [] },
@@ -69,7 +69,7 @@ describe('runGateWith: the per-check summary', () => {
   });
 
   it('marks only the checks that produced a failure as fail', () => {
-    const { checks } = run([fails('G2', 'G2_BODY_LENGTH'), fails('G5', 'G5_QUOTE_NOT_VERBATIM'), passes]);
+    const { checks } = run([fails('G2', 'G2_SECTIONS_MIN'), fails('G5', 'G5_QUOTE_NOT_VERBATIM'), passes]);
     expect(checks).toEqual({
       G1: 'pass',
       G2: 'fail',
@@ -164,5 +164,56 @@ describe('runGate', () => {
     for (const check of ALL_CHECKS) {
       expect(typeof check).toBe('function');
     }
+  });
+});
+
+describe('runGateWith: blockers and notes', () => {
+  const NOTES = ['G2_BODY_LENGTH', 'G9_BANNED_PHRASE'];
+  const runWithNotes = (checks: Check[]) => runGateWith(checks, INPUT, defaultContext(), NOTES);
+
+  it('publishes a draft whose only findings are notes, and lists them as warnings', () => {
+    const result = runWithNotes([fails('G2', 'G2_BODY_LENGTH'), passes]);
+    expect(result.route).toBe('publish');
+    expect(result.failures).toEqual([]);
+    expect(result.warnings).toEqual([failure('G2', 'G2_BODY_LENGTH')]);
+  });
+
+  it('keeps blockers in failures and notes in warnings, each in the order the checks found them', () => {
+    const result = runWithNotes([fails('G2', 'G2_BODY_LENGTH'), fails('G3', 'G3_NO_CLAIM'), fails('G9', 'G9_BANNED_PHRASE')]);
+    expect(result.failures.map((item) => item.code)).toEqual(['G3_NO_CLAIM']);
+    expect(result.warnings.map((item) => item.code)).toEqual(['G2_BODY_LENGTH', 'G9_BANNED_PHRASE']);
+    expect(result.route).toBe('revise');
+  });
+
+  it('marks a check as fail only when it found a blocker', () => {
+    const { checks } = runWithNotes([fails('G2', 'G2_BODY_LENGTH'), fails('G3', 'G3_NO_CLAIM')]);
+    expect(checks.G2).toBe('pass');
+    expect(checks.G3).toBe('fail');
+  });
+
+  it('still holds a draft that has a hold reason and only notes', () => {
+    const result = runWithNotes([fails('G2', 'G2_BODY_LENGTH'), holds('a reason')]);
+    expect(result.route).toBe('hold');
+    expect(result.warnings).toHaveLength(1);
+  });
+
+  it('treats a code it is not told is a note as a blocker', () => {
+    const result = runGateWith([fails('G2', 'G2_BODY_LENGTH')], INPUT, defaultContext(), []);
+    expect(result.route).toBe('revise');
+    expect(result.warnings).toEqual([]);
+  });
+
+  it('has the notes of the gate by default: a length is a note and publishes with one warning', () => {
+    const result = run([fails('G2', 'G2_BODY_LENGTH')]);
+    expect(result.route).toBe('publish');
+    expect(result.failures).toEqual([]);
+    expect(result.warnings).toEqual([failure('G2', 'G2_BODY_LENGTH')]);
+  });
+
+  it('has the blockers of the gate by default: a broken structure is sent back and is no warning', () => {
+    const result = run([fails('G2', 'G2_SECTIONS_MIN')]);
+    expect(result.route).toBe('revise');
+    expect(result.failures).toEqual([failure('G2', 'G2_SECTIONS_MIN')]);
+    expect(result.warnings).toEqual([]);
   });
 });

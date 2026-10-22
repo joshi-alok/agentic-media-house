@@ -28,10 +28,20 @@ describe('selectSystem', () => {
   });
 
   it('says what the tiers are, that no story is a valid answer, and that a title is all the model has', () => {
-    expect(SELECT_INSTRUCTIONS).toContain('Tier 1 means a company\'s own newsroom');
+    expect(SELECT_INSTRUCTIONS).toContain('Tier 1 means a project\'s, a company\'s, a standards body\'s or a researcher\'s own page, which is a primary source.');
     expect(SELECT_INSTRUCTIONS).toContain('Tier 2 means another outlet');
     expect(SELECT_INSTRUCTIONS).toContain('No story is a valid answer');
     expect(SELECT_INSTRUCTIONS).toContain('judge from titles alone');
+  });
+
+  it('tells the model to prefer a story whose title names who published it, which it can judge from a title, and not to prefer a page that it is not shown', () => {
+    expect(SELECT_INSTRUCTIONS).toContain('Prefer a story whose title names the project, company or paper that published it.');
+    expect(SELECT_INSTRUCTIONS).not.toContain('the page you are shown');
+  });
+
+  it('says that a candidate is from an outlet or a project, and not from a company only', () => {
+    expect(SELECT_INSTRUCTIONS).toContain('the outlet or project it is from');
+    expect(SELECT_INSTRUCTIONS).not.toContain('the outlet or company it is from');
   });
 
   it('names the block that holds a title the way the user message writes it, and the headings of the bar the way the user message writes them', () => {
@@ -49,6 +59,7 @@ describe('selectSystem', () => {
       '- Prefer a story from a tier 1 candidate over one from a tier 2 candidate, and a story that reports something new over one that repeats a story.',
       '- On a quiet day choose the smaller true thing rather than inflating the biggest available thing.',
       '- If no candidate is good enough, choose none. No story is a valid answer, and it is better than a weak story.',
+      '- Never choose a story whose point is the price of a token, a market move or a token to buy.',
     ]) {
       expect(SELECT_INSTRUCTIONS).toContain(rule);
     }

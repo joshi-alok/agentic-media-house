@@ -63,12 +63,12 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
     },
   },
   {
-    id: 'analysis-in-opening',
+    id: 'analysis-in-title',
     check: 'G7',
     code: 'G7_ANALYSIS_PLACEMENT',
-    description: "A sentence of the opening paragraph is the Desk's own analysis.",
+    description: "The title is the Desk's own analysis.",
     apply: (base) => {
-      base.draft.opening[1] = toAnalysis(base.draft.opening[1]!);
+      base.draft.title = toAnalysis(base.draft.title);
       return base;
     },
   },
@@ -97,7 +97,7 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
   {
     id: 'analysis-invented-initial-word',
     check: 'G7',
-    code: 'G7_ANALYSIS_NEW_VALUE',
+    code: 'G7_ANALYSIS_NEW_NAME',
     description: 'An analysis sentence opens with a company, Harlow, that no fact sentence mentions.',
     apply: (base) => {
       sentenceWith(base, 'The measured rate sits below').text =
@@ -106,9 +106,20 @@ export const SOURCING_ANALYSIS_CASES: SeededCase[] = [
     },
   },
   {
+    id: 'analysis-lowercase-opening',
+    check: 'G7',
+    code: 'G7_ANALYSIS_NEW_NAME',
+    description: 'An analysis sentence starts with a lowercase name, harlow, so the rule for the opening word cannot read it.',
+    apply: (base) => {
+      sentenceWith(base, 'The measured rate sits below').text =
+        'harlow also found that the measured rate sits below the datasheet maximum, which is normal for a figure quoted as an upper limit.';
+      return base;
+    },
+  },
+  {
     id: 'analysis-new-name',
     check: 'G7',
-    code: 'G7_ANALYSIS_NEW_VALUE',
+    code: 'G7_ANALYSIS_NEW_NAME',
     description: 'An analysis sentence brings in a company, Harlow Logistics, that no fact sentence mentions.',
     apply: (base) => {
       sentenceWith(base, 'The measured rate sits below').text =

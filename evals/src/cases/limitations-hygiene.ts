@@ -1,7 +1,7 @@
 import { renderLimitation } from '@robywire/gate';
 import { SEEDED_PUBLISHED_SLUG } from '../context';
 import type { SeededCase } from '../seeded';
-import { attributeTo, claimOf, limitationCiting, reportedBy, sentenceWith } from './support';
+import { attributeTo, claimOf, reportedBy, sentenceWith } from './support';
 
 /** Defects in the limitation sentences (G8) and in hygiene (G9). */
 export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
@@ -32,20 +32,6 @@ export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
     description: 'One limitation sentence covers claims that have different bases.',
     apply: (base) => {
       base.draft.limitations[0]!.claimIds = ['c-1', 'c-8', 'c-9'];
-      return base;
-    },
-  },
-  {
-    id: 'limitation-group-too-large',
-    check: 'G8',
-    code: 'G8_LIMITATION_GROUP_SIZE',
-    description: 'One limitation sentence covers more claims than the rule allows, though its wording is the template wording.',
-    apply: (base) => {
-      const one = limitationCiting(base, 'c-8');
-      const two = limitationCiting(base, 'c-12');
-      one.claimIds = [...one.claimIds, ...two.claimIds];
-      one.text = renderLimitation(one.claimIds.map((id) => claimOf(base, id)), 'basis');
-      base.draft.limitations.splice(base.draft.limitations.indexOf(two), 1);
       return base;
     },
   },
@@ -124,6 +110,36 @@ export const LIMITATIONS_HYGIENE_CASES: SeededCase[] = [
     description: "A section heading says 'revolutionary'.",
     apply: (base) => {
       base.draft.sections[1]!.heading = 'What the revolutionary customer reports';
+      return base;
+    },
+  },
+  {
+    id: 'policy-price-target',
+    check: 'G9',
+    code: 'G9_POLICY_PHRASE',
+    description: 'A fact sentence says the analysts set a price target.',
+    apply: (base) => {
+      base.draft.opening[0] = { kind: 'fact', text: 'The analysts set a price target for the token.', claimIds: ['c-1'] };
+      return base;
+    },
+  },
+  {
+    id: 'policy-buy-advice',
+    check: 'G9',
+    code: 'G9_POLICY_PHRASE',
+    description: 'A section heading tells the reader what to buy.',
+    apply: (base) => {
+      base.draft.sections[0]!.heading = 'What you should buy now';
+      return base;
+    },
+  },
+  {
+    id: 'policy-cashtag',
+    check: 'G9',
+    code: 'G9_POLICY_PHRASE',
+    description: 'A fact sentence writes a ticker with a dollar sign.',
+    apply: (base) => {
+      base.draft.opening[0] = { kind: 'fact', text: 'The change reached holders of $eth.', claimIds: ['c-1'] };
       return base;
     },
   },

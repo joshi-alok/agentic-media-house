@@ -24,7 +24,7 @@ describe('pagesToTest', () => {
   });
 
   it('takes the first article link, and skips receipts links and topic links', () => {
-    const body = `<a href="/topics/humanoids/">h</a><a href="/news/other/receipts/">r</a>${LEAD}<a href="/news/second/">s</a>`;
+    const body = `<a href="/topics/payments-commerce/">h</a><a href="/news/other/receipts/">r</a>${LEAD}<a href="/news/second/">s</a>`;
     expect(pagesToTest(home(body))[1]).toBe(`/news/${SLUG}/`);
   });
 

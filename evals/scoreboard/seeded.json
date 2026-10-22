@@ -1,6 +1,6 @@
 {
-  "total": 61,
-  "caught": 61,
+  "total": 62,
+  "caught": 62,
   "rate": 1,
   "baselinePasses": true,
   "cases": [
@@ -145,13 +145,6 @@
       "caught": true
     },
     {
-      "id": "lowercase-sentence-start",
-      "check": "G2",
-      "code": "G2_SENTENCE_START",
-      "description": "A sentence starts with a lowercase letter, so the first-word rule would not read its first word.",
-      "caught": true
-    },
-    {
       "id": "limitation-uncovered-claim",
       "check": "G2",
       "code": "G2_LIMITATION_COVERAGE",
@@ -222,17 +215,10 @@
       "caught": true
     },
     {
-      "id": "invented-name-at-sentence-start",
+      "id": "unsupported-figure-word",
       "check": "G4",
-      "code": "G4_INITIAL_WORD_UNSUPPORTED",
-      "description": "A sentence opens with a company, Harlow Logistics, that the claim it cites never mentions.",
-      "caught": true
-    },
-    {
-      "id": "initial-word-from-claim-label",
-      "check": "G4",
-      "code": "G4_INITIAL_WORD_UNSUPPORTED",
-      "description": "A claim carries a lowercase invented name, harlow, in its text and its label, which a model writes, and a sentence that cites it opens with that name; the quoted passage of the claim does not have it.",
+      "code": "G4_FIGURE_UNSUPPORTED",
+      "description": "A sentence gives a date as a word that mixes letters and digits, \"mid-2027\", that no claim it cites contains.",
       "caught": true
     },
     {
@@ -320,10 +306,10 @@
       "caught": true
     },
     {
-      "id": "analysis-in-opening",
+      "id": "analysis-in-title",
       "check": "G7",
       "code": "G7_ANALYSIS_PLACEMENT",
-      "description": "A sentence of the opening paragraph is the Desk's own analysis.",
+      "description": "The title is the Desk's own analysis.",
       "caught": true
     },
     {
@@ -343,14 +329,21 @@
     {
       "id": "analysis-invented-initial-word",
       "check": "G7",
-      "code": "G7_ANALYSIS_NEW_VALUE",
+      "code": "G7_ANALYSIS_NEW_NAME",
       "description": "An analysis sentence opens with a company, Harlow, that no fact sentence mentions.",
+      "caught": true
+    },
+    {
+      "id": "analysis-lowercase-opening",
+      "check": "G7",
+      "code": "G7_ANALYSIS_NEW_NAME",
+      "description": "An analysis sentence starts with a lowercase name, harlow, so the rule for the opening word cannot read it.",
       "caught": true
     },
     {
       "id": "analysis-new-name",
       "check": "G7",
-      "code": "G7_ANALYSIS_NEW_VALUE",
+      "code": "G7_ANALYSIS_NEW_NAME",
       "description": "An analysis sentence brings in a company, Harlow Logistics, that no fact sentence mentions.",
       "caught": true
     },
@@ -373,13 +366,6 @@
       "check": "G8",
       "code": "G8_LIMITATION_GROUP",
       "description": "One limitation sentence covers claims that have different bases.",
-      "caught": true
-    },
-    {
-      "id": "limitation-group-too-large",
-      "check": "G8",
-      "code": "G8_LIMITATION_GROUP_SIZE",
-      "description": "One limitation sentence covers more claims than the rule allows, though its wording is the template wording.",
       "caught": true
     },
     {
@@ -429,6 +415,27 @@
       "check": "G9",
       "code": "G9_BANNED_PHRASE",
       "description": "A section heading says 'revolutionary'.",
+      "caught": true
+    },
+    {
+      "id": "policy-price-target",
+      "check": "G9",
+      "code": "G9_POLICY_PHRASE",
+      "description": "A fact sentence says the analysts set a price target.",
+      "caught": true
+    },
+    {
+      "id": "policy-buy-advice",
+      "check": "G9",
+      "code": "G9_POLICY_PHRASE",
+      "description": "A section heading tells the reader what to buy.",
+      "caught": true
+    },
+    {
+      "id": "policy-cashtag",
+      "check": "G9",
+      "code": "G9_POLICY_PHRASE",
+      "description": "A fact sentence writes a ticker with a dollar sign.",
       "caught": true
     }
   ]

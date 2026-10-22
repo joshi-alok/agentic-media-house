@@ -114,9 +114,9 @@ describe('GOLDEN_CLAIMS: values agree with the normalisers', () => {
 });
 
 describe('GOLDEN_CLAIMS: coverage of the vocabularies', () => {
-  it('uses datasheet, press-release, filing, measured and demo bases', () => {
+  it('uses docs, announcement, filing, measured and demo bases', () => {
     const bases = new Set(GOLDEN_CLAIMS.map((claim) => claim.basis));
-    for (const basis of ['datasheet', 'press-release', 'filing', 'measured', 'demo']) {
+    for (const basis of ['docs', 'announcement', 'filing', 'measured', 'demo']) {
       expect(bases.has(basis as (typeof BASES)[number]), basis).toBe(true);
     }
   });

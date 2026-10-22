@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { afterOpeners, countWords, hasQuoted, jaccard, normaliseQuotes, quotedSegments, sentenceWords, startsWithCapitalOrDigit, stripQuoted } from '../src/text';
+import { afterOpeners, countWords, hasQuoted, hasWholePhrase, jaccard, normaliseQuotes, quotedSegments, sentenceWords, startsWithCapitalOrDigit, stripQuoted } from '../src/text';
 
 describe('countWords', () => {
   it.each([
@@ -209,5 +209,63 @@ describe('jaccard', () => {
     const a = set('x', 'y', 'z');
     const b = set('y', 'z', 'w', 'v');
     expect(jaccard(a, b)).toBe(jaccard(b, a));
+  });
+});
+
+describe('hasWholePhrase', () => {
+  it('is false for an empty phrase, whatever the text', () => {
+    expect(hasWholePhrase('price target', '')).toBe(false);
+    expect(hasWholePhrase('', '')).toBe(false);
+  });
+
+  it('is false for an empty text and for a text without the phrase', () => {
+    expect(hasWholePhrase('', 'price target')).toBe(false);
+    expect(hasWholePhrase('the price of the target', 'price target')).toBe(false);
+  });
+
+  it('finds the phrase when it is the whole text, at the start, in the middle and at the end', () => {
+    expect(hasWholePhrase('price target', 'price target')).toBe(true);
+    expect(hasWholePhrase('price target was raised', 'price target')).toBe(true);
+    expect(hasWholePhrase('they raised the price target again', 'price target')).toBe(true);
+    expect(hasWholePhrase('they raised the price target', 'price target')).toBe(true);
+  });
+
+  it('does not find the phrase inside a longer word, on either side', () => {
+    expect(hasWholePhrase('they reprice target dates', 'price target')).toBe(false);
+    expect(hasWholePhrase('the price targeted by the attack', 'price target')).toBe(false);
+    expect(hasWholePhrase('a price targets list', 'price target')).toBe(false);
+    expect(hasWholePhrase('the subprice target', 'price target')).toBe(false);
+  });
+
+  it('does not find the phrase next to a letter of another alphabet, which is a letter all the same', () => {
+    expect(hasWholePhrase('\u00E9price target', 'price target')).toBe(false);
+    expect(hasWholePhrase('price target\u00FC', 'price target')).toBe(false);
+  });
+
+  it('does not find the phrase next to a digit, and finds it next to a space or a mark that is not a letter or a digit', () => {
+    expect(hasWholePhrase('price target2', 'price target')).toBe(false);
+    expect(hasWholePhrase('2price target', 'price target')).toBe(false);
+    expect(hasWholePhrase('price target 2', 'price target')).toBe(true);
+    for (const text of ['(price target)', '"price target"', 'price target, again', 'the price target.', 'a non-price target-based plan']) {
+      expect(hasWholePhrase(text, 'price target'), text).toBe(true);
+    }
+  });
+
+  it('looks at every place the phrase stands: a place that is inside a word does not hide a later one that is not', () => {
+    expect(hasWholePhrase('reprice target and price target', 'price target')).toBe(true);
+    expect(hasWholePhrase('price targets and a price target', 'price target')).toBe(true);
+    expect(hasWholePhrase('price targetprice target', 'price target')).toBe(false);
+  });
+
+  it('looks at places that overlap: the second one starts inside the first', () => {
+    // The first "a a" has a letter in front of it; the second starts on the last letter of the first.
+    expect(hasWholePhrase('aa a a', 'a a')).toBe(true);
+    expect(hasWholePhrase('ababa', 'aba')).toBe(false);
+    expect(hasWholePhrase('aaa', 'aa')).toBe(false);
+  });
+
+  it('compares the text as it is: the caller folds the case and the quotation marks first', () => {
+    expect(hasWholePhrase('Price Target', 'price target')).toBe(false);
+    expect(hasWholePhrase('price target', 'price target')).toBe(true);
   });
 });

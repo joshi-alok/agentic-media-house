@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { CATEGORY_VOCAB, loadSources } from '@robywire/gate';
 import { describe, expect, it } from 'vitest';
 import { hostKey } from '../src/fetch/url';
-import { COMPANY_GROUP_BEATS, isTier1, sourceKind, tier1Hosts, tier1Newsrooms, tier2Feeds } from '../src/sources';
+import { COMPANY_GROUP_BEATS, isBlockedSource, isTier1, sourceKind, tier1Hosts, tier1Newsrooms, tier2Feeds } from '../src/sources';
 import { fixtureRegistry } from './support/registry';
 
 // The registry says where the Desk reads and which sources it may write from. These helpers are the
@@ -28,25 +28,25 @@ describe('tier1Hosts', () => {
 describe('tier2Feeds', () => {
   it('lists the feeds of other outlets in the order of the file, with their beats, and leaves out the blocked one', () => {
     expect(tier2Feeds(fixtureRegistry())).toEqual([
-      { name: 'Mercer Wire', feed: 'https://mercer-wire.example/feed.xml', beats: ['humanoids', 'funding'] },
-      { name: 'Gantry Daily', feed: 'https://gantry-daily.example/atom.xml', beats: ['industrial-warehouse'] },
+      { name: 'Mercer Wire', feed: 'https://mercer-wire.example/feed.xml', beats: ['payments-commerce', 'funding'], keywords: [] },
+      { name: 'Gantry Daily', feed: 'https://gantry-daily.example/atom.xml', beats: ['agent-infrastructure'], keywords: [] },
     ]);
   });
 
   it('gives copies of the beats, so that a caller cannot change the registry', () => {
     const registry = fixtureRegistry();
-    tier2Feeds(registry)[0]?.beats.push('policy-standards');
-    expect(registry.secondary[0]?.beats).toEqual(['humanoids', 'funding']);
+    tier2Feeds(registry)[0]?.beats.push('policy-regulation');
+    expect(registry.secondary[0]?.beats).toEqual(['payments-commerce', 'funding']);
   });
 });
 
 describe('tier1Newsrooms', () => {
   it('lists the companies newsrooms in the order of the file, with the beats of their group, and leaves out the blocked one', () => {
     expect(tier1Newsrooms(fixtureRegistry())).toEqual([
-      { name: 'Fixture Robotics', url: 'https://fixture-robotics.example/news', beats: ['humanoids'] },
-      { name: 'Northwind Machines', url: 'https://www.northwind-machines.example/press', beats: ['humanoids'] },
-      { name: 'Brindle Logistics', url: 'https://brindle-logistics.example/news', beats: ['industrial-warehouse'] },
-      { name: 'Hollis Dynamics', url: 'https://hollis-dynamics.example/blog', beats: ['software-autonomy'] },
+      { name: 'Fixture Robotics', url: 'https://fixture-robotics.example/news', beats: ['payments-commerce'] },
+      { name: 'Northwind Machines', url: 'https://www.northwind-machines.example/press', beats: ['payments-commerce'] },
+      { name: 'Brindle Logistics', url: 'https://brindle-logistics.example/news', beats: ['agent-infrastructure'] },
+      { name: 'Hollis Dynamics', url: 'https://hollis-dynamics.example/blog', beats: ['protocols-standards'] },
     ]);
   });
 
@@ -58,7 +58,7 @@ describe('tier1Newsrooms', () => {
 
   it('leaves out an entry that has no address, only a sentence that says where to look', () => {
     const registry = fixtureRegistry();
-    registry.primary.companies.humanoids?.push({ name: 'Somewhere', url: '(announced on its own site)', status: 'n/a' });
+    registry.primary.companies['payments-commerce']?.push({ name: 'Somewhere', url: '(announced on its own site)', status: 'n/a' });
     expect(tier1Newsrooms(registry).map((room) => room.name)).not.toContain('Somewhere');
   });
 
@@ -102,7 +102,7 @@ describe('sourceKind', () => {
 
   it('never counts the host of an outlet as primary, even when the registry also lists it as a company', () => {
     const registry = fixtureRegistry();
-    registry.primary.companies.humanoids?.push({ name: 'Mercer Wire again', url: 'https://mercer-wire.example/news', status: 'unverified' });
+    registry.primary.companies['payments-commerce']?.push({ name: 'Mercer Wire again', url: 'https://mercer-wire.example/news', status: 'unverified' });
     expect(sourceKind('https://mercer-wire.example/robotics/a', registry)).toBe('tier2');
     expect(isTier1('https://mercer-wire.example/robotics/a', registry)).toBe(false);
   });
@@ -128,6 +128,49 @@ describe('isTier1', () => {
     ['not a url', false],
   ])('says whether %s is a primary source: %s', (address, expected) => {
     expect(isTier1(address, fixtureRegistry())).toBe(expected);
+  });
+});
+
+describe('isBlockedSource', () => {
+  it.each([
+    ['a page of a company whose entry is blocked', 'https://quarry-robotics.example/news/a', true],
+    ['a page of that company, with www. and another case', 'https://WWW.Quarry-Robotics.example/x', true],
+    ['the home page of that company', 'https://quarry-robotics.example/', true],
+    ['a page of a company whose entry is not blocked', 'https://fixture-robotics.example/news/a', false],
+    ['a page of a standards body that is not blocked', 'https://standards.example/robotics/rule-1', false],
+    ['a page of an outlet whose feed is blocked, which is not a primary source', 'https://old-feed.example/a', false],
+    ['a host the registry does not know', 'https://random.example/a', false],
+    ['an address that is not http or https', 'ftp://quarry-robotics.example/a', false],
+    ['an address that is not an address', 'not a url', false],
+  ])('%s', (_name, address, expected) => {
+    expect(isBlockedSource(address, fixtureRegistry())).toBe(expected);
+  });
+
+  it('reads a blocked entry of the research list or of the standards as blocked too', () => {
+    const registry = fixtureRegistry();
+    registry.primary.research.push({ name: 'Closed Lab', url: 'https://closed-lab.example/papers', status: 'blocked' });
+    registry.primary.standards.push({ name: 'Closed Board', url: 'https://closed-board.example/rules', status: 'blocked' });
+    expect(isBlockedSource('https://closed-lab.example/papers/1', registry)).toBe(true);
+    expect(isBlockedSource('https://closed-board.example/rules/1', registry)).toBe(true);
+  });
+
+  it('does not call a page blocked that another entry of the registry, which is not blocked, also covers', () => {
+    const registry = fixtureRegistry();
+    registry.primary.companies['payments-commerce']?.push({ name: 'Quarry Robotics docs', url: 'https://quarry-robotics.example/docs', status: 'verified' });
+    expect(isBlockedSource('https://quarry-robotics.example/news/a', registry)).toBe(false);
+  });
+
+  it('keeps to the path of a blocked entry on a host where many people publish', () => {
+    const registry = fixtureRegistry();
+    registry.primary.research.push({ name: 'Closed project', url: 'https://github.com/closed-org', status: 'blocked' });
+    expect(isBlockedSource('https://github.com/closed-org/repo/issues/1', registry)).toBe(true);
+    expect(isBlockedSource('https://github.com/another-org/repo', registry)).toBe(false);
+  });
+
+  it('is true of nothing in a registry with no blocked source', () => {
+    const registry = fixtureRegistry();
+    registry.primary.companies = {};
+    expect(isBlockedSource('https://quarry-robotics.example/news/a', registry)).toBe(false);
   });
 });
 
@@ -165,6 +208,12 @@ describe('the real sources.yml', () => {
     const registry = realRegistry();
     for (const room of tier1Newsrooms(registry)) expect(sourceKind(room.url, registry), room.name).toBe('company-newsroom');
     for (const feed of tier2Feeds(registry)) expect(sourceKind(feed.feed, registry), feed.name).toBe('tier2');
+  });
+
+  it('reads a page of the Coinbase blog, whose entry is blocked, as a blocked source, and a page of Stripe as one that can be read', () => {
+    const registry = realRegistry();
+    expect(isBlockedSource('https://www.coinbase.com/blog/a-post', registry)).toBe(true);
+    expect(isBlockedSource('https://stripe.com/blog/a-post', registry)).toBe(false);
   });
 
   it('keeps the hosts of the companies and of the outlets apart: no host is both', () => {

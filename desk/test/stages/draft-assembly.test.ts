@@ -130,7 +130,7 @@ describe('ComposeReply: what the composer may write', () => {
   });
 
   it('refuses a category that is not in the vocabulary, and a section with a field that it does not know', () => {
-    expect(ComposeReply.safeParse({ ...valid(), categories: ['industrial-warehouse', 'robots'] }).success).toBe(false);
+    expect(ComposeReply.safeParse({ ...valid(), categories: ['agent-infrastructure', 'robots'] }).success).toBe(false);
     expect(ComposeReply.safeParse({ ...valid(), sections: [{ heading: 'What shipped', paragraphs: [], id: 3 }] }).success).toBe(false);
   });
 
@@ -151,7 +151,7 @@ describe('ComposeReply: what the composer may write', () => {
 
   it('accepts no categories and ten: how many is the gate\'s to say', () => {
     expect(ComposeReply.safeParse({ ...valid(), categories: [] }).success).toBe(true);
-    expect(ComposeReply.safeParse({ ...valid(), categories: Array.from({ length: 10 }, () => 'humanoids') }).success).toBe(true);
+    expect(ComposeReply.safeParse({ ...valid(), categories: Array.from({ length: 10 }, () => 'payments-commerce') }).success).toBe(true);
   });
 });
 
@@ -203,7 +203,7 @@ describe('assembleDraft', () => {
     const draft = assembleDraft(replyFromDraft(tier2.draft), tier2.claims, ctx());
     const reported = draft.limitations.filter((sentence) => sentence.claimIds.includes('c-19'));
     expect(reported).toHaveLength(1);
-    expect(reported[0]?.text).toBe('The 7 investor count figure is reported by Mercer Wire and was not checked against a primary source.');
+    expect(reported[0]?.text).toBe('What is cited here is reported by Mercer Wire; it was not checked against a primary source.');
   });
 
   it('gives a draft that the gate clears for publication, as the golden piece is', () => {

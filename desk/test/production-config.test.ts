@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { defaultConfig, loadConfig, placeholderHost } from '../src/config';
 import { productToken } from '../src/fetch/robots';
+import { SELECT_ATTEMPTS } from '../src/stages/select';
+import { MAX_PARTS } from '../src/stages/page-parts';
+import { DEFAULT_EXTRA_REVISION_ROUNDS, DEFAULT_MAX_REVISION_ROUNDS } from '../../site/src/lib/revision-defaults';
 import { secretsIn } from './support/secrets';
 
 // `desk.config.yml` at the root of the repository is the file of settings that the daily workflow passes to `desk run --config`. It is committed, so it is public:
@@ -53,9 +56,49 @@ describe('desk.config.yml', () => {
     }
   });
 
-  it('keeps the runs in the folder that the workflow uploads from, and no other setting changes how a run behaves', () => {
+  it('writes a piece as an explainer', () => {
+    expect(SETTINGS.profile).toBe('explainer');
+    expect(loadConfig(FILE).profile).toBe('explainer');
+  });
+
+  it('gives a draft two extra rounds of revision after the two ordinary ones, so that a long piece can settle after a rewrite broke something: four rounds in all', () => {
+    const config = loadConfig(FILE);
+    expect(SETTINGS.extraRevisionRounds).toBe(2);
+    expect(config.extraRevisionRounds).toBe(2);
+    expect(DEFAULTS.extraRevisionRounds).toBe(1);
+    // maxRevisionRounds is not in the file: the daily run has the default of the Desk, and the method page counts the same rounds (site/src/lib/run-config.ts reads both settings of this file).
+    expect(SETTINGS).not.toHaveProperty('maxRevisionRounds');
+    expect(config.maxRevisionRounds).toBe(2);
+    expect(config.maxRevisionRounds + config.extraRevisionRounds).toBe(4);
+  });
+
+  // The method page says how many rounds of revision a draft gets, in words, and the site cannot import the Desk (it does not depend on it), so it keeps the defaults of these two settings
+  // in one place of its own and reads the settings of the daily run from this file over them. This is what keeps its copy of the defaults from drifting.
+  it('has the defaults of the rounds of revision that the site holds a copy of for the method page', () => {
+    expect(DEFAULT_MAX_REVISION_ROUNDS).toBe(DEFAULTS.maxRevisionRounds);
+    expect(DEFAULT_EXTRA_REVISION_ROUNDS).toBe(DEFAULTS.extraRevisionRounds);
+  });
+
+  it('reads each page in parts of about 400 words, one call to the model for each part, so that a long page yields more claims; the budget of calls holds the worst case of that', () => {
+    expect(SETTINGS.extractChunkWords).toBe(400);
+    expect(loadConfig(FILE).extractChunkWords).toBe(400);
+    expect(DEFAULTS.extractChunkWords).toBeUndefined();
+    // The daily run reads one primary page (the profile explainer), which is at most MAX_PARTS parts. The worst case of a run, without retries: Select asks up to SELECT_ATTEMPTS times, Extract once for each part,
+    // Compose once, and Verify asks the model check once in each round (the first and every round of revision) and asks the composer once for each round of revision.
+    // The extra rounds are for a problem of the gate as for one of the model check, and a round is still at most one revision and one model check.
+    const { budget, maxRevisionRounds, extraRevisionRounds } = loadConfig(FILE);
+    const rounds = maxRevisionRounds + extraRevisionRounds;
+    const worstCase = SELECT_ATTEMPTS + MAX_PARTS + 1 + (rounds + 1) + rounds;
+    // 3 for Select, 6 for Extract, 1 for Compose, 5 model checks and 4 revisions
+    expect(worstCase).toBe(19);
+    expect(budget.maxCalls).toBeGreaterThanOrEqual(worstCase);
+    // every retry of a call counts against the budget too, so the worst case leaves room for a few of them
+    expect(budget.maxCalls - worstCase).toBeGreaterThanOrEqual(5);
+  });
+
+  it('keeps the runs in the folder that the workflow uploads from, and sets no other setting that changes how a run behaves than the kind of piece, the size of the parts of a page and the extra rounds of revision', () => {
     expect(loadConfig(FILE).runDir).toBe('runs');
-    expect(Object.keys(SETTINGS).sort()).toEqual(['budget', 'evidence', 'maxAttemptsPerDay', 'runDir', 'userAgent']);
+    expect(Object.keys(SETTINGS).sort()).toEqual(['budget', 'evidence', 'extraRevisionRounds', 'extractChunkWords', 'maxAttemptsPerDay', 'profile', 'runDir', 'userAgent']);
   });
 
   it('has nothing in it that is shaped like a secret, and no setting that is named like one or that describes the bucket', () => {

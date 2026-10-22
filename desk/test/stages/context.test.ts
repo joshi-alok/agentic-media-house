@@ -114,7 +114,7 @@ describe('loadPublishedIndex', () => {
 
 describe('loadPublishedIndex: the stories that are held', () => {
   const RUN_DAY = '2026-10-20';
-  const hold = (at: string, extra: Record<string, string> = {}) => ({ at, categories: ['humanoids'], reasons: ['G10_NOT_ENTAILED'], ...extra });
+  const hold = (at: string, extra: Record<string, string> = {}) => ({ at, categories: ['payments-commerce'], reasons: ['G10_NOT_ENTAILED'], ...extra });
   const story = { slug: 'a-held-piece', sourceUrl: 'https://mercer-wire.example/robotics/a-held-story' };
 
   it('counts a hold from yesterday: its slug is among the slugs and the address of its story among the addresses', async () => {

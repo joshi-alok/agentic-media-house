@@ -183,7 +183,7 @@ describe('G6_TIER2_UNATTRIBUTED', () => {
       makeTier2(g, 'c-19', '  Mercer Wire ');
       attribute(g, INVESTORS, 'Mercer Wire reports that 7 investors took part in the round.');
     });
-    expect(output).toEqual({ failures: [], holdReasons: ['TIER2_ATTRIBUTION'] });
+    expect(output).toEqual({ failures: [], holdReasons: [] });
   });
 
   it('reports a sentence once, however many tier-2 claims it cites', () => {
@@ -207,7 +207,7 @@ describe('G6_TIER2_UNATTRIBUTED', () => {
       makeTier2(g, 'c-19', "O'Neill  Wire");
       attribute(g, INVESTORS, 'O\u2019NEILL wire reports that 7 investors took part.');
     });
-    expect(output).toEqual({ failures: [], holdReasons: ['TIER2_ATTRIBUTION'] });
+    expect(output).toEqual({ failures: [], holdReasons: [] });
   });
 
   it.each([
@@ -227,16 +227,16 @@ describe('G6_TIER2_UNATTRIBUTED', () => {
   });
 });
 
-describe('the hold reason', () => {
-  it('passes a properly attributed tier-2 citation but asks for a hold', () => {
+describe('the hold reason, which is retired', () => {
+  it('passes a properly attributed tier-2 citation and publishes: it asks for no hold', () => {
     const output = run((g) => {
       makeTier2(g, 'c-19');
       attribute(g, INVESTORS, 'Mercer Wire reports that 7 investors took part in the round.');
     });
-    expect(output).toEqual({ failures: [], holdReasons: ['TIER2_ATTRIBUTION'] });
+    expect(output).toEqual({ failures: [], holdReasons: [] });
   });
 
-  it('asks for the hold once for the whole piece, however many sentences cite tier-2 claims', () => {
+  it('publishes, and asks for no hold, however many sentences cite tier-2 claims', () => {
     const output = run((g) => {
       makeTier2(g, 'c-19');
       makeTier2(g, 'c-24');
@@ -244,10 +244,10 @@ describe('the hold reason', () => {
       attribute(g, GO_LIVE, 'Mercer Wire reports that the installation at Ashvale went live on 18 August 2026.');
     });
     expect(output.failures).toEqual([]);
-    expect(output.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+    expect(output.holdReasons).toEqual([]);
   });
 
-  it('is withheld while there is still a G6 failure, because the piece is going back for revision anyway', () => {
+  it('is not asked for while there is still a G6 failure either: the piece is going back for revision', () => {
     const output = run((g) => {
       makeTier2(g, 'c-19');
       makeTier2(g, 'c-24');
@@ -261,13 +261,8 @@ describe('the hold reason', () => {
     expect(run((g) => addTier2Copy(g, 'c-19'))).toEqual({ failures: [], holdReasons: [] });
   });
 
-  it('is listed in HOLD_REASONS, which the site reads to give every hold reason a label', () => {
-    const output = run((g) => {
-      makeTier2(g, 'c-19');
-      attribute(g, INVESTORS, 'Mercer Wire reports that 7 investors took part in the round.');
-    });
+  it('is still listed in HOLD_REASONS, which the site reads to give every hold reason a label, although no check asks for it', () => {
     expect(HOLD_REASONS).toEqual(['TIER2_ATTRIBUTION']);
-    expect(output.holdReasons.every((reason) => (HOLD_REASONS as readonly string[]).includes(reason))).toBe(true);
   });
 });
 
@@ -356,7 +351,7 @@ describe('G6_TIER2_BASIS', () => {
     expect(output).toEqual({ failures: [], holdReasons: [] });
   });
 
-  it('comes after the failures of the sentences, and keeps the hold reason back', () => {
+  it('comes after the failures of the sentences, and asks for no hold', () => {
     const output = run((g) => {
       makeTier2(g, 'c-19');
       claimById(g.claims, 'c-19').basis = 'filing';

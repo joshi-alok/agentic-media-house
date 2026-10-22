@@ -57,6 +57,19 @@ describe('ModelError', () => {
     const others: ModelErrorKind[] = ['schema', 'budget', 'unrecorded', 'refused'];
     for (const kind of others) expect(new ModelError(kind, 'x', { retryable: true }).retryable, kind).toBe(false);
   });
+
+  it('is not unreached unless it says so: a call that never got an answer is a different thing from a provider that answered with an error', () => {
+    expect(new ModelError('transport', 'no answer').unreached).toBe(false);
+    expect(new ModelError('transport', 'no answer', { unreached: false }).unreached).toBe(false);
+    expect(new ModelError('transport', 'Connection error.', { unreached: true }).unreached).toBe(true);
+    expect(new ModelError('transport', 'overloaded', { retryable: true }).unreached).toBe(false);
+    expect(new ModelError('transport', 'Connection error.', { unreached: true }).retryable).toBe(false);
+  });
+
+  it('can be unreached only when it is a transport error', () => {
+    const others: ModelErrorKind[] = ['schema', 'budget', 'unrecorded', 'refused'];
+    for (const kind of others) expect(new ModelError(kind, 'x', { unreached: true }).unreached, kind).toBe(false);
+  });
 });
 
 describe('sha256Hex', () => {
@@ -164,5 +177,23 @@ describe('requestKey', () => {
       role: 'select',
     };
     expect(requestKey(reordered)).toBe(requestKey(request()));
+  });
+});
+
+describe('ModelError: what a failed call cost', () => {
+  it('reports no cost unless it is given one', () => {
+    expect(new ModelError('transport', 'no answer').usage).toBeUndefined();
+  });
+
+  it('keeps the cost of a call that spent tokens and failed all the same', () => {
+    expect(new ModelError('refused', 'cut off', { usage: { inputTokens: 7000, outputTokens: 8000 } }).usage).toEqual({ inputTokens: 7000, outputTokens: 8000 });
+  });
+});
+
+describe('requestKey and the effort of a request', () => {
+  it('does not depend on it, as it does not depend on the limit of the reply: how hard a model thinks is not part of the question', () => {
+    const base = requestKey(request());
+    expect(requestKey(request({ effort: 'low' }))).toBe(base);
+    expect(requestKey(request({ effort: 'high' }))).toBe(base);
   });
 });

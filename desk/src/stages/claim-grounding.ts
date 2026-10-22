@@ -26,7 +26,7 @@ import type { SourceKind } from '../index';
 /** The longest quotation a claim may have: what the claim schema allows and what the gate's configuration says. */
 export const MAX_QUOTE_LENGTH = defaultGateConfig().spanMax;
 
-/** The most words a label may have: a label is a short name for a claim, and it is printed in the notes under "What we couldn't verify", on the receipts page and on the fact card. */
+/** The most words a label may have: a label is a short name for a claim, and it is printed on the receipts page and on the fact card. */
 export const MAX_LABEL_WORDS = 6;
 
 /**
@@ -47,27 +47,30 @@ const COMMON_SET: ReadonlySet<string> = new Set(COMMON_WORDS);
 const SHORT_NEGATIONS: ReadonlySet<string> = new Set(['no', 'not', 'nor', 'non']);
 
 /**
- * What each kind of page may be the basis of, which is what the claim says its figure rests on. A company's own page is a
- * press release, a datasheet, a briefing or a demonstration; an arXiv page is a paper; an SEC page is a filing; a standards
- * body's page is a standard; a page of another outlet is only ever reported. Nothing is allowed from a page of unknown kind,
- * and `measured` is allowed from none: a figure that a company says it measured is the company's claim, and the basis
- * `measured` would excuse the piece from saying so.
+ * What each kind of page may be the basis of, which is what the claim says its figure rests on. A project's or a company's own page is an
+ * announcement, documentation, a briefing or a demonstration; an arXiv page is a paper; an SEC page is a filing; a research
+ * page (a forum of proposals, an archive of papers) is a paper or the author's own documentation; a page of a standards body, a
+ * regulator or an open protocol is a standard, or, for a regulator's own statement, a filing; a page of another outlet is only
+ * ever reported. Nothing is allowed from a page of unknown kind, and `measured` is allowed from none: a figure that a company
+ * says it measured is the company's claim, and the basis `measured` would excuse the piece from saying so.
  */
 export const ALLOWED_BASES: Readonly<Record<SourceKind, readonly Basis[]>> = {
-  'company-newsroom': ['press-release', 'datasheet', 'briefing', 'demo'],
+  'company-newsroom': ['announcement', 'docs', 'briefing', 'demo'],
   arxiv: ['paper'],
   sec: ['filing'],
-  standard: ['standard'],
+  research: ['paper', 'docs'],
+  standard: ['standard', 'filing'],
   tier2: ['reported'],
   unknown: [],
 };
 
 /** The words for a kind of source in a message, for a reader and for a model. */
 export const KIND_WORDS: Readonly<Record<SourceKind, string>> = {
-  'company-newsroom': 'a company newsroom',
+  'company-newsroom': 'a project or company page',
   arxiv: 'an arXiv page',
   sec: 'an SEC page',
-  standard: 'a standards body page',
+  research: 'a research page',
+  standard: 'a page of a standards body, a regulator or an open protocol',
   tier2: 'another outlet',
   unknown: 'an unknown kind of page',
 };
@@ -223,6 +226,40 @@ function labelWordsBeyondQuote(label: string, quote: string, allowList: Readonly
   return sentenceWords(unquoted(label)).filter((word) => !plain(word) && !(word.includes('-') && word.split('-').every(plain)));
 }
 
+/** The words of a label as `claimProblems` counts them: quote marks are read as spaces, and the punctuation around a word is not part of it. */
+const labelWordCount = (label: string): number => sentenceWords(unquoted(label)).length;
+
+/**
+ * What a cut can leave open, closed: a quote mark (straight, or curly) that has no partner is taken out, as a space, because `claimProblems` reads a quote mark as a space
+ * anyway, and so is an opening parenthesis that is not closed. Marks that come in pairs are left as they are.
+ */
+function withoutOpenMarks(label: string): string {
+  let text = label;
+  const count = (pattern: RegExp): number => (text.match(pattern) ?? []).length;
+  if (count(/"/gu) % 2 === 1) text = text.replaceAll('"', ' ');
+  if (count(/[\u201C-\u201F]/gu) % 2 === 1) text = text.replace(/[\u201C-\u201F]/gu, ' ');
+  const characters = [...text];
+  const open: number[] = [];
+  characters.forEach((character, at) => {
+    if (character === '(') open.push(at);
+    else if (character === ')') open.pop();
+  });
+  return characters.filter((_, at) => !open.includes(at)).join('').replace(/\s+/gu, ' ').trim();
+}
+
+/**
+ * A label cut to at most MAX_LABEL_WORDS words, counted as `claimProblems` counts them. The first words of a label are words of the label, so every rule that holds for
+ * the whole label (each word is a word of the quotation, a plain word or on the allow-list) holds for them too. A label that is short enough is returned as it is, byte for
+ * byte. What is cut is cut at a space, and what is left has no quote mark or parenthesis that is open (a quotation that the cut ended in the middle of loses its quote marks, and
+ * so does a parenthesis) and no punctuation at its end. This is what Extract does with a label that is too long, instead of dropping the claim for a rule about looks.
+ */
+export function shortenLabel(label: string): string {
+  if (labelWordCount(label) <= MAX_LABEL_WORDS) return label;
+  const parts = label.trim().split(/\s+/u);
+  while (parts.length > 1 && labelWordCount(parts.join(' ')) > MAX_LABEL_WORDS) parts.pop();
+  return withoutOpenMarks(parts.join(' ')).replace(/[\s,;:]+$/u, '');
+}
+
 /** A number as the gate reads it from a raw text: a digit token (`parseNumberToken`) or number words (`readNumberWords`), or null when the text is neither. */
 function numberOfRaw(raw: string): ParsedNumber | null {
   const token = parseNumberToken(raw);
@@ -316,7 +353,7 @@ export function claimProblems(claim: ClaimCandidate, page: string, kind: SourceK
     const textBeyond = [...inText, ...additional(wordsBeyondQuote(claim.text, passage, allowList), inText)];
     if (textBeyond.length > 0) problems.push({ code: 'text-not-in-quote', message: `the text says what the quotation does not: ${shown(textBeyond)}` });
     const inLabel = additional(beyondQuote(claim.label, passage, allowList), []);
-    const labelWords = sentenceWords(unquoted(claim.label)).length;
+    const labelWords = labelWordCount(claim.label);
     const labelBeyond = [...inLabel, ...additional(labelWordsBeyondQuote(claim.label, passage, allowList), inLabel)];
     if (labelBeyond.length > 0) problems.push({ code: 'label-not-in-quote', message: `the label says what the quotation does not: ${shown(labelBeyond)}` });
     else if (labelWords === 0) problems.push({ code: 'label-not-in-quote', message: 'the label has no word' });

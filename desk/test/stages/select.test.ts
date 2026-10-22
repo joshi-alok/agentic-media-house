@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../src/config';
 import { FixtureFetcher } from '../../src/fetch/http';
+import type { Fetcher } from '../../src/fetch/http';
 import { jsonSchemaOf, ModelError } from '../../src/model/types';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { SelectArtifact, candidateId, readArtifact } from '../../src/run/artifacts';
@@ -22,7 +23,7 @@ const ARTICLE = candidate({ url: URLS.mercerArticle, title: "Fixture Robotics st
 const FUNDING = candidate({
   url: 'https://mercer-wire.example/robotics/northwind-handling-raises-12-million',
   title: 'Northwind Handling raises $12 million for pallet-moving robots',
-  beats: ['humanoids', 'funding'],
+  beats: ['payments-commerce', 'funding'],
   publishedAt: '2026-10-03T16:00:00.000Z',
 });
 const RELEASE = candidate({ url: URLS.release, title: 'Fixture Robotics begins shipping FX-1 arms to a second Brindle Logistics plant', tier: 1, outlet: 'Fixture Robotics', origin: 'newsroom', publishedAt: undefined });
@@ -90,13 +91,13 @@ describe('shortlistOf', () => {
 
   describe('beat', () => {
     it.each([
-      ['a beat', ['humanoids'], true],
-      ['a beat and the funding tag', ['funding', 'policy-standards'], true],
-      ['every beat of the vocabulary', ['humanoids', 'home-consumer', 'industrial-warehouse', 'field-mobility', 'software-autonomy', 'components-supply-chain', 'policy-standards'], true],
+      ['a beat', ['payments-commerce'], true],
+      ['a beat and the funding tag', ['funding', 'policy-regulation'], true],
+      ['every beat of the vocabulary', ['payments-commerce', 'wallets-keys', 'agent-infrastructure', 'identity-trust', 'protocols-standards', 'security-incidents', 'policy-regulation'], true],
       ['the funding tag alone, which is not a beat', ['funding'], false],
       ['no beat at all', [], false],
       ['a name that is not in the vocabulary', ['industrial'], false],
-      ['a name that is not in the vocabulary and a beat', ['industrial', 'humanoids'], true],
+      ['a name that is not in the vocabulary and a beat', ['industrial', 'payments-commerce'], true],
     ])('%s', (_name, beats, kept) => {
       expect(listOf([dated('a', '2026-10-04T00:00:00.000Z', { beats })])).toEqual(kept ? ['https://mercer-wire.example/robotics/a'] : []);
     });
@@ -104,22 +105,28 @@ describe('shortlistOf', () => {
 
   describe('order and size', () => {
     it('puts the newest first, keeps the order of discovery among candidates of the same time, and puts the undated after them in the order of discovery', () => {
-      const list = listOf([
-        dated('undated-1', undefined),
-        dated('old', '2026-10-03T10:00:00.000Z'),
-        dated('same-1', '2026-10-04T10:00:00.000Z'),
-        dated('undated-2', undefined),
-        dated('new', '2026-10-05T01:00:00.000Z'),
-        dated('same-2', '2026-10-04T10:00:00.000Z'),
-      ]);
+      // Every story is of one outlet; the share of one source (see select-quota.test.ts) is not what this test is about.
+      const config = { ...defaultConfig(), shortlistPerSource: 99 };
+      const list = listOf(
+        [
+          dated('undated-1', undefined),
+          dated('old', '2026-10-03T10:00:00.000Z'),
+          dated('same-1', '2026-10-04T10:00:00.000Z'),
+          dated('undated-2', undefined),
+          dated('new', '2026-10-05T01:00:00.000Z'),
+          dated('same-2', '2026-10-04T10:00:00.000Z'),
+        ],
+        { config },
+      );
       expect(list.map((url) => url.split('/').pop())).toEqual(['new', 'same-1', 'same-2', 'old', 'undated-1', 'undated-2']);
     });
 
     it('cuts the list to the size in the configuration, after it has been put in order', () => {
       const many = Array.from({ length: 20 }, (_, index) => dated(`s${index}`, `2026-10-04T${String(index).padStart(2, '0')}:00:00.000Z`));
-      const config = { ...defaultConfig(), shortlistMax: 3 };
-      expect(listOf(many, { config }).map((url) => url.split('/').pop())).toEqual(['s19', 's18', 's17']);
-      expect(listOf(many)).toHaveLength(15);
+      // Every story is of one outlet; the share of one source (see select-quota.test.ts) is not what this test is about.
+      const config = { ...defaultConfig(), shortlistPerSource: 99 };
+      expect(listOf(many, { config: { ...config, shortlistMax: 3 } }).map((url) => url.split('/').pop())).toEqual(['s19', 's18', 's17']);
+      expect(listOf(many, { config })).toHaveLength(15);
     });
 
     it('gives an empty list for no candidates', () => {
@@ -259,7 +266,7 @@ describe('runSelect: the primary source', () => {
     expect(fetcher.requests).toEqual([]);
   });
 
-  const NOTE = (why: string) => `No tier-1 source was found: ${why}, so the story is written in attributed form and held.`;
+  const NOTE = (why: string) => `No tier-1 source was found: ${why}, so the story is written in attributed form.`;
 
   it('is null when no link of the page goes to a primary source, and the reasons end with a sentence that says so', async () => {
     const page = '<article><p>Text <a href="https://elsewhere.example/a">a link</a></p></article>';
@@ -269,6 +276,22 @@ describe('runSelect: the primary source', () => {
     expect(artifact.tier1Url).toBeNull();
     expect(artifact.chosen).toEqual(ARTICLE);
     expect(artifact.reasons).toEqual(['A product shipped.', NOTE('the page of the story has no link to a primary source')]);
+  });
+
+  it('is the first link of a page of markdown that goes to a primary source: the page is read as text, not as html', async () => {
+    const markdown: Fetcher = {
+      get: async (url) => ({
+        url,
+        finalUrl: url,
+        status: 200,
+        contentType: 'text/markdown; charset=utf-8',
+        body: `# The story\n\nSee [elsewhere](https://elsewhere.example/a) and [the release](${URLS.release}).`,
+        retrievedAt: FETCHED_AT.toISOString(),
+      }),
+    };
+    const { ctx, fake } = stageContext(scratch, { fetcher: markdown });
+    fake.script('select', choose(ARTICLE.id));
+    expect((await runSelect(ctx, discovered(ALL))).tier1Url).toBe(URLS.release);
   });
 
   it('does not take a link of the sidebar of the page for the source of the story', async () => {
@@ -304,6 +327,52 @@ describe('runSelect: the primary source', () => {
     const { ctx, fake } = stageContext(scratch, { fetcher });
     fake.script('select', choose(ARTICLE.id));
     await expect(runSelect(ctx, discovered(ALL))).rejects.toThrow(new TypeError('a bug in the fetcher'));
+  });
+});
+
+describe('runSelect: which link of the page is the primary source', () => {
+  // In the registry of the tests Quarry Robotics is a company whose entry is blocked (the Desk cannot read its pages) and Brindle Logistics is one that is not.
+  const BLOCKED = 'https://quarry-robotics.example/news/a-story';
+  const HOME = 'https://fixture-robotics.example/';
+  const BRINDLE = 'https://brindle-logistics.example/news/second-plant-opens';
+  const NOTE = (why: string) => `No tier-1 source was found: ${why}, so the story is written in attributed form.`;
+  const pageOf = (...links: string[]) => `<article><p>${links.map((link) => `See <a href="${link}">this</a>.`).join(' ')}</p></article>`;
+  const sourceOf = async (...links: string[]) => {
+    const { ctx, fake } = stageContext(scratch, { sources: fixtureRegistry(), fetcher: withPages(new FixtureFetcher(FIXTURE_DIR, worldMap(), () => FETCHED_AT), { [ARTICLE.url]: pageOf(...links) }) });
+    fake.script('select', choose(ARTICLE.id));
+    return runSelect(ctx, discovered(ALL));
+  };
+
+  it('is the first link that goes to a primary source, when that link is a page that can be read and is not a home page: a later link does not take its place', async () => {
+    expect((await sourceOf(BRINDLE, URLS.release)).tier1Url).toBe(BRINDLE);
+  });
+
+  it('passes over a link to a source that the registry marks blocked, as its page can never be fetched', async () => {
+    expect((await sourceOf(BLOCKED, URLS.release)).tier1Url).toBe(URLS.release);
+  });
+
+  it('is null, with the reason, when every link to a primary source goes to a blocked one', async () => {
+    const artifact = await sourceOf(BLOCKED, 'https://elsewhere.example/a');
+    expect(artifact.tier1Url).toBeNull();
+    expect(artifact.reasons.at(-1)).toBe(NOTE('the page of the story links only to primary sources that the Desk cannot read'));
+  });
+
+  it('takes a link to another page of a primary source rather than an earlier link to the home page of one', async () => {
+    expect((await sourceOf(HOME, URLS.release)).tier1Url).toBe(URLS.release);
+  });
+
+  it('takes the home page of a primary source when there is no link to any other page of one', async () => {
+    expect((await sourceOf('https://elsewhere.example/a', HOME)).tier1Url).toBe(HOME);
+  });
+
+  it('does not take an address with a query for a home page', async () => {
+    const withQuery = 'https://fixture-robotics.example/?p=7';
+    expect((await sourceOf(withQuery, URLS.release)).tier1Url).toBe(withQuery);
+  });
+
+  it('passes over a blocked link and a home page together, and falls back to the home page only when nothing better can be read', async () => {
+    expect((await sourceOf(BLOCKED, HOME, URLS.release)).tier1Url).toBe(URLS.release);
+    expect((await sourceOf(BLOCKED, HOME)).tier1Url).toBe(HOME);
   });
 });
 

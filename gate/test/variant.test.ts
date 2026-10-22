@@ -15,9 +15,9 @@ const swapProduct = (n: number): [string, string][] => [
 ];
 
 const VARIANTS = [
-  { n: 2, slug: 'fixture-robotics-ships-fx-2-to-second-plant', publishedAt: '2026-10-03', categories: ['humanoids'] },
-  { n: 3, slug: 'fixture-robotics-ships-fx-3-to-second-plant', publishedAt: '2026-10-02', categories: ['policy-standards'] },
-  { n: 4, slug: 'fixture-robotics-ships-fx-4-to-second-plant', publishedAt: '2026-10-01', categories: ['home-consumer', 'field-mobility'] },
+  { n: 2, slug: 'fixture-robotics-ships-fx-2-to-second-plant', publishedAt: '2026-10-03', categories: ['payments-commerce'] },
+  { n: 3, slug: 'fixture-robotics-ships-fx-3-to-second-plant', publishedAt: '2026-10-02', categories: ['policy-regulation'] },
+  { n: 4, slug: 'fixture-robotics-ships-fx-4-to-second-plant', publishedAt: '2026-10-01', categories: ['wallets-keys', 'identity-trust'] },
 ];
 
 const variantOf = (v: (typeof VARIANTS)[number]) =>
@@ -46,11 +46,11 @@ describe('makeVariant: what changes', () => {
   it('sets the slug, the date and the categories', () => {
     expect(variant.draft.slug).toBe('fixture-robotics-ships-fx-2-to-second-plant');
     expect(variant.draft.publishedAt).toBe('2026-10-03');
-    expect(variant.draft.categories).toEqual(['humanoids']);
+    expect(variant.draft.categories).toEqual(['payments-commerce']);
   });
 
   it('sets the slug from the options even when the replacements would have produced another one', () => {
-    const renamed = makeVariant(cloneGolden(), { slug: 'a-different-slug', publishedAt: '2026-10-03', categories: ['humanoids'], replace: swapProduct(2) });
+    const renamed = makeVariant(cloneGolden(), { slug: 'a-different-slug', publishedAt: '2026-10-03', categories: ['payments-commerce'], replace: swapProduct(2) });
     expect(renamed.draft.slug).toBe('a-different-slug');
   });
 
@@ -66,7 +66,7 @@ describe('makeVariant: what changes', () => {
   });
 
   it('applies the replacements in the order given', () => {
-    const chained = makeVariant(cloneGolden(), { slug: 'a-b', publishedAt: '2026-10-03', categories: ['humanoids'], replace: [['FX-1', 'FX-2'], ['FX-2', 'FX-7']] });
+    const chained = makeVariant(cloneGolden(), { slug: 'a-b', publishedAt: '2026-10-03', categories: ['payments-commerce'], replace: [['FX-1', 'FX-2'], ['FX-2', 'FX-7']] });
     expect(chained.draft.title.text).toContain('FX-7');
     expect(chained.draft.title.text).not.toContain('FX-2');
   });
@@ -79,7 +79,7 @@ describe('makeVariant: what changes', () => {
 describe('makeVariant: the base is never changed', () => {
   it('leaves a frozen base untouched and returns a separate copy', () => {
     const base = { draft: GOLDEN_DRAFT, claims: GOLDEN_CLAIMS };
-    const variant = makeVariant(base, { slug: 'a-b', publishedAt: '2026-10-03', categories: ['humanoids'], replace: swapProduct(2) });
+    const variant = makeVariant(base, { slug: 'a-b', publishedAt: '2026-10-03', categories: ['payments-commerce'], replace: swapProduct(2) });
     expect(variant.draft).not.toBe(GOLDEN_DRAFT);
     expect(variant.claims).not.toBe(GOLDEN_CLAIMS);
     expect(JSON.stringify(GOLDEN_DRAFT)).toContain('FX-1');
@@ -93,7 +93,7 @@ describe('makeVariant: the base is never changed', () => {
 });
 
 describe('makeVariant: mistakes fail loudly', () => {
-  const options = { slug: 'a-b', publishedAt: '2026-10-03', categories: ['humanoids'] };
+  const options = { slug: 'a-b', publishedAt: '2026-10-03', categories: ['payments-commerce'] };
 
   it('throws when a replacement matches nothing', () => {
     expect(() => makeVariant(cloneGolden(), { ...options, replace: [['FX-9', 'FX-8']] })).toThrow('makeVariant: "FX-9" does not occur in the draft or the claims');

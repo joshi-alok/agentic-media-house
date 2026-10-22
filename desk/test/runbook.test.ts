@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseArgs, USAGE } from '../src/cli';
-import { tier1Newsrooms, tier2Feeds } from '../src/index';
+import { loadConfig } from '../src/config';
 import { REASON_LABELS } from '../../site/src/lib/reasons';
-import { CHECK_IDS, loadSources } from '@robywire/gate';
+import { CHECK_IDS, severityOf } from '@robywire/gate';
 import { useScratch } from './support/context';
 import { ISOLATED, git } from './support/repo';
 import { secretsIn } from './support/secrets';
@@ -360,15 +360,124 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
     expect(TEXT).toContain('G7 (`G7_ANALYSIS_*`');
   });
 
-  it('forces a hold in the rehearsal by a command that makes a registry that is valid and has no primary source and still has feeds', () => {
+  it('forces a hold in the rehearsal by a command that makes the least number of sections 99, so that no draft can be mended by a sentence', () => {
     const rehearsal = stepTitled(/^Rehearse a held piece/);
     const command = rehearsal.blocks.flatMap((block) => block.lines).find((line) => line.startsWith('node -e "'))!;
     const dir = scratch();
-    writeFileSync(path.join(dir, 'sources.yml'), readFileSync(`${ROOT}sources.yml`, 'utf8'));
-    execFileSync('bash', ['--noprofile', '--norc', '-e', '-c', command], { cwd: dir, env: { ...process.env, NODE_PATH: `${ROOT}node_modules` } });
-    const registry = loadSources(path.join(dir, 'sources.yml'));
-    expect(tier1Newsrooms(registry)).toEqual([]);
-    expect(tier2Feeds(registry).length).toBeGreaterThan(3);
+    mkdirSync(path.join(dir, 'gate/src/checks'), { recursive: true });
+    writeFileSync(path.join(dir, 'gate/src/checks/g2-structure.ts'), readFileSync(`${ROOT}gate/src/checks/g2-structure.ts`, 'utf8'));
+    execFileSync('bash', ['--noprofile', '--norc', '-e', '-c', command], { cwd: dir });
+    const changed = readFileSync(path.join(dir, 'gate/src/checks/g2-structure.ts'), 'utf8');
+    expect(changed).toContain('const MIN_SECTIONS = 99;');
+    expect(changed).not.toContain('const MIN_SECTIONS = 2;');
+    // Only that line changed.
+    expect(changed.replace('const MIN_SECTIONS = 99;', 'const MIN_SECTIONS = 2;')).toBe(readFileSync(`${ROOT}gate/src/checks/g2-structure.ts`, 'utf8'));
+  });
+
+  it('says, in the introduction of the rehearsal, that it holds by the sections and at the first draft, and no longer says that a registry with no primary source makes a hold certain', () => {
+    const step = stepTitled(/^Rehearse a held piece/);
+    // The introduction is the prose before the first block of commands. The paragraph of what to expect names the code too, so only the introduction is held to say it here.
+    const introduction = step.text.split('```')[0]!;
+    expect(introduction).toContain('G2_SECTIONS_MIN');
+    expect(introduction).toContain('without using a round of revision');
+    expect(step.text).not.toContain('A registry with no primary source no longer makes a hold certain');
+  });
+
+  it('says what the rehearsal costs in calls of the model, as the stages make them: Select, Extract and Compose, and the model check is never asked', () => {
+    const introduction = stepTitled(/^Rehearse a held piece/).text.split('```')[0]!;
+    expect(introduction).toContain('The model check is never asked, because the gate fails first');
+    expect(introduction).toContain('three calls of the model, those of Select, Extract and Compose');
+    expect(introduction).toContain('one more for each story that Select leaves out');
+    expect(introduction).toContain('a published piece or a held piece has already used');
+    expect(introduction).not.toContain('two calls of the model');
+  });
+
+  it('says that CI fails at its Test step in the copy, which is true of the workflow: its steps run in order, none is conditional, and the Test step comes before the demo of the Desk', () => {
+    const text = stepTitled(/^Rehearse a held piece/).text;
+    expect(text).toContain('CI fails at its Test step, because the gate of the copy wants 99 sections and the tests expect a piece with two sections to pass');
+    expect(text).toContain('only the push that made the copy starts CI: the branch and the pull request of the hold are made with the token of the workflow, which does not start CI');
+    const ci = loadWorkflow('ci.yml');
+    const steps = Object.values(ci.jobs)[0]!.steps;
+    expect(steps.some((step) => step.if !== undefined)).toBe(false);
+    const names = steps.map((step) => step.name);
+    expect(names.indexOf('Test')).toBeGreaterThan(-1);
+    expect(names.indexOf('Test')).toBeLessThan(names.indexOf('Desk demo'));
+    expect(steps[names.indexOf('Test')]!.run).toBe('npm run test');
+  });
+
+  it('says what a run that ends no-story in the rehearsal can mean, and where its log says which', () => {
+    const text = stepTitled(/^Rehearse a held piece/).text;
+    expect(text).toContain('**If the run ends `no-story`** (for example no story with a primary page, a primary page that could not be fetched, or too few claims; `reason:` in the log says which)');
+  });
+
+  it('tells the pages for the trials to be the pages a story is written from, and to look at them first with sources-check', () => {
+    const step = stepTitled(/^Choose the pages/);
+    expect(step.text).toContain('sources-check');
+    expect(step.text).toContain('a standard or a proposal');
+  });
+
+  it('says, in the first trial, that with the size of the parts of a page in the settings Extract is one call for each part, at most 6, how many calls a page of 3 and a page of 6 parts can reach with the rounds of desk.config.yml, and gives the command the 16 calls that the worst of them needs', () => {
+    const step = stepTitled(/^Run the first trial/);
+    // The command is run with `--config desk.config.yml`, so the rounds are those of the daily run (2 and 2 more), not the defaults of the Desk (2 and 1 more).
+    const { maxRevisionRounds, extraRevisionRounds } = loadConfig(path.join(ROOT, 'desk.config.yml'));
+    const rounds = maxRevisionRounds + extraRevisionRounds;
+    expect(rounds).toBe(4);
+    // the parts, the composer, a model check for the draft and for each round of revision, and a revision for each round
+    const calls = (parts: number): number => parts + 1 + (rounds + 1) + rounds;
+    expect(calls(1)).toBe(11);
+    expect(calls(3)).toBe(13);
+    expect(calls(6)).toBe(16);
+    expect(step.text).toContain('Start with **one page, one trial, at most 16 calls**.');
+    expect(step.text).toContain('so one trial is 3 to 11 calls for a page that is read whole.');
+    expect(step.text).toContain(
+      'With `extractChunkWords` in the settings, as `desk.config.yml` has it, Extract is one call for each part of a long page (at most 6) and not one call for the page: a page of 3 parts can reach 13 calls (a trial of one used 10, with the rounds of before the second extra round: 3 for Extract, 1 for Compose, 3 model checks and 3 revisions), a page of 6 parts can reach 16, and the `--max-calls` of the next step may need raising too.',
+    );
+    // the command and what is expected of it say the same number, and it is enough for the worst page
+    const command = step.blocks.flatMap((block) => block.lines).find((line) => line.includes('desk -- tune')) ?? '';
+    expect(Number(/--max-calls (\d+)/.exec(command)?.[1])).toBeGreaterThanOrEqual(calls(6));
+    expect(command).toContain('--max-calls 16');
+    expect(step.text).toContain('`tune: 1 address, 1 trial each, at most 16 model calls, client api`');
+    expect(step.text).toContain('unless the 16 calls ran out');
+    expect(step.text).not.toMatch(/\b10 (model )?calls/);
+    expect(step.text).not.toMatch(/\b14 (model )?calls/);
+  });
+
+  it('says, in the rotation of the key, that the 3 calls are the three steps of a page that is one part, and that a first page of 3 parts or more ends stopped with exit code 1', () => {
+    const step = stepTitled(/^Rotate the key of the model/);
+    const command = step.blocks.flatMap((block) => block.lines).find((line) => line.includes('desk -- tune')) ?? '';
+    expect(command).toContain('--max-calls 3');
+    expect(step.text).toContain('the tuning run (at most 3 calls) gets an answer from the model, with the new key.');
+    expect(step.text).toContain('Three calls are Extract, Compose and the model check of a first page that is read whole (one part, up to about 600 words).');
+    expect(step.text).toContain('With `extractChunkWords` in `desk.config.yml`, a first page of 3 parts or more spends the 3 calls on its parts and the run ends `stopped` with exit code 1: the key worked all the same, as the answers show');
+    expect(step.text).toContain('for an exit code 0, put a short page in `runs/tune-first.txt` first.');
+  });
+
+  it('records, in the questions that the trials left open, that the model check judges analysis', () => {
+    const step = stepTitled(/^Decide what the trials left open/);
+    expect(step.text).toContain('Decided in Plan 3b: yes');
+    expect(step.text).not.toContain('the model check never sees them');
+  });
+
+  it('says, of a draft with too few sections, that no round of revision is used for it and when the other rounds are, which is what Verify does', () => {
+    const items = stepTitled(/^Decide what the trials left open/).text.split('\n').filter((line) => /^\d\. \*\*/.test(line));
+    expect(items[1]).toContain('so no round of revision is used for it: it is held at once when nothing else in it can be mended by a rewritten sentence, and after the rounds that mend the rest when something can, because the composer rewrites sentences');
+    expect(items[1]).not.toContain('held without using its rounds of revision');
+  });
+
+  it('gives the trials of all the pages the calls that six pages of up to nine calls need, and names too much analysis as a note and not as a reason to send a draft back', () => {
+    const step = stepTitled(/^Read the table, and judge the pages/);
+    expect(step.text).toContain('(`--max-calls 60`)');
+    expect(step.text).toContain('--urls runs/tune-urls.txt --config desk.config.yml --max-calls 60');
+    expect(step.text).toContain('`total: N pages, N trials, M of 60 model calls, ...` with M not above 60');
+    expect(step.text).not.toMatch(/\b50\b/);
+    expect(step.text).toContain('(`G7_ANALYSIS_*`: analysis where only facts are allowed, or a number, date or name of its own (too much analysis, `G7_ANALYSIS_SHARE`, is only a note))');
+    // The note is a note in the gate: it is recorded and never goes back to the composer.
+    expect(severityOf('G7_ANALYSIS_SHARE')).toBe('note');
+  });
+
+  it('asks for the explainers of the trials before going live, without saying how many the trials made', () => {
+    expect(TEXT).toContain('the verifier was measured (step 20), the explainers of the trials (six, in Plan 3b) were read by the owner (step 19), the five days of the shadow week are recorded (step 25)');
+    expect(TEXT).not.toContain('the six explainers of Plan 3b');
   });
 
   it('never gives the repository of the rehearsal the secrets of Cloudflare, so that nothing can be deployed from it, and deletes only that repository', () => {
@@ -481,6 +590,11 @@ describe('docs/runbook.md: what it says is true of the repository', () => {
     const order = ['--body off', '--status in_progress', 'git pull --ff-only', 'npm run desk -- retract', 'git push', 'gh run watch', '/corrections/', '--body on'].map(at);
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('tells, in the step that records each day, where a status that the model check did not find is written, and that it does not fail the piece', () => {
+    const step = stepTitled(/^Record each day/);
+    expect(step.text).toContain('in `lowered` each status that the model check did not find and that was lowered to `unspecified`, which does not fail the piece');
   });
 
   it('rehearses on GitHub with nothing that can publish, in the order that the check of it needs: the key, the run with dry, the pack, and the proof that main and the deploy did not move', () => {

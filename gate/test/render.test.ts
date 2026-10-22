@@ -23,6 +23,12 @@ const metaFor = (input: GateInput, extra: Partial<RenderMeta> = {}): RenderMeta 
 });
 const render = (input: GateInput, extra: Partial<RenderMeta> = {}) => renderDraft(input.draft, input.claims, metaFor(input, extra));
 
+/**
+ * The gate result of a piece that was held: the gate itself clears the tier-2 variant, so the hold is made the way the hold flow makes it (a gate result
+ * with the route hold and the reasons of the hold), here for a model check that could not tell.
+ */
+const heldGate = (input: GateInput): GateResult => ({ ...passed(input), route: 'hold', holdReasons: ['G10_AMBIGUOUS'] });
+
 /** The frontmatter text and the body of a rendered piece. */
 function splitMdx(mdx: string): { frontmatter: string; body: string } {
   const match = /^---\n([\s\S]*?)\n---\n\n([\s\S]*)$/.exec(mdx);
@@ -42,7 +48,7 @@ describe('renderDraft: the golden piece', () => {
       'title: "Fixture Robotics ships its FX-1 warehouse arm to a second plant"',
       'description: "Fixture Robotics has begun shipping the FX-1 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor."',
       'publishedAt: "2026-10-04"',
-      'categories: [industrial-warehouse, funding]',
+      'categories: [agent-infrastructure, funding]',
       'format: news',
       'featured: false',
       'author:',
@@ -57,7 +63,7 @@ describe('renderDraft: the golden piece', () => {
       'description: "Fixture Robotics has begun shipping the FX-1 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor."',
       'publishedAt: "2026-10-04"',
       'updatedAt: "2026-10-05"',
-      'categories: [industrial-warehouse, funding]',
+      'categories: [agent-infrastructure, funding]',
       'format: news',
       'featured: false',
       'author:',
@@ -87,7 +93,7 @@ describe('renderDraft: the golden piece', () => {
       title: golden.draft.title.text,
       description: golden.draft.description.text,
       publishedAt: '2026-10-04',
-      categories: ['industrial-warehouse', 'funding'],
+      categories: ['agent-infrastructure', 'funding'],
       format: 'news',
       featured: false,
       author: { name: 'Agentic Media House Desk' },
@@ -132,7 +138,7 @@ describe('renderDraft: the golden piece', () => {
     const marker = (id: string) => `[${ledger.order.indexOf(id) + 1}](${RECEIPTS}#${id})`;
     const expected = golden.draft.limitations.map((sentence) => `${escapeMdx(sentence.text)}${sentence.claimIds.map(marker).join('')}`).join(' ');
     expect(blocks(mdx).at(-1)).toBe(expected);
-    // One marker for each claim a sentence describes: 8 datasheet claims, 12 press-release claims, 2 demo claims, 2 demonstrated and 5 planned.
+    // One marker for each claim a sentence describes: 8 docs claims, 12 announcement claims, 2 demo claims, 2 demonstrated and 5 planned.
     expect(blocks(mdx).at(-1)!.match(/\]\(/g)).toHaveLength(8 + 12 + 2 + 2 + 5);
   });
 
@@ -185,7 +191,7 @@ describe('renderDraft: the ledger', () => {
     expect(ledger.runId).toBe('fixture-run-1');
     expect(ledger.publishedAt).toBe('2026-10-04');
     expect(ledger.title).toBe('Fixture Robotics ships its FX-1 warehouse arm to a second plant');
-    expect(ledger.categories).toEqual(['industrial-warehouse', 'funding']);
+    expect(ledger.categories).toEqual(['agent-infrastructure', 'funding']);
   });
 
   it('lists every sentence in document order with its index, section and heading', () => {
@@ -237,7 +243,7 @@ describe('renderDraft: the ledger', () => {
   });
 
   it('records the gate result from the meta, without a verifier unless one is given', () => {
-    expect(ledger.gate).toEqual({ route: result.route, checks: result.checks, holdReasons: result.holdReasons });
+    expect(ledger.gate).toEqual({ route: result.route, checks: result.checks, holdReasons: result.holdReasons, notes: [] });
     expect('verifier' in ledger).toBe(false);
   });
 
@@ -245,13 +251,13 @@ describe('renderDraft: the ledger', () => {
     expect('release' in ledger).toBe(false);
     expect(render(golden, { release: 'auto' }).ledger.release).toBe('auto');
     const tier2 = makeTier2Variant(cloneGolden());
-    expect(render(tier2, { release: 'owner' }).ledger.release).toBe('owner');
-    expect(LedgerEntry.parse(render(tier2, { release: 'owner' }).ledger).release).toBe('owner');
+    expect(render(tier2, { gate: heldGate(tier2), release: 'owner' }).ledger.release).toBe('owner');
+    expect(LedgerEntry.parse(render(tier2, { gate: heldGate(tier2), release: 'owner' }).ledger).release).toBe('owner');
   });
 
   it('refuses a release the route of the gate contradicts: the page would say something false', () => {
     const tier2 = makeTier2Variant(cloneGolden());
-    expect(() => render(tier2, { release: 'auto' })).toThrow('renderDraft: release "auto" needs a gate route of publish, but the route is hold');
+    expect(() => render(tier2, { gate: heldGate(tier2), release: 'auto' })).toThrow('renderDraft: release "auto" needs a gate route of publish, but the route is hold');
     expect(() => render(golden, { release: 'owner' })).toThrow('renderDraft: release "owner" is for a piece the gate did not clear, but the route is publish');
   });
 
@@ -544,9 +550,9 @@ describe('renderDraft: text that is not plain', () => {
 
   it('refuses a category that is not a plain slug', () => {
     const input = mutate(cloneGolden(), (g) => {
-      g.draft.categories = ['humanoids, funding'];
+      g.draft.categories = ['payments-commerce, funding'];
     });
-    expect(() => render(input)).toThrow('renderDraft: the category "humanoids, funding" is not a plain slug');
+    expect(() => render(input)).toThrow('renderDraft: the category "payments-commerce, funding" is not a plain slug');
   });
 });
 
@@ -555,7 +561,7 @@ describe('NewsFrontmatter', () => {
     title: 'A title',
     description: 'A description.',
     publishedAt: '2026-10-04',
-    categories: ['humanoids'],
+    categories: ['payments-commerce'],
     format: 'news',
     featured: false,
     author: { name: 'Agentic Media House Desk' },
@@ -573,9 +579,9 @@ describe('NewsFrontmatter', () => {
     ['a description over 155 characters', { ...valid, description: 'x'.repeat(156) }],
     ['a date that is not a calendar date', { ...valid, publishedAt: '2026-02-30' }],
     ['no category', { ...valid, categories: [] }],
-    ['four categories', { ...valid, categories: ['humanoids', 'funding', 'field-mobility', 'home-consumer'] }],
+    ['four categories', { ...valid, categories: ['payments-commerce', 'funding', 'identity-trust', 'wallets-keys'] }],
     ['a category outside the vocabulary', { ...valid, categories: ['robots'] }],
-    ['the same category twice', { ...valid, categories: ['humanoids', 'humanoids'] }],
+    ['the same category twice', { ...valid, categories: ['payments-commerce', 'payments-commerce'] }],
     ['funding without a beat', { ...valid, categories: ['funding'] }],
     ['another format', { ...valid, format: 'explainer' }],
     ['a key the contract does not know', { ...valid, image: 'x' }],
@@ -605,8 +611,8 @@ describe('NewsFrontmatter', () => {
   });
 
   it('accepts funding beside a beat, and three different categories', () => {
-    expect(NewsFrontmatter.safeParse({ ...valid, categories: ['funding', 'humanoids'] }).success).toBe(true);
-    expect(NewsFrontmatter.safeParse({ ...valid, categories: ['humanoids', 'field-mobility', 'funding'] }).success).toBe(true);
+    expect(NewsFrontmatter.safeParse({ ...valid, categories: ['funding', 'payments-commerce'] }).success).toBe(true);
+    expect(NewsFrontmatter.safeParse({ ...valid, categories: ['payments-commerce', 'identity-trust', 'funding'] }).success).toBe(true);
   });
 
   it('trims the spaces around a title and a description, and counts the length after trimming', () => {

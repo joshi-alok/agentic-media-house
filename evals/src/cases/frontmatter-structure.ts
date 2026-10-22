@@ -70,7 +70,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     code: 'G1_CATEGORY_COUNT',
     description: 'The same category is listed twice.',
     apply: (base) => {
-      base.draft.categories = ['industrial-warehouse', 'industrial-warehouse'];
+      base.draft.categories = ['agent-infrastructure', 'agent-infrastructure'];
       return base;
     },
   },
@@ -80,7 +80,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     code: 'G1_CATEGORY_UNKNOWN',
     description: 'A category is not in the closed vocabulary.',
     apply: (base) => {
-      base.draft.categories = ['industrial-warehouse', 'quantum-robots'];
+      base.draft.categories = ['agent-infrastructure', 'quantum-robots'];
       return base;
     },
   },
@@ -140,7 +140,8 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     code: 'G2_BODY_LENGTH',
     description: 'The body is shorter than the length the rule requires.',
     apply: (base) => {
-      base.draft.limitations = base.draft.limitations.slice(0, 1);
+      // Cut the last paragraph of every section.
+      for (const section of base.draft.sections) section.paragraphs.pop();
       return base;
     },
   },
@@ -151,7 +152,7 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     description: 'A sentence is padded until the piece is over 850 words.',
     apply: (base) => {
       const sentence = sentenceWith(base, 'The arm itself weighs');
-      sentence.text = `${sentence.text.slice(0, -1)}${' and the arm keeps working as described'.repeat(30)}.`;
+      sentence.text = `${sentence.text.slice(0, -1)}${' and the arm keeps working as described'.repeat(60)}.`;
       return base;
     },
   },
@@ -207,24 +208,13 @@ export const FRONTMATTER_STRUCTURE_CASES: SeededCase[] = [
     },
   },
   {
-    id: 'lowercase-sentence-start',
-    check: 'G2',
-    code: 'G2_SENTENCE_START',
-    description: 'A sentence starts with a lowercase letter, so the first-word rule would not read its first word.',
-    apply: (base) => {
-      const sentence = sentenceWith(base, 'The arm itself weighs');
-      sentence.text = `${sentence.text.charAt(0).toLowerCase()}${sentence.text.slice(1)}`;
-      return base;
-    },
-  },
-  {
     id: 'limitation-uncovered-claim',
     check: 'G2',
     code: 'G2_LIMITATION_COVERAGE',
     description: 'A claim that needs a limitation is left out of the limitation sentence that describes its group.',
     apply: (base) => {
-      const datasheet = limitationCiting(base, 'c-12');
-      datasheet.claimIds = datasheet.claimIds.filter((id) => id !== 'c-12');
+      const docsNote = limitationCiting(base, 'c-12');
+      docsNote.claimIds = docsNote.claimIds.filter((id) => id !== 'c-12');
       return base;
     },
   },

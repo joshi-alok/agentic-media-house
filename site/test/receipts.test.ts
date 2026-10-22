@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CHECK_IDS, LedgerEntry } from '@robywire/gate';
-import { receiptsView, releaseNote, routeText } from '../src/lib/receipts';
+import { CHECK_IDS, LedgerEntry, defaultContext, runGate } from '@robywire/gate';
+import { cloneGolden } from '@robywire/gate/fixtures';
+import { CHECKS_PASSED_TEXT, receiptsView, releaseNote, routeText } from '../src/lib/receipts';
 
 const GOLDEN_FILE = new URL('../src/content-fixtures/ledger/fixture-robotics-ships-fx-1-to-second-plant.json', import.meta.url);
 const golden = LedgerEntry.parse(JSON.parse(readFileSync(GOLDEN_FILE, 'utf8')));
@@ -34,7 +35,7 @@ describe('receiptsView: the claims', () => {
     const full = golden.claims.find((claim) => claim.id === 'c-1')!.source.snapshotHash;
     expect(first.hash).toBe(full.slice(0, 12));
     expect(first.hash).toMatch(/^[0-9a-f]{12}$/);
-    expect(first.basis).toBe('press-release');
+    expect(first.basis).toBe('announcement');
     expect(first.status).toBe('unspecified');
   });
 
@@ -84,7 +85,7 @@ describe('receiptsView: the gate summary', () => {
     expect(view.gate.route).toBe('publish');
     expect(view.gate.holdReasons).toEqual([]);
     const held = structuredClone(golden);
-    held.gate = { route: 'hold', checks: { ...held.gate.checks, G6: 'fail' }, holdReasons: ['TIER2_ATTRIBUTION'] };
+    held.gate = { route: 'hold', checks: { ...held.gate.checks, G6: 'fail' }, holdReasons: ['TIER2_ATTRIBUTION'], notes: [] };
     const heldView = receiptsView(held);
     expect(heldView.gate.route).toBe('hold');
     expect(heldView.gate.holdReasons).toEqual([{ code: 'TIER2_ATTRIBUTION', label: "Rests on another outlet's reporting" }]);
@@ -112,16 +113,23 @@ describe('receiptsView: the gate summary', () => {
 describe('routeText', () => {
   it('says in words what the gate did, so that a route is never shown on its own', () => {
     expect(routeText('publish')).toBe('The gate cleared this piece.');
-    expect(routeText('hold')).toBe('The gate held this draft for the owner.');
+    expect(routeText('hold')).toBe('This draft was held for the owner.');
     expect(routeText('revise')).toBe('The gate sent this draft back for revision.');
   });
 
   it('is part of the gate summary', () => {
     expect(view.gate.routeText).toBe(routeText(view.gate.route));
     const held = structuredClone(golden);
-    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'] };
+    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'], notes: [] };
     delete held.release;
-    expect(receiptsView(held).gate.routeText).toBe('The gate held this draft for the owner.');
+    expect(receiptsView(held).gate.routeText).toBe('This draft was held for the owner.');
+  });
+
+  // A hold comes from a blocker that stood after the rounds of revision, or from the model check, which is not the gate: the words do not say which.
+  it('does not say who held a draft, because a hold can come from the model check as well as from the gate', () => {
+    expect(routeText('hold')).not.toMatch(/\bgate\b/i);
+    expect(routeText('publish')).toBe('The gate cleared this piece.');
+    expect(routeText('revise')).toBe('The gate sent this draft back for revision.');
   });
 });
 
@@ -130,8 +138,9 @@ describe('releaseNote', () => {
     expect(releaseNote('auto')).toBe('Published by the gate without a human.');
   });
 
-  it('says that the gate held the piece and the owner released it, for owner', () => {
-    expect(releaseNote('owner')).toBe('Held by the gate, then released by the owner.');
+  it('says that the piece was held and the owner released it, for owner, without saying who held it', () => {
+    expect(releaseNote('owner')).toBe('Held for the owner, then released by the owner.');
+    expect(releaseNote('owner')).not.toMatch(/\bgate\b/i);
   });
 
   it('says nothing when the ledger does not say', () => {
@@ -157,8 +166,46 @@ describe('receiptsView: how the piece was released', () => {
 
   it('has the note for owner', () => {
     const held = structuredClone(without);
-    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'] };
-    expect(receiptsView({ ...held, release: 'owner' }).releaseNote).toBe('Held by the gate, then released by the owner.');
+    held.gate = { route: 'hold', checks: held.gate.checks, holdReasons: ['TIER2_ATTRIBUTION'], notes: [] };
+    expect(receiptsView({ ...held, release: 'owner' }).releaseNote).toBe('Held for the owner, then released by the owner.');
+  });
+});
+
+describe('CHECKS_PASSED_TEXT', () => {
+  it('says that a check passes when it found no blocker, and that a note does not fail it', () => {
+    expect(CHECKS_PASSED_TEXT).toBe(
+      'A check passes when it found no blocker. A note does not fail a check, so a piece that has only notes still shows every check as passed; its notes are listed below the checks.',
+    );
+  });
+
+  // The sentence is true of the gate and of the ledger: a piece with notes and no blocker has every check as pass, and its notes are in the view.
+  it('is true: a piece with only notes has all nine checks as pass, the route publish, and its notes listed', () => {
+    const noted = cloneGolden();
+    noted.draft.takeaways = noted.draft.takeaways.slice(0, 1);
+    const result = runGate(noted, defaultContext());
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.length).toBeGreaterThan(0);
+    expect(Object.values(result.checks)).toEqual(CHECK_IDS.map(() => 'pass'));
+    const ledger = structuredClone(golden);
+    ledger.gate = { route: 'publish', checks: result.checks, holdReasons: [], notes: result.warnings.map(({ code, where }) => (where === undefined ? { code } : { code, where })) };
+    const shown = receiptsView(ledger).gate;
+    expect(shown.checks.every((check) => check.result === 'pass')).toBe(true);
+    expect(shown.notes.length).toBeGreaterThan(0);
+  });
+
+  it('is printed by the receipts page, between the count of the checks and the list of them', () => {
+    const page = readFileSync(new URL('../src/pages/news/[slug]/receipts/index.astro', import.meta.url), 'utf8');
+    expect(page).toContain('{CHECKS_PASSED_TEXT}');
+    expect(page.indexOf('checks passed.')).toBeLessThan(page.indexOf('{CHECKS_PASSED_TEXT}'));
+    expect(page.indexOf('{CHECKS_PASSED_TEXT}')).toBeLessThan(page.indexOf('<ul class="checks">'));
+  });
+
+  // It says that the notes are listed below, so a piece with no note does not carry it.
+  it('is printed only when the piece has notes, because it says that they are listed below the checks', () => {
+    const page = readFileSync(new URL('../src/pages/news/[slug]/receipts/index.astro', import.meta.url), 'utf8');
+    expect(page).toContain('{view.gate.notes.length > 0 && <p>{CHECKS_PASSED_TEXT}</p>}');
+    expect(page.match(/CHECKS_PASSED_TEXT/g)).toHaveLength(2); // the import and the one place where it is printed
+    expect(view.gate.notes).toEqual([]);
   });
 });
 

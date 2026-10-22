@@ -63,7 +63,7 @@ describe('attributeTo', () => {
 
 describe('limitationCiting', () => {
   it('finds the limitation sentence that cites the claim', () => {
-    expect(limitationCiting(cloneGolden(), 'c-12').claimIds).toEqual(['c-12', 'c-13', 'c-14', 'c-15']);
+    expect(limitationCiting(cloneGolden(), 'c-12').claimIds).toEqual(['c-8', 'c-9', 'c-10', 'c-11', 'c-12', 'c-13', 'c-14', 'c-15']);
   });
 
   it('gives the live sentence, so that a case can change it', () => {

@@ -32,19 +32,34 @@ export interface HoldReason {
   label: string;
 }
 
+/** A kind of finding of the gate that did not block the piece: its code, the same in plain English, and how many times it was found. */
+export interface GateNote {
+  code: string;
+  label: string;
+  count: number;
+}
+
 export interface GateSummary {
   route: Route;
   /** What the route means, in a sentence. The page never shows a route on its own. */
   routeText: string;
   checks: { id: CheckId; result: CheckResult }[];
   holdReasons: HoldReason[];
+  notes: GateNote[];
 }
 
 const ROUTE_TEXT: Record<Route, string> = {
   publish: 'The gate cleared this piece.',
-  hold: 'The gate held this draft for the owner.',
+  hold: 'This draft was held for the owner.',
   revise: 'The gate sent this draft back for revision.',
 };
+
+/**
+ * What a check that shows as passed may still have found: a note. The receipts page prints it between the count of the checks that passed and the list of them.
+ * A check fails only when it found a blocker (`runGate` sets it so), and the notes of the piece are listed on the page below the checks.
+ */
+export const CHECKS_PASSED_TEXT =
+  'A check passes when it found no blocker. A note does not fail a check, so a piece that has only notes still shows every check as passed; its notes are listed below the checks.';
 
 /** What a route of the gate means, in a sentence. */
 export const routeText = (route: Route): string => ROUTE_TEXT[route];
@@ -55,8 +70,19 @@ export const routeText = (route: Route): string => ROUTE_TEXT[route];
  */
 export function releaseNote(release: Release | undefined): string | undefined {
   if (release === 'auto') return 'Published by the gate without a human.';
-  if (release === 'owner') return 'Held by the gate, then released by the owner.';
+  if (release === 'owner') return 'Held for the owner, then released by the owner.';
   return undefined;
+}
+
+/** The notes of a ledger, one for each code, in the order in which each code first comes up, with the number of findings. */
+function notesOf(ledger: LedgerEntry): GateNote[] {
+  const notes: GateNote[] = [];
+  for (const { code } of ledger.gate.notes) {
+    const found = notes.find((note) => note.code === code);
+    if (found === undefined) notes.push({ code, label: reasonLabel(code), count: 1 });
+    else found.count += 1;
+  }
+  return notes;
 }
 
 export interface ReceiptsView {
@@ -105,6 +131,7 @@ export function receiptsView(ledger: LedgerEntry): ReceiptsView {
       routeText: routeText(ledger.gate.route),
       checks: CHECK_IDS.map((id) => ({ id, result: ledger.gate.checks[id] })),
       holdReasons: ledger.gate.holdReasons.map((code) => ({ code, label: reasonLabel(code) })),
+      notes: notesOf(ledger),
     },
   };
   const note = releaseNote(ledger.release);

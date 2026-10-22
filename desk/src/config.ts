@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { PROFILE_IDS } from '@robywire/gate';
 import { parse } from 'yaml';
 import { z } from 'zod';
 import { describeIssues } from './issues';
@@ -23,6 +24,17 @@ const Budget = z.strictObject({
 /** The model that plays each role. The verify model is a setting because the evals may show that it has to change. */
 const Models = z.strictObject({ select: text, extract: text, compose: text, verify: text });
 
+/**
+ * The models that take `output_config.effort`: the Fable, Mythos, Opus (from 4.5), Sonnet (from 4.6) and Haiku (from 5) families. A Haiku 4.5, a Sonnet 4.5 and older models answer 400 to
+ * it, and so would a model this list does not know, so the client sends an effort only to a model on the list: a 400 ends a run after the stages before it were paid for.
+ */
+const TAKES_EFFORT = /^claude-(?:fable-|mythos-|opus-(?:4-[5-9]|5)|sonnet-(?:4-[6-9]|5)|haiku-5)/;
+
+/** Whether the API takes an `effort` for this model. */
+export function takesEffort(model: string): boolean {
+  return TAKES_EFFORT.test(model);
+}
+
 /** Where the snapshots of sources are kept: `local` is a folder on this machine (`evidenceDir`), `r2` is a private bucket on Cloudflare R2. */
 export const EVIDENCE_KINDS = ['local', 'r2'] as const;
 export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
@@ -44,10 +56,33 @@ export const DeskConfig = z.strictObject({
   recencyHours: count,
   /** Select: the most candidates that are sent to the model. */
   shortlistMax: count,
+  /** Select: the most stories that one source can have on the shortlist, so that a source that publishes a great deal cannot fill it. */
+  shortlistPerSource: count,
   /** Extract: fewer surviving claims than this ends the run with no story. */
   minClaims: count,
-  /** Verify: how many times a draft goes back to the composer before it is held. */
+  /**
+   * The kind of piece the run writes: it sets the ranges the writer is asked for and the gate holds the piece to as notes (opening, takeaways, body, share of analysis), and, for
+   * `explainer`, that the piece is written from one primary page. Absent: the defaults of the gate and no rule about the page, which is what the tests and the demo use. The file of settings of the
+   * daily run names one.
+   */
+  profile: z.enum(PROFILE_IDS).optional(),
+  /**
+   * Extract: read each page in parts of about this many words, one call to the model for each part, so that the model gives each part a full pass and a long page yields more claims
+   * (a model given a whole page of fifteen hundred words takes the facts of its first paragraphs and stops). A page is cut by code, between paragraphs, into at most 6 parts, and a page
+   * of at most one and a half times this many words is one part; the claims of every part are still checked against the whole page. Each part is a model call, so a page costs up to 6
+   * calls of the budget; when no page is more than one part, nothing is cut and the one call for all the pages is made, as without the setting. Absent: one call for all the pages, which is what the tests and the demo use.
+   * The file of settings of the daily run names one.
+   */
+  extractChunkWords: count.optional(),
+  /** Verify: how many times a draft goes back to the composer before it is held (`extraRevisionRounds` adds more for a problem that is still there after them). */
   maxRevisionRounds: z.number().int().nonnegative(),
+  /**
+   * Verify: after the `maxRevisionRounds` rounds, a draft that still has a problem a sentence can mend, from the gate or from the model check, goes back up to this many more
+   * times. The rounds are not for the model check alone: the last rewrite of a sentence can bring a blocker of the gate of its own (a number that no claim has, a description
+   * a few characters too long), and a piece that was fine but for that is not held for the one thing its final rewrite broke. A problem that no sentence can mend (the number
+   * of sections, the basis of a claim) gets no round, now or after.
+   */
+  extraRevisionRounds: z.number().int().nonnegative(),
   /** Run: how many runs one day may have, the first and every one after it (a day that failed is run again, and `--force-new` runs a day again). The run after the last is refused. */
   maxAttemptsPerDay: count,
   /** Fetch: what the Desk calls itself to every site. It must link to the /method page, which says who the Desk is. */
@@ -58,6 +93,8 @@ export const DeskConfig = z.strictObject({
   requestIntervalMs: z.number().int().nonnegative(),
   /** Fetch: the most bytes read from one page. */
   maxBytes: count,
+  /** Fetch: the most characters of one page that go on to be read. A longer text is cut at a paragraph or a line, or else a space, and the artifact says so. */
+  maxPageChars: count,
   budget: Budget,
   models: Models,
   /** Where each run writes its artifacts. Kept out of git. */
@@ -78,12 +115,15 @@ export function defaultConfig(): DeskConfig {
   return {
     recencyHours: 72,
     shortlistMax: 15,
+    shortlistPerSource: 3,
     minClaims: 3,
     maxRevisionRounds: 2,
+    extraRevisionRounds: 1,
     maxAttemptsPerDay: 3,
     userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
     requestIntervalMs: 1000,
     maxBytes: 2_000_000,
+    maxPageChars: 150_000,
     budget: { maxCalls: 24, maxInputTokens: 400_000, maxOutputTokens: 60_000 },
     models: {
       select: 'claude-haiku-4-5-20251001',

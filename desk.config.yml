@@ -7,6 +7,18 @@
 # change the address here and the default of SITE_URL in .github/workflows/deploy.yml together.
 userAgent: AgenticMediaHouseDesk/0.1 (+https://agentic-media-house.joshi-alok.workers.dev/method)
 
+# The kind of piece the daily run writes: an explainer from one primary page. It sets the ranges the writer is asked for and the gate holds the piece to as notes.
+profile: explainer
+
+# Each page is read in parts of about 400 words, one call to the model for each part (at most 6 for a page), so that a long page yields more claims.
+extractChunkWords: 400
+
+# How many times a draft that fails goes back to the composer: twice (maxRevisionRounds, which is not written here, so it is its default), and then this many more while a problem that a
+# sentence or a heading can mend is still there, whether the gate or the model check found it. A long piece (24 to 28 claims) has two or three sentences rejected in a round, and the rewrite
+# of one of them can bring a problem of its own (a number that no claim has), so one round more than the default was not always enough for it to settle. The daily run therefore has four rounds
+# in all. The method page counts them from this file, and the budget below holds the worst case of them: 3 calls for Select, 6 for Extract, 1 for Compose, 5 model checks and 4 revisions.
+extraRevisionRounds: 2
+
 # The snapshots of the pages that a run reads are kept in the private bucket, so that a run that starts from a fresh checkout every day does not lose them.
 evidence:
   kind: r2

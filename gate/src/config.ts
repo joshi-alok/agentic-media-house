@@ -26,11 +26,19 @@ export interface GateConfig {
   titleWindowDays: number;
   /** G9: phrases that must not appear anywhere in the piece. Lowercase, plain apostrophes. */
   bannedPhrases: readonly string[];
+  /**
+   * G9: phrases of the Desk's own voice that are never allowed: a price prediction, a market call, advice to buy, sell or hold, hype, a disclaimer. Lowercase, plain apostrophes.
+   * Unlike the banned phrases they are matched by whole words and they block. The cashtag rule (a dollar sign and two to ten letters) is fixed in code and is not
+   * configurable: an empty list still blocks cashtags.
+   */
+  policyPhrases: readonly string[];
 }
 
 /** Filler and hype that the house style does not allow. Compared in lowercase. */
 export const DEFAULT_BANNED_PHRASES: readonly string[] = [
-  "in today's fast-moving world of robotics",
+  "in today's fast-moving world of crypto",
+  'in the ever-changing world of web3',
+  'the future of finance is here',
   'game-changer',
   'game changer',
   'revolutionary',
@@ -42,6 +50,35 @@ export const DEFAULT_BANNED_PHRASES: readonly string[] = [
   "it's worth noting",
   'in the realm of',
   'paves the way',
+];
+
+/** What the publication never says in its own voice. Compared in lowercase, by whole words (see `G9_POLICY_PHRASE`), so the singular and the plural of a phrase are both listed. */
+export const DEFAULT_POLICY_PHRASES: readonly string[] = [
+  'price target',
+  'price targets',
+  'price prediction',
+  'price predictions',
+  'price forecast',
+  'price forecasts',
+  'will skyrocket',
+  'will moon',
+  'to the moon',
+  'buy the dip',
+  'buying the dip',
+  'guaranteed return',
+  'guaranteed returns',
+  'guaranteed profit',
+  'guaranteed profits',
+  'risk-free return',
+  'risk-free returns',
+  'you should buy',
+  'you should sell',
+  'we recommend buying',
+  'we recommend selling',
+  'is a strong buy',
+  'is a strong sell',
+  'load up on',
+  'not financial advice',
 ];
 
 const MONTHS = [
@@ -64,8 +101,8 @@ const ACRONYMS = ['ai', 'ceo', 'cto', 'us', 'uk', 'eu', 'un'];
 /**
  * Capitalised words that G4 accepts without a claim listing them as a name:
  * month and weekday names and a few common acronyms. Lowercase, because G4
- * compares lowercased name tokens. Add to it when a false positive keeps
- * sending good drafts back.
+ * compares lowercased name tokens. Add to it when a false positive is noted
+ * again and again, or keeps sending good analysis back.
  */
 export const DEFAULT_NAME_ALLOW_LIST: ReadonlySet<string> = new Set([...MONTHS, ...WEEKDAYS, ...ACRONYMS]);
 
@@ -82,6 +119,7 @@ export function defaultConfig(): GateConfig {
     titleSimilarityThreshold: 0.6,
     titleWindowDays: 14,
     bannedPhrases: DEFAULT_BANNED_PHRASES,
+    policyPhrases: [...DEFAULT_POLICY_PHRASES],
   };
 }
 

@@ -27,6 +27,7 @@ const FRONTMATTER_CODES: readonly string[] = G1_CODES.filter((code) => code !== 
 const PUBLISH: GateResult = {
   route: 'publish',
   failures: [],
+  warnings: [],
   holdReasons: [],
   checks: { G1: 'pass', G2: 'pass', G3: 'pass', G4: 'pass', G5: 'pass', G6: 'pass', G7: 'pass', G8: 'pass', G9: 'pass' },
 };
@@ -70,9 +71,9 @@ type Change = (copy: GateInput) => void;
 /** Drafts whose frontmatter is fine. */
 const ACCEPTED: [string, GateInput][] = [
   ['the golden piece', cloneGolden()],
-  ['the FX-2 variant', variant(2, ['humanoids'], '2026-10-03')],
-  ['the FX-3 variant', variant(3, ['policy-standards'], '2026-10-02')],
-  ['the FX-4 variant', variant(4, ['home-consumer', 'field-mobility'], '2026-10-01')],
+  ['the FX-2 variant', variant(2, ['payments-commerce'], '2026-10-03')],
+  ['the FX-3 variant', variant(3, ['policy-regulation'], '2026-10-02')],
+  ['the FX-4 variant', variant(4, ['wallets-keys', 'identity-trust'], '2026-10-01')],
   ...(
     [
       ['a reworded description', (g) => (g.draft.description.text = 'Fixture Robotics has begun deliveries to a second plant.')],
@@ -81,10 +82,10 @@ const ACCEPTED: [string, GateInput][] = [
       ['a description with spaces around it, 155 characters in all', (g) => (g.draft.description.text = ` ${'x'.repeat(153)} `)],
       ['a reworded title', (g) => (g.draft.title.text = 'Fixture Robotics starts deliveries to its second plant')],
       ['a one-word title', (g) => (g.draft.title.text = 'Funding')],
-      ['reordered categories', (g) => (g.draft.categories = ['funding', 'industrial-warehouse'])],
-      ['another beat', (g) => (g.draft.categories = ['software-autonomy', 'funding'])],
-      ['one category', (g) => (g.draft.categories = ['components-supply-chain'])],
-      ['an extra category within the vocabulary', (g) => (g.draft.categories = ['industrial-warehouse', 'field-mobility', 'funding'])],
+      ['reordered categories', (g) => (g.draft.categories = ['funding', 'agent-infrastructure'])],
+      ['another beat', (g) => (g.draft.categories = ['protocols-standards', 'funding'])],
+      ['one category', (g) => (g.draft.categories = ['security-incidents'])],
+      ['an extra category within the vocabulary', (g) => (g.draft.categories = ['agent-infrastructure', 'identity-trust', 'funding'])],
       ['a leap day', (g) => (g.draft.publishedAt = '2028-02-29')],
       ['the end of the year', (g) => (g.draft.publishedAt = '2026-12-31')],
       ['a title with quotation marks and a colon', (g) => (g.draft.title.text = 'Fixture says: "ships"')],
@@ -110,11 +111,11 @@ const REJECTED: [string, Change][] = [
   ['a date with a time', (g) => (g.draft.publishedAt = '2026-10-04T00:00:00Z')],
   ['an empty date', (g) => (g.draft.publishedAt = '')],
   ['no category', (g) => (g.draft.categories = [])],
-  ['four categories', (g) => (g.draft.categories = ['humanoids', 'home-consumer', 'field-mobility', 'funding'])],
-  ['a repeated category', (g) => (g.draft.categories = ['humanoids', 'humanoids'])],
-  ['an unknown category', (g) => (g.draft.categories = ['humanoids', 'quantum-robots'])],
-  ['a category in capitals', (g) => (g.draft.categories = ['Humanoids'])],
-  ['a category that is not a plain slug', (g) => (g.draft.categories = ['humanoids, funding'])],
+  ['four categories', (g) => (g.draft.categories = ['payments-commerce', 'wallets-keys', 'identity-trust', 'funding'])],
+  ['a repeated category', (g) => (g.draft.categories = ['payments-commerce', 'payments-commerce'])],
+  ['an unknown category', (g) => (g.draft.categories = ['payments-commerce', 'quantum-robots'])],
+  ['a category in capitals', (g) => (g.draft.categories = ['Payments-commerce'])],
+  ['a category that is not a plain slug', (g) => (g.draft.categories = ['payments-commerce, funding'])],
   ['funding without a beat', (g) => (g.draft.categories = ['funding'])],
   ['funding beside an unknown category', (g) => (g.draft.categories = ['funding', 'robots'])],
   ['a blank author', (g) => (g.draft.author.name = '')],

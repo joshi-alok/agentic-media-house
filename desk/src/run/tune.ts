@@ -1,9 +1,9 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
-import { ROUTES } from '@robywire/gate';
-import type { Claim, Draft, SourcesRegistry } from '@robywire/gate';
+import { PROFILE_IDS, ROUTES, allSentences, countWords } from '@robywire/gate';
+import type { Claim, Draft, ProfileId, SourcesRegistry } from '@robywire/gate';
 import { z } from 'zod';
-import { ComposeArtifact, DeskConfig, LocalEvidenceStore, candidateId, canonicalUrl, extractPage, hostKey, readArtifact, refuseApiOnFixtures, sourceKind, tier2Feeds, writeJsonFile } from '../index';
+import { ComposeArtifact, DeskConfig, LocalEvidenceStore, candidateId, canonicalUrl, hostKey, readAndCut, readArtifact, refuseApiOnFixtures, sourceKind, tier2Feeds, writeJsonFile } from '../index';
 import type { BuiltClient, ClientKind, EvidenceStore, Fetcher, ModelClient, ModelRequest, ModelResponse, SelectArtifact, SourceKind, SourcesKind } from '../index';
 import { runCompose } from '../stages/compose';
 import { describeFailure, emptyPublished, isSourceFailure } from '../stages/context';
@@ -13,6 +13,7 @@ import type { Snapshot } from '../stages/fetch';
 import { runVerify } from '../stages/verify';
 import type { VerifyResult } from '../stages/verify';
 import { verifyPlanOf } from '../stages/verify-model';
+import { writeFileAtomic } from './atomic';
 
 // `desk tune`: the first contact of the pipeline with a real model, and the tool for tuning what it is told. It takes a list of the addresses of real pages, fetches each one
 // as the Desk fetches (robots.txt honoured, the pace of the settings), says what kind of source the registry says it is, and sends it through Extract, Compose and Verify with
@@ -91,7 +92,7 @@ const count = z.number().int().nonnegative();
 /** How many times each code came up: `{ 'quote-not-found': 2 }`. */
 const codes = z.record(z.string(), count);
 
-const KINDS = ['company-newsroom', 'arxiv', 'sec', 'standard', 'tier2', 'unknown'] as const satisfies readonly SourceKind[];
+const KINDS = ['company-newsroom', 'arxiv', 'sec', 'research', 'standard', 'tier2', 'unknown'] as const satisfies readonly SourceKind[];
 
 /** How a row ended: it went through the model check, it had too few claims to write from, the page could not be fetched or read, it is not a known kind of source, a step failed, or the budget ran out. */
 export const TUNE_STATUSES = ['judged', 'too-few-claims', 'not-fetched', 'unknown-kind', 'failed', 'stopped'] as const;
@@ -105,14 +106,14 @@ export const TuneRow = z.strictObject({
   status: z.enum(TUNE_STATUSES),
   /** Why, for every status but `judged`. */
   note: z.string().nullable(),
-  /** Extract: what the model proposed, what survived, and which rule dropped how many (a claim with two reasons is counted under both). */
-  claims: z.strictObject({ proposed: count, survivors: count, dropped: codes }).nullable(),
+  /** Extract: what the model proposed, what survived, and which rule dropped how many (a claim with two reasons is counted under both). `duplicates`, when there are some, is how many of the claims proposed were skipped as duplicates of an earlier part's. */
+  claims: z.strictObject({ proposed: count, survivors: count, dropped: codes, duplicates: count.optional() }).nullable(),
   /** Compose: what the gate said of the draft that the composer wrote first. */
-  composed: z.strictObject({ route: z.enum(ROUTES), codes }).nullable(),
+  composed: z.strictObject({ route: z.enum(ROUTES), codes, notes: codes.optional(), words: count.optional() }).nullable(),
   /** Verify: what the model check said of the first draft that the gate cleared (a draft that the gate fails is not shown to the model). */
   modelCheck: z.strictObject({ round: count, judged: count, entailed: count, notEntailed: count, ambiguous: count, missing: count, claims: count, labelProblems: count }).nullable(),
   /** Verify: how it ended. */
-  verdict: z.strictObject({ outcome: z.enum(['publish', 'hold']), rounds: count, route: z.enum(ROUTES), codes }).nullable(),
+  verdict: z.strictObject({ outcome: z.enum(['publish', 'hold']), rounds: count, route: z.enum(ROUTES), codes, notes: codes.optional(), words: count.optional() }).nullable(),
   usage: z.strictObject({ calls: count, inputTokens: count, outputTokens: count }),
 });
 export type TuneRow = z.infer<typeof TuneRow>;
@@ -122,6 +123,9 @@ export const TuneRecord = z.strictObject({
   stamp: z.string().min(1),
   date: z.iso.date(),
   client: z.enum(['api', 'fake']),
+  profile: z.enum(PROFILE_IDS).optional(),
+  /** The size of the parts the pages were read in, when the settings had one; a call for each part is a call of the table. */
+  extractChunkWords: DeskConfig.shape.extractChunkWords,
   trials: z.number().int().positive(),
   maxCalls: z.number().int().positive(),
   models: DeskConfig.shape.models,
@@ -140,6 +144,18 @@ function countBy(items: readonly string[]): Record<string, number> {
   for (const item of items) counts[item] = (counts[item] ?? 0) + 1;
   return counts;
 }
+
+/** The words of a draft as the gate counts the body: the opening, the takeaways, the sections and the limitations, not the title or the description. */
+const bodyWordsOf = (draft: Draft): number =>
+  allSentences(draft)
+    .filter((item) => item.section !== 'title' && item.section !== 'description')
+    .reduce((total, item) => total + countWords(item.sentence.text), 0);
+
+/** The notes and the words of a draft, as the fields of a row: the notes only when there are some. */
+const extrasOf = (draft: Draft, warnings: readonly { code: string }[]): { notes?: Record<string, number>; words: number } => ({
+  ...(warnings.length === 0 ? {} : { notes: countBy(warnings.map((finding) => finding.code)) }),
+  words: bodyWordsOf(draft),
+});
 
 // --- Prices ---------------------------------------------------------------------
 
@@ -167,7 +183,7 @@ const formatDollars = (value: number): string => `$${value.toFixed(4)}`;
 
 // --- The table ---------------------------------------------------------------------
 
-const TIERS: Record<SourceKind, string> = { 'company-newsroom': 'tier 1', arxiv: 'tier 1', sec: 'tier 1', standard: 'tier 1', tier2: 'tier 2', unknown: 'no tier' };
+const TIERS: Record<SourceKind, string> = { 'company-newsroom': 'tier 1', arxiv: 'tier 1', sec: 'tier 1', research: 'tier 1', standard: 'tier 1', tier2: 'tier 2', unknown: 'no tier' };
 
 /** `quote-not-found 2, value-not-in-quote 1`, or `none`. */
 const listOf = (found: Record<string, number>): string => (Object.keys(found).length === 0 ? 'none' : Object.entries(found).map(([code, times]) => `${code} ${times}`).join(', '));
@@ -187,10 +203,13 @@ export function rowLines(row: TuneRow, position: { page: number; pages: number; 
     stopped: 'stopped by the budget of model calls',
   };
   lines.push(`  result: ${results[row.status]}${row.note === null ? '' : `: ${row.note}`}`);
+  const extras = (found: { notes?: Record<string, number>; words?: number }): string =>
+    `${found.words === undefined ? '' : `; ${plural(found.words, 'word')}`}${found.notes === undefined ? '' : `; notes: ${listOf(found.notes)}`}`;
   if (row.claims !== null) {
-    lines.push(`  claims proposed: ${row.claims.proposed}`, `  claims dropped: ${listOf(row.claims.dropped)}`, `  claims surviving: ${row.claims.survivors}`);
+    const duplicates = row.claims.duplicates ?? 0;
+    lines.push(`  claims proposed: ${row.claims.proposed}${duplicates === 0 ? '' : ` (${plural(duplicates, 'duplicate')} skipped)`}`, `  claims dropped: ${listOf(row.claims.dropped)}`, `  claims surviving: ${row.claims.survivors}`);
   }
-  if (row.composed !== null) lines.push(`  composed draft: the gate says ${row.composed.route}${row.composed.route === 'publish' ? '' : ` (${listOf(row.composed.codes)})`}`);
+  if (row.composed !== null) lines.push(`  composed draft: the gate says ${row.composed.route}${row.composed.route === 'publish' ? '' : ` (${listOf(row.composed.codes)})`}${extras(row.composed)}`);
   if (row.modelCheck !== null) {
     const check = row.modelCheck;
     lines.push(
@@ -200,7 +219,7 @@ export function rowLines(row: TuneRow, position: { page: number; pages: number; 
     lines.push('  model check: not asked (the gate found failures in every round)');
   }
   if (row.verdict !== null) {
-    lines.push(`  verify: ${row.verdict.outcome} after ${plural(row.verdict.rounds, 'revision round')}; the gate says ${row.verdict.route}${row.verdict.route === 'publish' ? '' : ` (${listOf(row.verdict.codes)})`}`);
+    lines.push(`  verify: ${row.verdict.outcome} after ${plural(row.verdict.rounds, 'revision round')}; the gate says ${row.verdict.route}${row.verdict.route === 'publish' ? '' : ` (${listOf(row.verdict.codes)})`}${extras(row.verdict)}`);
   }
   if (row.usage.calls > 0) {
     lines.push(`  tokens: ${row.usage.inputTokens} in, ${row.usage.outputTokens} out, ${plural(row.usage.calls, 'model call')}`);
@@ -230,6 +249,8 @@ export interface TuneOptions {
   /** The most model calls the whole invocation may make. */
   maxCalls: number;
   clientKind: ClientKind;
+  /** The kind of piece the drafts are judged against; none means the defaults of the gate. */
+  profile?: ProfileId;
   /** Where the pages come from. The command line says `live`; `refuseApiOnFixtures` refuses the api on the made-up world as it does for a run. */
   sourcesKind: SourcesKind;
   config: DeskConfig;
@@ -276,12 +297,16 @@ const blank = (url: string, kind: SourceKind, trial: number | null): TuneRow => 
 /** A row for a page that no trial was made of. */
 const untried = (url: string, kind: SourceKind, status: 'not-fetched' | 'unknown-kind', note: string): TuneRow => ({ ...blank(url, kind, null), status, note });
 
-/** What the model check said of the first draft that it was shown, from the artifacts that Verify wrote. */
-async function modelCheckOf(dir: string, claims: Claim[], verified: VerifyResult): Promise<TuneRow['modelCheck']> {
+/**
+ * What the model check said of the first draft that it was shown, from the artifacts that Verify wrote. A status that it did not find was lowered by Verify and so is not among the
+ * failures of the pass, but it is a label that the model check did not support, and it is counted with them.
+ */
+async function modelCheckOf(dir: string, verified: VerifyResult): Promise<TuneRow['modelCheck']> {
   const asked = verified.history.find((pass) => pass.verifier !== null);
   if (asked === undefined) return null;
   const drafts = (await readArtifact(dir, '05-compose', ComposeArtifact)).drafts;
-  const plan = verifyPlanOf(drafts[asked.round] as Draft, claims);
+  const plan = verifyPlanOf(drafts[asked.round] as Draft, verified.claims);
+  const lowered = (verified.lowered ?? []).filter((entry) => entry.round === asked.round).length;
   const items = asked.verifierFailures.filter((failure) => failure.kind !== 'label');
   const judged = plan.sentences.length + plan.headings.length;
   const some = (code: string): number => items.filter((failure) => failure.code === code).length;
@@ -293,7 +318,7 @@ async function modelCheckOf(dir: string, claims: Claim[], verified: VerifyResult
     ambiguous: some('ambiguous'),
     missing: some('missing'),
     claims: plan.claims.length,
-    labelProblems: asked.verifierFailures.length - items.length,
+    labelProblems: asked.verifierFailures.length - items.length + lowered,
   };
 }
 
@@ -304,10 +329,18 @@ interface Page {
   selected: SelectArtifact;
 }
 
-/** One trial of a page: Extract, Compose and Verify, each only if the one before gave it something to work with, with a client of its own and the budget of a run. */
+/** The name of the file in the folder of a trial where the lines that the stages logged are kept. */
+export const TRIAL_LOG = 'log.txt';
+
+/**
+ * One trial of a page: Extract, Compose and Verify, each only if the one before gave it something to work with, with a client of its own and the budget of a run.
+ * What the stages log (`ctx.log`: counts and codes, the number of claims, what the gate said, which items went back) is kept in `log.txt` in the folder of the trial, one
+ * line to a line, whether the trial ended or failed. A log that cannot be written is lost without a word: it never replaces the result of the trial.
+ */
 async function runTrial(options: TuneOptions, calls: CallCount, evidence: EvidenceStore, page: Page, trial: number, dir: string): Promise<TuneRow> {
   const built = options.buildClient((client) => new CallLimitClient(client, calls));
   const callsBefore = calls.used;
+  const logged: string[] = [];
   const ctx: StageContext = {
     date: options.date,
     config: options.config,
@@ -317,28 +350,34 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
     evidence,
     runDir: dir,
     published: emptyPublished(),
-    log: () => undefined,
+    log: (line) => void logged.push(line.replace(/[\r\n]+/g, ' ')),
+    ...(options.profile === undefined ? {} : { profile: options.profile }),
   };
+  built.onRetry?.(ctx.log);
   const row = blank(page.snapshot.url, page.kind, trial);
   try {
     const extracted = await runExtract(ctx, [page.snapshot], page.selected);
     const dropped = countBy(extracted.artifact.dropped.flatMap((claim) => claim.reasons.map((reason) => reason.code)));
     const survivors = extracted.artifact.claims.length;
-    row.claims = { proposed: survivors + extracted.artifact.dropped.length, survivors, dropped };
+    const duplicates = extracted.duplicates ?? 0;
+    row.claims = { proposed: survivors + extracted.artifact.dropped.length + duplicates, survivors, dropped, ...(duplicates === 0 ? {} : { duplicates }) };
     if (!extracted.ok) {
       row.status = 'too-few-claims';
       row.note = extracted.reason;
     } else {
       const claims = extracted.artifact.claims;
       const composed = await runCompose(ctx, claims);
-      row.composed = { route: composed.gate.route, codes: countBy(composed.gate.failures.map((failure) => failure.code)) };
+      row.composed = { route: composed.gate.route, codes: countBy(composed.gate.failures.map((failure) => failure.code)), ...extrasOf(composed.draft, composed.gate.warnings) };
       const verified = await runVerify(ctx, claims, composed);
-      row.verdict = { outcome: verified.outcome, rounds: verified.rounds, route: verified.gate.route, codes: countBy(verified.gate.failures.map((failure) => failure.code)) };
-      row.modelCheck = await modelCheckOf(dir, claims, verified);
+      row.verdict = { outcome: verified.outcome, rounds: verified.rounds, route: verified.gate.route, codes: countBy(verified.gate.failures.map((failure) => failure.code)), ...extrasOf(verified.draft, verified.gate.warnings) };
+      row.modelCheck = await modelCheckOf(dir, verified);
     }
   } catch (error) {
     row.status = error instanceof CallLimitReached ? 'stopped' : 'failed';
     row.note = describeError(error);
+  } finally {
+    // The log is for reading when a trial went wrong, so it must never be what changes the result of the trial: if it cannot be written, it is lost, and the row stays as the trial made it.
+    await writeFileAtomic(path.join(dir, TRIAL_LOG), logged.map((line) => `${line}\n`).join('')).catch(() => undefined);
   }
   // The calls are those that reached the model, as the invocation counts them: a call that the budget of the invocation refused is not one. The tokens are what the model reported.
   const spent = built.spent();
@@ -348,7 +387,7 @@ async function runTrial(options: TuneOptions, calls: CallCount, evidence: Eviden
 
 /**
  * Fetch one page and make it ready to try, or say why it cannot be: an address that is on no host of the registry is not fetched at all, a page that cannot be fetched or read, or has no
- * text, is `not-fetched`, and a page that redirected to another kind of site than it was asked for is not a known kind of source. The text is kept in `evidence`.
+ * text, is `not-fetched`, and a page that redirected to another kind of site than it was asked for is not a known kind of source. The page is read and cut as Fetch reads and cuts it (`readAndCut`, to `maxPageChars`), and the text that is left is kept in `evidence` and is what the models are shown.
  */
 async function prepare(options: TuneOptions, evidence: EvidenceStore, url: string): Promise<{ page: Page } | { row: TuneRow }> {
   const asked = sourceKind(url, options.sources);
@@ -356,12 +395,12 @@ async function prepare(options: TuneOptions, evidence: EvidenceStore, url: strin
   const tier: 1 | 2 = asked === 'tier2' ? 2 : 1;
   try {
     const fetched = await options.fetcher.get(url);
-    const { title, text } = extractPage(fetched.body, fetched.finalUrl);
+    const { title, text, cut } = readAndCut(fetched, options.config.maxPageChars);
     if (text === '') return { row: untried(url, asked, 'not-fetched', 'the page has no text to read') };
     const kind = kindOfSnapshot({ tier, url, finalUrl: fetched.finalUrl }, options.sources);
     if (kind === 'unknown') return { row: untried(url, 'unknown', 'unknown-kind', `the page was served from ${fetched.finalUrl}, which is not the kind of source that ${url} is, so it was not read`) };
     const { hash } = await evidence.put(text, { url, finalUrl: fetched.finalUrl, tier, retrievedAt: fetched.retrievedAt });
-    const snapshot: Snapshot = { url, finalUrl: fetched.finalUrl, tier, hash, retrievedAt: fetched.retrievedAt, bytes: Buffer.byteLength(text, 'utf8'), title, text };
+    const snapshot: Snapshot = { url, finalUrl: fetched.finalUrl, tier, hash, retrievedAt: fetched.retrievedAt, bytes: Buffer.byteLength(text, 'utf8'), title, ...(cut ? { truncated: true as const } : {}), text };
     const chosen = { id: candidateId(url), title: title === '' ? url : title, url, outlet: outletOf(url, options.sources), tier, beats: [], origin: tier === 1 ? ('newsroom' as const) : ('feed' as const) };
     return { page: { snapshot, kind, selected: { date: options.date, chosen, reasons: [], tier1Url: tier === 1 ? url : null, shortlist: [chosen.id] } } };
   } catch (error) {
@@ -371,7 +410,7 @@ async function prepare(options: TuneOptions, evidence: EvidenceStore, url: strin
 
 /**
  * Try every address, in order, and write what happened to `<runs folder>/tune/<stamp>/`: `tune.json` (the record, rewritten after each trial, so that what was done is kept
- * if the program stops), the artifacts of each trial in `<nn>/trial-<k>/`, and the pages in `evidence/`. The table is given to `out` a row at a time. When the budget of calls is spent
+ * if the program stops), the artifacts of each trial in `<nn>/trial-<k>/` with the `log.txt` of what its stages logged, and the pages in `evidence/`. The table is given to `out` a row at a time. When the budget of calls is spent
  * the invocation stops where it is, and the record says where; the rows so far are kept. Throws `TuneRefused` for the api client on the made-up world, before anything is written.
  */
 export async function runTune(options: TuneOptions): Promise<TuneResult> {
@@ -401,6 +440,8 @@ export async function runTune(options: TuneOptions): Promise<TuneResult> {
       stamp: options.stamp,
       date: options.date,
       client: options.clientKind as 'api' | 'fake',
+      ...(options.profile === undefined ? {} : { profile: options.profile }),
+      ...(options.config.extractChunkWords === undefined ? {} : { extractChunkWords: options.config.extractChunkWords }),
       trials: options.trials,
       maxCalls: options.maxCalls,
       models: { ...options.config.models },

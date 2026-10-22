@@ -17,7 +17,7 @@ export function candidate(overrides: Partial<Candidate> = {}): Candidate {
     publishedAt: '2026-10-04T08:00:00.000Z',
     outlet: 'Mercer Wire',
     tier: 2,
-    beats: ['humanoids'],
+    beats: ['payments-commerce'],
     origin: 'feed',
     ...overrides,
   };

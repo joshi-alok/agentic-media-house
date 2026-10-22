@@ -149,3 +149,160 @@ describe('RetryClient waiting', () => {
     expect((await pending).value).toEqual({ answer: 'fourth try' });
   });
 });
+
+// A call that could not reach the API at all (a connection error, a connection that timed out) is the other failure worth another try. It has a rule of its own:
+// at most two retries, after 1 second and then 3, because a network that is down for a moment is back soon or it is not back at all.
+
+/** A transport error from a call that never got an answer, numbered so that a test can tell which one it got. */
+const unreached = (n = 0): ModelError => new ModelError('transport', `the Anthropic API could not be reached: Connection error. ${n}`, { unreached: true });
+
+describe('RetryClient: a call that could not reach the API', () => {
+  it('tries again after one failure, with the same request, after 1 second', async () => {
+    const { delays, sleep } = recorder();
+    const inner = new FakeClient().script('select', unreached(), { answer: 'second try' });
+    const req = request();
+    const reply = await new RetryClient(inner, { sleep }).json(req);
+    expect(reply.value).toEqual({ answer: 'second try' });
+    expect(inner.calls).toEqual([req, req]);
+    expect(delays).toEqual([1000]);
+  });
+
+  it('tries again after two failures, after 1 second and then 3 seconds', async () => {
+    const { delays, sleep } = recorder();
+    const inner = new FakeClient().script('select', unreached(1), unreached(2), { answer: 'third try' });
+    const reply = await new RetryClient(inner, { sleep }).json(request());
+    expect(reply.value).toEqual({ answer: 'third try' });
+    expect(inner.calls).toHaveLength(3);
+    expect(delays).toEqual([1000, 3000]);
+  });
+
+  it('gives up after the third failure, which is two retries, and throws the last error it got', async () => {
+    const { delays, sleep } = recorder();
+    const inner = new FakeClient().script('select', unreached(1), unreached(2), unreached(3), { answer: 'never asked for' });
+    const error = await new RetryClient(inner, { sleep }).json(request()).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ModelError);
+    expect((error as ModelError).message).toBe('the Anthropic API could not be reached: Connection error. 3');
+    expect(inner.calls).toHaveLength(3);
+    expect(inner.pending('select')).toBe(1);
+    expect(delays).toEqual([1000, 3000]);
+  });
+
+  it('waits with a real timer unless it is given something else to wait with: 1 second and then 3', async () => {
+    vi.useFakeTimers();
+    const inner = new FakeClient().script('select', unreached(), unreached(), { answer: 'third try' });
+    const pending = new RetryClient(inner).json(request());
+    const callsAfter = async (ms: number): Promise<number> => {
+      await vi.advanceTimersByTimeAsync(ms);
+      return inner.calls.length;
+    };
+    expect(inner.calls).toHaveLength(1);
+    expect(await callsAfter(999)).toBe(1);
+    expect(await callsAfter(1)).toBe(2);
+    expect(await callsAfter(2999)).toBe(2);
+    expect(await callsAfter(1)).toBe(3);
+    expect((await pending).value).toEqual({ answer: 'third try' });
+  });
+
+  it('takes the waits from an option, one for each retry, and retries no more times than there are waits', async () => {
+    const { delays, sleep } = recorder();
+    const inner = new FakeClient().script('select', unreached(1), unreached(2), unreached(3), { answer: 'never asked for' });
+    await expect(new RetryClient(inner, { sleep, unreachedDelaysMs: [5] }).json(request())).rejects.toThrow('Connection error. 2');
+    expect(inner.calls).toHaveLength(2);
+    expect(delays).toEqual([5]);
+
+    const none = new FakeClient().script('select', unreached(1), { answer: 'never asked for' });
+    await expect(new RetryClient(none, { sleep: recorder().sleep, unreachedDelaysMs: [] }).json(request())).rejects.toThrow('Connection error. 1');
+    expect(none.calls).toHaveLength(1);
+  });
+
+  it('retries nothing when it is told zero retries, whatever kind of failure it is', async () => {
+    const { delays, sleep } = recorder();
+    const inner = new FakeClient().script('select', unreached(1), { answer: 'never asked for' });
+    await expect(new RetryClient(inner, { retries: 0, sleep }).json(request())).rejects.toThrow('Connection error. 1');
+    expect(inner.calls).toHaveLength(1);
+    expect(delays).toEqual([]);
+  });
+
+  it('keeps the rule of the provider for an error that the provider answered with, next to it: three retries, doubling', async () => {
+    const { delays, sleep } = recorder();
+    const inner = new FakeClient().script('select', overloaded(1), overloaded(2), overloaded(3), { answer: 'fourth try' });
+    await new RetryClient(inner, { sleep }).json(request());
+    expect(inner.calls).toHaveLength(4);
+    expect(delays).toEqual([1000, 2000, 4000]);
+  });
+
+  it('counts the retries of one call together when the two kinds of failure follow each other, so that a call is never tried more than four times', async () => {
+    const { delays, sleep } = recorder();
+    const mixed = new FakeClient().script('select', overloaded(1), unreached(2), { answer: 'third try' });
+    await new RetryClient(mixed, { sleep }).json(request());
+    expect(mixed.calls).toHaveLength(3);
+    expect(delays).toEqual([1000, 3000]);
+
+    const late = recorder();
+    const tired = new FakeClient().script('select', overloaded(1), overloaded(2), unreached(3), { answer: 'never asked for' });
+    await expect(new RetryClient(tired, { sleep: late.sleep }).json(request())).rejects.toThrow('Connection error. 3');
+    expect(tired.calls).toHaveLength(3);
+    expect(late.delays).toEqual([1000, 2000]);
+  });
+
+  it('retries only a transport error that is marked: a plain transport error, a schema error, a refusal and a budget error are final, as before', async () => {
+    const { delays, sleep } = recorder();
+    for (const error of [new ModelError('transport', 'the Anthropic API could not be reached: boom'), new ModelError('schema', 'x'), new ModelError('refused', 'x'), new ModelError('budget', 'x')]) {
+      const inner = new FakeClient().script('select', error, { answer: 'never asked for' });
+      await expect(new RetryClient(inner, { sleep }).json(request())).rejects.toBe(error);
+      expect(inner.calls, error.kind).toHaveLength(1);
+    }
+    expect(delays).toEqual([]);
+  });
+
+  it('counts every try as a call: around a BudgetedClient with two calls, a call that fails twice and would work the third time stops with the budget error, not a third try', async () => {
+    const { delays, sleep } = recorder();
+    const inner = new StubClient((n) => (n < 3 ? unreached(n) : { inputTokens: 1, outputTokens: 1 }));
+    const budgeted = new BudgetedClient(inner, { maxCalls: 2, maxInputTokens: 1000, maxOutputTokens: 1000 });
+    const error = await new RetryClient(budgeted, { sleep }).json(request()).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ModelError);
+    expect((error as ModelError).kind).toBe('budget');
+    expect((error as ModelError).message).toBe('budget spent: 2 of 2 model calls');
+    expect(inner.calls).toHaveLength(2);
+    expect(budgeted.spent()).toEqual({ calls: 2, inputTokens: 0, outputTokens: 0 });
+    expect(delays).toEqual([1000, 3000]);
+  });
+});
+
+describe('RetryClient: telling of a retry', () => {
+  it('tells the listener, before it waits, which try is next and how many it may make, in words that hold no text of the request or of the error', async () => {
+    const events: string[] = [];
+    const retrying = new RetryClient(new FakeClient().script('select', unreached(1), unreached(2), { answer: 'ok' }), { sleep: async () => void events.push('wait') });
+    retrying.onRetry((line) => void events.push(line));
+    await retrying.json(request({ user: 'a secret question' }));
+    expect(events).toEqual(['model: connection error, retrying (2 of 3)', 'wait', 'model: connection error, retrying (3 of 3)', 'wait']);
+  });
+
+  it('says it of a provider error too, with the four tries that it may make', async () => {
+    const lines: string[] = [];
+    const retrying = new RetryClient(new FakeClient().script('select', overloaded(1), { answer: 'ok' }), { sleep: recorder().sleep });
+    retrying.onRetry((line) => void lines.push(line));
+    await retrying.json(request());
+    expect(lines).toEqual(['model: the API answered with an error that may pass, retrying (2 of 4)']);
+  });
+
+  it('says nothing when the call works, when no retry is made, or when nobody listens', async () => {
+    const lines: string[] = [];
+    const quiet = new RetryClient(new FakeClient().script('select', { answer: 'ok' }), { sleep: recorder().sleep });
+    quiet.onRetry((line) => void lines.push(line));
+    await quiet.json(request());
+    const final = new RetryClient(new FakeClient().script('select', new ModelError('schema', 'x')), { sleep: recorder().sleep });
+    final.onRetry((line) => void lines.push(line));
+    await expect(final.json(request())).rejects.toThrow('x');
+    expect(lines).toEqual([]);
+    await expect(new RetryClient(new FakeClient().script('select', unreached(), { answer: 'ok' }), { sleep: recorder().sleep }).json(request())).resolves.toBeDefined();
+  });
+
+  it('does not let a listener that throws change what the call does', async () => {
+    const retrying = new RetryClient(new FakeClient().script('select', unreached(), { answer: 'second try' }), { sleep: recorder().sleep });
+    retrying.onRetry(() => {
+      throw new Error('the log is broken');
+    });
+    expect((await retrying.json(request())).value).toEqual({ answer: 'second try' });
+  });
+});

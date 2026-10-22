@@ -23,6 +23,7 @@ import { FAKE_BUCKET, FAKE_ENDPOINT, FAKE_KEY_ID, FAKE_SECRET, makeBucket } from
 import { START, clock } from './support/run';
 import { COMMITTED_STATE, filesBelow, makeSite } from './support/site';
 import { fileReply, scriptedTransport } from './support/transport';
+import type { Route } from './support/transport';
 
 // The command line, called as a function: `main(argv, deps)` with a clock, an environment, a git and a place to print that the test hands in. Nothing
 // is run as a program, nothing real is touched, and no command in these tests can reach a network or a model.
@@ -221,6 +222,23 @@ describe('parseArgs: replay, status and the rest', () => {
     expect(refused('status', '--config', 'a', '--config', 'b')).toBe('--config is given twice');
   });
 
+  it('reads sources-check, which takes no argument and two options: the flag --items and --config', () => {
+    expect(parsed('sources-check')).toEqual({ command: 'sources-check', items: false, config: undefined });
+    expect(parsed('sources-check', '--items', '--config', 'desk.yml')).toEqual({ command: 'sources-check', items: true, config: 'desk.yml' });
+    expect(parsed('sources-check', '--config', 'desk.yml', '--items')).toEqual({ command: 'sources-check', items: true, config: 'desk.yml' });
+    expect(refused('sources-check', 'now')).toBe('sources-check takes no arguments, but was given "now"');
+    expect(refused('sources-check', '--dry')).toBe('unknown option --dry for sources-check');
+    expect(refused('sources-check', '--urls', 'u.txt')).toBe('unknown option --urls for sources-check');
+    expect(refused('sources-check', '--items', '--items')).toBe('--items is given twice');
+    expect(refused('sources-check', '--config')).toBe('--config needs a value');
+  });
+
+  it('does not give --items to the other commands', () => {
+    expect(refused('status', '--items')).toBe('unknown option --items for status');
+    expect(refused('tune', '--urls', 'u', '--items')).toBe('unknown option --items for tune');
+    expect(refused('run', '--items')).toBe('unknown option --items for run');
+  });
+
   it('reads --config, the path of a file of settings, for run and for replay', () => {
     expect(parsed('run', '--config', 'desk.yml')).toMatchObject({ command: 'run', config: 'desk.yml' });
     expect(parsed('run', '--dry', '--config', 'conf/desk.yml', '--sources', 'fixtures', '--client', 'fake')).toMatchObject({ config: 'conf/desk.yml' });
@@ -281,6 +299,27 @@ describe('main: usage errors', () => {
     expect(USAGE).toContain('[--config <path>]');
     // Every command that reads the settings says so; `retract`, `push` and `pack-artifact` do not read them.
     expect(USAGE.split('\n').filter((line) => line.startsWith('  desk ') && !line.startsWith('  desk retract') && !line.startsWith('  desk push') && !line.startsWith('  desk pack-artifact')).every((line) => line.includes('[--config <path>]'))).toBe(true);
+  });
+});
+
+describe('main: run --dry --client fake --sources fixtures, with a size of the parts of a page in the settings', () => {
+  it('runs the made-up story as it runs without the size, because neither of its two pages is more than one part of 400 words: one call for Extract, the same cassettes and artifacts, and a replay that is equal', async () => {
+    const plain = setup();
+    expect(await plain.call(...DRY_DEMO)).toBe(0);
+    const sized = setup();
+    sized.deps.config = { ...sized.deps.config!, extractChunkWords: 400 };
+    expect(await sized.call(...DRY_DEMO)).toBe(0);
+    expect(sized.err).toEqual([]);
+    expect(sized.out).toContain('outcome: published');
+    expect(sized.out.some((line) => line.includes('is read in'))).toBe(false);
+    const dirOf = (cwd: string): string => path.join(cwd, 'runs', DEMO_DATE);
+    expect(readdirSync(path.join(dirOf(sized.cwd), 'cassettes')).sort()).toEqual(readdirSync(path.join(dirOf(plain.cwd), 'cassettes')).sort());
+    for (const name of ['04-extract', '05-compose', '06-verify']) {
+      expect(readFileSync(path.join(dirOf(sized.cwd), `${name}.json`), 'utf8'), name).toBe(readFileSync(path.join(dirOf(plain.cwd), `${name}.json`), 'utf8'));
+    }
+    sized.out.length = 0;
+    expect(await sized.call('replay', dirOf(sized.cwd))).toBe(0);
+    expect(sized.out).toContain('replay: equal');
   });
 });
 
@@ -978,7 +1017,7 @@ describe('main: status', () => {
 
   it('says what the last run did, which piece it made when it made one, which day and try it was, and how many drafts are held', async () => {
     const { call, out, cwd } = setup();
-    const hold = { at: '2026-10-04T04:31:00.000Z', categories: ['humanoids'], reasons: ['TIER2_ATTRIBUTION'] };
+    const hold = { at: '2026-10-04T04:31:00.000Z', categories: ['payments-commerce'], reasons: ['TIER2_ATTRIBUTION'] };
     stateOf(cwd, { lastRun: LAST, holds: [hold, hold], corrections: [] });
     expect(await call('status')).toBe(0);
     expect(out).toEqual([
@@ -1249,3 +1288,136 @@ describe('main: retract', () => {
   });
 });
 
+
+describe('main: sources-check', () => {
+  // Every entry of the registry of the made-up world that has an address: one newsroom page, a standards page, an events page, and two outlets' feeds. The transport answers from the
+  // fixtures, so that no site is asked; the fetcher is the real one, so robots.txt, the pace (none, here) and the user agent are the Desk's own.
+  const ALLOW = { type: 'text/plain', body: 'User-agent: *\nAllow: /\n' };
+  const HOSTS = ['fixture-robotics.example', 'standards.example', 'expo.example', 'mercer-wire.example', 'gantry-daily.example'];
+  const readable = (): Record<string, Route> => ({
+    ...Object.fromEntries(HOSTS.map((host) => [`https://${host}/robots.txt`, ALLOW])),
+    'https://fixture-robotics.example/news': fileReply('pages/fixture-robotics-news.html'),
+    'https://standards.example/robotics': fileReply('pages/fixture-robotics-news.html'),
+    'https://expo.example/': fileReply('pages/fixture-robotics-news.html'),
+    'https://mercer-wire.example/feed.xml': fileReply('feeds/mercer-wire.rss.xml'),
+    'https://gantry-daily.example/atom.xml': fileReply('feeds/gantry-daily.atom.xml'),
+  });
+
+  function checking(routes: Record<string, Route>, overrides: Partial<CliDeps> = {}) {
+    const { transport, sent } = scriptedTransport(routes);
+    const made = setup({ transport, ...overrides });
+    // No pause between two requests to a host: the settings of the tests are those of the defaults otherwise, and a test would wait for each.
+    if (made.deps.config !== undefined) made.deps.config = { ...made.deps.config, requestIntervalMs: 0 };
+    return { ...made, sent };
+  }
+
+  it('lists the command in the usage text, with its options, and says that it writes nothing and needs no key', () => {
+    expect(USAGE).toContain('desk sources-check [--items] [--config <path>]');
+    expect(USAGE).toContain('sources-check  fetch every entry of sources.yml as the Desk fetches');
+    expect(USAGE).toContain('it writes nothing and needs no key');
+    expect(USAGE).toContain('--items lists under each feed its newest stories');
+  });
+
+  it('prints one line for each entry that has an address and the count, and exits 0 when every one could be read, asking no model and writing nothing', async () => {
+    const { call, out, err, cwd, git, sent } = checking(readable());
+    const before = filesBelow(cwd);
+    expect(await call('sources-check')).toBe(0);
+    expect(err).toEqual([]);
+    expect(out).toHaveLength(6);
+    expect(out[0]).toMatch(/^ok +Fixture Robotics +company-newsroom +page, \d+ characters of text$/);
+    expect(out[3]).toMatch(/^ok +Mercer Wire +tier2 +feed: 3 items, no keyword filter, 0 on a primary page, newest 2026-10-04$/);
+    expect(out.at(-1)).toBe('5 of 5 entries can be read; 0 were not tried');
+    expect(filesBelow(cwd)).toEqual(before);
+    expect(git.commits).toEqual([]);
+    expect(sent.every((request) => request.headers['User-Agent'] === TEST_AGENT)).toBe(true);
+  });
+
+  it('with --items, lists under each feed its newest three stories, newest first, one line each: the date, the title and the address', async () => {
+    const story = (name: string, day: string): string => `<item><title>Mercer ${name}</title><link>https://mercer-wire.example/robotics/${name}</link><pubDate>2026-10-${day}T06:00:00Z</pubDate></item>`;
+    const routes = readable();
+    // Five stories, out of order: only the newest three are listed.
+    routes['https://mercer-wire.example/feed.xml'] = {
+      type: 'application/xml',
+      body: `<?xml version="1.0"?><rss version="2.0"><channel><title>Mercer</title>${[story('five', '05'), story('one', '01'), story('four', '04'), story('two', '02'), story('three', '03')].join('')}</channel></rss>`,
+    };
+    const { call, out, err } = checking(routes);
+    expect(await call('sources-check', '--items')).toBe(0);
+    expect(err).toEqual([]);
+    expect(out).toHaveLength(11);
+    expect(out[3]).toMatch(/^ok +Mercer Wire +tier2 +feed: 5 items, no keyword filter, 0 on a primary page, newest 2026-10-05$/);
+    expect(out.slice(4, 7)).toEqual([
+      '    2026-10-05  Mercer five  https://mercer-wire.example/robotics/five',
+      '    2026-10-04  Mercer four  https://mercer-wire.example/robotics/four',
+      '    2026-10-03  Mercer three  https://mercer-wire.example/robotics/three',
+    ]);
+    expect(out[7]).toMatch(/^ok +Gantry Daily +tier2 +feed: 2 items, no keyword filter, 0 on a primary page, newest 2026-10-04$/);
+    expect(out.slice(8, 10)).toEqual([
+      '    2026-10-04  Fixture Robotics starts FX-1 deliveries to second Brindle plant  https://gantry-daily.example/2026/10/fx-1-second-brindle-plant',
+      '    2026-10-02  Brindle Logistics opens its second plant at Tarnmoor  https://gantry-daily.example/2026/10/brindle-opens-tarnmoor',
+    ]);
+    expect(out[10]).toBe('5 of 5 entries can be read; 0 were not tried');
+  });
+
+  it('exits 1 when an entry cannot be read, and its line says why: a page that is not there, a feed that robots.txt closes', async () => {
+    const routes = readable();
+    routes['https://standards.example/robotics'] = { status: 404, body: 'gone' };
+    routes['https://gantry-daily.example/robots.txt'] = { type: 'text/plain', body: 'User-agent: *\nDisallow: /atom.xml\n' };
+    const { call, out, err } = checking(routes);
+    expect(await call('sources-check')).toBe(1);
+    expect(err).toEqual([]);
+    expect(out).toHaveLength(6);
+    expect(out[1]).toMatch(/^error +Safety Standards Board +standard /);
+    expect(out[4]).toMatch(/^robots +Gantry Daily +tier2 .*robots\.txt/);
+    expect(out.at(-1)).toBe('3 of 5 entries can be read; 0 were not tried');
+  });
+
+  it('is refused with exit code 2 while the user agent links to a placeholder address, and asks nobody', async () => {
+    const { call, out, err, sent } = checking(readable(), { config: undefined });
+    expect(await call('sources-check')).toBe(2);
+    expect(out).toEqual([]);
+    expect(err).toEqual([
+      'desk: the user agent "AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)" links to agenticmediahouse.example, which is a placeholder address: a check of live sources needs a user agent that links to the real /method page of the Desk; set userAgent in a file of settings and pass it with --config <path>',
+    ]);
+    expect(sent).toEqual([]);
+  });
+
+  it('exits 2 for a file of settings that cannot be read, and 2 with the usage for a mistake in the arguments', async () => {
+    const { call, out, err } = checking(readable());
+    expect(await call('sources-check', '--config', 'no-such-file.yml')).toBe(2);
+    expect(out).toEqual([]);
+    expect(err[0]).toContain('no-such-file.yml');
+    err.length = 0;
+    expect(await call('sources-check', 'now')).toBe(2);
+    expect(err).toEqual(['desk: sources-check takes no arguments, but was given "now"', USAGE]);
+  });
+
+  it('reads the user agent from the file that --config names, relative to the folder the command is run in, and asks every site with it', async () => {
+    const { call, out, err, cwd, sent } = checking(readable(), { config: undefined });
+    writeFileSync(path.join(cwd, 'desk.yml'), `userAgent: "${TEST_AGENT}"\nrequestIntervalMs: 0\n`);
+    expect(await call('sources-check', '--config', 'desk.yml')).toBe(0);
+    expect(err).toEqual([]);
+    expect(out).toHaveLength(6);
+    expect(out.at(-1)).toBe('5 of 5 entries can be read; 0 were not tried');
+    expect(sent.length).toBeGreaterThan(5);
+    expect(sent.every((request) => request.headers['User-Agent'] === TEST_AGENT)).toBe(true);
+  });
+
+  it('exits 1 and says so when the check itself fails in a way that is no fetch or feed error: a place to print that breaks, say', async () => {
+    const { call, out, err } = checking(readable(), {
+      out: () => {
+        throw new Error('broken pipe');
+      },
+    });
+    expect(await call('sources-check')).toBe(1);
+    expect(out).toEqual([]);
+    expect(err).toEqual(['the sources could not be checked: broken pipe']);
+  });
+
+  it('exits 1 when sources.yml cannot be read, and says so', async () => {
+    const { call, err, cwd, out } = checking(readable());
+    writeFileSync(path.join(cwd, 'sources.yml'), 'primary: [not, a, registry]\n');
+    expect(await call('sources-check')).toBe(1);
+    expect(out).toEqual([]);
+    expect(err[0]).toMatch(/^the sources cannot be read: /);
+  });
+});

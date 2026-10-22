@@ -1,5 +1,5 @@
 import type { Check, Failure } from '../gate';
-import { LIMITATION_MAX_CLAIMS, claimNumber, joinList, outletOf, renderLimitation } from '../limitations';
+import { claimNumber, joinList, outletOf, renderLimitation } from '../limitations';
 import type { Claim } from '../schemas';
 import { allSentences, describeLocation } from '../sentences';
 
@@ -7,7 +7,6 @@ import { allSentences, describeLocation } from '../sentences';
 export const G8_CODES = [
   'G8_LIMITATION_PLACEMENT',
   'G8_LIMITATION_CLAIMS',
-  'G8_LIMITATION_GROUP_SIZE',
   'G8_LIMITATION_GROUP',
   'G8_LIMITATION_MISMATCH',
 ] as const;
@@ -32,20 +31,18 @@ function claimsProblem(ids: readonly string[], known: ReadonlyMap<string, Claim>
 /**
  * G8, limitations: the "What we couldn't verify" sentences are never freely
  * written. Each one describes the metadata of a group of claims through one of
- * the fixed templates in `limitations.ts`, so this check can render the
+ * the fixed notes in `limitations.ts`, so this check can render the
  * sentence again and compare. The comparison is exact.
  *
  * - A limitation sentence may sit only in `draft.limitations`
  *   (G8_LIMITATION_PLACEMENT), wherever else it is found.
  * - It cites at least one claim of the piece, each once, in ascending order of
  *   claim number (G8_LIMITATION_CLAIMS).
- * - It cites at most LIMITATION_MAX_CLAIMS claims; a larger group is written as
- *   several sentences (G8_LIMITATION_GROUP_SIZE).
  * - The claims of a 'basis' sentence all have the same basis, and those of a
  *   'status' sentence the same status; a 'basis' sentence for the basis
  *   `reported` names one outlet, so its claims also share their outlet
  *   (G8_LIMITATION_GROUP).
- * - Its text is what the template renders for its claims
+ * - Its text is what the note renders for its claims
  *   (G8_LIMITATION_MISMATCH). A sentence whose claims have changed since it
  *   was written fails here too.
  *
@@ -74,14 +71,6 @@ export const checkG8: Check = ({ draft, claims }) => {
     const problem = claimsProblem(ids, byId);
     if (problem !== undefined) {
       fail('G8_LIMITATION_CLAIMS', `the limitation sentence at ${where} ${problem}`);
-      continue;
-    }
-
-    if (ids.length > LIMITATION_MAX_CLAIMS) {
-      fail(
-        'G8_LIMITATION_GROUP_SIZE',
-        `the limitation sentence at ${where} cites ${ids.length} claims, and a limitation sentence covers at most ${LIMITATION_MAX_CLAIMS}: write one sentence for each ${LIMITATION_MAX_CLAIMS} claims, in ascending order of claim number`,
-      );
       continue;
     }
 

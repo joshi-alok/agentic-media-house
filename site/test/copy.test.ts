@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  analysisLimit,
   deskIntro,
   disclosure,
   gateIntro,
@@ -26,6 +27,8 @@ import {
 import { LIVE } from '../src/lib/live';
 import type { Live } from '../src/lib/live';
 import { releaseNote } from '../src/lib/receipts';
+import { defaultContext, runGate } from '@robywire/gate';
+import { cloneGolden } from '@robywire/gate/fixtures';
 
 // The Desk is not running in Plan 1, and a page that says it is would be a lie. Every
 // sentence of the site whose tense depends on a part of the Desk being live is written
@@ -95,9 +98,9 @@ describe('receiptsIntro', () => {
 
 describe('disclosure', () => {
   const OFF =
-    'Agentic Media House will be written by an automated pipeline, the Desk. A piece will be published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece will have a receipts page that shows the trace.';
+    "Agentic Media House will be written by an automated pipeline, the Desk. Every factual sentence will be traced to a passage of a source that the piece links; a sentence that rests on another outlet's reporting names the outlet; analysis is labelled. Nothing here is financial advice.";
   const ON =
-    'Agentic Media House is written by an automated pipeline, the Desk. A piece is published only when every factual sentence in it is traced to a quoted passage in a primary source; each piece has a receipts page that shows the trace.';
+    "Agentic Media House is written by an automated pipeline, the Desk. Every factual sentence is traced to a passage of a source that the piece links; a sentence that rests on another outlet's reporting names the outlet; analysis is labelled. Nothing here is financial advice.";
 
   it.each(CASES)('is in the present tense only when the Desk publishes (%s)', (_name, live) => {
     expect(disclosure(live)).toBe(live.publishing ? ON : OFF);
@@ -106,17 +109,17 @@ describe('disclosure', () => {
   it.each([NONE, ALL])('names the pipeline and the rule, and claims no second model, human review or editor', (live) => {
     const text = disclosure(live);
     expect(text).toContain('automated pipeline');
-    expect(text).toContain('every factual sentence');
-    expect(text).toContain('primary source');
+    expect(text).toContain('Every factual sentence');
+    expect(text).toContain('a passage of a source that the piece links');
     expect(text).not.toMatch(/second model|verifier|independent|review|human|editor/i);
     expect(text.length).toBeLessThan(400);
   });
 });
 
 describe('siteDescription', () => {
-  const OFF = 'A robotics news site built so that every factual sentence links to the passage of a primary source it rests on. An automated pipeline will write it.';
-  const WRITTEN = 'Robotics news written by an automated pipeline. Every factual sentence links to the passage of a primary source that it rests on.';
-  const DAILY = 'Daily robotics news written by an automated pipeline. Every factual sentence links to the passage of a primary source that it rests on.';
+  const OFF = 'A publication about AI agents in crypto, built so that every factual sentence links to the passage of a source it rests on. An automated pipeline will write it.';
+  const WRITTEN = 'Writing on AI agents in crypto by an automated pipeline. Every factual sentence links to the passage of a source that it rests on.';
+  const DAILY = 'Daily writing on AI agents in crypto by an automated pipeline. Every factual sentence links to the passage of a source that it rests on.';
 
   it.each(CASES)('claims a running service, and a daily one, only when they are live (%s)', (_name, live) => {
     expect(siteDescription(live)).toBe(!live.publishing ? OFF : live.scheduler ? DAILY : WRITTEN);
@@ -133,9 +136,9 @@ describe('siteDescription', () => {
 
 describe('deskIntro', () => {
   const OFF =
-    'Agentic Media House is a robotics news site, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace will be public on its receipts page. What the code cannot trace will not be published.';
+    'Agentic Media House is a publication about AI agents in crypto, and the Desk is the automated pipeline that will write its pieces; every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece will be published without a human only when every factual sentence in it can be traced to a passage quoted from a source that the piece links, and the trace will be public on its receipts page. What the code cannot trace will not be published.';
   const ON =
-    'Agentic Media House is a robotics news site. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a primary source, and the trace is public. What the code cannot trace is not published.';
+    'Agentic Media House is a publication about AI agents in crypto. Its pieces are written by an automated pipeline, the Desk, and every page of the site says so in the footer. The idea is simple: a model may propose, but code decides. A piece is published without a human only when every factual sentence in it can be traced to a passage quoted from a source that the piece links, and the trace is public. What the code cannot trace is not published.';
 
   it.each(CASES)('is in the present tense only when the Desk publishes (%s)', (_name, live) => {
     expect(deskIntro(live)).toBe(live.publishing ? ON : OFF);
@@ -155,12 +158,19 @@ describe('methodDisclosure', () => {
 
 describe('gateIntro', () => {
   const OFF =
-    'The gate is code, and it is built and tested. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. If one fails, the draft is not published: the gate reports the exact failures, and the Desk will send the draft back for revision with them. In plain English the rules are these.';
+    'The gate is code, and it is built and tested. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. A finding is either a blocker, which stops the draft (the gate reports the exact failures, and the Desk will send the draft back for revision with them), or a note, which is recorded on the receipts page of the piece and does not stop it. In plain English the rules are these.';
   const ON =
-    'The gate is code. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. If one fails, the draft is not published; it goes back for revision with the exact failures. In plain English the rules are these.';
+    'The gate is code. It runs nine checks, G1 to G9, on a draft before anything is published. The checks are plain functions with no network and no model, so the same draft always gets the same answer. A finding is either a blocker, which sends the draft back for revision with the exact failures, or a note, which is recorded on the receipts page of the piece and does not stop it. In plain English the rules are these.';
 
   it.each(CASES)('says the revision loop runs only when the Desk does (%s)', (_name, live) => {
     expect(gateIntro(live)).toBe(live.publishing ? ON : OFF);
+  });
+
+  it.each([NONE, ALL])('says what a blocker does and what a note does, and no longer that any failed check stops the draft', (live) => {
+    const text = gateIntro(live);
+    expect(text).toContain('A finding is either a blocker');
+    expect(text).toContain('or a note, which is recorded on the receipts page of the piece and does not stop it');
+    expect(text).not.toContain('If one fails');
   });
 });
 
@@ -234,30 +244,61 @@ describe('trialText', () => {
 
 describe('modelCheckText', () => {
   const OFF =
-    'On every piece, once the Desk is live, a second model call will read each factual sentence beside the passages it cites and judge whether they say the same thing, and whether the basis and status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. This check will be a second layer on top of the nine rules, never the only one. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted. It is not running yet.';
+    'On every piece, once the Desk is live, a second model call will read each sentence and each heading beside the passages it cites and judge whether they say the same thing, and whether the basis and status labels fit. It will use a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece will be held. A basis that the passage does not support will hold the piece too; a status that it does not support will be lowered to "unspecified", which says nothing about how far the capability has got, and the piece will go on, with a note on its receipts page. This check will be a second layer on top of the nine rules for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read, it will be the only layer. Before it is relied on, its accuracy will be measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted. It is not running yet.';
   const ON =
-    'On every piece, a second model call reads each factual sentence beside the passages it cites and judges whether they say the same thing, and whether the basis and status labels fit. It uses a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece is held. This check is a second layer on top of the nine rules, never the only one. Its accuracy was measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted, before it was relied on.';
+    'On every piece, a second model call reads each sentence and each heading beside the passages it cites and judges whether they say the same thing, and whether the basis and status labels fit. It uses a different prompt from the model that wrote the piece. If it finds a sentence that is not supported, or cannot tell, the piece is held. A basis that the passage does not support holds the piece too; a status that it does not support is lowered to "unspecified", which says nothing about how far the capability has got, and the piece goes on, with a note on its receipts page. This check is a second layer on top of the nine rules for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read, it is the only layer. Its accuracy was measured on a labelled set of sentences, some supported, some unsupported and some subtly distorted, before it was relied on.';
 
   it.each(CASES)('is in the future tense until the verifier is live (%s)', (_name, live) => {
     expect(modelCheckText(live)).toBe(live.verifier ? ON : OFF);
+  });
+
+  it.each(CASES)('says that a basis it does not find holds the piece and a status it does not find is lowered to unspecified, which says nothing, and the piece goes on, in the tense of the rest (%s)', (_name, live) => {
+    const text = modelCheckText(live);
+    const will = live.verifier ? '' : 'will ';
+    expect(text).toContain(`A basis that the passage does not support ${will}hold${live.verifier ? 's' : ''} the piece too; a status that it does not support ${live.verifier ? 'is' : 'will be'} lowered to "unspecified", which says nothing about how far the capability has got, and the piece ${live.verifier ? 'goes' : 'will go'} on, with a note on its receipts page.`);
+  });
+
+  it.each([NONE, ALL])('does not say that the rules are always a layer under the model check: for meaning and for names it is the only layer', (live) => {
+    const text = modelCheckText(live);
+    expect(text).not.toContain('never the only one');
+    expect(text).toContain('for figures, quotations and sourcing; for meaning, and for the names that the rules only note or do not read,');
+    expect(text).toMatch(/it (?:is|will be) the only layer\./);
   });
 });
 
 describe('holdsText', () => {
   const OFF =
-    "The gate holds a piece when it cannot clear it: a rule asks for a human decision, as G6 does for any piece that uses another outlet's reporting, or, once the pipeline runs, a check still fails after two rounds of revision. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
+    "The gate holds a piece when it cannot clear it: once the pipeline runs, a blocker that still stands after four rounds of revision, or a model check that does not clear it, will hold it. A held draft is not published. It will go to the owner as a draft pull request that carries the gate report; that flow is not running yet.";
   const ON =
-    "The gate holds a piece when it cannot clear it: a check still fails after two rounds of revision, or a rule asks for a human decision, as G6 does for any piece that uses another outlet's reporting. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report.";
+    "The gate holds a piece when it cannot clear it: a blocker still stands after four rounds of revision, or the model check does not clear it. A held draft is not published. It goes to the owner as a draft pull request that carries the gate report.";
 
   it.each(CASES)('says the pull request flow is running only when the Desk publishes (%s)', (_name, live) => {
     expect(holdsText(live)).toBe(live.publishing ? ON : OFF);
+  });
+
+  // The number of rounds is not written in the page: it is that of the daily run, which desk.config.yml sets (two rounds, and two more while a problem that a sentence can mend is still there).
+  it.each(CASES)('says the number of rounds of the daily run, which is four, and the number it is given when it is given one (%s)', (_name, live) => {
+    expect(holdsText(live)).toBe(holdsText(live, 4));
+    expect(holdsText(live, 2)).toContain('after two rounds of revision');
+    expect(holdsText(live, 1)).toContain('after one round of revision');
+    expect(holdsText(live, 4)).not.toContain('three');
+  });
+
+  // A piece that rests on another outlet is no longer a reason for a hold: the article labels it, and the gate publishes it.
+  it.each([NONE, ALL])('names the two ways to a hold, and does not name another outlet or G6 as one', (live) => {
+    const text = holdsText(live);
+    expect(text).toContain('four rounds of revision');
+    expect(text).toContain('model check');
+    expect(text).not.toContain('G6');
+    expect(text).not.toContain('another outlet');
+    expect(text).not.toContain('human decision');
   });
 });
 
 describe('ownerReleaseText', () => {
   const NOTE = releaseNote('owner');
-  const OFF = `A held draft will be published only if the owner decides to release it, and the piece will then say so: its receipts page will read "${NOTE}", and each sentence that rests on another outlet will be labelled "Unconfirmed." in the article; the site already does both for a piece whose ledger says that the owner released it.`;
-  const ON = `A held draft is published only if the owner decides to release it, and the piece then says so: its receipts page reads "${NOTE}", and each sentence that rests on another outlet is labelled "Unconfirmed." in the article.`;
+  const OFF = `A held draft will be published only if the owner decides to release it, and the piece will then say so: its receipts page will read "${NOTE}", and each sentence that rests on another outlet will be labelled "Unconfirmed." in the body of the article; the site already does both for a piece whose ledger says that the owner released it.`;
+  const ON = `A held draft is published only if the owner decides to release it, and the piece then says so: its receipts page reads "${NOTE}", and each sentence that rests on another outlet is labelled "Unconfirmed." in the body of the article.`;
 
   it.each(CASES)('says the release happens only when the Desk publishes (%s)', (_name, live) => {
     expect(ownerReleaseText(live)).toBe(live.publishing ? ON : OFF);
@@ -271,7 +312,7 @@ describe('ownerReleaseText', () => {
   });
 
   it('quotes what the receipts page of an owner-released piece says, so the two cannot drift apart', () => {
-    expect(NOTE).toBe('Held by the gate, then released by the owner.');
+    expect(NOTE).toBe('Held for the owner, then released by the owner.');
     expect(ownerReleaseText(NONE)).toContain(`"${NOTE}"`);
     expect(ownerReleaseText(ALL)).toContain(`"${NOTE}"`);
   });
@@ -296,12 +337,44 @@ describe('scoreboardCaveat', () => {
 
 describe('meaningLimit', () => {
   const START =
-    'Meaning is not checked by code. The checks make sure that every figure, name and quotation in a sentence comes from a claim the sentence cites, not that the sentence says what the claim says, or that a paraphrase is fair.';
+    'Meaning is not checked by code. The checks make sure that every figure (a number or a date, or a word that mixes letters and digits) in a factual sentence and every quotation comes from a claim the sentence cites, and they note a name in a factual sentence that no cited claim lists (except the first word of a sentence); they do not check that the sentence says what the claim says, or that a paraphrase is fair.';
   const OFF = `${START} That will be the job of the independent model check, which is not running yet.`;
   const ON = `${START} That is the job of the independent model check.`;
 
   it.each(CASES)('hands meaning to the model check, in the tense of its flag (%s)', (_name, live) => {
     expect(meaningLimit(live)).toBe(live.verifier ? ON : OFF);
+  });
+
+  it.each([NONE, ALL])('does not say that the checks make sure of a name, because a name that no cited claim lists is only noted', (live) => {
+    expect(meaningLimit(live)).not.toContain('figure, name and quotation');
+    expect(meaningLimit(live)).toContain('they note a name in a factual sentence that no cited claim lists (except the first word of a sentence)');
+  });
+
+  // What the sentence says the checks do is what the gate does: a figure and a quotation that no cited claim has send a piece back, a name is noted.
+  it('is true of the gate: a number, a date, a word that mixes letters and digits and a quotation that no cited claim has are blockers, and a name that no cited claim lists is a note', () => {
+    const codesOf = (change: (input: ReturnType<typeof cloneGolden>) => void) => {
+      const input = cloneGolden();
+      change(input);
+      const result = runGate(input, defaultContext());
+      return { failures: result.failures.map((failure) => failure.code), notes: result.warnings.map((note) => note.code) };
+    };
+    const number = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant shipped 77 arms.'; });
+    expect(number.failures).toContain('G4_NUMBER_UNSUPPORTED');
+    const date = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant shipped arms on 3 March 2019.'; });
+    expect(date.failures).toContain('G4_DATE_UNSUPPORTED');
+    const quote = codesOf((input) => { input.draft.takeaways[0]!.text = 'The company said "every arm ships free".'; });
+    expect(quote.failures).toContain('G5_QUOTE_NOT_VERBATIM');
+    // A word that mixes letters and digits is a figure in this sentence: it is a blocker, and a name without a digit is only a note.
+    const mixed = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant ships in mid-2027.'; });
+    expect(mixed.failures).toContain('G4_FIGURE_UNSUPPORTED');
+    expect(mixed.notes).not.toContain('G4_NAME_UNSUPPORTED');
+    const name = codesOf((input) => { input.draft.takeaways[0]!.text = 'The plant is the second Harlow plant to receive arms.'; });
+    expect(name.failures).not.toContain('G4_NAME_UNSUPPORTED');
+    expect(name.notes).toContain('G4_NAME_UNSUPPORTED');
+    // The exception in the sentence: the first word of a sentence is not read as a name, so an invented name that opens one is not even noted.
+    const first = codesOf((input) => { input.draft.takeaways[0]!.text = 'Tarnmoor shipped.'; });
+    expect(first.failures).not.toContain('G4_NAME_UNSUPPORTED');
+    expect(first.notes).not.toContain('G4_NAME_UNSUPPORTED');
   });
 });
 
@@ -347,9 +420,11 @@ describe('statusPageIntro', () => {
 
 describe('sourcesText', () => {
   const TIERS =
-    "A tier 1 source is a primary one: a company's own announcement or datasheet, a paper, a regulatory filing, a standard, a results sheet.";
-  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it will never state a fact on that authority. The gate already enforces the rest of the rule: a claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk will not rewrite a competitor's reporting; the story will be held.`;
-  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk may notice a story in a tier 2 feed, but it never states a fact on that authority. A claim that has only a tier 2 source can appear only as an attribution that names the outlet, and a piece that contains one is held for the owner instead of being published. If a story has no reachable primary source, the Desk does not rewrite a competitor's reporting; the story is held.`;
+    "A tier 1 source is a primary one: a project's, a company's or a researcher's own post, announcement or documentation, a paper, a regulatory filing, a standard or a proposal.";
+  const GATE =
+    'The gate would still require such a claim, if one ever appeared, to appear only as an attribution that names the outlet, and the article would label it Unconfirmed in its body; a headline or a description built on one would name the outlet and carry no label.';
+  const OFF = `${TIERS} The Desk will write from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk will read other outlets only to find the news, and it will never state a fact on their authority: it will follow a story to a primary page and write from that page alone, so a piece written this way will hold no claim that rests on another outlet. ${GATE} If a story has no reachable primary source, or its primary page has been written from already, the Desk will not write it: the model will be asked for another story, up to three times in all, and the day may have none.`;
+  const ON = `${TIERS} The Desk writes from tier 1 sources. A tier 2 source is another outlet's reporting. The Desk reads other outlets only to find the news, and it never states a fact on their authority: it follows a story to a primary page and writes from that page alone, so a piece written this way holds no claim that rests on another outlet. ${GATE} If a story has no reachable primary source, or its primary page has been written from already, the Desk does not write it: the model is asked for another story, up to three times in all, and the day may have none.`;
 
   it.each(CASES)('says what the Desk does in the present tense only when it publishes (%s)', (_name, live) => {
     expect(sourcesText(live)).toBe(live.publishing ? ON : OFF);
@@ -358,8 +433,33 @@ describe('sourcesText', () => {
   it('keeps the definition of the two tiers and the rule of the gate in both tenses', () => {
     for (const live of [NONE, ALL]) {
       expect(sourcesText(live)).toContain(TIERS);
-      expect(sourcesText(live)).toContain('can appear only as an attribution that names the outlet');
+      expect(sourcesText(live)).toContain(GATE);
     }
+  });
+
+  // The daily run follows a story to its primary page and fetches that page alone (profile `explainer`: Select leaves out a story with no primary page, and asks again up to SELECT_ATTEMPTS times),
+  // so a piece it writes holds no claim of another outlet. The page says that, and not that a piece may rest entirely on another outlet's reporting and publish by itself, which it cannot.
+  it.each([NONE, ALL])('says that the Desk reads other outlets to find the news and writes from a primary page alone, and not that a piece may rest on another outlet', (live) => {
+    const text = sourcesText(live);
+    expect(text).toMatch(/reads? other outlets only to find the news/);
+    expect(text).toMatch(/(?:follows|will follow) a story to a primary page and (?:writes|write) from that page alone/);
+    expect(text).toContain(live.publishing ? 'holds no claim that rests on another outlet' : 'will hold no claim that rests on another outlet');
+    expect(text).not.toMatch(/rests entirely|published without a human|attributed to the outlet by name/);
+  });
+
+  it.each([NONE, ALL])('says what the Desk does with a story that has no reachable primary source, or whose primary page was written from already: asks the model for another, up to three times, and the day may have none', (live) => {
+    const text = sourcesText(live);
+    expect(text).toContain('If a story has no reachable primary source, or its primary page has been written from already, the Desk');
+    expect(text).toContain('another story, up to three times in all, and the day may have none.');
+  });
+
+  // The label is written by renderBody for the body only, and a title or a description that rests on another outlet has none: the page says so plainly.
+  it.each([NONE, ALL])('says that another outlet would be attributed and labelled, that a headline or a description built on it would name it and have no label, and that nothing is held for that', (live) => {
+    const text = sourcesText(live);
+    expect(text).toContain('the article would label it Unconfirmed in its body');
+    expect(text).toContain('a headline or a description built on one would name the outlet and carry no label');
+    expect(text).not.toMatch(/\bheld\b/);
+    expect(text).not.toContain('for the owner');
   });
 });
 
@@ -368,14 +468,14 @@ describe('neverDoes', () => {
     'It will contact no one. It will send no email to a company and ask nobody for comment, so no piece will say "we asked and did not hear back".',
     'It will not republish its sources. A piece will quote short passages, each attributed and at most 300 characters, and will not copy articles.',
     'It will use no photographs. Each piece already gets a fact card drawn from its own claims.',
-    "It will not rewrite another outlet's reporting as its own. A story with no reachable primary source will be held.",
+    "It will not rewrite another outlet's reporting as its own. A fact that only another outlet reports will be attributed to it by name and labelled Unconfirmed in the body of the article.",
     'It will not publish a sentence the gate cannot trace to a source, and the gate already refuses one.',
   ];
   const ON = [
     'It contacts no one. It sends no email to a company and asks nobody for comment, so no piece says "we asked and did not hear back".',
     'It does not republish its sources. A piece quotes short passages, each attributed and at most 300 characters, and does not copy articles.',
     'It uses no photographs. Each piece gets a fact card drawn from its own claims.',
-    "It does not rewrite another outlet's reporting as its own. A story with no reachable primary source is held.",
+    "It does not rewrite another outlet's reporting as its own. A fact that only another outlet reports is attributed to it by name and labelled Unconfirmed in the body of the article.",
     'It does not publish a sentence the gate cannot trace to a source.',
   ];
 
@@ -386,6 +486,35 @@ describe('neverDoes', () => {
   it('says in the future tense that the card is already drawn and the gate already refuses, which the code does today', () => {
     expect(neverDoes(NONE)[2]).toContain('already gets a fact card');
     expect(neverDoes(NONE)[4]).toContain('the gate already refuses one');
+  });
+});
+
+describe('analysisLimit', () => {
+  const START =
+    'Analysis sentences, which are at most 40 percent of the sentences of the body (a piece above that is noted, not stopped), are checked by code for where they stand and for the numbers, dates and names they bring in,';
+  const ADDS = 'one that adds an entity, an event, a figure or a claim of fact that the passages it relies on do not support.';
+  const MISSED =
+    'A model can miss one, and a judgement or a consequence that the passages plainly support is allowed by design, so an analysis sentence can still be wrong in a way that no rule sees; the page labels it Analysis.';
+  const OFF = `${START} and then, once it runs (it is not running yet), by the model check, which will refuse ${ADDS} ${MISSED}`;
+  const ON = `${START} and then by the model check, which refuses ${ADDS} ${MISSED}`;
+
+  it.each(CASES)('gives the model check in the tense of its flag (%s)', (_name, live) => {
+    expect(analysisLimit(live)).toBe(live.verifier ? ON : OFF);
+  });
+
+  it.each(CASES)('says what no rule sees, whether or not the model check runs (%s)', (_name, live) => {
+    expect(analysisLimit(live)).toContain(MISSED);
+    expect(analysisLimit(live)).not.toContain('by no model');
+  });
+
+  it('says the model check is not running yet only while it is not', () => {
+    expect(analysisLimit(NONE)).toContain('(it is not running yet)');
+    expect(analysisLimit(ALL)).not.toContain('not running yet');
+    expect(analysisLimit(ALL)).not.toContain('will refuse');
+  });
+
+  it('is the text the method page shows by default', () => {
+    expect(analysisLimit()).toBe(analysisLimit(LIVE));
   });
 });
 
@@ -429,7 +558,8 @@ describe('the source of the site', () => {
     ['a hold that waits for the owner', /waits for the owner/i],
     ['the record the Desk keeps of its own runs', /record the Desk keeps/i],
     ['what the Desk never does', /\bIt (?:contacts no one|does not republish its sources|uses no photographs|does not rewrite another outlet|does not publish a sentence)/],
-    ['the sources the Desk writes from', /The Desk writes from tier 1 sources|never states a fact on that authority|the Desk does not rewrite a competitor/i],
+    ['the sources the Desk writes from', /The Desk writes from tier 1 sources|never states a fact on their authority|reads other outlets only to find the news|the Desk does not rewrite a competitor/i],
+    ['what the model check does with analysis', /by the model check, which (?:will )?refuses? one that adds/],
   ])('has no file that writes a sentence about %s outside copy.ts and live.ts', (_what, pattern) => {
     const found = files.filter((file) => pattern.test(readFileSync(file, 'utf8'))).map((file) => path.relative(SRC, file));
     expect(found).toEqual([]);

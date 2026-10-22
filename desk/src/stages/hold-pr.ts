@@ -27,7 +27,7 @@ import type { StageContext } from './context';
 export function renderHeldPiece(held: HeldArtifact): RenderedPiece {
   return renderDraft(held.draft, held.claims, {
     runId: held.runId,
-    gate: { ...held.gate, route: 'hold', holdReasons: [...held.reasons] },
+    gate: { ...held.gate, route: 'hold', warnings: held.gate.warnings ?? [], holdReasons: [...held.reasons] },
     verifier: held.verifier,
     release: 'owner',
   });

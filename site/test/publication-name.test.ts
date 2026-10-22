@@ -80,7 +80,7 @@ describe('the files that say what the repository is', () => {
   it('has the name of the publication as the title of the README and in its first sentence', () => {
     const readme = read('README.md');
     expect(readme.startsWith(`# ${PUBLICATION_NAME}\n`)).toBe(true);
-    expect(readme).toContain(`${PUBLICATION_NAME} is a robotics news site`);
+    expect(readme).toContain(`${PUBLICATION_NAME} is a publication about AI agents in crypto`);
   });
 
   it('has no old name in the README, except in the names that it stays in', () => {

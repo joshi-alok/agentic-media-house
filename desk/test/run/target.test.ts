@@ -152,7 +152,7 @@ describe('SiteTarget.apply', () => {
 
   it('keeps the holds that are there when it records a hold', async () => {
     const { repoDir, target } = setup();
-    const hold = { at: '2026-10-05T04:32:00.000Z', categories: ['humanoids'], reasons: ['TIER2_ATTRIBUTION'] };
+    const hold = { at: '2026-10-05T04:32:00.000Z', categories: ['payments-commerce'], reasons: ['TIER2_ATTRIBUTION'] };
     await target.apply({ state: (state) => addHold(state, hold), message: 'desk: hold 1' });
     await target.apply({ state: (state) => addHold(state, { ...hold, reasons: ['G4_NUMBER_UNSUPPORTED'] }), message: 'desk: hold 2' });
     expect((await readDeskState(path.join(repoDir, STATE))).holds.map((item) => item.reasons)).toEqual([['TIER2_ATTRIBUTION'], ['G4_NUMBER_UNSUPPORTED']]);

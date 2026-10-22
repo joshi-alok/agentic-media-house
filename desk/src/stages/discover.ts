@@ -1,13 +1,15 @@
-import { DiscoverArtifact, candidateId, extractPage, hostKey, parseFeed, tier1Newsrooms, tier2Feeds, writeArtifact } from '../index';
-import type { Candidate, Newsroom, PageLink, Tier2Feed } from '../index';
+import { DiscoverArtifact, candidateId, extractPage, hostKey, isTier1, parseFeed, tier1Feeds, tier1Newsrooms, tier2Feeds, writeArtifact } from '../index';
+import type { Candidate, Newsroom, PageLink, PrimaryFeed, Tier2Feed } from '../index';
 import { describeFailure, isSourceFailure } from './context';
 import type { StageContext } from './context';
 import { isCovered, sameStory } from './duplicates';
+import { itemMatches } from './keywords';
 
-// Stage 1, Discover: find the stories of the day. Every newsroom and every feed of `sources.yml` is read; each
-// feed item and each headline link of a newsroom becomes a candidate; the ones the Desk has already seen or
-// published are dropped. A source that cannot be read is skipped and the reason is kept, because a quiet source
-// is not a reason to stop. If every source fails, the run fails: an outage must not look like a day with no news.
+// Stage 1, Discover: find the stories of the day. Every newsroom and every feed of `sources.yml` is read; each feed
+// item that holds a keyword of its source (every item, for a source with no keywords) and each headline link of a
+// newsroom becomes a candidate; the ones the Desk has already seen or published are dropped. A source that cannot be
+// read is skipped and the reason is kept, because a quiet source is not a reason to stop. If every source fails, the
+// run fails: an outage must not look like a day with no news.
 // No model is called.
 
 /** The most candidates taken from one source. A feed or a page of absurd size would otherwise fill the artifact. */
@@ -44,10 +46,12 @@ function headlines(room: Newsroom, links: PageLink[]): PageLink[] {
 /**
  * Read the newsrooms and the feeds, make the candidates, drop the repeats and write `01-discover.json`.
  *
- * Newsrooms are read first, so that when a company's own announcement and an outlet's report of it tell the same story,
- * the announcement is the one kept. A candidate is dropped when its address is one that was already seen or
+ * Newsrooms are read first, then the feeds of primary sources, then the feeds of other outlets, so that when a project's own post and an
+ * outlet's report of it tell the same story, the post is the one kept. An item of a feed is left out, and the log says how many, when it holds no
+ * keyword of its source (a source with no keywords keeps every item) and, in the feed of a primary source, when it links to a page that is not a
+ * primary source. A candidate is dropped when its address is one that was already seen or
  * is cited by a published piece, or when its title tells the same story as one already kept, or as a piece published in the
- * last 14 days (the gate's own test of a title, see `sameStory`). At most `MAX_PER_SOURCE` candidates come from one source.
+ * last 14 days (the gate's own test of a title, see `sameStory`). At most `MAX_PER_SOURCE` candidates come from one source, counted after the items are left out.
  *
  * Throws, after writing the artifact, when every source failed, and throws at once when the registry has nothing to read.
  */
@@ -79,8 +83,11 @@ export async function runDiscover(ctx: StageContext): Promise<DiscoverArtifact> 
       );
     });
   }
+  for (const feed of tier1Feeds(ctx.sources)) {
+    await attempt(feed.name, () => readFeed(ctx, feed, 1));
+  }
   for (const feed of tier2Feeds(ctx.sources)) {
-    await attempt(feed.name, () => readFeed(ctx, feed));
+    await attempt(feed.name, () => readFeed(ctx, feed, 2));
   }
 
   if (polled === 0) throw new Error('discover: the registry has no newsroom or feed to read');
@@ -109,11 +116,25 @@ export async function runDiscover(ctx: StageContext): Promise<DiscoverArtifact> 
   return artifact;
 }
 
-async function readFeed(ctx: StageContext, feed: Tier2Feed): Promise<Candidate[]> {
+async function readFeed(ctx: StageContext, feed: Tier2Feed | PrimaryFeed, tier: 1 | 2): Promise<Candidate[]> {
   const page = await ctx.fetcher.get(feed.feed);
   const parsed = parseFeed(page.body);
   if (parsed.skipped > 0) ctx.log(`discover: ${feed.name}: ${parsed.skipped} item(s) with no title or no link were left out`);
-  return parsed.items.map((item) =>
-    candidateOf({ title: item.title, url: item.link, publishedAt: item.publishedAt, outlet: feed.name, tier: 2, beats: feed.beats, origin: 'feed' }),
-  );
+  let offTopic = 0;
+  let elsewhere = 0;
+  const items = parsed.items.filter((item) => {
+    if (!itemMatches(item, feed.keywords)) {
+      offTopic++;
+      return false;
+    }
+    // A primary feed is trusted for what it says it published, not for where it links: an item whose page is not a page of a primary source is not written from.
+    if (tier === 1 && !isTier1(item.link, ctx.sources)) {
+      elsewhere++;
+      return false;
+    }
+    return true;
+  });
+  if (offTopic > 0) ctx.log(`discover: ${feed.name}: ${offTopic} item(s) held no keyword of the source and were left out`);
+  if (elsewhere > 0) ctx.log(`discover: ${feed.name}: ${elsewhere} item(s) link to a page that is not a primary source and were left out`);
+  return items.map((item) => candidateOf({ title: item.title, url: item.link, publishedAt: item.publishedAt, outlet: feed.name, tier, beats: feed.beats, origin: 'feed' }));
 }

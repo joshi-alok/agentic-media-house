@@ -4,28 +4,23 @@ import { checkG8 } from '../src/checks/g8-limitations';
 import { defaultContext } from '../src/config';
 import { cloneGolden } from '../src/fixtures';
 import type { CheckOutput, GateInput } from '../src/gate';
-import { buildLimitations, renderLimitation } from '../src/limitations';
+import { BASIS_NOTES, STATUS_NOTES, buildLimitations, renderLimitation } from '../src/limitations';
 import type { LimitationSentence } from '../src/schemas';
 import { claimById, mutate } from './helpers';
 
 const run = (change: (copy: GateInput) => void): CheckOutput => checkG8(mutate(cloneGolden(), change), defaultContext());
 const codes = (output: CheckOutput) => output.failures.map((failure) => failure.code);
 
-// The golden piece has nine limitation sentences, one for each group of at most four claims:
-//   1  basis    datasheet      c-8 to c-11
-//   2  basis    datasheet      c-12 to c-15
-//   3  basis    press-release  c-1 to c-4
-//   4  basis    press-release  c-5, c-6, c-7 and c-22
-//   5  basis    press-release  c-23 to c-26
-//   6  basis    demo           c-27 and c-28
-//   7  status   demonstrated   c-27 and c-28
-//   8  status   planned        c-5, c-6, c-7 and c-25
-//   9  status   planned        c-26
+// The golden piece has five limitation sentences, one for each group, whatever its size:
+//   1  basis    docs           c-8 to c-15
+//   2  basis    announcement   c-1 to c-7 and c-22 to c-26
+//   3  basis    demo           c-27 and c-28
+//   4  status   demonstrated   c-27 and c-28
+//   5  status   planned        c-5, c-6, c-7, c-25 and c-26
 const first = (g: GateInput): LimitationSentence => g.draft.limitations[0]!;
-const FIRST_TEXT =
-  "The 12 kilograms payload, 1.4 metres reach, 2.3 metres per second top speed and 0.05 mm repeatability figures come from the company's datasheet; no independent measurement was available.";
+const FIRST_TEXT = BASIS_NOTES.docs;
 const FIRST_AT = 'limitations, sentence 1';
-const FIRST_IDS = ['c-8', 'c-9', 'c-10', 'c-11'];
+const FIRST_IDS = ['c-8', 'c-9', 'c-10', 'c-11', 'c-12', 'c-13', 'c-14', 'c-15'];
 
 /** Point a limitation sentence at these claim ids. */
 const cites = (sentence: LimitationSentence, ids: string[]) => {
@@ -37,21 +32,17 @@ describe('G8: the golden piece', () => {
     expect(checkG8(cloneGolden(), defaultContext())).toEqual({ failures: [], holdReasons: [] });
   });
 
-  it('has nine limitation sentences, one for each group of at most four claims, in both templates', () => {
+  it('has five limitation sentences, one for each group, in both templates', () => {
     const { limitations } = cloneGolden().draft;
-    expect(limitations).toHaveLength(9);
+    expect(limitations).toHaveLength(5);
     expect(limitations[0]?.text).toBe(FIRST_TEXT);
     expect(limitations[0]?.claimIds).toEqual(FIRST_IDS);
     expect(limitations.map((sentence) => [sentence.template, sentence.claimIds.length])).toEqual([
-      ['basis', 4],
-      ['basis', 4],
-      ['basis', 4],
-      ['basis', 4],
-      ['basis', 4],
+      ['basis', 8],
+      ['basis', 12],
       ['basis', 2],
       ['status', 2],
-      ['status', 4],
-      ['status', 1],
+      ['status', 5],
     ]);
   });
 
@@ -69,17 +60,16 @@ describe('G8: the golden piece', () => {
     expect(run((g) => (g.draft.limitations = []))).toEqual({ failures: [], holdReasons: [] });
   });
 
-  it('passes a sentence for one claim, written with the singular template', () => {
+  it('passes a sentence for one claim, which reads as it does for a group', () => {
     const output = run((g) => {
-      g.draft.limitations = [
-        {
-          kind: 'limitation',
-          text: "The 12 kilograms payload figure comes from the company's datasheet; no independent measurement was available.",
-          claimIds: ['c-8'],
-          template: 'basis',
-        },
-      ];
+      g.draft.limitations = [{ kind: 'limitation', text: renderLimitation([claimById(g.claims, 'c-8')], 'basis'), claimIds: ['c-8'], template: 'basis' }];
     });
+    expect(output).toEqual({ failures: [], holdReasons: [] });
+  });
+
+  it('passes a sentence for ten claims: a group has no size limit', () => {
+    const ten = ['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7', 'c-22', 'c-23', 'c-24'];
+    const output = run((g) => cites(g.draft.limitations[1]!, ten));
     expect(output).toEqual({ failures: [], holdReasons: [] });
   });
 });
@@ -191,61 +181,10 @@ describe('G8_LIMITATION_CLAIMS', () => {
   });
 });
 
-describe('G8_LIMITATION_GROUP_SIZE', () => {
-  const SIZE_MESSAGE = (count: number, at: string) =>
-    `the limitation sentence at ${at} cites ${count} claims, and a limitation sentence covers at most 4: write one sentence for each 4 claims, in ascending order of claim number`;
-
-  /** Make the first sentence cite `ids`, with the text the template renders for them, so that only its size is wrong. */
-  const citingExactly = (g: GateInput, ids: string[]) => {
-    cites(first(g), ids);
-    first(g).text = renderLimitation(ids.map((id) => claimById(g.claims, id)), 'basis');
-  };
-
-  it('fails a sentence that cites more than four claims, even when its text is exactly what the template renders, and says how many', () => {
-    const output = run((g) => citingExactly(g, ['c-8', 'c-9', 'c-10', 'c-11', 'c-12']));
-    expect(output.failures).toEqual([{ check: 'G8', code: 'G8_LIMITATION_GROUP_SIZE', message: SIZE_MESSAGE(5, FIRST_AT), where: FIRST_AT }]);
-  });
-
-  it('accepts a sentence of four claims, the largest the rule allows', () => {
-    expect(run((g) => citingExactly(g, ['c-8', 'c-9', 'c-10', 'c-11']))).toEqual({ failures: [], holdReasons: [] });
-  });
-
-  it('counts the claims of a status sentence too', () => {
-    const output = run((g) => {
-      const sentence = g.draft.limitations[7]!;
-      cites(sentence, ['c-5', 'c-6', 'c-7', 'c-25', 'c-26']);
-      sentence.text = renderLimitation(sentence.claimIds.map((id) => claimById(g.claims, id)), 'status');
-    });
-    expect(output.failures.map((failure) => [failure.code, failure.where])).toEqual([['G8_LIMITATION_GROUP_SIZE', 'limitations, sentence 8']]);
-  });
-
-  it('reports a sentence over the cap for its size alone: not for its group and not for its text', () => {
-    const output = run((g) => {
-      cites(first(g), ['c-1', 'c-8', 'c-9', 'c-10', 'c-11']);
-      first(g).text = 'Anything.';
-    });
-    expect(codes(output)).toEqual(['G8_LIMITATION_GROUP_SIZE']);
-  });
-
-  it('leaves a list of claims that cannot be used to G8_LIMITATION_CLAIMS', () => {
-    expect(codes(run((g) => cites(first(g), ['c-8', 'c-9', 'c-10', 'c-11', 'c-999'])))).toEqual(['G8_LIMITATION_CLAIMS']);
-    expect(codes(run((g) => cites(first(g), ['c-8', 'c-8', 'c-9', 'c-10', 'c-11'])))).toEqual(['G8_LIMITATION_CLAIMS']);
-  });
-
-  it('reports each sentence over the cap', () => {
-    const output = run((g) => {
-      cites(g.draft.limitations[0]!, ['c-8', 'c-9', 'c-10', 'c-11', 'c-12']);
-      cites(g.draft.limitations[1]!, ['c-12', 'c-13', 'c-14', 'c-15', 'c-16']);
-    });
-    expect(output.failures.map((failure) => [failure.code, failure.where])).toEqual([
-      ['G8_LIMITATION_GROUP_SIZE', 'limitations, sentence 1'],
-      ['G8_LIMITATION_GROUP_SIZE', 'limitations, sentence 2'],
-    ]);
-  });
-
+describe('what buildLimitations writes', () => {
   // buildLimitations is what the composer stage uses, so whatever claims a piece cites, G8 must accept what it writes.
   it.each([
-    ['all the claims of the golden piece with the basis datasheet', (g: GateInput) => g.claims.forEach((claim) => (claim.basis = 'datasheet'))],
+    ['all the claims of the golden piece with the basis docs', (g: GateInput) => g.claims.forEach((claim) => (claim.basis = 'docs'))],
     ['all of them planned', (g: GateInput) => g.claims.forEach((claim) => (claim.status = 'planned'))],
     [
       'thirteen claims that two outlets reported',
@@ -272,20 +211,20 @@ describe('G8_LIMITATION_GROUP', () => {
       {
         check: 'G8',
         code: 'G8_LIMITATION_GROUP',
-        message: `the limitation sentence at ${FIRST_AT} groups claims with different bases (c-1: press-release, c-8: datasheet): a basis sentence covers claims that share one basis`,
+        message: `the limitation sentence at ${FIRST_AT} groups claims with different bases (c-1: announcement, c-8: docs): a basis sentence covers claims that share one basis`,
         where: FIRST_AT,
       },
     ]);
   });
 
   it('fails a status sentence whose claims do not share one status, and says which', () => {
-    const output = run((g) => cites(g.draft.limitations[7]!, ['c-5', 'c-27']));
+    const output = run((g) => cites(g.draft.limitations[4]!, ['c-5', 'c-27']));
     expect(output.failures).toEqual([
       {
         check: 'G8',
         code: 'G8_LIMITATION_GROUP',
-        message: 'the limitation sentence at limitations, sentence 8 groups claims with different statuses (c-5: planned, c-27: demonstrated): a status sentence covers claims that share one status',
-        where: 'limitations, sentence 8',
+        message: 'the limitation sentence at limitations, sentence 5 groups claims with different statuses (c-5: planned, c-27: demonstrated): a status sentence covers claims that share one status',
+        where: 'limitations, sentence 5',
       },
     ]);
   });
@@ -334,7 +273,7 @@ describe('G8_LIMITATION_GROUP for claims that another outlet reported', () => {
     g.draft.limitations.push(sentence);
     return sentence;
   };
-  const AT = 'limitations, sentence 10';
+  const AT = 'limitations, sentence 6';
 
   it('accepts a reported sentence whose claims come from one outlet', () => {
     expect(run((g) => reportedPair(g, ['Mercer Wire', 'Mercer Wire']))).toEqual({ failures: [], holdReasons: [] });
@@ -385,7 +324,7 @@ describe('G8_LIMITATION_MISMATCH', () => {
       {
         check: 'G8',
         code: 'G8_LIMITATION_MISMATCH',
-        message: `the limitation sentence at ${FIRST_AT} does not match the basis template for c-8, c-9, c-10, c-11; it must read: "${FIRST_TEXT}"`,
+        message: `the limitation sentence at ${FIRST_AT} does not match the basis template for ${FIRST_IDS.join(', ')}; it must read: "${FIRST_TEXT}"`,
         where: FIRST_AT,
       },
     ]);
@@ -394,7 +333,8 @@ describe('G8_LIMITATION_MISMATCH', () => {
   it('compares the text exactly: one changed word, an extra space or a missing full stop fails', () => {
     for (const text of [
       FIRST_TEXT.replace('available', 'obtainable'),
-      FIRST_TEXT.replace('payload', 'payload  '),
+      FIRST_TEXT.replace('documentation', 'documentation  '),
+      "What is cited here comes from the company's datasheet; the 12 kilograms payload figure was not measured independently.",
       FIRST_TEXT.replace(/\.$/, ''),
       `${FIRST_TEXT} `,
       FIRST_TEXT.toLowerCase(),
@@ -403,23 +343,18 @@ describe('G8_LIMITATION_MISMATCH', () => {
     }
   });
 
-  it('compares the plural: a group written with the singular words fails', () => {
-    const singular = FIRST_TEXT.replace('figures come', 'figure comes');
-    expect(codes(run((g) => (first(g).text = singular)))).toEqual(['G8_LIMITATION_MISMATCH']);
-  });
-
   it('fails the right text under the wrong template', () => {
-    // The text of sentence 6 (the demo basis) under the status template, over the same two claims.
+    // The text of sentence 3 (the demo basis) under the status template, over the same two claims.
     const output = run((g) => {
-      g.draft.limitations[5]!.template = 'status';
+      g.draft.limitations[2]!.template = 'status';
     });
     expect(output.failures.map((failure) => failure.message)).toEqual([
-      'the limitation sentence at limitations, sentence 6 does not match the status template for c-27, c-28; it must read: "The trailer unloading and demo day were demonstrated; the source does not report them in commercial deployment."',
+      `the limitation sentence at limitations, sentence 3 does not match the status template for c-27, c-28; it must read: "${STATUS_NOTES.demonstrated}"`,
     ]);
   });
 
-  it('fails the right text under other claims of the same basis', () => {
-    expect(codes(run((g) => cites(first(g), ['c-8', 'c-9'])))).toEqual(['G8_LIMITATION_MISMATCH']);
+  it('passes the same text under other claims of the same basis: the sentence does not say which claims they are, and G2 asks that every claim is covered', () => {
+    expect(run((g) => cites(first(g), ['c-8', 'c-9']))).toEqual({ failures: [], holdReasons: [] });
   });
 
   it('fails when the metadata of every claim of a group is changed after the sentence was written', () => {
@@ -429,9 +364,9 @@ describe('G8_LIMITATION_MISMATCH', () => {
     expect(output.failures.map((failure) => failure.code)).toEqual(['G8_LIMITATION_MISMATCH']);
   });
 
-  it("fails when a claim's label or figure is changed", () => {
-    expect(codes(run((g) => (claimById(g.claims, 'c-8').label = 'rated load')))).toEqual(['G8_LIMITATION_MISMATCH']);
-    expect(codes(run((g) => (claimById(g.claims, 'c-8').values[0]!.raw = '14 kilograms')))).toEqual(['G8_LIMITATION_MISMATCH']);
+  it("does not change with a claim's label or figure, which the sentence does not say", () => {
+    expect(run((g) => (claimById(g.claims, 'c-8').label = 'rated load'))).toEqual({ failures: [], holdReasons: [] });
+    expect(run((g) => (claimById(g.claims, 'c-8').values[0]!.raw = '14 kilograms'))).toEqual({ failures: [], holdReasons: [] });
   });
 
   it('reports each mismatched sentence', () => {

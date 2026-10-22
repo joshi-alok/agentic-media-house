@@ -37,13 +37,13 @@ export function formatDateTime(isoDateTime: string): string {
 }
 
 const LABELS: Record<Category, string> = {
-  humanoids: 'Humanoids',
-  'home-consumer': 'Home & consumer',
-  'industrial-warehouse': 'Industrial & warehouse',
-  'field-mobility': 'Field & mobility',
-  'software-autonomy': 'Software & autonomy',
-  'components-supply-chain': 'Components & supply chain',
-  'policy-standards': 'Policy & standards',
+  'payments-commerce': 'Payments & commerce',
+  'identity-trust': 'Identity & trust',
+  'wallets-keys': 'Wallets & keys',
+  'protocols-standards': 'Protocols & standards',
+  'agent-infrastructure': 'Agent infrastructure',
+  'security-incidents': 'Security & incidents',
+  'policy-regulation': 'Policy & regulation',
   funding: 'Funding',
 };
 
@@ -54,13 +54,13 @@ export function beatLabel(slug: string): string {
 }
 
 const BLURBS: Record<Category, string> = {
-  humanoids: 'General-purpose bipeds and androids, commercial and research.',
-  'home-consumer': 'Robots for domestic and personal use, including home humanoids.',
-  'industrial-warehouse': 'Arms, cobots, mobile robots, fulfilment and manufacturing cells.',
-  'field-mobility': 'Agriculture, construction, inspection, drones and outdoor autonomy.',
-  'software-autonomy': 'Vision-language-action models, sim-to-real, control stacks, teleoperation and perception.',
-  'components-supply-chain': 'Actuators, drives, sensors, batteries, chips and supply.',
-  'policy-standards': 'Regulation, safety standards, certification and labour.',
+  'payments-commerce': 'Agents that pay and get paid: stablecoin rails, micropayments, checkout and agent-to-agent commerce.',
+  'identity-trust': 'Who an agent is and why to trust it: credentials, attestations, reputation and verification.',
+  'wallets-keys': 'How agents hold and use keys: smart accounts, session keys, custody and signing.',
+  'protocols-standards': 'The specifications agents use to talk, pay and prove: proposals, standards and open protocols.',
+  'agent-infrastructure': 'The software under agents on chain: runtimes, oracles, data, indexing and tooling.',
+  'security-incidents': 'Exploits, failures and audits that involve agents, and how they were found and fixed.',
+  'policy-regulation': 'Law, regulators and guidance that touch agents and the money they handle.',
   funding: 'Rounds, acquisitions, public listings and shutdowns, filed under the beat they concern.',
 };
 
@@ -78,4 +78,17 @@ export function plural(n: number, one: string, many: string): string {
 /** The text of the <title> element: the page name, then the name of the publication, unless the page name already has it. */
 export function documentTitle(page: string): string {
   return page.includes(PUBLICATION_NAME) ? page : `${page} ${EM_DASH} ${PUBLICATION_NAME}`;
+}
+
+const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+
+/** A count in words, as the page writes a small number ("four"); above twenty, in digits. A count that is not a whole number of at least 0 is a mistake of the caller. */
+export function countInWords(count: number): string {
+  if (!Number.isInteger(count) || count < 0) throw new Error(`${String(count)} is not a count: a whole number of at least 0`);
+  return COUNT_WORDS[count] ?? String(count);
+}
+
+/** How many times, in words: "once", "twice", then "three times" and so on. */
+export function timesInWords(count: number): string {
+  return count === 1 ? 'once' : count === 2 ? 'twice' : `${countInWords(count)} times`;
 }

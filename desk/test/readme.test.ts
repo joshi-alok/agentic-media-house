@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { USAGE } from '../src/cli';
+import { defaultConfig } from '../src/config';
 
 // The README says what the Desk does and does not do, and a sentence that a later change makes untrue must fail a test. These tests
 // read the README of the repository and check the sections that state limits.
@@ -14,6 +16,17 @@ function section(heading: string): string {
   const next = rest.indexOf('\n## ', 3);
   return next < 0 ? rest : rest.slice(0, next);
 }
+
+describe('the README: the usage of the commands', () => {
+  // The line of a command in the README lists the options that the usage of the command line lists for it, so that an option that is added to the command is added to the README.
+  it('gives the line of `desk tune` every option that the usage lists for it, in the form that the usage has', () => {
+    const usageLine = USAGE.split('\n').find((line) => line.startsWith('  desk tune '))!;
+    const options = usageLine.trim().slice('desk tune '.length);
+    expect(options).toContain('[--profile brief|digest|explainer]');
+    const readmeLine = README.split('\n').find((line) => line.startsWith('- `npm run desk -- tune '))!;
+    expect(readmeLine).toContain(`\`npm run desk -- tune ${options}\``);
+  });
+});
 
 describe('the README: what the Desk is tested with', () => {
   const desk = (): string => section('The desk workspace');
@@ -47,6 +60,43 @@ describe('the README: how a replay knows how the run was made', () => {
     expect(command).toContain('The record of the run says which client and which sources it used, so a replay needs no flag for them');
     expect(command).toContain('one that contradicts the record is refused with exit code 2');
     expect(command).toContain('A record from before records said how a run was made has no such information and needs `--sources`');
+  });
+});
+
+describe('the README: a status that the model check does not find', () => {
+  it('says that a basis it does not find holds the piece, that a status is lowered to unspecified in a copy of the claims and the piece goes on, where it is recorded, and that a status Extract gave as unspecified stays a failure when rejected, and that a lowered status rejected again is set aside', () => {
+    const stages = section('The desk workspace');
+    expect(stages).toContain('A basis that it does not find holds the piece (no sentence and no other basis can mend it).');
+    expect(stages).toContain('A status that it does not find is lowered to `unspecified`, which says nothing about how far the capability has got, so that the piece then says less and never more: in a copy of the claims (`04-extract.json` keeps what Extract said)');
+    expect(stages).toContain('`06-verify.json` lists each lowering in `lowered`, the log has a line for it, and the notes of the model check say it.');
+    expect(stages).toContain('A status that Extract itself gave as `unspecified` and that is rejected stays a failure; a status that was lowered and is rejected again in a later round is set aside, because there is nothing lower to lower it to.');
+  });
+});
+
+describe('the README: trying a model call again', () => {
+  it('says which failures a call is tried again after, how often and after how long, what is not tried again, that every try is a call of the budget, and that a retry is logged', () => {
+    const models = section('The desk workspace');
+    expect(models).toContain('A call that could not reach the API (a connection error, or a connection that timed out) is tried again at most twice, after 1 second and then 3');
+    expect(models).toContain('a call that the API answered with a 429 or a 5xx, at most three times, after 1, 2 and 4 seconds');
+    expect(models).toContain('nothing else is tried again (a 4xx, a refusal, a reply cut off at the limit, a reply that is not usable after its one repair), and a connection error is not tried again once a reply has arrived (in the repair request of a call, whose first reply was paid for)');
+    expect(models).toContain('Every try is a call of the budget (`maxCalls`), so the retries cannot go over it');
+    expect(models).toContain('`model: connection error, retrying (2 of 3)`');
+  });
+});
+
+describe('the README: reading a page in parts', () => {
+  it('says what the setting extractChunkWords does, that it is off by default, that every part is a call, that the claims are checked against the whole page, and that a replay reads the same parts', () => {
+    const command = section('The desk command');
+    expect(command).toContain('The setting `extractChunkWords` (none by default, so that each page is read whole in one call)');
+    expect(command).toContain('into at most 6 parts');
+    expect(command).toContain('when no page of a story is more than one part, the run makes the one call for all the pages that it makes without the setting');
+    expect(command).toContain('one call to the model for each part');
+    expect(command).toContain('the claims of every part are still checked against the whole page');
+    expect(command).toContain('`desk replay` reads the page in the same parts');
+  });
+
+  it('lists it among what desk.config.yml holds, with the size that the file sets', () => {
+    expect(section('The desk command')).toContain('(`profile: explainer`), the size of the parts of a page (`extractChunkWords: 400`)');
   });
 });
 
@@ -249,9 +299,10 @@ describe('the README: what the Desk does not check', () => {
     expect(limits()).toContain('DNS rebinding');
   });
 
-  it('says that analysis sentences are read by code only and never by the model check, and that a model-written id is filtered before a prompt', () => {
+  it('says that analysis sentences are read by code and then by the model check, and that a model-written id is filtered before a prompt', () => {
     expect(limits()).toContain('**Analysis sentences.**');
-    expect(limits()).toContain('the model check (G10) is never asked about them');
+    expect(limits()).toContain('the model check (G10) then judges each of them beside the passages of the claims it cites (all the claims the piece cites, when it cites none), and rejects one that adds an entity, an event, a figure or a claim of fact that they do not support');
+    expect(limits()).not.toContain('is never asked about them');
     expect(limits()).toContain('**Claim ids in a prompt.**');
   });
 
@@ -448,7 +499,7 @@ describe('the README: the tuning harness', () => {
   const tune = (): string => section('The tuning harness');
 
   it('is one of the commands, with its options, and says that it publishes and commits nothing', () => {
-    expect(section('The desk command')).toContain('`npm run desk -- tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--config <path>]`');
+    expect(section('The desk command')).toContain('`npm run desk -- tune --urls <file> [--trials N] [--max-calls M] [--client api|fake] [--profile brief|digest|explainer] [--config <path>]`');
     expect(section('The desk command')).toContain('It publishes and commits nothing');
     expect(section('The desk command')).toContain('`npm run desk -- push [--branch-only] [--run-id <id>] [--output <file>] [--audit-log <file>]` pushes what the checkout has and `origin/main` has not');
   });
@@ -526,3 +577,25 @@ describe('the README: the runbook', () => {
   });
 });
 
+
+describe('the README: what the composer is told when a sentence is sent back', () => {
+  // A rewrite that brought a number no claim has held a piece in a real trial, so the message that sends a fact sentence back lists the values of the claims it cites. They come from a page,
+  // so the README says that they stand in a block, like every text from a page.
+  it('says that a fact sentence is sent back with the numbers, dates and names of its claims, in a block of its own, and that an analysis sentence and a heading are told the rule', () => {
+    expect(section('The desk workspace')).toContain('a fact sentence with the numbers, dates and names that the claims it cites license, listed in a block of its own');
+    const limits = section('What the Desk does not check');
+    expect(limits).toContain('**Values in a prompt.**');
+    expect(limits).toContain('they stand in a block of their own (`<id>-values`)');
+    expect(limits).toContain('For an analysis sentence');
+    expect(limits).toContain('lists no value');
+  });
+});
+
+describe('the README: the rounds of revision', () => {
+  // The defaults are 2 and 1 and the README says so; the file of settings of the daily run sets the extra rounds to 2, which makes four in all, and the method page says four from that file.
+  it('says the defaults of the rounds, and that desk.config.yml sets 2 extra rounds, so that a draft of the daily run goes back at most four times', () => {
+    expect(defaultConfig()).toMatchObject({ maxRevisionRounds: 2, extraRevisionRounds: 1 });
+    expect(section('The desk workspace')).toContain('`maxRevisionRounds` times (twice by default) and `extraRevisionRounds` more times (once by default; `desk.config.yml` sets 2, so a draft of the daily run goes back at most four times, and the method page says so from that file)');
+    expect(section('The desk command')).toContain('(`extraRevisionRounds`, 1 by default, and 2 in `desk.config.yml` for the daily run, so that a long piece can settle after a rewrite broke something; a blocker that no sentence can mend gets none)');
+  });
+});

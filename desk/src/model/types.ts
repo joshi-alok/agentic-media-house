@@ -11,6 +11,12 @@ import { z } from 'zod';
 export const MODEL_ROLES = ['select', 'extract', 'compose', 'verify'] as const;
 export type ModelRole = (typeof MODEL_ROLES)[number];
 
+/**
+ * How hard a model may think before it answers: the `effort` of the API, for the models that take one. It is named by the stage, never by the config, because what
+ * a stage asks (find quotations, write from claims, judge a sentence) decides it. Thinking is paid for as output and counts against `maxOutputTokens`.
+ */
+export type ModelEffort = 'low' | 'medium' | 'high';
+
 /** One question to a model, and the shape the answer must have. */
 export interface ModelRequest<T> {
   role: ModelRole;
@@ -23,6 +29,11 @@ export interface ModelRequest<T> {
   schema: z.ZodType<T>;
   /** The most tokens the reply may have. */
   maxOutputTokens: number;
+  /**
+   * How hard the model may think. Left out, the client sends nothing and the model's own default applies, which for a Sonnet is `high`. The client sends it only to a
+   * model that takes one (a Haiku 4.5 does not: the API answers 400), and sends nothing to any other, so a stage may name one whatever model the config gives it.
+   */
+  effort?: ModelEffort;
 }
 
 /** What a call cost, as the model's provider reported it. */
@@ -43,10 +54,10 @@ export interface ModelClient {
 
 /**
  * Why a call failed.
- * - `transport`: the request did not get an answer (network, the provider's own errors); some are `retryable`.
+ * - `transport`: the request did not get an answer (network, the provider's own errors); some are `retryable`, and a call that could not reach the provider at all is `unreached`.
  * - `schema`: the reply came but is not JSON of the shape that was asked for.
  * - `budget`: the run has used all it may spend.
- * - `unrecorded`: no scripted reply or recorded response exists for this request.
+ * - `unrecorded`: no scripted reply or recorded response exists for this request; or a response that was paid for could not be written as a cassette (it carries `usage`).
  * - `refused`: the model stopped without finishing an answer: it declined, or ran out of its output limit.
  */
 export type ModelErrorKind = 'transport' | 'schema' | 'budget' | 'unrecorded' | 'refused';
@@ -54,14 +65,23 @@ export type ModelErrorKind = 'transport' | 'schema' | 'budget' | 'unrecorded' | 
 /** The error a `ModelClient` throws when a call fails. */
 export class ModelError extends Error {
   readonly kind: ModelErrorKind;
-  /** True only for a transport error that is worth trying again (a 429 or a 5xx); false for every other kind. */
+  /** True only for a transport error that is worth trying again because the provider answered with a 429 or a 5xx; false for every other kind. */
   readonly retryable: boolean;
+  /**
+   * True only for a transport error of a call that never got an answer: the connection failed or timed out, so no reply came and the call reports no tokens. It is worth
+   * trying again, with a rule of its own (see `RetryClient`), and it is not `retryable`, which is for an answer of the provider.
+   */
+  readonly unreached: boolean;
+  /** What the failed call cost, when the provider reported it: a reply cut off at its limit has spent its tokens all the same. Undefined when nothing was reported. */
+  readonly usage: ModelUsage | undefined;
 
-  constructor(kind: ModelErrorKind, message: string, options: { cause?: unknown; retryable?: boolean } = {}) {
+  constructor(kind: ModelErrorKind, message: string, options: { cause?: unknown; retryable?: boolean; unreached?: boolean; usage?: ModelUsage } = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = 'ModelError';
     this.kind = kind;
     this.retryable = kind === 'transport' && options.retryable === true;
+    this.unreached = kind === 'transport' && options.unreached === true;
+    this.usage = options.usage;
   }
 }
 
@@ -105,9 +125,9 @@ export function jsonSchemaOf<T>(schema: z.ZodType<T>): unknown {
  * recorded response can be found again; changing any one of the five gives a
  * different key.
  *
- * `maxOutputTokens` is left out on purpose. It limits how long the answer may be;
- * it is not part of the question. A limit that someone changes in the config
- * must not make every recorded response miss.
+ * `maxOutputTokens` and `effort` are left out on purpose. One limits how long the answer
+ * may be and the other how hard the model may think; neither is part of the question. A
+ * limit or an effort that someone changes must not make every recorded response miss.
  */
 export function requestKey<T>(request: ModelRequest<T>): string {
   return sha256Hex(

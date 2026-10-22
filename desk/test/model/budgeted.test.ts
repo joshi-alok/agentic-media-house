@@ -156,3 +156,24 @@ describe('BudgetedClient limits', () => {
     expect((await refusal(client)).message).toBe('budget spent: 24 of 24 model calls');
   });
 });
+
+describe('BudgetedClient and a call that failed after it spent tokens', () => {
+  it('adds the tokens that the error reports, and lets the error through untouched', async () => {
+    const failure = new ModelError('refused', 'the reply was cut off at the output limit', { usage: usage(7000, 8000) });
+    const client = new BudgetedClient(new StubClient(() => failure), unlimited);
+    await expect(client.json(request())).rejects.toBe(failure);
+    expect(client.spent()).toEqual({ calls: 1, inputTokens: 7000, outputTokens: 8000 });
+  });
+
+  it('adds nothing for an error that reports no tokens, such as a call that never reached the model', async () => {
+    const client = new BudgetedClient(new StubClient(() => new ModelError('transport', 'no answer')), unlimited);
+    await expect(client.json(request())).rejects.toMatchObject({ kind: 'transport' });
+    expect(client.spent()).toEqual({ calls: 1, inputTokens: 0, outputTokens: 0 });
+  });
+
+  it('refuses the next call once the tokens of the failed one have reached a limit', async () => {
+    const client = new BudgetedClient(new StubClient(() => new ModelError('refused', 'cut off', { usage: usage(100, 8000) })), { ...unlimited, maxOutputTokens: 8000 });
+    await expect(client.json(request())).rejects.toMatchObject({ kind: 'refused' });
+    expect((await refusal(client)).message).toBe('budget spent: 8000 of 8000 output tokens');
+  });
+});

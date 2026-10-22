@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { CHECK_IDS, CHECK_RESULTS, Claim, Draft, ROUTES, RUN_OUTCOMES } from '@robywire/gate';
+import { CHECK_IDS, CHECK_RESULTS, Claim, Draft, PROFILE_IDS, ROUTES, RUN_OUTCOMES } from '@robywire/gate';
 import { z } from 'zod';
 import { DeskConfig } from '../config';
 import { describeIssues } from '../issues';
@@ -87,13 +87,15 @@ export const FetchDocument = z.strictObject({
   /** The address after redirects. */
   finalUrl: httpUrl,
   tier,
-  /** The SHA-256 of the extracted text, which is the name of the snapshot in the evidence store. */
+  /** The SHA-256 of the stored text (the extracted text, cut when `truncated`), which is the name of the snapshot in the evidence store. */
   hash: z.string().regex(/^[0-9a-f]{64}$/, 'hash must be 64 lowercase hex characters'),
   retrievedAt: isoDateTime,
-  /** The size of the extracted text in UTF-8 bytes. */
+  /** The size of the stored text in UTF-8 bytes. */
   bytes: z.number().int().nonnegative(),
   /** The title of the page; empty when the page has none. */
   title: z.string(),
+  /** True only when the text was cut at `maxPageChars`: what was stored and read is the beginning of the page. */
+  truncated: z.literal(true).optional(),
 });
 export type FetchDocument = z.infer<typeof FetchDocument>;
 
@@ -105,7 +107,10 @@ export const FetchArtifact = z.strictObject({
 });
 export type FetchArtifact = z.infer<typeof FetchArtifact>;
 
-/** A claim that a model proposed and code dropped: its place in the reply of the model (counting from 0), what it said, and every reason, each with the code of a check that claims go through (`CLAIM_PROBLEM_CODES`). */
+/**
+ * A claim that a model proposed and code dropped: its place in the reply of the model (counting from 0; for pages read in parts, its place among the claims of all the replies, in the order of the calls, so that
+ * each dropped claim has a place of its own), what it said, and every reason, each with the code of a check that claims go through (`CLAIM_PROBLEM_CODES`).
+ */
 const DroppedClaim = z.strictObject({
   index: z.number().int().nonnegative(),
   text,
@@ -129,10 +134,15 @@ export const ExtractArtifact = z
   });
 export type ExtractArtifact = z.infer<typeof ExtractArtifact>;
 
-/** What the gate said of a draft, as the record keeps it: the route, every failure with its code, the reasons to hold, and the result of each check. */
+/** One finding of the gate as the record keeps it: the check, the code, the message for the composer and where it was found. */
+const GateFinding = z.strictObject({ check: z.enum(CHECK_IDS), code: text, message: text, where: z.string().optional() });
+
+/** What the gate said of a draft, as the record keeps it: the route, every failure with its code, the notes (findings that did not block the draft), the reasons to hold, and the result of each check. */
 export const GateReport = z.strictObject({
   route: z.enum(ROUTES),
-  failures: z.array(z.strictObject({ check: z.enum(CHECK_IDS), code: text, message: text, where: z.string().optional() })),
+  failures: z.array(GateFinding),
+  /** The notes: findings that did not block the draft. Absent in a record made before notes existed. */
+  warnings: z.array(GateFinding).optional(),
   holdReasons: z.array(text),
   checks: z.record(z.enum(CHECK_IDS), z.enum(CHECK_RESULTS)),
 });
@@ -151,6 +161,20 @@ export type ComposeArtifact = z.infer<typeof ComposeArtifact>;
 /** What the model check decided, as a ledger's `verifier` field has it. */
 const VerifierRecord = z.strictObject({ model: text, passed: z.boolean(), notes: z.array(text) });
 
+/**
+ * A status that the model check did not find in the passage of its claim, and that Verify lowered to `unspecified`, which says nothing about how far the thing has got, so that the piece
+ * then says less and never more: the round in which it was lowered, the claim, the status it had, and the reason that the failure carried (the model's own words are in it). A status that is
+ * `unspecified` is never lowered, and a basis never is.
+ */
+export const LoweredStatus = z.strictObject({
+  round: z.number().int().nonnegative(),
+  claimId: text,
+  from: z.enum(['demonstrated', 'deployed', 'planned']),
+  to: z.literal('unspecified'),
+  reason: text,
+});
+export type LoweredStatus = z.infer<typeof LoweredStatus>;
+
 /** One pass of the verification: what the gate said of the draft of that round, what the model check said (none when the gate failed first), and which items went back. */
 const VerifyRound = z.strictObject({
   /** 0 for the draft that the composer wrote, then 1, 2 and so on for each revision. */
@@ -158,7 +182,8 @@ const VerifyRound = z.strictObject({
   gate: GateReport,
   /** Null when the gate found failures: the model is not asked about a draft that code has already sent back. */
   verifier: VerifierRecord.nullable(),
-  verifierFailures: z.array(z.strictObject({ id: text, kind: z.enum(['sentence', 'heading', 'label']), code: z.enum(['not_entailed', 'ambiguous', 'unsupported', 'missing']), reason: text })),
+  // `field` says, for a label that is not supported, whether it is the basis or the status; a record from before there was the field has none, and neither has a label that was given no verdict.
+  verifierFailures: z.array(z.strictObject({ id: text, kind: z.enum(['sentence', 'heading', 'label']), code: z.enum(['not_entailed', 'ambiguous', 'unsupported', 'missing']), field: z.enum(['basis', 'status']).optional(), reason: text })),
   /** The ids of the sentences and headings that were sent back to the composer after this pass; none after the last. */
   sent: z.array(text),
 });
@@ -175,7 +200,8 @@ function checkHistory(record: { rounds: number; history: readonly { round: numbe
 
 /**
  * What the Verify stage decided: `publish` only when the gate cleared the last draft and the model check passed, otherwise `hold`; how many
- * revision rounds were used; the gate and the model check of the last draft; and every pass, in order.
+ * revision rounds were used; the gate and the model check of the last draft; and every pass, in order. `lowered` is there only when a status was lowered (see `LoweredStatus`); a
+ * record without it is one in which none was, and every record from before there was the field is valid.
  */
 export const VerifyArtifact = z
   .strictObject({
@@ -185,6 +211,7 @@ export const VerifyArtifact = z
     gate: GateReport,
     verifier: VerifierRecord,
     history: z.array(VerifyRound).min(1),
+    lowered: z.array(LoweredStatus).optional(),
   })
   .superRefine((artifact, context) => {
     checkHistory(artifact, context);
@@ -211,6 +238,8 @@ export const HeldArtifact = z
     gate: GateReport,
     verifier: VerifierRecord,
     history: z.array(VerifyRound).min(1),
+    /** The statuses that were lowered on the way to this draft, when any were (see `VerifyArtifact`): the `claims` above have them lowered. */
+    lowered: z.array(LoweredStatus).optional(),
   })
   .superRefine(checkHistory);
 export type HeldArtifact = z.infer<typeof HeldArtifact>;
@@ -243,6 +272,10 @@ const RECORD_FIELDS = {
     .nullable(),
   dry: z.boolean(),
   models: DeskConfig.shape.models,
+  /** The profile the run was written with; absent for a run that had none, and for a record from before there was one. A replay takes it from here. */
+  profile: z.enum(PROFILE_IDS).optional(),
+  /** The size of the parts the pages were read in (`extractChunkWords`); absent for a run that read each page whole, and for a record from before there was the setting. A replay takes it from here. */
+  extractChunkWords: DeskConfig.shape.extractChunkWords,
   budget: z.strictObject({
     limit: DeskConfig.shape.budget,
     spent: z.strictObject({ calls: count, inputTokens: count, outputTokens: count }),

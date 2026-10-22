@@ -29,7 +29,7 @@ const VALID_CLAIM = {
     retrievedAt: '2026-10-04T04:30:00Z',
   },
   span: { start: 120, end: 142, quote: 'rated payload of 12 kg' },
-  basis: 'datasheet',
+  basis: 'docs',
   status: 'unspecified',
   values: [{ kind: 'number', raw: '12 kg', normalised: '12', unit: 'kg' }],
 };
@@ -39,7 +39,7 @@ const fact = (text: string, ...claimIds: string[]) => ({ kind: 'fact', text, cla
 const VALID_DRAFT = {
   slug: 'fixture-robotics-ships-fx-1',
   publishedAt: '2026-10-04',
-  categories: ['industrial-warehouse', 'funding'],
+  categories: ['agent-infrastructure', 'funding'],
   author: { name: 'Agentic Media House Desk' },
   title: fact('Fixture Robotics ships the FX-1 arm.', 'c-1'),
   description: fact('Fixture Robotics says the FX-1 arm is rated for 12 kg.', 'c-1'),
@@ -59,7 +59,7 @@ const VALID_DRAFT = {
   limitations: [
     {
       kind: 'limitation',
-      text: "The 12 kg payload figure comes from the company's datasheet; no independent measurement was available.",
+      text: "What is cited here comes from the company's datasheet; no independent measurement was available.",
       claimIds: ['c-1'],
       template: 'basis',
     },
@@ -72,7 +72,7 @@ const VALID_LEDGER = {
   runId: 'run-2026-10-04',
   publishedAt: '2026-10-04',
   title: 'Fixture Robotics ships the FX-1 arm.',
-  categories: ['industrial-warehouse', 'funding'],
+  categories: ['agent-infrastructure', 'funding'],
   claims: [VALID_CLAIM],
   order: ['c-1'],
   sentences: [
@@ -107,7 +107,7 @@ const VALID_DESK_STATE = {
   holds: [
     {
       at: '2026-10-03T04:32:00Z',
-      categories: ['humanoids'],
+      categories: ['payments-commerce'],
       reasons: ['The only source was a tier-2 outlet.'],
       prUrl: 'https://github.com/example/robywire/pull/7',
     },
@@ -125,7 +125,7 @@ const VALID_DESK_STATE = {
 const VALID_REGISTRY = {
   primary: {
     companies: {
-      humanoids: [
+      'payments-commerce': [
         { name: 'Fixture Robotics', url: 'https://fixture-robotics.example/news', status: 'unverified' },
       ],
     },
@@ -146,7 +146,7 @@ const VALID_REGISTRY = {
       name: 'Example Robot News',
       feed: 'https://news.example/feed',
       status: 'unverified',
-      beats: ['humanoids', 'funding'],
+      beats: ['payments-commerce', 'funding'],
     },
   ],
   bar: {
@@ -375,7 +375,7 @@ describe('Draft', () => {
   });
 
   it('rejects a category that is not a string', () => {
-    expect(failedPaths(Draft, patch(VALID_DRAFT, 'categories', ['humanoids', 7]))).toEqual(['categories.1']);
+    expect(failedPaths(Draft, patch(VALID_DRAFT, 'categories', ['payments-commerce', 7]))).toEqual(['categories.1']);
   });
 
   it('requires an author object with a name string', () => {
@@ -544,12 +544,12 @@ describe('SourcesRegistry', () => {
 
   it('rejects a status outside verified, unverified, blocked and n/a', () => {
     expect(
-      failedPaths(SourcesRegistry, patch(VALID_REGISTRY, 'primary.companies.humanoids.0.status', 'maybe')),
-    ).toEqual(['primary.companies.humanoids.0.status']);
+      failedPaths(SourcesRegistry, patch(VALID_REGISTRY, 'primary.companies.payments-commerce.0.status', 'maybe')),
+    ).toEqual(['primary.companies.payments-commerce.0.status']);
   });
 
   it('rejects a secondary beat that is not in the category vocabulary', () => {
-    expect(failedPaths(SourcesRegistry, patch(VALID_REGISTRY, 'secondary.0.beats', ['humanoids', 'quantum']))).toEqual([
+    expect(failedPaths(SourcesRegistry, patch(VALID_REGISTRY, 'secondary.0.beats', ['payments-commerce', 'quantum']))).toEqual([
       'secondary.0.beats.1',
     ]);
   });
@@ -572,7 +572,7 @@ describe('SourcesRegistry', () => {
   it.each([
     ['tertiary', '(root)'],
     ['primary.press', 'primary'],
-    ['primary.companies.humanoids.0.statuss', 'primary.companies.humanoids.0'],
+    ['primary.companies.payments-commerce.0.statuss', 'primary.companies.payments-commerce.0'],
     ['secondary.0.feeds', 'secondary.0'],
     ['bar.extra', 'bar'],
   ])('rejects the undefined key %s', (path, failing) => {

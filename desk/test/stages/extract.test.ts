@@ -10,7 +10,7 @@ import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { buildExtractUser, extractSystem } from '../../src/prompts/extract';
 import { ExtractArtifact, readArtifact } from '../../src/run/artifacts';
 import { CLAIM_PROBLEM_CODES, normalisedMismatch } from '../../src/stages/claim-grounding';
-import { EXTRACT_MAX_OUTPUT_TOKENS, extractReplySchema, kindOfSnapshot, runExtract } from '../../src/stages/extract';
+import { EXTRACT_EFFORT, EXTRACT_MAX_OUTPUT_TOKENS, extractReplySchema, kindOfSnapshot, runExtract } from '../../src/stages/extract';
 import type { Snapshot } from '../../src/stages/fetch';
 import { FETCHED_AT, URLS, stageContext, useScratch } from '../support/context';
 import { blocksOf, outsideBlocks } from '../support/prompts';
@@ -101,10 +101,12 @@ describe('runExtract: a clean script', () => {
     await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(fake.calls).toHaveLength(1);
     const call = fake.calls[0];
-    expect(Object.keys(call ?? {}).sort()).toEqual(['maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
+    expect(Object.keys(call ?? {}).sort()).toEqual(['effort', 'maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
     expect(call?.role).toBe('extract');
     expect(call?.model).toBe(ctx.config.models.extract);
     expect(call?.maxOutputTokens).toBe(EXTRACT_MAX_OUTPUT_TOKENS);
+    expect(call?.effort).toBe(EXTRACT_EFFORT);
+    expect(EXTRACT_EFFORT).toBe('low');
     expect(call?.system).toBe(extractSystem());
     expect(call?.system.startsWith(UNTRUSTED_PREAMBLE)).toBe(true);
     expect(call?.user).toBe(
@@ -129,6 +131,15 @@ describe('runExtract: a clean script', () => {
     await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(logs).toEqual(['extract: 7 claims proposed, 7 kept, 0 dropped']);
   });
+
+  it('logs how many labels were cut to six words, and says nothing of it when none was', async () => {
+    const one = setup([...CLEAN, proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' })]);
+    await runExtract(one.ctx, SNAPSHOTS, selectedStory());
+    expect(one.logs).toEqual(['extract: 8 claims proposed, 8 kept, 0 dropped, 1 label cut to 6 words']);
+    const two = setup([...CLEAN, proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' }), proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' })]);
+    await runExtract(two.ctx, SNAPSHOTS, selectedStory());
+    expect(two.logs).toEqual(['extract: 9 claims proposed, 9 kept, 0 dropped, 2 labels cut to 6 words']);
+  });
 });
 
 describe('runExtract: a claim from the page of the outlet', () => {
@@ -143,10 +154,10 @@ describe('runExtract: a claim from the page of the outlet', () => {
   });
 
   it('is dropped when its basis is not reported, with the rule of the gate', async () => {
-    const { ctx } = setup([...CLEAN, { ...REPORTED, basis: 'press-release' }]);
+    const { ctx } = setup([...CLEAN, { ...REPORTED, basis: 'announcement' }]);
     const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(result.artifact.dropped).toEqual([
-      { index: 7, text: REPORTED.text, reasons: [{ code: 'tier-basis', message: 'a claim that rests on another outlet has the basis "reported", not "press-release" (check G6)' }] },
+      { index: 7, text: REPORTED.text, reasons: [{ code: 'tier-basis', message: 'a claim that rests on another outlet has the basis "reported", not "announcement" (check G6)' }] },
     ]);
   });
 
@@ -197,7 +208,7 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
     ]);
   });
 
-  it('drops a claim whose label or text has a word that the quotation lacks, and records each reason as a sentence that a person can read', async () => {
+  it('drops a claim whose label or text has a word that the quotation lacks, records each reason as a sentence that a person can read, and shortens a label that is too long instead of dropping the claim', async () => {
     const label = proposed('c-4', { label: 'list price' });
     const text = proposed('c-4', { text: 'the harlow dynamics arm lists the FX-1 from $38,000 per arm' });
     const tooLong = proposed('c-4', { label: 'Fixture Robotics lists the FX-1 from arm' });
@@ -206,13 +217,13 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
     expect(result.artifact.dropped.map((item) => [item.index, item.reasons])).toEqual([
       [7, [{ code: 'label-not-in-quote', message: 'the label says what the quotation does not: "list", "price"' }]],
       [8, [{ code: 'text-not-in-quote', message: 'the text says what the quotation does not: "harlow", "dynamics"' }]],
-      [9, [{ code: 'label-too-long', message: 'the label has 7 words, and the longest allowed is 6' }]],
     ]);
     const stored = await readArtifact(ctx.runDir, '04-extract', ExtractArtifact);
     expect(stored.dropped.flatMap((item) => item.reasons.map((reason) => reason.message))).toEqual(
       result.artifact.dropped.flatMap((item) => item.reasons.map((reason) => reason.message)),
     );
-    expect(result.artifact.claims).toHaveLength(7);
+    expect(result.artifact.claims).toHaveLength(8);
+    expect(result.artifact.claims.at(-1)?.label).toBe('Fixture Robotics lists the FX-1 from');
   });
 
   it('drops a claim with a value that its quotation lacks', async () => {
@@ -225,7 +236,7 @@ describe('runExtract: a claim that breaks a rule is dropped, and the others are 
     const { ctx } = setup([...CLEAN, proposed('c-3', { basis: 'filing' }), proposed('c-3', { basis: 'measured' })]);
     const result = await runExtract(ctx, SNAPSHOTS, selectedStory());
     expect(result.artifact.dropped.map((item) => item.reasons.map((reason) => reason.code))).toEqual([['basis-not-allowed'], ['basis-not-allowed']]);
-    expect(result.artifact.dropped[0]?.reasons[0]?.message).toBe('the basis "filing" does not fit a company newsroom: the bases for it are press-release, datasheet, briefing, demo');
+    expect(result.artifact.dropped[0]?.reasons[0]?.message).toBe('the basis "filing" does not fit a project or company page: the bases for it are announcement, docs, briefing, demo');
   });
 
   it('checks a claim against the page it names, not another: a quotation of the release is not on the report', async () => {
@@ -262,7 +273,7 @@ describe('runExtract: a value that says other than its raw text', () => {
     type: 'spec',
     quote: 'The arm lifts twelve kg.',
     values: [{ kind: 'number', raw: 'twelve kg', normalised, unit }],
-    basis: 'datasheet',
+    basis: 'docs',
     status: 'unspecified',
     source: 1,
   });

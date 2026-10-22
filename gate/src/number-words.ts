@@ -24,11 +24,15 @@ import { UNIT_SOURCE, canonicalUnit } from './normalise';
 // digits are numbers already); and names that start with a lowercase letter
 // (iRobot, xAI), which no capitalisation rule can see.
 //
-// What cannot be checked is refused instead: words that state an amount but
+// What cannot be checked is reported instead: words that state an amount but
 // have no value to compare ("half", "twice", "doubled", "tenfold", see
 // UNCHECKABLE_SOURCE) and a run of number words that is not a well-formed
-// number ("five five"). The checks reject both with G4_NUMBER_WORD_UNCHECKABLE,
-// so the composer writes the figure as digits and cites a claim that gives it.
+// number ("five five"). In a fact sentence G4 notes both with
+// G4_NUMBER_WORD_UNCHECKABLE (a note: the model check judges the sentence); in
+// an analysis sentence G7 refuses them (G7_ANALYSIS_NEW_VALUE) and in a heading
+// G4 refuses them (G4_HEADING_NUMBER), because the model check holds analysis only to adding nothing the passages do not support, and a
+// heading states no figure. The composer is told to write the figure as digits
+// and to cite a claim that gives it.
 
 const SMALL: Readonly<Record<string, number>> = {
   one: 1,

@@ -376,7 +376,7 @@ describe('G9_BANNED_PHRASE', () => {
       'A  game-changer ships',
       'It\u2019s worth noting that the arm ships',
       "IT'S WORTH NOTING that the arm ships",
-      'In Today\u2019s Fast-Moving World Of Robotics, an arm ships',
+      'In Today\u2019s Fast-Moving World Of Crypto, an arm ships',
     ]) {
       expect(at((g) => (g.draft.opening[0]!.text = text)), text).toHaveLength(1);
     }

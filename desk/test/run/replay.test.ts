@@ -1,16 +1,20 @@
 import { readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEMO_CLAIMS } from '../../src/demo/story';
-import { DEMO_DATE, demoRegistry } from '../../src/demo/world';
+import { DEMO_CLAIMS, DEMO_REPLY, clearingVerifier } from '../../src/demo/story';
+import { DEMO_DATE, DEMO_URLS, demoRegistry } from '../../src/demo/world';
 import { FetchError } from '../../src/fetch/http';
 import { FakeClient } from '../../src/model/fake';
+import type { ModelRequest } from '../../src/model/types';
 import { LocalEvidenceStore } from '../../src/run/evidence';
 import { REPLAYED, refusingFetcher, replayRun } from '../../src/run/replay';
 import type { ReplayOptions } from '../../src/run/replay';
+import { extractSystem } from '../../src/prompts/extract';
+import { splitIntoParts } from '../../src/stages/page-parts';
 import { SELECT, recordOf, setupRun, unentailed } from '../support/run';
 import type { RunSetup } from '../support/run';
 import { useScratch } from '../support/context';
+import { blocksOf } from '../support/prompts';
 import { filesBelow } from '../support/site';
 
 // A replay runs Extract, Compose and Verify again from what a run kept: the pages in the evidence store, the replies of the model in the cassettes, and
@@ -40,6 +44,15 @@ describe('replayRun: a run that is replayed as it was', () => {
     expect(REPLAYED).toEqual(['04-extract', '05-compose', '06-verify']);
   });
 
+  it('takes the profile from the record of the run and not from the settings it is given', async () => {
+    const { dir, replay } = await recordedRun({ config: { profile: 'brief' } });
+    expect(recordOf(dir).profile).toBe('brief');
+    const { profile: _profile, ...settings } = replay.config;
+    const report = await replayRun(dir, { ...replay, config: settings });
+    expect(report.error).toBeNull();
+    expect(report.equal).toBe(true);
+  });
+
   it('replays a piece that was revised and held, with the replies of the revisions that were recorded', async () => {
     const { dir, replay, result } = await recordedRun({ fake: unentailed() });
     expect(result.outcome).toBe('held');
@@ -47,6 +60,63 @@ describe('replayRun: a run that is replayed as it was', () => {
     expect(report.error).toBeNull();
     expect(report.artifacts.map((artifact) => artifact.status)).toEqual(['equal', 'equal', 'equal']);
     expect(report.equal).toBe(true);
+  });
+
+  it('replays a run whose last ordinary rewrite brought a blocker of the gate and whose extra round mended it, with 3 rounds of revision recorded, finding the artifacts equal', async () => {
+    const rejecting = (request: ModelRequest<unknown>) => {
+      const reply = clearingVerifier(request);
+      return { ...reply, verdicts: reply.verdicts.map((verdict, at) => (at === 0 ? { ...verdict, reason: 'The passages do not say it.', missing: ['what the passages do not say'], verdict: 'not_entailed' as const } : verdict)) };
+    };
+    const retitled = (text: string) => ({ replacements: [{ id: 's0', sentence: { kind: 'fact' as const, text, claimIds: ['c-1'] } }] });
+    const fake = new FakeClient()
+      .script('select', SELECT)
+      .script('extract', { claims: DEMO_CLAIMS })
+      .script(
+        'compose',
+        DEMO_REPLY,
+        retitled('Fixture Robotics begins FX-1 deliveries to a second plant'),
+        // the last of the two ordinary rewrites brings a number that no claim has
+        retitled('Fixture Robotics begins FX-1 deliveries to 9 more plants'),
+        // a title of its own: a draft that is the same as an earlier one is the same request, and so the same cassette
+        retitled('Fixture Robotics starts FX-1 deliveries to a second Brindle Logistics plant'),
+      )
+      .script('verify', rejecting, rejecting, clearingVerifier);
+    const { dir, replay, result } = await recordedRun({ fake });
+    expect(result.outcome).toBe('published');
+    const stored = read(path.join(dir, '06-verify.json')) as { rounds: number; history: { gate: { route: string }; sent: string[] }[] };
+    expect(stored.rounds).toBe(3);
+    expect(stored.history.map((pass) => [pass.gate.route, pass.sent])).toEqual([['publish', ['s0']], ['publish', ['s0']], ['revise', ['s0']], ['publish', []]]);
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.artifacts).toEqual(REPLAYED.map((name) => ({ name, status: 'equal', detail: null })));
+    expect(report.equal).toBe(true);
+  });
+
+  it('replays a run that lowered a status that the model check did not find, finding the artifacts equal: the lowering follows from the reply that was recorded', async () => {
+    const lowering = (request: ModelRequest<unknown>) => {
+      const reply = clearingVerifier(request);
+      return { ...reply, labels: reply.labels.map((label) => (label.id === 'c-5' ? { ...label, statusSupported: false, reason: 'The passage does not say it is planned.' } : label)) };
+    };
+    const fake = new FakeClient().script('select', SELECT).script('extract', { claims: DEMO_CLAIMS }).script('compose', DEMO_REPLY).script('verify', lowering);
+    const { dir, replay, result } = await recordedRun({ fake });
+    expect(result.outcome).toBe('published');
+    expect((read(path.join(dir, '06-verify.json')) as { lowered: unknown[] }).lowered).toHaveLength(1);
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.artifacts).toEqual(REPLAYED.map((name) => ({ name, status: 'equal', detail: null })));
+    expect(report.equal).toBe(true);
+    expect(report.log).toContain('verify: the status of c-5 is lowered from planned to unspecified (the model check did not find it in the passage)');
+  });
+
+  it('replays a record that has no list of lowerings as it did before, and finds it different when the list is added to it by hand', async () => {
+    const { dir, replay } = await recordedRun();
+    const stored = read(path.join(dir, '06-verify.json')) as Record<string, unknown>;
+    expect('lowered' in stored).toBe(false);
+    expect((await replayRun(dir, replay)).equal).toBe(true);
+    write(path.join(dir, '06-verify.json'), { ...stored, lowered: [{ round: 0, claimId: 'c-5', from: 'planned', to: 'unspecified', reason: 'x' }] });
+    const report = await replayRun(dir, replay);
+    expect(report.equal).toBe(false);
+    expect(report.artifacts.find((artifact) => artifact.name === '06-verify')).toMatchObject({ status: 'different', detail: 'lowered was not replayed' });
   });
 
   it('replays a run that stopped at Extract, which has the artifact of that stage and no more', async () => {
@@ -301,5 +371,127 @@ describe('replayRun: a folder that cannot be replayed', () => {
   it('is for the day of the run: it reads the date from the record', async () => {
     const { dir } = await recordedRun();
     expect(recordOf(dir).date).toBe(DEMO_DATE);
+  });
+});
+
+describe('replayRun: a run that read its page in parts (extractChunkWords)', () => {
+  // The made-up release has 119 words in nine lines and the article of the outlet that cites it fewer; with parts of about 40 words the release is read in three calls and the article in two
+  // (the pages of a story are read one after the other, the release first). The replies are matched to the calls by the key of the request (`requestKey`: the
+  // role, the model, the system prompt, the user message and the schema of the reply), and the user message of each part says which part it is, so each call has a key of its own and a
+  // cassette of its own. The record of the run says the size of the parts, so a replay reads the page in the parts the run did, whatever the settings it is given.
+  const SIZE = 40;
+  /** The model of the made-up story, answering each part with the claims whose quotations the part holds. */
+  const partListing = (request: ModelRequest<unknown>) => {
+    const shown = blocksOf(request.user)[0]?.text ?? '';
+    return { claims: DEMO_CLAIMS.filter((claim) => shown.includes(claim.quote)) };
+  };
+  const parted = (): FakeClient =>
+    new FakeClient().script('select', SELECT).script('extract', partListing, partListing, partListing, partListing, partListing).script('compose', DEMO_REPLY).script('verify', clearingVerifier);
+
+  const cassettesOf = (dir: string) =>
+    readdirSync(path.join(dir, 'cassettes')).map((name) => read(path.join(dir, 'cassettes', name)) as { key: string; request: { role: string; userHash: string } });
+
+  it('records one reply for each part, in a cassette of its own, and replays them to the same artifacts', async () => {
+    const { dir, replay, result, fake } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    expect(result.outcome).toBe('published');
+    expect(fake.calls.filter((call) => call.role === 'extract')).toHaveLength(5);
+    const fetched = read(path.join(dir, '03-fetch.json')) as { documents: { hash: string }[] };
+    const evidence = new LocalEvidenceStore(replay.config.evidenceDir);
+    expect(fetched.documents).toHaveLength(2);
+    expect(splitIntoParts((await evidence.get(fetched.documents[0]?.hash as string)).text, SIZE)).toHaveLength(3);
+    expect(splitIntoParts((await evidence.get(fetched.documents[1]?.hash as string)).text, SIZE)).toHaveLength(2);
+    // select, three parts of the release, two parts of the article, compose, verify
+    const cassettes = cassettesOf(dir);
+    expect(cassettes.map((cassette) => cassette.request.role).sort()).toEqual(['compose', 'extract', 'extract', 'extract', 'extract', 'extract', 'select', 'verify']);
+    expect(new Set(cassettes.map((cassette) => cassette.key)).size).toBe(8);
+    expect(new Set(cassettes.filter((cassette) => cassette.request.role === 'extract').map((cassette) => cassette.request.userHash)).size).toBe(5);
+    expect(recordOf(dir).budget.spent.calls).toBe(8);
+    expect(recordOf(dir).artifacts).toEqual(['01-discover.json', '02-select.json', '03-fetch.json', '04-extract.json', '05-compose.json', '06-verify.json']);
+
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.artifacts).toEqual(REPLAYED.map((name) => ({ name, status: 'equal', detail: null })));
+    expect(report.equal).toBe(true);
+    expect(report.log).toContain(`extract: ${DEMO_URLS.release} is read in 3 parts`);
+    expect(report.log).toContain(`extract: ${DEMO_URLS.mercerArticle} is read in 2 parts`);
+    expect(report.log).toContain('extract: 7 claims proposed, 7 kept, 0 dropped');
+  });
+
+  it('reads the pages whole, in the one call that it always made for all of them, when no page is more than one part: a size of 400 on the made-up world is the run without a size, the same cassettes included', async () => {
+    const plain = await recordedRun();
+    const sized = await recordedRun({ config: { extractChunkWords: 400 } });
+    expect(sized.result.outcome).toBe('published');
+    expect(sized.fake.calls.filter((call) => call.role === 'extract')).toHaveLength(1);
+    expect(recordOf(sized.dir).extractChunkWords).toBe(400);
+    expect(sized.logs.some((line) => line.includes('is read in'))).toBe(false);
+    // the same requests, so the same keys of the cassettes, and the same artifacts
+    expect(cassettesOf(sized.dir).map((cassette) => cassette.key).sort()).toEqual(cassettesOf(plain.dir).map((cassette) => cassette.key).sort());
+    for (const name of REPLAYED) expect(readFileSync(path.join(sized.dir, `${name}.json`), 'utf8'), name).toBe(readFileSync(path.join(plain.dir, `${name}.json`), 'utf8'));
+    // it replays equal, with the size of the record or without any
+    expect((await replayRun(sized.dir, sized.replay)).equal).toBe(true);
+    const { extractChunkWords: _none, ...without } = sized.replay.config;
+    expect((await replayRun(sized.dir, { ...sized.replay, config: without })).equal).toBe(true);
+    // a record with no size replays whole, whatever the settings now say
+    expect((await replayRun(plain.dir, { ...plain.replay, config: { ...plain.replay.config, extractChunkWords: 400 } })).equal).toBe(true);
+  });
+
+  it('reads a page that is one part in a call of its own when another page of the story is several: the release in two parts and the article, one part, are three calls, and the replay is equal', async () => {
+    // 50 words: the release (119 words) is two parts, the article (68 words) is one
+    const fake = new FakeClient().script('select', SELECT).script('extract', partListing, partListing, partListing).script('compose', DEMO_REPLY).script('verify', clearingVerifier);
+    const { dir, replay, result } = await recordedRun({ config: { extractChunkWords: 50 }, fake });
+    expect(result.outcome).toBe('published');
+    const extracts = fake.calls.filter((call) => call.role === 'extract');
+    expect(extracts).toHaveLength(3);
+    expect(extracts.map((call) => blocksOf(call.user).map((block) => block.id))).toEqual([['1'], ['1'], ['1']]);
+    expect(extracts.map((call) => /The text is part (\d) of (\d)|The page has about (\d+) words/.exec(call.user)?.[0])).toEqual(['The text is part 1 of 2', 'The text is part 2 of 2', 'The page has about 70 words']);
+    expect(extracts.map((call) => call.system === extractSystem({ inParts: true }))).toEqual([true, true, false]);
+    expect(recordOf(dir).budget.spent.calls).toBe(6);
+    const report = await replayRun(dir, replay);
+    expect(report.error).toBeNull();
+    expect(report.equal).toBe(true);
+    expect(report.log).toContain(`extract: ${DEMO_URLS.release} is read in 2 parts`);
+    expect(report.log.some((line) => line.includes(`${DEMO_URLS.mercerArticle} is read in`))).toBe(false);
+  });
+
+  it('keeps the numbers of the claims of the story, which are the order of the page, so that the piece cites what it cited', async () => {
+    const { dir } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    const stored = read(path.join(dir, '04-extract.json')) as { claims: { id: string; text: string }[]; dropped: unknown[] };
+    expect(stored.claims.map((claim) => claim.id)).toEqual(['c-1', 'c-2', 'c-3', 'c-4', 'c-5', 'c-6', 'c-7']);
+    expect(stored.claims.map((claim) => claim.text)).toEqual(DEMO_CLAIMS.map((claim) => claim.text));
+    expect(stored.dropped).toEqual([]);
+  });
+
+  it('takes the size of the parts from the record of the run and not from the settings it is given: with none, or another, the replay reads the page as the run did', async () => {
+    const { dir, replay } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    expect(recordOf(dir).extractChunkWords).toBe(SIZE);
+    const { extractChunkWords: _none, ...without } = replay.config;
+    expect((await replayRun(dir, { ...replay, config: without })).equal).toBe(true);
+    expect((await replayRun(dir, { ...replay, config: { ...replay.config, extractChunkWords: 400 } })).equal).toBe(true);
+  });
+
+  it('replays a run that read its page whole, with settings that now name a size of parts: the record has none, so the page is read whole', async () => {
+    const { dir, replay } = await recordedRun();
+    expect(recordOf(dir)).not.toHaveProperty('extractChunkWords');
+    const report = await replayRun(dir, { ...replay, config: { ...replay.config, extractChunkWords: SIZE } });
+    expect(report.error).toBeNull();
+    expect(report.equal).toBe(true);
+    expect(report.log.some((line) => line.includes('is read in'))).toBe(false);
+  });
+
+  it('replays a record from before records said how a run was made, and a record that has no size of parts, as it always did', async () => {
+    const { dir, replay } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = read(path.join(dir, 'run.json')) as Record<string, unknown>;
+    write(path.join(dir, 'run.json'), before);
+    expect((await replayRun(dir, replay)).equal).toBe(true);
+  });
+
+  it('reports the part whose reply was never recorded, as the reply of a request that is not on file', async () => {
+    const { dir, replay } = await recordedRun({ config: { extractChunkWords: SIZE }, fake: parted() });
+    const second = cassettesOf(dir).filter((cassette) => cassette.request.role === 'extract')[1];
+    rmSync(path.join(dir, 'cassettes', `${second?.key}.json`));
+    const report = await replayRun(dir, replay);
+    expect(report.equal).toBe(false);
+    expect(report.error).toContain('no recorded response for this extract request');
+    expect(report.artifacts.map((artifact) => [artifact.name, artifact.status])).toEqual([['04-extract', 'missing'], ['05-compose', 'missing'], ['06-verify', 'missing']]);
   });
 });

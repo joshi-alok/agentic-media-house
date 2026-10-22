@@ -50,6 +50,10 @@ describe('reasonLabel', () => {
     expect(reasonLabel('G4_NUMBER_UNSUPPORTED')).toBe('A number was not in the claims it cites');
   });
 
+  it('returns the label of the figure-like word, which is a blocker and not a note', () => {
+    expect(reasonLabel('G4_FIGURE_UNSUPPORTED')).toBe('A figure-like word was not in the claims it cites');
+  });
+
   it('returns the label of the tier-2 hold reason', () => {
     expect(reasonLabel('TIER2_ATTRIBUTION')).toBe("Rests on another outlet's reporting");
   });

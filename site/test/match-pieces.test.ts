@@ -14,12 +14,12 @@ function pair(slug: string, publishedAt: string, change: Partial<LedgerEntry> = 
   const sentences = base.sentences.map((item) =>
     item.section === 'title' ? { ...item, text: `Title of ${slug}` } : item.section === 'description' ? { ...item, text: 'A description.' } : item,
   );
-  const ledger: LedgerEntry = { ...base, slug, publishedAt, title: `Title of ${slug}`, categories: ['humanoids'], sentences, ...change };
+  const ledger: LedgerEntry = { ...base, slug, publishedAt, title: `Title of ${slug}`, categories: ['payments-commerce'], sentences, ...change };
   const data: NewsFrontmatter = {
     title: `Title of ${slug}`,
     description: 'A description.',
     publishedAt,
-    categories: ['humanoids'],
+    categories: ['payments-commerce'],
     format: 'news',
     featured: false,
     author: { name: 'Agentic Media House Desk' },
@@ -89,9 +89,9 @@ describe('matchPieces: content that does not fit together', () => {
 
   it('names a ledger whose date or categories differ from the piece', () => {
     expect(() => matched(pair('a-piece', '2026-10-03', { publishedAt: '2026-10-02' }))).toThrow('the date in the ledger entry "a-piece" differs from the piece');
-    expect(() => matched(pair('a-piece', '2026-10-03', { categories: ['humanoids', 'funding'] }))).toThrow('the categories in the ledger entry "a-piece" differ from the piece');
+    expect(() => matched(pair('a-piece', '2026-10-03', { categories: ['payments-commerce', 'funding'] }))).toThrow('the categories in the ledger entry "a-piece" differ from the piece');
     const longer = pair('a-piece', '2026-10-03');
-    longer.news.data.categories = ['humanoids', 'funding'];
+    longer.news.data.categories = ['payments-commerce', 'funding'];
     expect(() => matched(longer)).toThrow('the categories in the ledger entry "a-piece" differ from the piece');
   });
 

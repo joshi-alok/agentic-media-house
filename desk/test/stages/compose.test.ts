@@ -1,12 +1,12 @@
 import { existsSync } from 'node:fs';
-import { ALL_FAILURE_CODES, DEFAULT_NAME_ALLOW_LIST, HOLD_REASONS, defaultConfig as gateDefaults } from '@robywire/gate';
+import { ALL_FAILURE_CODES, DEFAULT_NAME_ALLOW_LIST, defaultConfig as gateDefaults } from '@robywire/gate';
 import type { Claim } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
 import { ModelError } from '../../src/model/types';
 import { UNTRUSTED_PREAMBLE } from '../../src/prompts/untrusted';
 import { buildComposeUser, composeSystem } from '../../src/prompts/compose';
-import { COMPOSE_MAX_OUTPUT_TOKENS, gateContextOf, runCompose } from '../../src/stages/compose';
+import { COMPOSE_EFFORT, COMPOSE_MAX_OUTPUT_TOKENS, gateContextOf, runCompose } from '../../src/stages/compose';
 import { ComposeReply, assembleDraft } from '../../src/stages/draft-assembly';
 import type { StageContext } from '../../src/stages/context';
 import { stageContext, useScratch } from '../support/context';
@@ -35,7 +35,12 @@ async function verdictOn(change: (reply: Reply) => void, claims: Claim[] = GOLDE
   const reply = structuredClone(base);
   change(reply);
   const { result } = await compose(reply, claims, overrides);
-  return { codes: [...new Set(result.gate.failures.map((failure) => failure.code))], route: result.gate.route, holds: result.gate.holdReasons };
+  return {
+    codes: [...new Set(result.gate.failures.map((failure) => failure.code))],
+    notes: [...new Set(result.gate.warnings.map((finding) => finding.code))],
+    route: result.gate.route,
+    holds: result.gate.holdReasons,
+  };
 }
 
 describe('runCompose: the golden piece', () => {
@@ -55,22 +60,24 @@ describe('runCompose: the golden piece', () => {
     expect(result.draft.limitations).toEqual(GOLDEN_DRAFT.limitations);
   });
 
-  it('reaches the route hold, and only for the attribution, when a claim of another outlet is reported in an attributed sentence', async () => {
+  it('reaches the route publish, with no hold reason, when a claim of another outlet is reported in an attributed sentence', async () => {
     const tier2 = makeTier2Variant(cloneGolden());
     const { result } = await compose(replyFromDraft(tier2.draft), tier2.claims);
     expect(result.gate.failures).toEqual([]);
-    expect(result.gate.holdReasons).toEqual([HOLD_REASONS[0]]);
-    expect(result.gate.route).toBe('hold');
+    expect(result.gate.holdReasons).toEqual([]);
+    expect(result.gate.route).toBe('publish');
   });
 
   it('asks one model, once, in the role compose, with the model of the configuration and the claims, and nothing else', async () => {
     const { fake, ctx } = await compose(replyFromDraft());
     expect(fake.calls).toHaveLength(1);
     const call = fake.calls[0];
-    expect(Object.keys(call ?? {}).sort()).toEqual(['maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
+    expect(Object.keys(call ?? {}).sort()).toEqual(['effort', 'maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
     expect(call?.role).toBe('compose');
     expect(call?.model).toBe(ctx.config.models.compose);
     expect(call?.maxOutputTokens).toBe(COMPOSE_MAX_OUTPUT_TOKENS);
+    expect(call?.effort).toBe(COMPOSE_EFFORT);
+    expect(COMPOSE_EFFORT).toBe('low');
     expect(call?.schema).toBe(ComposeReply);
     expect(call?.system).toBe(composeSystem());
     expect(call?.system.startsWith(UNTRUSTED_PREAMBLE)).toBe(true);
@@ -91,7 +98,7 @@ describe('runCompose: the golden piece', () => {
 
   it('logs what the gate said', async () => {
     const { logs } = await compose(replyFromDraft());
-    expect(logs).toEqual(['compose: the gate says publish (0 failures, 0 hold reasons)']);
+    expect(logs).toEqual(['compose: the gate says publish (0 failures, 0 notes, 0 hold reasons)']);
   });
 });
 
@@ -106,31 +113,33 @@ describe('runCompose: a script that breaks a rule is caught, with the gate\'s ow
     ['a number must be a value of a cited claim', (reply) => { reply.takeaways[1] = { kind: 'fact', text: 'The datasheet lists a 15 kg rated payload and a 1.4 m maximum reach.', claimIds: ['c-8', 'c-9'] }; }, 'G4_NUMBER_UNSUPPORTED'],
     ['a number written in words is checked as a number', (reply) => { reply.takeaways[1] = { kind: 'fact', text: 'The datasheet lists a twenty kilograms rated payload and a 1.4 m maximum reach.', claimIds: ['c-8', 'c-9'] }; }, 'G4_NUMBER_UNSUPPORTED'],
     ['a date must be a value of a cited claim', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Brindle Logistics plant to receive FX-1 arms, from 3 October 2026.', claimIds: ['c-1'] }; }, 'G4_DATE_UNSUPPORTED'],
-    ['a name must be a value of a cited claim', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Harlow plant to receive FX-1 arms.', claimIds: ['c-1'] }; }, 'G4_NAME_UNSUPPORTED'],
-    ['a made-up name at the start of a sentence is not accepted', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Harlow Logistics plans a plant at Tarnmoor.', claimIds: ['c-1'] }; }, 'G4_INITIAL_WORD_UNSUPPORTED'],
-    ['digits, never half, twice or double', (reply) => { reply.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the FX-1 arm, rated for half a tonne, to a second Brindle Logistics plant.', claimIds: ['c-1', 'c-8'] }; }, 'G4_NUMBER_WORD_UNCHECKABLE'],
-    ['every sentence starts with a capital letter or a digit', (reply) => { (reply.opening[0] as { text: string }).text = `f${(reply.opening[0] as { text: string }).text.slice(1)}`; }, 'G2_SENTENCE_START'],
     ['a quotation is word for word in a cited claim', (reply) => { reply.takeaways[2] = { kind: 'fact', text: 'Brindle Logistics said "we saved a fortune" at Ashvale.', claimIds: ['c-20'] }; }, 'G5_QUOTE_NOT_VERBATIM'],
     ['a heading has no number', (reply) => { section(reply, 0).heading = 'What shipped in 2026'; }, 'G4_HEADING_NUMBER'],
     ['a heading has no quotation', (reply) => { section(reply, 0).heading = 'What "shipped"'; }, 'G4_HEADING_QUOTE'],
-    ['a heading is lowercase except the words of the claims of its section', (reply) => { section(reply, 0).heading = 'What Shipped'; }, 'G4_HEADING_NAME'],
-    ['a heading names nobody that its claims do not', (reply) => { section(reply, 0).heading = 'What Harlow shipped'; }, 'G4_HEADING_NAME'],
-    ['a heading is a statement, not a question', (reply) => { section(reply, 0).heading = 'What shipped?'; }, 'G2_HEADING_QUESTION'],
-    ['a heading is short', (reply) => { section(reply, 0).heading = `What shipped${' and so on'.repeat(10)}`; }, 'G2_HEADING_TOO_LONG'],
     ['a section has a heading', (reply) => { section(reply, 0).heading = ''; }, 'G2_HEADING_EMPTY'],
-    ['analysis is never in the opening', (reply) => { reply.opening[1] = { kind: 'analysis', text: 'The first site, at Ashvale, now runs 40 of the arms, and a third site is planned.', claimIds: ['c-23', 'c-26'] }; }, 'G7_ANALYSIS_PLACEMENT'],
     ['analysis is never in the title', (reply) => { reply.title = { kind: 'analysis', text: 'Fixture Robotics ships its FX-1 warehouse arm to a second plant', claimIds: ['c-1'] }; }, 'G7_ANALYSIS_PLACEMENT'],
-    ['analysis is at most a fifth of the sentences', (reply) => {
-      for (const index of [0, 2]) section(reply, index).paragraphs = section(reply, index).paragraphs.map((paragraph) => paragraph.map((sentence) => ({ kind: 'analysis' as const, text: sentence.text, claimIds: sentence.claimIds })));
-    }, 'G7_ANALYSIS_SHARE'],
     ['analysis introduces no number that no fact has', (reply) => { section(reply, 2).paragraphs[1]?.push({ kind: 'analysis', text: 'The rollout may reach 5000 plants.', claimIds: ['c-6'] }); }, 'G7_ANALYSIS_NEW_VALUE'],
-    ['the opening is as long as the gate says', (reply) => { reply.opening = reply.opening.slice(0, 1); }, 'G2_OPENING_LENGTH'],
-    ['there are as many takeaways as the gate says', (reply) => { reply.takeaways = reply.takeaways.slice(0, 2); }, 'G2_TAKEAWAYS_COUNT'],
     ['there are at least two sections', (reply) => { reply.sections = reply.sections.slice(0, 1); }, 'G2_SECTIONS_MIN'],
-    ['the piece is as long as the gate says', (reply) => { for (const item of reply.sections) item.paragraphs = item.paragraphs.slice(0, 1); }, 'G2_BODY_LENGTH'],
     ['the description is short', (reply) => { reply.description = { kind: 'fact', text: `Fixture Robotics has begun shipping the FX-1 arm, rated for 12 kg, to a second Brindle Logistics plant at Tarnmoor${', and more'.repeat(10)}.`, claimIds: ['c-1', 'c-8'] }; }, 'G1_DESCRIPTION_TOO_LONG'],
     ['a piece has a category', (reply) => { reply.categories = []; }, 'G1_CATEGORY_COUNT'],
     ['funding comes with a beat', (reply) => { reply.categories = ['funding']; }, 'G1_CATEGORY_NO_BEAT'],
+  ];
+
+  // The rules that have become notes: the gate reports them in `warnings`, and a piece that breaks only one of them is published.
+  const NOTE_ROWS: [string, (reply: Reply) => void, string][] = [
+    ['a heading is a statement, not a question', (reply) => { section(reply, 0).heading = 'What shipped?'; }, 'G2_HEADING_QUESTION'],
+    ['a heading is short', (reply) => { section(reply, 0).heading = `What shipped${' and so on'.repeat(10)}`; }, 'G2_HEADING_TOO_LONG'],
+    // Analysis sentences with no value of their own are added: turning the facts into analysis would also break the rule that analysis has no value that no fact has.
+    ['analysis is at most a fifth of the sentences', (reply) => {
+      section(reply, 1).paragraphs.push(Array.from({ length: 12 }, () => ({ kind: 'analysis' as const, text: 'That reading is a modest one.', claimIds: ['c-1'] })));
+    }, 'G7_ANALYSIS_SHARE'],
+    ['the opening is as long as the gate says', (reply) => { reply.opening = reply.opening.slice(0, 1); }, 'G2_OPENING_LENGTH'],
+    ['there are as many takeaways as the gate says', (reply) => { reply.takeaways = reply.takeaways.slice(0, 2); }, 'G2_TAKEAWAYS_COUNT'],
+    ['the piece is as long as the gate says', (reply) => { for (const item of reply.sections) item.paragraphs = item.paragraphs.slice(0, 1); }, 'G2_BODY_LENGTH'],
+    ['a name must be a value of a cited claim', (reply) => { reply.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Harlow plant to receive FX-1 arms.', claimIds: ['c-1'] }; }, 'G4_NAME_UNSUPPORTED'],
+    ['digits, never half, twice or double', (reply) => { reply.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the FX-1 arm, rated for half a tonne, to a second Brindle Logistics plant.', claimIds: ['c-1', 'c-8'] }; }, 'G4_NUMBER_WORD_UNCHECKABLE'],
+    ['a heading is lowercase except the words of the claims of its section', (reply) => { section(reply, 0).heading = 'What Shipped'; }, 'G4_HEADING_NAME'],
+    ['a heading names nobody that its claims do not', (reply) => { section(reply, 0).heading = 'What Harlow shipped'; }, 'G4_HEADING_NAME'],
     ['no banned phrase', (reply) => { reply.description = { kind: 'fact', text: 'Fixture Robotics has begun shipping the groundbreaking FX-1 arm, rated for 12 kg, to a second plant.', claimIds: ['c-1', 'c-8'] }; }, 'G9_BANNED_PHRASE'],
   ];
 
@@ -139,6 +148,14 @@ describe('runCompose: a script that breaks a rule is caught, with the gate\'s ow
     const verdict = await verdictOn(change);
     expect(verdict.codes).toContain(code);
     expect(verdict.route).toBe('revise');
+  });
+
+  it.each(NOTE_ROWS)('notes, and does not block, a script that breaks the rule: %s', async (_rule, change, code) => {
+    expect(ALL_FAILURE_CODES).toContain(code);
+    const verdict = await verdictOn(change);
+    expect(verdict.notes).toContain(code);
+    expect(verdict.codes).not.toContain(code);
+    expect(verdict.route).toBe('publish');
   });
 
   it('catches a claim of another outlet that is stated as plain fact, and one that is used in analysis', async () => {
@@ -226,5 +243,18 @@ describe('gateContextOf', () => {
     expect(gate.recentTitles).toEqual(published.titles);
     expect(gate.config).toEqual(gateDefaults());
     expect([...gate.nameAllowList].sort()).toEqual([...DEFAULT_NAME_ALLOW_LIST].sort());
+  });
+});
+
+describe('runCompose: the profile of the piece', () => {
+  it('judges the draft against the ranges of its profile, and tells the writer the same ranges', async () => {
+    const made = stageContext(scratch, { profile: 'brief' });
+    made.fake.script('compose', replyFromDraft());
+    const result = await runCompose(made.ctx, GOLDEN_CLAIMS);
+    expect(result.gate.failures).toEqual([]);
+    expect(result.gate.warnings.map((note) => note.code)).toEqual(['G2_BODY_LENGTH']);
+    expect(result.gate.route).toBe('publish');
+    const call = made.fake.calls.find((item) => item.role === 'compose')!;
+    expect(call.system).toContain('The piece is about 150 to 500 words in all');
   });
 });

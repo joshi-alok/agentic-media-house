@@ -87,15 +87,15 @@ export const contentOf = (repoDir: string): string[] => filesBelow(path.join(rep
 /** The content folders of a site that has no piece. */
 export const EMPTY_CONTENT = ['ledger/.gitkeep', 'news/.gitkeep'];
 
-/** A model that says the story but whose verifier finds the title not entailed in every pass, so that the piece is revised twice and held. */
+/** A model that says the story but whose verifier finds the title not entailed in every pass, so that the piece is revised three times (the two rounds and the extra round) and held. */
 export function unentailed(): FakeClient {
   const rejecting = (request: Parameters<typeof clearingVerifier>[0]) => {
     const reply = clearingVerifier(request);
-    return { ...reply, verdicts: reply.verdicts.map((verdict, at) => (at === 0 ? { ...verdict, verdict: 'not_entailed' as const } : verdict)) };
+    return { ...reply, verdicts: reply.verdicts.map((verdict, at) => (at === 0 ? { ...verdict, reason: 'The passages do not say it.', missing: ['what the passages do not say'], verdict: 'not_entailed' as const } : verdict)) };
   };
   return new FakeClient()
     .script('select', SELECT)
     .script('extract', { claims: DEMO_CLAIMS })
-    .script('compose', DEMO_REPLY, { replacements: [] }, { replacements: [] })
-    .script('verify', rejecting, rejecting, rejecting);
+    .script('compose', DEMO_REPLY, { replacements: [] }, { replacements: [] }, { replacements: [] })
+    .script('verify', rejecting, rejecting, rejecting, rejecting);
 }

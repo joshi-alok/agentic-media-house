@@ -18,15 +18,15 @@ export const DESK_AUTHOR_NAME = 'Agentic Media House Desk';
  */
 export const DESK_BYLINE_LABEL = 'automated, with sources linked';
 
-/** The seven beats from the content contract (section 4). A closed vocabulary. */
+/** The seven beats of the publication, from the design of the blog-first redesign (AI agents in crypto). A closed vocabulary. */
 export const BEATS = [
-  'humanoids',
-  'home-consumer',
-  'industrial-warehouse',
-  'field-mobility',
-  'software-autonomy',
-  'components-supply-chain',
-  'policy-standards',
+  'payments-commerce',
+  'identity-trust',
+  'wallets-keys',
+  'protocols-standards',
+  'agent-infrastructure',
+  'security-incidents',
+  'policy-regulation',
 ] as const;
 export type Beat = (typeof BEATS)[number];
 
@@ -43,8 +43,8 @@ export type Category = (typeof CATEGORY_VOCAB)[number];
  * (a tier-2 claim): G6 requires it there and refuses it anywhere else.
  */
 export const BASES = [
-  'datasheet',
-  'press-release',
+  'docs',
+  'announcement',
   'briefing',
   'paper',
   'filing',
@@ -57,7 +57,7 @@ export type Basis = (typeof BASES)[number];
 
 /**
  * Bases that need no "What we couldn't verify" section: the source is a filing,
- * a standard, a paper or a measurement, not a company's own claim. `reported` is
+ * a standard, a paper or a measurement, not a project's or a company's own claim. `reported` is
  * never safe: what another outlet reports is, by its nature, not checked here.
  */
 export const SAFE_BASES = ['filing', 'standard', 'paper', 'measured'] as const satisfies readonly Basis[];
@@ -94,7 +94,7 @@ export type Route = (typeof ROUTES)[number];
 
 /**
  * How a published piece got out: `auto` when the gate cleared it and nobody was asked,
- * `owner` when the gate did not clear it (a hold) and the owner released it. The pipeline sets it.
+ * `owner` when it was held (a blocker stood after the rounds of revision, or the model check did not clear it) and the owner released it. The pipeline sets it.
  */
 export const RELEASES = ['auto', 'owner'] as const;
 export type Release = (typeof RELEASES)[number];
@@ -116,3 +116,56 @@ export type CorrectionKind = (typeof CORRECTION_KINDS)[number];
 /** Status values in sources.yml. The desk sets `verified` once it has fetched a source. */
 export const SOURCE_STATUSES = ['verified', 'unverified', 'blocked', 'n/a'] as const;
 export type SourceStatus = (typeof SOURCE_STATUSES)[number];
+
+/**
+ * Hosts where many different people publish. An address on one of them is the page of a project only below a path that `sources.yml` names
+ * (`https://github.com/coinbase/x402`), never as a whole host: not every account on GitHub is the project. The hosts are written as `addressParts` gives them
+ * (lowercase, without `www.`). A subdomain is not covered by the entry of its parent, so one where people publish too is listed on its own (`gist.github.com`,
+ * `old.reddit.com`); `project.medium.com`, the publication of one project, is not listed.
+ */
+export const SHARED_HOSTS = [
+  'github.com',
+  'gist.github.com',
+  'raw.githubusercontent.com',
+  'medium.com',
+  'mirror.xyz',
+  'substack.com',
+  'hackmd.io',
+  'notion.site',
+  'paragraph.xyz',
+  'x.com',
+  'twitter.com',
+  'youtube.com',
+  'youtu.be',
+  'discord.com',
+  't.me',
+  'reddit.com',
+  'linkedin.com',
+  'facebook.com',
+  'warpcast.com',
+  'docs.google.com',
+  'drive.google.com',
+  'sites.google.com',
+  'gitlab.com',
+  'codeberg.org',
+  'bitbucket.org',
+  'gist.githubusercontent.com',
+  'dev.to',
+  'hashnode.com',
+  'paragraph.com',
+  'bsky.app',
+  'lens.xyz',
+  'hey.xyz',
+  'farcaster.xyz',
+  'huggingface.co',
+  'notion.so',
+  'snapshot.org',
+  'mobile.twitter.com',
+  'm.youtube.com',
+  'old.reddit.com',
+  't.co',
+  'telegram.me',
+  'news.ycombinator.com',
+  'npmjs.com',
+  'pypi.org',
+] as const;

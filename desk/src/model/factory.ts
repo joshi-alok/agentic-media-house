@@ -24,6 +24,11 @@ export type Environment = Readonly<Record<string, string | undefined>>;
 export interface BuiltClient {
   client: ModelClient;
   spent(): Spent;
+  /**
+   * Hand over the function that is told, in a line, each time a call is tried again (see `RetryClient`). A run gives it its log, so that a retry is in the record of the run
+   * as the lines of the stages are. Optional so that a client made by hand, for a test, need not have it.
+   */
+  onRetry?(listener: (line: string) => void): void;
 }
 
 function chosenClient(choice: ClientChoice, env: Environment): ModelClient {
@@ -66,5 +71,6 @@ export function clientFromConfig(
 ): BuiltClient {
   const chosen = wrap === undefined ? chosenClient(choice, env) : wrap(chosenClient(choice, env));
   const budgeted = new BudgetedClient(record === undefined ? chosen : new RecordingClient(chosen, record), config.budget);
-  return { client: new RetryClient(budgeted, retry), spent: () => budgeted.spent() };
+  const retrying = new RetryClient(budgeted, retry);
+  return { client: retrying, spent: () => budgeted.spent(), onRetry: (listener) => retrying.onRetry(listener) };
 }

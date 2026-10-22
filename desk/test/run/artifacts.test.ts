@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { defaultContext, runGate } from '@robywire/gate';
+import { PROFILE_IDS, defaultContext, runGate } from '@robywire/gate';
 import { GOLDEN_CLAIMS, GOLDEN_DRAFT } from '@robywire/gate/fixtures';
 import { afterAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -415,6 +415,49 @@ describe('VerifyArtifact', () => {
   });
 });
 
+describe('VerifyArtifact: the statuses that were lowered', () => {
+  // A record has the field only when a status was lowered, and every record from before there was one is still valid.
+  const lowering = () => ({ round: 0, claimId: 'c-27', from: 'demonstrated', to: 'unspecified', reason: 'The passage does not say the arm was demonstrated.' });
+  const withLowered = (...entries: object[]): VerifyArtifact => ({ ...verifyArtifact(), lowered: entries as never });
+
+  it('accepts a record with no list of lowerings, as every record from before it was written, and a record with a list', () => {
+    expect('lowered' in verifyArtifact()).toBe(false);
+    expect(problem(VerifyArtifact, verifyArtifact())).toBe('');
+    expect(problem(VerifyArtifact, withLowered(lowering()))).toBe('');
+    expect(problem(VerifyArtifact, withLowered(lowering(), { ...lowering(), round: 1, claimId: 'c-5', from: 'planned' }, { ...lowering(), claimId: 'c-20', from: 'deployed' }))).toBe('');
+    expect(problem(VerifyArtifact, withLowered())).toBe('');
+  });
+
+  it('refuses a lowering to anything but unspecified, from unspecified, with no reason, with a field it does not know, or for a round that is not a number', () => {
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), to: 'planned' }))).not.toBe('');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), from: 'unspecified' }))).not.toBe('');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), from: 'announced' }))).not.toBe('');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), reason: '' }))).toBe('lowered.0.reason: Too small: expected string to have >=1 characters');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), note: 'x' }))).toBe('lowered.0: Unrecognized key: "note"');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), round: -1 }))).not.toBe('');
+    expect(problem(VerifyArtifact, withLowered({ ...lowering(), claimId: '' }))).not.toBe('');
+  });
+
+  it('says in a failure of the model check whether it is the basis or the status of a label, and a failure with no field is still valid', () => {
+    const artifact = verifyArtifact();
+    const failure = { id: 'c-27', kind: 'label', code: 'unsupported', reason: 'the basis "demo" is not supported: x' };
+    for (const extra of [{}, { field: 'basis' }, { field: 'status' }]) {
+      artifact.history[1] = { ...(artifact.history[1] as object), verifierFailures: [{ ...failure, ...extra }] } as never;
+      expect(problem(VerifyArtifact, artifact), JSON.stringify(extra)).toBe('');
+    }
+    artifact.history[1] = { ...(artifact.history[1] as object), verifierFailures: [{ ...failure, field: 'both' }] } as never;
+    expect(problem(VerifyArtifact, artifact)).not.toBe('');
+  });
+
+  it('is in a held draft too, which has the claims as they were lowered', () => {
+    const held = heldArtifact();
+    expect('lowered' in held).toBe(false);
+    expect(problem(HeldArtifact, held)).toBe('');
+    expect(problem(HeldArtifact, { ...held, lowered: [lowering()] })).toBe('');
+    expect(problem(HeldArtifact, { ...held, lowered: [{ ...lowering(), to: 'deployed' }] })).not.toBe('');
+  });
+});
+
 describe('HeldArtifact', () => {
   it('accepts a held draft with the reasons for the hold, the claims it cites and every pass that led there', () => {
     expect(problem(HeldArtifact, heldArtifact())).toBe('');
@@ -531,6 +574,48 @@ describe('RunRecord: how the run was made', () => {
       const { [key]: _left, ...rest } = runRecord();
       expect(problem(RunRecord, rest), key).toContain(`${key}:`);
     }
+  });
+});
+
+describe('RunRecord: the profile', () => {
+  it('may name the profile the run was written with, one of the three kinds of piece, and may leave it out: a record from before there was one has none', () => {
+    for (const profile of PROFILE_IDS) expect(problem(RunRecord, { ...runRecord(), profile }), profile).toBe('');
+    expect(runRecord()).not.toHaveProperty('profile');
+    expect(problem(RunRecord, runRecord())).toBe('');
+  });
+
+  it('refuses a profile that is not one of the three', () => {
+    for (const profile of ['tabloid', '', null]) expect(problem(RunRecord, { ...runRecord(), profile }), String(profile)).toContain('profile:');
+  });
+
+  it('is a field of the record from before records said how a run was made, too', async () => {
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = runRecord();
+    expect(problem(LegacyRunRecord, { ...before, profile: 'explainer' })).toBe('');
+    const dir = freshDir();
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'run.json'), JSON.stringify({ ...before, profile: 'explainer' }));
+    expect((await readRunRecord(path.join(dir, 'run.json'))).profile).toBe('explainer');
+  });
+});
+
+describe('RunRecord: the size of the parts of a page', () => {
+  it('may name the size of the parts the pages were read in (extractChunkWords), a whole number of words of 1 or more, and may leave it out: a record from before there was one has none, and the run read each page whole', () => {
+    expect(problem(RunRecord, { ...runRecord(), extractChunkWords: 400 })).toBe('');
+    expect(runRecord()).not.toHaveProperty('extractChunkWords');
+    expect(problem(RunRecord, runRecord())).toBe('');
+  });
+
+  it('refuses a size that is not a whole number of words of 1 or more', () => {
+    for (const extractChunkWords of [0, -400, 400.5, '400', null]) expect(problem(RunRecord, { ...runRecord(), extractChunkWords }), String(extractChunkWords)).toContain('extractChunkWords:');
+  });
+
+  it('is a field of the record from before records said how a run was made, too', async () => {
+    const { client: _client, sources: _sources, attempt: _attempt, ...before } = runRecord();
+    expect(problem(LegacyRunRecord, { ...before, extractChunkWords: 400 })).toBe('');
+    const dir = freshDir();
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'run.json'), JSON.stringify({ ...before, extractChunkWords: 400 }));
+    expect((await readRunRecord(path.join(dir, 'run.json'))).extractChunkWords).toBe(400);
   });
 });
 

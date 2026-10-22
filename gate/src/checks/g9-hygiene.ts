@@ -1,10 +1,13 @@
 import type { Check, Failure } from '../gate';
 import { dayNumber } from '../normalise';
 import { allSentences, describeLocation } from '../sentences';
-import { jaccard, normaliseQuotes } from '../text';
+import { hasWholePhrase, jaccard, normaliseQuotes } from '../text';
 
 /** Every failure code G9 can report. */
-export const G9_CODES = ['G9_SLUG_COLLISION', 'G9_TITLE_DUPLICATE', 'G9_BANNED_PHRASE'] as const;
+export const G9_CODES = ['G9_SLUG_COLLISION', 'G9_TITLE_DUPLICATE', 'G9_BANNED_PHRASE', 'G9_POLICY_PHRASE'] as const;
+
+/** A cashtag: a dollar sign directly followed by two to ten letters, not preceded by a letter, a digit or another dollar sign (`$ETH`; not `$38,000` or `US$5`). */
+const CASHTAG = /(?<![\p{L}\p{N}$])\$[A-Za-z]{2,10}(?![A-Za-z0-9])/gu;
 
 /**
  * Words that say nothing about which story a title is. They are left out when
@@ -67,6 +70,18 @@ export function titleTokens(title: string): Set<string> {
  *   match is on any part of the text, so "delve" catches "delves". Quoted
  *   passages are read too: if a source's own hype is inside a quotation,
  *   cut the quotation or paraphrase it. `where` is the phrase.
+ * - The Desk makes no price prediction, no market call, gives no advice to
+ *   buy, sell or hold, uses no hype and no disclaimer, and writes no ticker
+ *   with a dollar sign (G9_POLICY_PHRASE, a blocker). It reads the title, the
+ *   description, every fact and analysis sentence and every section heading;
+ *   the limitation sentences are written by code from fixed notes and are not
+ *   read. The phrases of `policyPhrases` are matched by whole words (no letter
+ *   or digit next to the phrase), so "price target" is refused and "prices
+ *   targeted" is not; case, quote shapes, dashes and spacing are ignored, and
+ *   quoted passages are read. A cashtag is a dollar sign followed by two to
+ *   ten letters. `where` is the place, `title`, `opening, sentence 1` or
+ *   `section "<heading>"`, so that a sentence or a heading that has one can be
+ *   sent back to the composer.
  */
 export const checkG9: Check = ({ draft }, ctx) => {
   const failures: Failure[] = [];
@@ -120,6 +135,39 @@ export const checkG9: Check = ({ draft }, ctx) => {
           where: phrase,
         });
       }
+    }
+  }
+
+  // What the Desk never says in its own voice. The title, the description, every fact and analysis sentence and every heading are read; the
+  // limitation sentences are written by code from fixed notes and are not. `where` is the place, so that a sentence or a heading that has one can be sent back.
+  const voice = [
+    ...allSentences(draft)
+      .filter((item) => item.sentence.kind !== 'limitation')
+      .map((item) => ({ where: describeLocation(item), text: item.sentence.text })),
+    ...draft.sections.map((section) => ({ where: `section "${section.heading}"`, text: section.heading })),
+  ];
+  const policy = ctx.config.policyPhrases
+    .map((phrase) => ({ phrase, folded: normaliseQuotes(phrase).toLowerCase() }))
+    .filter((item) => item.folded !== '');
+  for (const place of voice) {
+    const text = normaliseQuotes(place.text).toLowerCase();
+    for (const { phrase, folded } of policy) {
+      if (hasWholePhrase(text, folded)) {
+        failures.push({
+          check: 'G9',
+          code: 'G9_POLICY_PHRASE',
+          message: `the phrase "${phrase}" appears at ${place.where}: the Desk makes no price prediction, no market call, no advice to buy, sell or hold, no hype and no disclaimer (the footer carries it)`,
+          where: place.where,
+        });
+      }
+    }
+    for (const tag of new Set(place.text.match(CASHTAG) ?? [])) {
+      failures.push({
+        check: 'G9',
+        code: 'G9_POLICY_PHRASE',
+        message: `the cashtag "${tag}" appears at ${place.where}: write the name of the token, not a ticker with a dollar sign`,
+        where: place.where,
+      });
     }
   }
 

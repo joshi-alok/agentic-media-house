@@ -1,9 +1,12 @@
-import { LedgerEntry } from '@robywire/gate';
-import { GOLDEN_DRAFT } from '@robywire/gate/fixtures';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { LedgerEntry, defaultContext, runGate } from '@robywire/gate';
+import { GOLDEN_DRAFT, cloneGolden, makeTier2Variant } from '@robywire/gate/fixtures';
 import { describe, expect, it } from 'vitest';
 import { matchPieces } from '../../../site/src/lib/match-pieces';
 import { REASON_LABELS } from '../../../site/src/lib/reasons';
-import type { HeldArtifact } from '../../src/run/artifacts';
+import { defaultConfig } from '../../src/config';
+import { HeldArtifact } from '../../src/run/artifacts';
 import { heldPieceFiles, holdPrBody, holdPrTitle, renderHeldPiece } from '../../src/stages/hold-pr';
 import { useScratch } from '../support/context';
 import { heldOf, verdicts } from '../support/held';
@@ -18,13 +21,44 @@ import { makeSite } from '../support/site';
 const scratch = useScratch();
 const made = verdicts(scratch);
 
-/** The three ways that a piece is held, each as the Hold stage keeps it. */
+/**
+ * The three ways that a piece is held, each as the Hold stage keeps it. A piece that cites another outlet is held by the model check, which does not clear
+ * the sentence that attributes the claim: the gate clears it, because another outlet no longer forces a hold.
+ */
 const KINDS = {
   'cites another outlet': () => made.tier2(),
   'fails a check of the gate': () => made.gateFailure(),
   'fails the model check, which the gate cleared': () => made.modelCheck(),
 } as const;
 const heldBy = async (kind: keyof typeof KINDS): Promise<HeldArtifact> => heldOf(scratch, await KINDS[kind]());
+
+/** The ledger of the fifth fixture piece of the site: the piece that the owner released after a hold. The fixture generator writes it, and no stage of the Desk is run for it. */
+const FIXTURE_5_LEDGER = fileURLToPath(new URL('../../../site/src/content-fixtures/ledger/fixture-robotics-ships-fx-5-to-second-plant.json', import.meta.url));
+
+/** The held artifact of a released hold as the hold flow keeps it: the piece of the fifth fixture of the site (the tier-2 variant of the golden piece), held by the model check. */
+function releasedHold(): HeldArtifact {
+  const variant = makeTier2Variant(cloneGolden());
+  const gate = runGate(variant, defaultContext());
+  const verifier = { model: 'model-a', passed: false, notes: ['The model check could not tell if a sentence was supported.'] };
+  return HeldArtifact.parse({
+    date: '2026-10-05',
+    slug: variant.draft.slug,
+    runId: 'fixture-run-5',
+    reasons: ['G10_AMBIGUOUS'],
+    draft: variant.draft,
+    claims: variant.claims,
+    rounds: 0,
+    gate,
+    verifier,
+    history: [{ round: 0, gate, verifier, verifierFailures: [{ id: 's1', kind: 'sentence', code: 'ambiguous', reason: 'The passages do not say it.' }], sent: [] }],
+  });
+}
+
+/** `releasedHold()` with fields of its gate overridden. */
+const heldWith = (gate: Partial<HeldArtifact['gate']>): HeldArtifact => {
+  const held = releasedHold();
+  return { ...held, gate: { ...held.gate, ...gate } };
+};
 
 describe('outsideFences (the check that the tests below rely on)', () => {
   it('leaves out what is in a fenced block, and a block is closed only by a fence that is as long as the one that opened it', () => {
@@ -91,6 +125,34 @@ describe('renderHeldPiece', () => {
     odd.draft.slug = '../outside';
     expect(() => heldPieceFiles(odd)).toThrow('"../outside" is not a plain slug');
   });
+
+  it('carries the notes of the gate into the ledger of a released hold, by code and place only, and has none when the held record is older than notes', () => {
+    // A held artifact whose gate has one note with a message: the ledger keeps the code and the place, not the message.
+    const withNote = heldWith({ warnings: [{ check: 'G2', code: 'G2_BODY_LENGTH', message: 'a message that must not be stored', where: 'body' }] });
+    const { ledger } = renderHeldPiece(withNote);
+    expect(ledger.gate.notes).toStrictEqual([{ code: 'G2_BODY_LENGTH', where: 'body' }]);
+    expect(JSON.stringify(ledger)).not.toContain('must not be stored');
+    // A held record written before notes existed has no `warnings` at all.
+    const older = heldWith({});
+    delete (older.gate as { warnings?: unknown }).warnings;
+    expect(renderHeldPiece(older).ledger.gate.notes).toEqual([]);
+  });
+});
+
+describe('renderHeldPiece and the fixture of the site that stands for a released hold', () => {
+  // The fixture generator (site/scripts/generate-fixtures.ts) cannot call the Desk, so it makes the gate of the fifth fixture by hand: the result of the gate with the
+  // route hold and the reasons of the hold, and the release owner. This test makes the same piece the way the hold flow does and compares the two, so that if either
+  // side changes the shape of what it writes, one of them fails. Only the gate and the release are compared: the fixture has no model check (`verifier`) and its run
+  // and its slug are its own.
+  it('writes the gate and the release of a released hold as the fixture generator writes them', () => {
+    const held = releasedHold();
+    const fixture = LedgerEntry.parse(JSON.parse(readFileSync(FIXTURE_5_LEDGER, 'utf8')));
+    const { ledger } = renderHeldPiece(held);
+    expect(fixture.release).toBeDefined();
+    expect(ledger.release).toEqual(fixture.release);
+    // The route, the result of every check, the reasons of the hold and the notes (when the ledger has them).
+    expect(ledger.gate).toEqual(fixture.gate);
+  });
 });
 
 describe('holdPrTitle', () => {
@@ -118,6 +180,12 @@ describe('holdPrBody', () => {
   it('says what was held, why, what each check said, and how to publish or discard it: a piece that cites another outlet', async () => {
     const held = await heldBy('cites another outlet');
     const slug = held.draft.slug;
+    // The one sentence that the model check did not clear is the one that attributes the claim to the other outlet.
+    const failed = (held.history.at(-1) as HeldArtifact['history'][number]).verifierFailures;
+    expect(failed).toHaveLength(1);
+    expect(held.reasons).toEqual(['G10_NOT_ENTAILED']);
+    // The model check holds it after the extra round too, so the rounds that the run did are more than `maxRevisionRounds`.
+    expect(held.rounds).toBe(defaultConfig().maxRevisionRounds + defaultConfig().extraRevisionRounds);
     expect(holdPrBody(held)).toBe(
       [
         `# Held by the Desk: \`${slug}\``,
@@ -126,7 +194,7 @@ describe('holdPrBody', () => {
         '',
         '## Why it was held',
         '',
-        "- `TIER2_ATTRIBUTION`: Rests on another outlet's reporting",
+        `- \`G10_NOT_ENTAILED\`: ${REASON_LABELS.G10_NOT_ENTAILED}`,
         '',
         '## The piece',
         '',
@@ -136,7 +204,7 @@ describe('holdPrBody', () => {
         '| Day | `2026-10-05` |',
         `| Categories | ${held.draft.categories.map((category) => `\`${category}\``).join(', ')} |`,
         '| Run | `2026-10-05-043100` |',
-        '| Rounds of revision | 0 |',
+        `| Rounds of revision | ${held.rounds} |`,
         `| The article | \`site/src/content/news/${slug}.mdx\` |`,
         `| Its ledger | \`site/src/content/ledger/${slug}.json\` |`,
         '',
@@ -152,12 +220,18 @@ describe('holdPrBody', () => {
         '',
         '## What the model check said',
         '',
-        'The model check (`claude-sonnet-5-5`) passed the last draft.',
+        'The model check (`claude-sonnet-5-5`) did not pass the last draft.',
         '',
         'Its notes:',
         '',
         '```text',
         ...held.verifier.notes,
+        '```',
+        '',
+        'What it did not clear:',
+        '',
+        '```text',
+        ...failed.map((failure) => `${failure.id} (${failure.kind}, ${failure.code}): ${failure.reason}`),
         '```',
         '',
         '## To publish it',
@@ -179,7 +253,7 @@ describe('holdPrBody', () => {
     expect(body).toContain(`- \`G4_NUMBER_UNSUPPORTED\`: ${REASON_LABELS.G4_NUMBER_UNSUPPORTED}`);
     expect(body).toContain('8 of 9 checks passed. Failed: `G4`. It found 1 failure in the last draft.');
     expect(body).toContain('G4_NUMBER_UNSUPPORTED: the number "15 kg"');
-    expect(body).toContain('| Rounds of revision | 2 |');
+    expect(body).toContain(`| Rounds of revision | ${defaultConfig().maxRevisionRounds + defaultConfig().extraRevisionRounds} |`);
     // The model was not asked about a draft that the gate had sent back, and the text says so.
     expect(body).toContain('was not asked about the last draft: the gate had sent it back');
     expect(body).not.toContain('What it did not clear');
@@ -198,10 +272,17 @@ describe('holdPrBody', () => {
 
   it('says in the Desk\'s own words that it has no words for a code that the holds page does not know, and never repeats the code as if it were an explanation', async () => {
     const held = structuredClone(await heldBy('cites another outlet'));
-    held.reasons = ['TIER2_ATTRIBUTION', 'G99_NOT_A_CODE'];
+    held.reasons = ['G10_NOT_ENTAILED', 'G99_NOT_A_CODE'];
     expect(holdPrBody(held)).toContain('- `G99_NOT_A_CODE`: no plain words are written for this code');
     held.reasons = ['constructor'];
     expect(holdPrBody(held)).toContain('- `constructor`: no plain words are written for this code');
+  });
+
+  it('still gives the words for the retired reason of a hold recorded before the gate stopped holding for another outlet', async () => {
+    // Plain data, not the output of a stage: no check asks for TIER2_ATTRIBUTION any more, but an old hold has it, and its pull request is written again from the held draft.
+    const held = structuredClone(await heldBy('cites another outlet'));
+    held.reasons = ['TIER2_ATTRIBUTION'];
+    expect(holdPrBody(held)).toContain(`- \`TIER2_ATTRIBUTION\`: ${REASON_LABELS.TIER2_ATTRIBUTION}`);
   });
 
   it('is the same text every time', async () => {
@@ -290,8 +371,8 @@ describe('holdPrBody, with text that a model wrote to do harm', () => {
     const held = structuredClone(await heldBy('cites another outlet'));
     held.draft.categories = [];
     expect(holdPrBody(held)).toContain('| Categories | (none) |');
-    held.draft.categories = ['humanoids'];
-    expect(holdPrBody(held)).toContain('| Categories | `humanoids` |');
+    held.draft.categories = ['payments-commerce'];
+    expect(holdPrBody(held)).toContain('| Categories | `payments-commerce` |');
   });
 
   it('cuts a block at 4000 characters and not before, says how many were left out, and does not cut a pair of characters in two', async () => {

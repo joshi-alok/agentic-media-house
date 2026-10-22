@@ -32,16 +32,25 @@ function failure(yaml: string): string {
 }
 
 describe('defaultConfig', () => {
+  it('has a budget of calls that holds the worst case of a piece that is held after every round', () => {
+    // Select, Extract, Compose, a revision and a model check for each round, and one more model check: the worst case of a hold after the last round, without retries.
+    const { budget, maxRevisionRounds, extraRevisionRounds } = defaultConfig();
+    expect(budget.maxCalls).toBeGreaterThanOrEqual(3 + 2 * (maxRevisionRounds + extraRevisionRounds) + 1);
+  });
+
   it('holds the settings of the design', () => {
     expect(defaultConfig()).toEqual({
       recencyHours: 72,
       shortlistMax: 15,
+      shortlistPerSource: 3,
       minClaims: 3,
       maxRevisionRounds: 2,
+      extraRevisionRounds: 1,
       maxAttemptsPerDay: 3,
       userAgent: 'AgenticMediaHouseDesk/0.1 (+https://agenticmediahouse.example/method)',
       requestIntervalMs: 1000,
       maxBytes: 2_000_000,
+      maxPageChars: 150_000,
       budget: { maxCalls: 24, maxInputTokens: 400_000, maxOutputTokens: 60_000 },
       models: { select: 'claude-haiku-4-5-20251001', extract: 'claude-sonnet-5-5', compose: 'claude-sonnet-5-5', verify: 'claude-sonnet-5-5' },
       runDir: 'runs',
@@ -124,8 +133,8 @@ describe('loadConfig with a file', () => {
   });
 
   it('accepts a setting at the edge of what is allowed', () => {
-    const config = loadConfig(configFile('maxRevisionRounds: 0\nrequestIntervalMs: 0\nminClaims: 1\nmaxAttemptsPerDay: 1\nrunDir: r\n'));
-    expect([config.maxRevisionRounds, config.requestIntervalMs, config.minClaims, config.maxAttemptsPerDay, config.runDir]).toEqual([0, 0, 1, 1, 'r']);
+    const config = loadConfig(configFile('maxRevisionRounds: 0\nextraRevisionRounds: 0\nrequestIntervalMs: 0\nminClaims: 1\nmaxAttemptsPerDay: 1\nrunDir: r\n'));
+    expect([config.maxRevisionRounds, config.extraRevisionRounds, config.requestIntervalMs, config.minClaims, config.maxAttemptsPerDay, config.runDir]).toEqual([0, 0, 0, 1, 1, 'r']);
   });
 
   it('takes the number of tries that a day may have from the file', () => {
@@ -141,6 +150,22 @@ describe('loadConfig with a file', () => {
     loadConfig(configFile('recencyHours: 1\nbudget:\n  maxCalls: 1\n'));
     expect(loadConfig()).toEqual(defaultConfig());
   });
+
+  it('has no profile by default, and takes one of the three kinds of piece', () => {
+    expect(defaultConfig().profile).toBeUndefined();
+    expect(loadConfig(configFile('profile: explainer\n')).profile).toBe('explainer');
+    expect(loadConfig(configFile('profile: brief\n')).profile).toBe('brief');
+  });
+
+  it('reads a page whole by default, and takes the size of the parts of a page from the file', () => {
+    // Absent is today's behaviour: one call for all the pages. The setting is not in the defaults, so no default can turn the parts on.
+    expect(defaultConfig().extractChunkWords).toBeUndefined();
+    expect('extractChunkWords' in defaultConfig()).toBe(false);
+    expect(loadConfig(configFile('# nothing\n')).extractChunkWords).toBeUndefined();
+    expect(loadConfig(configFile('extractChunkWords: 400\n')).extractChunkWords).toBe(400);
+    expect(loadConfig(configFile('extractChunkWords: 1\n')).extractChunkWords).toBe(1);
+    expect(DeskConfig.parse({ ...defaultConfig(), extractChunkWords: 250 }).extractChunkWords).toBe(250);
+  });
 });
 
 describe('loadConfig refuses a mistake, and says where it is', () => {
@@ -150,6 +175,11 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
 
   it('a setting that does not exist, naming it', () => {
     expect(failure('recencyDays: 3\n')).toBe('desk config <file>: Unrecognized key: "recencyDays"');
+  });
+
+  it('the old name of the setting for the extra rounds of revision, which a file of settings would otherwise leave silently wrong', () => {
+    expect(failure('modelCheckRevisions: 1\n')).toBe('desk config <file>: Unrecognized key: "modelCheckRevisions"');
+    expect(failure('maxRevisionRounds: 2\nmodelCheckRevisions: 0\n')).toBe('desk config <file>: Unrecognized key: "modelCheckRevisions"');
   });
 
   it('a setting that does not exist inside the budget or the models, naming where', () => {
@@ -162,7 +192,7 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
     expect(failure('recencyHours: soon\n')).toBe('desk config <file>: recencyHours: Invalid input: expected number, received string');
   });
 
-  it.each(['recencyHours', 'shortlistMax', 'minClaims', 'maxAttemptsPerDay', 'maxBytes', 'budget:\n  maxInputTokens', 'budget:\n  maxOutputTokens'])('%s of zero', (key) => {
+  it.each(['recencyHours', 'shortlistMax', 'minClaims', 'maxAttemptsPerDay', 'maxBytes', 'maxPageChars', 'budget:\n  maxInputTokens', 'budget:\n  maxOutputTokens'])('%s of zero', (key) => {
     expect(failure(`${key}: 0\n`)).toContain('Too small: expected number to be >0');
   });
 
@@ -173,7 +203,20 @@ describe('loadConfig refuses a mistake, and says where it is', () => {
 
   it('a negative number of revision rounds, or a negative pause between requests', () => {
     expect(failure('maxRevisionRounds: -1\n')).toBe('desk config <file>: maxRevisionRounds: Too small: expected number to be >=0');
+    expect(failure('extraRevisionRounds: -1\n')).toBe('desk config <file>: extraRevisionRounds: Too small: expected number to be >=0');
     expect(failure('requestIntervalMs: -5\n')).toBe('desk config <file>: requestIntervalMs: Too small: expected number to be >=0');
+  });
+
+  it('a size of the parts of a page that is zero, negative, not a whole number or not a number', () => {
+    expect(failure('extractChunkWords: 0\n')).toBe('desk config <file>: extractChunkWords: Too small: expected number to be >0');
+    expect(failure('extractChunkWords: -400\n')).toBe('desk config <file>: extractChunkWords: Too small: expected number to be >0');
+    expect(failure('extractChunkWords: 400.5\n')).toBe('desk config <file>: extractChunkWords: Invalid input: expected int, received number');
+    expect(failure('extractChunkWords: lots\n')).toBe('desk config <file>: extractChunkWords: Invalid input: expected number, received string');
+    expect(() => DeskConfig.parse({ ...defaultConfig(), extractChunkWords: 0 })).toThrow();
+  });
+
+  it('refuses a profile that is not one of the three', () => {
+    expect(failure('profile: tabloid\n')).toMatch(/^desk config <file>: profile: /);
   });
 
   it('a user agent that does not link to the /method page', () => {

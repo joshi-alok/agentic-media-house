@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { takesEffort } from '../../src/config';
 import { AnthropicClient, replyFormat } from '../../src/model/anthropic';
 import type { CreateMessage, MessageParams, MessageReply } from '../../src/model/anthropic';
 import { ModelError } from '../../src/model/types';
@@ -219,20 +220,43 @@ describe('AnthropicClient errors from the API', () => {
     expect(error.retryable).toBe(false);
   });
 
-  it('maps a failure to reach the API, which has no HTTP status, to a transport error that is not retried', async () => {
+  it('maps a failure to reach the API, which has no HTTP status, to a transport error that is marked unreached and is not marked retryable (it has a rule of its own)', async () => {
     const failure = new Anthropic.APIConnectionError({ message: 'socket hang up' });
     const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(failure).createMessage }));
     expect(error.kind).toBe('transport');
     expect(error.retryable).toBe(false);
+    expect(error.unreached).toBe(true);
     expect(error.message).toBe('the Anthropic API could not be reached: socket hang up');
     expect(error.cause).toBe(failure);
   });
 
-  it('maps any other error thrown by the call to a transport error that is not retried', async () => {
+  it('maps a connection that timed out the same way, with the message of the SDK', async () => {
+    const failure = new Anthropic.APIConnectionTimeoutError();
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(failure).createMessage }));
+    expect(error.kind).toBe('transport');
+    expect(error.unreached).toBe(true);
+    expect(error.message).toBe('the Anthropic API could not be reached: Request timed out.');
+  });
+
+  it('maps any other error thrown by the call to a transport error that is not retried at all, since it is not known to be a failure to reach the API', async () => {
     const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(new Error('boom')).createMessage }));
     expect(error.kind).toBe('transport');
     expect(error.retryable).toBe(false);
+    expect(error.unreached).toBe(false);
     expect(error.message).toBe('the Anthropic API could not be reached: boom');
+  });
+
+  it('does not mark an error of the SDK that has no HTTP status and is not a connection error (the user aborted, a key is missing) as unreached', async () => {
+    for (const failure of [new Anthropic.APIUserAbortError(), new Anthropic.AnthropicError('Could not resolve authentication method.')]) {
+      const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(failure).createMessage }));
+      expect(error.unreached, failure.message).toBe(false);
+      expect(error.retryable, failure.message).toBe(false);
+    }
+  });
+
+  it.each([400, 401, 403, 404, 429, 500, 503, 529])('does not mark an HTTP %i as unreached: the API answered', async (status) => {
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage: standIn(httpError(status)).createMessage }));
+    expect(error.unreached).toBe(false);
   });
 
   it.each([
@@ -246,6 +270,7 @@ describe('AnthropicClient errors from the API', () => {
     const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
     expect(error.kind).toBe('transport');
     expect(error.retryable).toBe(false);
+    expect(error.unreached).toBe(false);
     expect(error.message).toBe(`the Anthropic API could not be reached: ${text}`);
   });
 
@@ -289,5 +314,118 @@ describe('AnthropicClient replies that are not an answer', () => {
     const { createMessage } = standIn(reply('not json'), reply('{"answer":"x"}', { stop_reason: 'max_tokens' }));
     const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
     expect(error.kind).toBe('refused');
+  });
+});
+
+describe('AnthropicClient: what a call that did not finish cost', () => {
+  const cutOff = (input: number, output: number, extra: Partial<MessageReply['usage']> = {}): MessageReply =>
+    reply('{"answer":"par', { stop_reason: 'max_tokens', usage: { input_tokens: input, output_tokens: output, ...extra } });
+
+  it('puts what a reply cut off at the output limit cost into the error, because the tokens were spent all the same', async () => {
+    const { createMessage } = standIn(cutOff(7000, 8000));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('refused');
+    expect(error.message).toBe('the reply was cut off at the output limit');
+    expect(error.usage).toEqual({ inputTokens: 7000, outputTokens: 8000 });
+  });
+
+  it('counts the tokens of the cache as input, as it does for a reply that finished', async () => {
+    const { createMessage } = standIn(cutOff(7000, 8000, { cache_creation_input_tokens: 100, cache_read_input_tokens: 200 }));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.usage).toEqual({ inputTokens: 7300, outputTokens: 8000 });
+  });
+
+  it('does the same for a refusal and for any other early stop', async () => {
+    for (const reason of ['refusal', 'pause_turn', null]) {
+      const { createMessage } = standIn(reply('{"answer":"x"}', { stop_reason: reason, usage: { input_tokens: 30, output_tokens: 7 } }));
+      const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+      expect(error.usage, String(reason)).toEqual({ inputTokens: 30, outputTokens: 7 });
+    }
+  });
+
+  it('adds the cost of the first call when it is the repair that is cut off', async () => {
+    const { createMessage } = standIn(reply('not json', { usage: { input_tokens: 10, output_tokens: 5 } }), cutOff(20, 100));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('refused');
+    expect(error.usage).toEqual({ inputTokens: 30, outputTokens: 105 });
+  });
+
+  it('adds up both calls when the repair does not fix the reply either', async () => {
+    const { createMessage } = standIn(
+      reply('not json', { usage: { input_tokens: 10, output_tokens: 5 } }),
+      reply('still not json', { usage: { input_tokens: 20, output_tokens: 6 } }),
+    );
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('schema');
+    expect(error.usage).toEqual({ inputTokens: 30, outputTokens: 11 });
+  });
+
+  it('reports no cost for an error that never got an answer', async () => {
+    const { createMessage } = standIn(httpError(401));
+    expect((await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }))).usage).toBeUndefined();
+  });
+
+  it('does not mark a failure to reach the API in the repair call as unreached: the first reply arrived and was paid for, and a second try of the whole call would pay for it again', async () => {
+    const { createMessage } = standIn(reply('not json', { usage: { input_tokens: 10, output_tokens: 5 } }), new Anthropic.APIConnectionError({ message: 'socket hang up' }));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('transport');
+    expect(error.message).toBe('the Anthropic API could not be reached: socket hang up');
+    expect(error.unreached).toBe(false);
+    expect(error.retryable).toBe(false);
+    expect(error.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+  });
+
+  it('adds the cost of the first call to a transport error of the repair', async () => {
+    const { createMessage } = standIn(reply('not json', { usage: { input_tokens: 10, output_tokens: 5 } }), httpError(503));
+    const error = await failureOf(new AnthropicClient({ apiKey: KEY, createMessage }));
+    expect(error.kind).toBe('transport');
+    expect(error.retryable).toBe(true);
+    expect(error.cause).toBeInstanceOf(Anthropic.APIError);
+    expect((error.cause as InstanceType<typeof Anthropic.APIError>).status).toBe(503);
+    expect(error.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+  });
+});
+
+describe('AnthropicClient: the effort of a request', () => {
+  it('sends no effort unless the request names one: the four fields stay four', async () => {
+    const { createMessage, sent } = standIn(reply('{"answer":"x"}'));
+    await new AnthropicClient({ apiKey: KEY, createMessage }).json(request());
+    expect(Object.keys(sent[0] ?? {}).sort()).toEqual(['max_tokens', 'messages', 'model', 'system']);
+  });
+
+  it('sends the effort of the request as output_config.effort, in the call and in the repair, and no other field', async () => {
+    const { createMessage, sent } = standIn(reply('not json'), reply('{"answer":"x"}'));
+    await new AnthropicClient({ apiKey: KEY, createMessage }).json(request({ model: 'claude-sonnet-5-5', effort: 'low' }));
+    expect(sent).toHaveLength(2);
+    for (const params of sent) {
+      expect(params.output_config).toEqual({ effort: 'low' });
+      expect(Object.keys(params).sort()).toEqual(['max_tokens', 'messages', 'model', 'output_config', 'system']);
+    }
+  });
+});
+
+describe('AnthropicClient: only a model that takes an effort is sent one', () => {
+  const TAKE = ['claude-sonnet-5-5', 'claude-sonnet-5', 'claude-opus-5-5', 'claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-6', 'claude-opus-4-5', 'claude-sonnet-4-6', 'claude-fable-5-1', 'claude-mythos-5-1', 'claude-haiku-5-5'];
+  const DO_NOT = ['claude-haiku-4-5-20251001', 'claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-sonnet-4', 'claude-opus-4-1', 'claude-3-5-haiku-latest', 'model-a', ''];
+
+  it('knows the models that take one, and refuses to guess for any other, because a 400 ends a run after its earlier stages were paid for', () => {
+    for (const model of TAKE) expect(takesEffort(model), model).toBe(true);
+    for (const model of DO_NOT) expect(takesEffort(model), model).toBe(false);
+  });
+
+  it('sends the effort to each model that takes one', async () => {
+    for (const model of TAKE) {
+      const { createMessage, sent } = standIn(reply('{"answer":"x"}'));
+      await new AnthropicClient({ apiKey: KEY, createMessage }).json(request({ model, effort: 'medium' }));
+      expect(sent[0]?.output_config, model).toEqual({ effort: 'medium' });
+    }
+  });
+
+  it('sends none to a model that takes none, although the request names one: the four fields stay four', async () => {
+    for (const model of DO_NOT) {
+      const { createMessage, sent } = standIn(reply('not json'), reply('{"answer":"x"}'));
+      await new AnthropicClient({ apiKey: KEY, createMessage }).json(request({ model, effort: 'medium' }));
+      for (const params of sent) expect(Object.keys(params).sort(), model).toEqual(['max_tokens', 'messages', 'model', 'system']);
+    }
   });
 });

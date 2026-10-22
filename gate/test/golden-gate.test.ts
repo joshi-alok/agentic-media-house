@@ -25,6 +25,10 @@ describe('the public API of @robywire/gate', () => {
     'checkG9',
     'ALL_FAILURE_CODES',
     'HOLD_REASONS',
+    // severity
+    'NOTE_CODES',
+    'SEVERITIES',
+    'severityOf',
     // slugs and titles
     'disambiguateSlug',
     'titleTokens',
@@ -34,6 +38,7 @@ describe('the public API of @robywire/gate', () => {
     'normaliseQuotes',
     'stripQuoted',
     'quotedSegments',
+    'hasWholePhrase',
     'sentenceWords',
     'jaccard',
     'parseNumberToken',
@@ -46,13 +51,19 @@ describe('the public API of @robywire/gate', () => {
     'nameTokensOf',
     'toNameToken',
     'renderLimitation',
-    'BASIS_TEMPLATES',
-    'STATUS_TEMPLATES',
+    'BASIS_NOTES',
+    'STATUS_NOTES',
     'allSentences',
     'describeLocation',
     // configuration
     'DEFAULT_BANNED_PHRASES',
+    'DEFAULT_POLICY_PHRASES',
     'DEFAULT_NAME_ALLOW_LIST',
+    // profiles
+    'PROFILES',
+    'PROFILE_IDS',
+    'profileOverrides',
+    'isProfileId',
     // vocabularies, schemas, registry
     'BEATS',
     'CATEGORY_VOCAB',
@@ -147,7 +158,6 @@ function attribute(g: GateInput): void {
 describe('runGate on the golden piece with one thing wrong', () => {
   const defects: [CheckId, string, (copy: GateInput) => void, ContextOverrides?][] = [
     ['G1', 'G1_TITLE_EMPTY', (g) => (g.draft.title.text = '')],
-    ['G2', 'G2_HEADING_QUESTION', (g) => (g.draft.sections[0]!.heading = 'What shipped?')],
     ['G2', 'G2_HEADING_RESERVED', (g) => (g.draft.sections[1]!.heading = "What we couldn't verify")],
     ['G3', 'G3_NO_CLAIM', (g) => (g.draft.takeaways[0]!.claimIds = [])],
     [
@@ -198,7 +208,7 @@ describe('runGate on the golden piece with one thing wrong', () => {
 });
 
 describe('runGate when the piece rests on a tier-2 claim', () => {
-  it('holds a properly attributed piece: nothing failed, but it may not publish by itself', () => {
+  it('publishes a properly attributed piece: another outlet no longer forces a hold', () => {
     const result = api.runGate(
       mutate(cloneGolden(), (g) => {
         makeTier2(g);
@@ -207,29 +217,137 @@ describe('runGate when the piece rests on a tier-2 claim', () => {
       api.defaultContext(),
     );
     expect(result.failures).toEqual([]);
-    expect(result.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
-    expect(result.route).toBe('hold');
-    expect(Object.values(result.checks).every((value) => value === 'pass')).toBe(true);
+    expect(result.holdReasons).toEqual([]);
+    expect(result.route).toBe('publish');
   });
 
-  it('sends an unattributed piece back for revision instead: a failure beats a hold', () => {
+  it('sends an unattributed piece back for revision: that is still a blocker', () => {
     const result = api.runGate(mutate(cloneGolden(), makeTier2), api.defaultContext());
     expect(result.route).toBe('revise');
     expect(result.checks.G6).toBe('fail');
-    expect(result.holdReasons).toEqual([]);
   });
 
-  it('revises, and still lists the hold reason, when a properly attributed piece also has a failure elsewhere', () => {
+  it('keeps the retired hold reason in the list, so an old hold still has its label', () => {
+    expect(api.HOLD_REASONS).toEqual(['TIER2_ATTRIBUTION']);
+  });
+});
+
+describe('runGate: where analysis may stand', () => {
+  it('lets analysis stand in the takeaways', () => {
     const result = api.runGate(
       mutate(cloneGolden(), (g) => {
-        makeTier2(g);
-        attribute(g);
+        const takeaway = g.draft.takeaways[0]!;
+        g.draft.takeaways[0] = { kind: 'analysis', text: takeaway.text, claimIds: takeaway.claimIds };
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures.map((item) => item.code)).not.toContain('G7_ANALYSIS_PLACEMENT');
+    expect(result.route).toBe('publish');
+  });
+
+  it('still keeps analysis out of the title and the description', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.title = { kind: 'analysis', text: g.draft.title.text, claimIds: g.draft.title.claimIds };
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures.map((item) => item.code)).toContain('G7_ANALYSIS_PLACEMENT');
+  });
+});
+
+describe('runGate: length and shape are notes', () => {
+  it('publishes a piece whose body is outside the range, and lists the length as a note', () => {
+    const result = api.runGate(cloneGolden(), api.defaultContext({ config: { bodyWords: { min: 5000, max: 6000 } } }));
+    expect(result.route).toBe('publish');
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((item) => item.code)).toEqual(['G2_BODY_LENGTH']);
+    expect(result.checks.G2).toBe('pass');
+  });
+
+  it('publishes a piece whose heading is a question, and lists the heading as a note', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
         g.draft.sections[0]!.heading = 'What shipped?';
       }),
       api.defaultContext(),
     );
+    expect(result.route).toBe('publish');
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((item) => item.code)).toEqual(['G2_HEADING_QUESTION']);
+  });
+
+  it('still sends a piece back for a broken structure: a piece with one section is a blocker', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.sections = g.draft.sections.slice(0, 1);
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures.map((item) => item.code)).toContain('G2_SECTIONS_MIN');
     expect(result.route).toBe('revise');
-    expect(result.checks.G2).toBe('fail');
-    expect(result.holdReasons).toEqual(['TIER2_ATTRIBUTION']);
+  });
+});
+
+describe('runGate: names and filler are notes, figures are not', () => {
+  it('publishes a piece with a name that its claim does not list, and lists the name as a note', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.takeaways[0] = { kind: 'fact', text: 'Tarnmoor is the second Harlow plant to receive FX-1 arms.', claimIds: ['c-1'] };
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((item) => item.code)).toContain('G4_NAME_UNSUPPORTED');
+    expect(result.route).toBe('publish');
+  });
+
+  it('publishes a piece that uses a banned filler phrase, and lists the phrase as a note', () => {
+    const result = api.runGate(cloneGolden(), api.defaultContext({ config: { bannedPhrases: ['begun shipping'] } }));
+    expect(result.failures).toEqual([]);
+    expect(result.warnings.map((item) => item.code)).toContain('G9_BANNED_PHRASE');
+    expect(result.route).toBe('publish');
+  });
+
+  it('sends back a name that analysis brings in, as it sends back a number, because code is the strict reader of analysis', () => {
+    const name = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        findSentence(g.draft, (sentence) => sentence.text.includes('The measured rate sits below')).text =
+          'The measured rate sits below the datasheet maximum, a gap that Harlow Logistics also reported.';
+      }),
+      api.defaultContext(),
+    );
+    expect(name.failures.map((item) => item.code)).toEqual(['G7_ANALYSIS_NEW_NAME']);
+    expect(name.warnings).toEqual([]);
+    expect(name.route).toBe('revise');
+
+    const number = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        findSentence(g.draft, (sentence) => sentence.text.includes('The measured rate sits below')).text =
+          'The measured rate is 22% below the datasheet maximum, which is normal for a figure quoted as an upper limit.';
+      }),
+      api.defaultContext(),
+    );
+    expect(number.failures.map((item) => item.code)).toContain('G7_ANALYSIS_NEW_VALUE');
+    expect(number.route).toBe('revise');
+  });
+});
+
+describe('runGate: the first word of a sentence', () => {
+  it('does not read a capitalised noun at the start of a sentence as a name', () => {
+    const result = api.runGate(
+      mutate(cloneGolden(), (g) => {
+        g.draft.takeaways[0] = { kind: 'fact', text: 'Output at Tarnmoor rose in the second plant.', claimIds: ['c-1'] };
+      }),
+      api.defaultContext(),
+    );
+    expect(result.failures).toEqual([]);
+    expect(result.warnings).toEqual([]);
+    expect(result.route).toBe('publish');
+  });
+
+  it('has no rule about the first letter of a sentence', () => {
+    expect(api.ALL_FAILURE_CODES).not.toContain('G2_SENTENCE_START');
+    expect(api.ALL_FAILURE_CODES).not.toContain('G4_INITIAL_WORD_UNSUPPORTED');
   });
 });

@@ -14,7 +14,7 @@ const scratch = useScratch();
 
 const EMPTY: DeskState = { lastRun: null, holds: [], corrections: [] };
 const RUN: LastRun = { at: '2026-10-05T04:31:00.000Z', outcome: 'published', runId: '2026-10-05-043100', slug: 'fixture-robotics-ships-fx-1' };
-const HOLD: Hold = { at: '2026-10-05T04:32:00.000Z', categories: ['humanoids'], reasons: ['TIER2_ATTRIBUTION'] };
+const HOLD: Hold = { at: '2026-10-05T04:32:00.000Z', categories: ['payments-commerce'], reasons: ['TIER2_ATTRIBUTION'] };
 const CORRECTION: DeskState['corrections'][number] = { at: '2026-10-06T09:00:00.000Z', slug: 'fixture-robotics-ships-fx-1', kind: 'correction', note: 'A figure was wrong.' };
 
 /** A file in a new folder, holding `text`. */
@@ -49,7 +49,7 @@ describe('recordRun', () => {
 describe('addHold', () => {
   it('adds the hold after the holds that are there, in the order they were added', () => {
     const second: Hold = { ...HOLD, at: '2026-10-06T04:32:00.000Z', reasons: ['G4_NUMBER_UNSUPPORTED', 'G2_BODY_LENGTH'] };
-    const third: Hold = { ...HOLD, at: '2026-10-07T04:32:00.000Z', categories: ['humanoids', 'funding'], reasons: ['VERIFIER_NOT_ENTAILED'] };
+    const third: Hold = { ...HOLD, at: '2026-10-07T04:32:00.000Z', categories: ['payments-commerce', 'funding'], reasons: ['VERIFIER_NOT_ENTAILED'] };
     const state = addHold(addHold(addHold(EMPTY, HOLD), second), third);
     expect(state.holds).toEqual([HOLD, second, third]);
   });

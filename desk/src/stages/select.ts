@@ -1,6 +1,6 @@
 import { BEATS } from '@robywire/gate';
 import { z } from 'zod';
-import { SelectArtifact, extractPage, isTier1, writeArtifact } from '../index';
+import { SelectArtifact, canonicalUrl, isBlockedSource, isTier1, readPage, writeArtifact } from '../index';
 import type { Candidate, DiscoverArtifact } from '../index';
 import { buildSelectUser, selectSystem } from '../prompts/select';
 import { describeFailure, isSourceFailure } from './context';
@@ -15,6 +15,9 @@ import { isCovered } from './duplicates';
 
 /** The most tokens the reply of the model may have: an id and a few sentences. */
 export const SELECT_MAX_OUTPUT_TOKENS = 600;
+
+/** How many times the model is asked when the story it chose has no primary page and the piece must have one. */
+export const SELECT_ATTEMPTS = 3;
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -42,7 +45,7 @@ export function recencyWindow(ctx: Pick<StageContext, 'date' | 'config'>): { sta
  * longer ago than `config.recencyHours` before the end of the day of the run (a candidate with no date is not dropped), when it
  * was published after the end of that day, and when none of its beats is one of the seven beats of the vocabulary. The rest are
  * ordered, newest first with the ones that have no date last (each group keeps the order in which Discover found them), and
- * cut to `config.shortlistMax`.
+ * cut to `config.shortlistMax`, with at most `config.shortlistPerSource` from one source (candidates with the same `outlet` are one source).
  */
 export function shortlistOf(candidates: Candidate[], ctx: Pick<StageContext, 'date' | 'config' | 'published'>): Candidate[] {
   const { start, end } = recencyWindow(ctx);
@@ -54,22 +57,46 @@ export function shortlistOf(candidates: Candidate[], ctx: Pick<StageContext, 'da
     return time >= start && time < end;
   });
   const timeOf = (candidate: Candidate): number => (candidate.publishedAt === undefined ? Number.NEGATIVE_INFINITY : Date.parse(candidate.publishedAt));
-  // Array.prototype.sort is stable: candidates with the same time stay in the order they were found.
-  return kept.sort((a, b) => timeOf(b) - timeOf(a)).slice(0, ctx.config.shortlistMax);
+  // Newest first (Array.prototype.sort is stable: candidates with the same time stay in the order they were found), and at most `shortlistPerSource`
+  // from one source, so that a source that publishes a great deal cannot fill the shortlist.
+  const taken = new Map<string, number>();
+  const shortlist: Candidate[] = [];
+  for (const candidate of kept.sort((a, b) => timeOf(b) - timeOf(a))) {
+    const used = taken.get(candidate.outlet) ?? 0;
+    if (used >= ctx.config.shortlistPerSource) continue;
+    taken.set(candidate.outlet, used + 1);
+    shortlist.push(candidate);
+    if (shortlist.length === ctx.config.shortlistMax) break;
+  }
+  return shortlist;
+}
+
+/** Is this the home page of a host: a path of slashes alone, and no query? Such a page says too little to be the page that a story is written from. */
+function isHomePage(address: string): boolean {
+  try {
+    const url = new URL(address);
+    return url.pathname.replace(/\/+$/, '') === '' && url.search === '';
+  } catch {
+    return false;
+  }
 }
 
 /**
  * The primary source of a story, by code: the candidate's own address when it is already a primary source (a company's own page), otherwise the
- * first link of the candidate's page, in the order of the page, whose address is one. The links are those that `extractPage` reads, which
- * are the links of the story itself and not those of its navigation, footer or sidebar. A page that cannot be fetched or read gives no
- * source, and the reason.
+ * first link of the candidate's page, in the order of the page, whose address is one. The links are those that `readPage` reads, which
+ * for an html page are the links of the story itself and not those of its navigation, footer or sidebar. A link to a source that the registry marks
+ * `blocked` is passed over, as the page cannot be fetched; so is a link to a home page when the page has a link to any other page of a primary source,
+ * as a home page is a poor primary page. A page that cannot be fetched or read gives no source, and the reason.
  */
 async function findTier1(ctx: StageContext, chosen: Candidate): Promise<{ url: string } | { why: string }> {
   if (isTier1(chosen.url, ctx.sources)) return { url: chosen.url };
   try {
     const page = await ctx.fetcher.get(chosen.url);
-    const link = extractPage(page.body, page.finalUrl).links.find((candidate) => isTier1(candidate.url, ctx.sources));
-    return link === undefined ? { why: 'the page of the story has no link to a primary source' } : { url: link.url };
+    const primary = readPage(page).links.filter((candidate) => isTier1(candidate.url, ctx.sources));
+    const readable = primary.filter((candidate) => !isBlockedSource(candidate.url, ctx.sources));
+    const link = readable.find((candidate) => !isHomePage(candidate.url)) ?? readable[0];
+    if (link !== undefined) return { url: link.url };
+    return { why: primary.length === 0 ? 'the page of the story has no link to a primary source' : 'the page of the story links only to primary sources that the Desk cannot read' };
   } catch (error) {
     if (!isSourceFailure(error)) throw error;
     return { why: `the page of the story could not be read (${describeFailure(error)})` };
@@ -77,11 +104,25 @@ async function findTier1(ctx: StageContext, chosen: Candidate): Promise<{ url: s
 }
 
 /**
+ * The primary source that an explainer may be written from: the one found, unless a published piece, or a story that is held in a pull request, already cites that page.
+ * A second explainer from the same page would say the same again, and the page of another outlet's article about it, or the same article on the next day, leads to it again.
+ */
+function unwritten(source: { url: string } | { why: string }, ctx: Pick<StageContext, 'published'>): { url: string } | { why: string } {
+  if ('url' in source && ctx.published.sourceUrls.includes(canonicalUrl(source.url) ?? source.url)) {
+    return { why: 'its primary page is already covered by a published piece' };
+  }
+  return source;
+}
+
+/**
  * Choose one story, or none, and write `02-select.json`.
  *
- * With nothing on the shortlist, no model is asked. Otherwise one call is made, and a reply that is not valid, or that names an id that is not on
- * the shortlist, is a `schema` error that ends the run. When a story is chosen, its primary source is looked for (see `findTier1`); when
- * none is found the reasons end with a sentence of the code that says so, because such a story is written in attributed form and held.
+ * With nothing on the shortlist, no model is asked. Otherwise the model is asked, and a reply that is not valid, or that names an id that is not on
+ * what it was offered, is a `schema` error that ends the run. When a story is chosen, its primary source is looked for (see `findTier1`); when
+ * none is found the reasons end with a sentence of the code that says so, because such a story is written in attributed form and, if the gate and
+ * the model check clear it, published. With the profile `explainer`, a story whose primary source is not found, or is already cited by a published piece, is left out and
+ * the model is asked again without it, at most `SELECT_ATTEMPTS` times in all; each story left out is a sentence at the head of the reasons, and when none is left to choose the
+ * reasons end with a sentence that says that no story with a primary page was found. The shortlist of the artifact is that of the first ask.
  */
 export async function runSelect(ctx: StageContext, discovered: DiscoverArtifact): Promise<SelectArtifact> {
   const shortlist = shortlistOf(discovered.candidates, ctx);
@@ -92,26 +133,41 @@ export async function runSelect(ctx: StageContext, discovered: DiscoverArtifact)
     ctx.log(`select: ${reason}`);
     artifact = { date: ctx.date, chosen: null, reasons: [reason], tier1Url: null, shortlist: [] };
   } else {
-    const ids = shortlist.map((candidate) => candidate.id) as [string, ...string[]];
-    const reply = await ctx.client.json({
-      role: 'select',
-      model: ctx.config.models.select,
-      system: selectSystem(),
-      user: buildSelectUser(shortlist, ctx.sources.bar, ctx.date),
-      schema: selectReplySchema(ids),
-      maxOutputTokens: SELECT_MAX_OUTPUT_TOKENS,
-    });
-    const chosen = shortlist.find((candidate) => candidate.id === reply.value.chosenId) ?? null;
-    if (chosen === null) {
-      artifact = { date: ctx.date, chosen: null, reasons: reply.value.reasons, tier1Url: null, shortlist: ids };
-    } else {
-      const source = await findTier1(ctx, chosen);
-      const reasons =
-        'url' in source
-          ? reply.value.reasons
-          : [...reply.value.reasons, `No tier-1 source was found: ${source.why}, so the story is written in attributed form and held.`];
-      artifact = { date: ctx.date, chosen, reasons, tier1Url: 'url' in source ? source.url : null, shortlist: ids };
+    const firstIds = shortlist.map((candidate) => candidate.id) as [string, ...string[]];
+    const primaryOnly = ctx.profile === 'explainer';
+    const notes: string[] = [];
+    let offered = shortlist;
+    let result: SelectArtifact | undefined;
+    for (let attempt = 1; attempt <= (primaryOnly ? SELECT_ATTEMPTS : 1) && offered.length > 0; attempt++) {
+      const ids = offered.map((candidate) => candidate.id) as [string, ...string[]];
+      const reply = await ctx.client.json({
+        role: 'select',
+        model: ctx.config.models.select,
+        system: selectSystem(),
+        user: buildSelectUser(offered, ctx.sources.bar, ctx.date),
+        schema: selectReplySchema(ids),
+        maxOutputTokens: SELECT_MAX_OUTPUT_TOKENS,
+      });
+      const chosen = offered.find((candidate) => candidate.id === reply.value.chosenId) ?? null;
+      if (chosen === null) {
+        result = { date: ctx.date, chosen: null, reasons: [...notes, ...reply.value.reasons], tier1Url: null, shortlist: firstIds };
+        break;
+      }
+      const found = await findTier1(ctx, chosen);
+      const source = primaryOnly ? unwritten(found, ctx) : found;
+      if ('url' in source) {
+        result = { date: ctx.date, chosen, reasons: [...notes, ...reply.value.reasons], tier1Url: source.url, shortlist: firstIds };
+        break;
+      }
+      if (!primaryOnly) {
+        result = { date: ctx.date, chosen, reasons: [...reply.value.reasons, `No tier-1 source was found: ${source.why}, so the story is written in attributed form.`], tier1Url: null, shortlist: firstIds };
+        break;
+      }
+      notes.push(`"${chosen.title}" was left out: ${source.why}, and an explainer is written from a primary page.`);
+      ctx.log(`select: ${JSON.stringify(chosen.title)} has no primary page (${source.why}), so it is left out`);
+      offered = offered.filter((candidate) => candidate.id !== chosen.id);
     }
+    artifact = result ?? { date: ctx.date, chosen: null, reasons: [...notes, 'No story with a primary page was found, and an explainer is written from one.'], tier1Url: null, shortlist: firstIds };
   }
 
   await writeArtifact(ctx.runDir, '02-select', artifact, SelectArtifact);

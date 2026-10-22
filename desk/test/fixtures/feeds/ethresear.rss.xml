@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+  <channel>
+    <title>Ethereum Research</title>
+    <link>https://ethresear.ch/</link>
+    <item>
+      <title>Agents that settle on chain</title>
+      <link>https://ethresear.ch/t/agents-that-settle-on-chain/9001</link>
+      <pubDate>Sun, 04 Oct 2026 06:00:00 +0000</pubDate>
+      <description>&lt;p&gt;A proposal for agent payments.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>Inclusion lists and proposer incentives</title>
+      <link>https://ethresear.ch/t/inclusion-lists/9002</link>
+      <pubDate>Sun, 04 Oct 2026 05:00:00 +0000</pubDate>
+      <description>&lt;p&gt;Nothing about the topic.&lt;/p&gt;</description>
+    </item>
+    <item>
+      <title>An agent post that links elsewhere</title>
+      <link>https://elsewhere.example/t/agent-post</link>
+      <pubDate>Sun, 04 Oct 2026 04:00:00 +0000</pubDate>
+      <description>&lt;p&gt;agent&lt;/p&gt;</description>
+    </item>
+  </channel>
+</rss>

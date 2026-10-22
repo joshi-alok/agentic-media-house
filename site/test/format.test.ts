@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CATEGORY_VOCAB, PUBLICATION_NAME } from '@robywire/gate';
-import { beatBlurb, beatLabel, documentTitle, formatDate, formatDateTime, plural } from '../src/lib/format';
+import { beatBlurb, beatLabel, countInWords, documentTitle, formatDate, formatDateTime, plural, timesInWords } from '../src/lib/format';
 
 describe('formatDate', () => {
   it.each([
@@ -66,13 +66,13 @@ describe('beatLabel', () => {
   });
 
   it('gives the labels the header and the chips show', () => {
-    expect(beatLabel('humanoids')).toBe('Humanoids');
-    expect(beatLabel('home-consumer')).toBe('Home & consumer');
-    expect(beatLabel('industrial-warehouse')).toBe('Industrial & warehouse');
-    expect(beatLabel('field-mobility')).toBe('Field & mobility');
-    expect(beatLabel('software-autonomy')).toBe('Software & autonomy');
-    expect(beatLabel('components-supply-chain')).toBe('Components & supply chain');
-    expect(beatLabel('policy-standards')).toBe('Policy & standards');
+    expect(beatLabel('payments-commerce')).toBe('Payments & commerce');
+    expect(beatLabel('identity-trust')).toBe('Identity & trust');
+    expect(beatLabel('wallets-keys')).toBe('Wallets & keys');
+    expect(beatLabel('protocols-standards')).toBe('Protocols & standards');
+    expect(beatLabel('agent-infrastructure')).toBe('Agent infrastructure');
+    expect(beatLabel('security-incidents')).toBe('Security & incidents');
+    expect(beatLabel('policy-regulation')).toBe('Policy & regulation');
     expect(beatLabel('funding')).toBe('Funding');
   });
 
@@ -91,7 +91,7 @@ describe('beatBlurb', () => {
   });
 
   it('says what the beat covers, as the content contract does', () => {
-    expect(beatBlurb('humanoids')).toBe('General-purpose bipeds and androids, commercial and research.');
+    expect(beatBlurb('payments-commerce')).toBe('Agents that pay and get paid: stablecoin rails, micropayments, checkout and agent-to-agent commerce.');
     expect(beatBlurb('funding')).toBe('Rounds, acquisitions, public listings and shutdowns, filed under the beat they concern.');
   });
 
@@ -122,7 +122,7 @@ const EM_DASH = String.fromCharCode(0x2014);
 
 describe('documentTitle', () => {
   it('adds the name of the publication after a dash', () => {
-    expect(documentTitle('Humanoids')).toBe(`Humanoids ${EM_DASH} Agentic Media House`);
+    expect(documentTitle('Payments & commerce')).toBe(`Payments & commerce ${EM_DASH} Agentic Media House`);
   });
 
   it('leaves a title that already names the publication as it is', () => {
@@ -139,4 +139,20 @@ describe('documentTitle', () => {
     expect(documentTitle('Robywire')).toBe(`Robywire ${EM_DASH} Agentic Media House`); // the old name, on purpose
   });
 
+});
+
+describe('countInWords and timesInWords', () => {
+  it('write a small count in words, as the page does, and a count above twenty in digits', () => {
+    expect([0, 1, 2, 3, 4, 5, 10, 12, 20].map(countInWords)).toEqual(['zero', 'one', 'two', 'three', 'four', 'five', 'ten', 'twelve', 'twenty']);
+    expect(countInWords(21)).toBe('21');
+  });
+
+  it('say how many times, with "once" and "twice" for the first two', () => {
+    expect([1, 2, 3, 4, 7, 21].map(timesInWords)).toEqual(['once', 'twice', 'three times', 'four times', 'seven times', '21 times']);
+    expect(timesInWords(0)).toBe('zero times');
+  });
+
+  it('refuse a count that is not a whole number of at least 0', () => {
+    for (const bad of [-1, 1.5, Number.NaN]) expect(() => countInWords(bad)).toThrow('not a count');
+  });
 });

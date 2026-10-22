@@ -3,14 +3,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASES, Claim, STATUSES } from '@robywire/gate';
 import { z } from 'zod';
 import { clientFromConfig, defaultConfig, describeIssues, sha256Hex } from '../src/index';
-import type { Environment, ModelClient, ModelUsage } from '../src/index';
+import type { Environment, ModelClient, ModelUsage, RetryOptions } from '../src/index';
 import { judgePlan } from '../src/stages/verify-model';
-import type { SentenceItem, VerifyPlan } from '../src/stages/verify-model';
+import type { HeadingItem, SentenceItem, VerifyPlan } from '../src/stages/verify-model';
 import { perfectVerifier } from './scripted';
 
 // The evals of the verifier. G10 is a model that judges whether the passages of a source entail a sentence, and a model that is lazy, or too strict,
-// would either let a wrong sentence through or hold every piece. So the verifier is measured: a labelled set of sixty sentences with the passages they cite,
-// twenty that the passages support, twenty that say something they do not say, and twenty that change what they say in a small way. This harness runs any
+// would either let a wrong sentence through or hold every piece. So the verifier is measured: a labelled set of ninety sentences (some are headings, some analysis)
+// with the passages they cite, thirty that the passages support, thirty that say something they do not say, and thirty that change what they say in a small way. This harness runs any
 // `ModelClient` over the set through the real prompt of the verifier and the real reading of its reply (the same `judgePlan` the Verify stage uses), and
 // reports precision and recall. Plan 2 builds and tests the harness, with scripted clients; it does not say how well any model does, and it freezes no floor.
 
@@ -31,6 +31,8 @@ export const EvalItem = z
     id: z.string().regex(/^e-\d{2}$/, 'an id looks like e-07'),
     label: z.enum(LABELS),
     sentence: text.max(300),
+    /** What the text is: a statement of fact (the default), an analysis sentence, or the heading of a section. The verifier judges each by its own rule. */
+    kind: z.enum(['fact', 'analysis', 'heading']).optional(),
     passages: z.array(Passage).min(1).max(3),
     flaw: text.optional(),
   })
@@ -91,20 +93,26 @@ function claimOf(id: string, passage: Passage): Claim {
 }
 
 /**
- * What the verifier is asked about a batch of items: a sentence for each item (`s0`, `s1` and so on) citing the claims of its passages, and a claim for
- * each passage, numbered from `c-1` over the whole batch. The label and the flaw of an item are not in it: the verifier never sees the answer.
+ * What the verifier is asked about a batch of items: a sentence for each item (`s0`, `s1` and so on; a heading is `h0`, `h1`, numbered by the place of the item in the batch)
+ * citing the claims of its passages, and a claim for each passage, numbered from `c-1` over the whole batch. The label and the flaw of an item are not in it: the verifier never sees the answer.
  */
 export function planOf(items: readonly EvalItem[]): VerifyPlan {
   const claims: Claim[] = [];
-  const sentences: SentenceItem[] = items.map((item, at) => {
+  const sentences: SentenceItem[] = [];
+  const headings: HeadingItem[] = [];
+  items.forEach((item, at) => {
     const claimIds = item.passages.map((passage) => {
       const claim = claimOf(`c-${claims.length + 1}`, passage);
       claims.push(claim);
       return claim.id;
     });
-    return { id: `s${at}`, section: 'body', where: `sentence ${at + 1} of the batch`, text: item.sentence, claimIds };
+    if (item.kind === 'heading') {
+      headings.push({ id: `h${at}`, text: item.sentence, where: `heading ${at + 1} of the batch`, claimIds });
+    } else {
+      sentences.push({ id: `s${at}`, kind: item.kind === 'analysis' ? 'analysis' : 'fact', section: 'body', where: `sentence ${at + 1} of the batch`, text: item.sentence, claimIds });
+    }
   });
-  return { sentences, headings: [], claims };
+  return { sentences, headings, claims };
 }
 
 /** How many sentences go to the verifier in one call, about as many as the sentences of a piece. */
@@ -194,9 +202,10 @@ export async function evaluateVerifier(client: ModelClient, set: EvalSet, option
     calls += 1;
     usage.inputTokens += judged.usage.inputTokens;
     usage.outputTokens += judged.usage.outputTokens;
+    const planned = [...plan.sentences, ...plan.headings];
     batch.forEach((item, at) => {
-      const sentence = plan.sentences[at] as SentenceItem;
-      const failed = judged.outcome.failures.some((failure) => failure.id === sentence.id || (failure.kind === 'label' && sentence.claimIds.includes(failure.id)));
+      const entry = planned.find((candidate) => candidate.id === `${item.kind === 'heading' ? 'h' : 's'}${at}`) as SentenceItem | HeadingItem;
+      const failed = judged.outcome.failures.some((failure) => failure.id === entry.id || (failure.kind === 'label' && entry.claimIds.includes(failure.id)));
       results.push({ id: item.id, label: item.label, cleared: !failed });
     });
   }
@@ -251,6 +260,10 @@ export interface EvalDeps {
   client?: ModelClient;
   /** The labelled set to use, instead of the committed one. A test hands in a file that is wrong. */
   setFile?: string;
+  /** What the client has spent so far, to say after a failure what the calls before it cost. The api client's own is used; a test hands in one for a client it supplies. */
+  spent?: () => { calls: number; inputTokens: number; outputTokens: number };
+  /** How the api client waits between tries of a call that failed. A test hands in a wait that does not wait. */
+  retry?: RetryOptions;
 }
 
 const USAGE = 'Usage: evals:verifier [--client fake|api] [--model <name>] [--batch <number>] [--min-precision <0 to 1>] [--min-recall <0 to 1>]';
@@ -263,7 +276,7 @@ function fraction(value: string): number | undefined {
 
 /**
  * Run the evals from the command line and return the exit code: 0 when every floor is met (and there is none by default), 1 when a score is below a floor or the
- * evaluation fails, 2 for a mistake in the arguments. `--client fake` (the default) is a scripted verifier that knows the answers: it proves the wiring and measures
+ * evaluation fails, 2 for a mistake in the arguments (a `--batch` so small that the set needs more calls than a run may make is one). `--client fake` (the default) is a scripted verifier that knows the answers: it proves the wiring and measures
  * no model. `--client api` asks the model that `--model` names (by default the verify model of the configuration), inside the budget of a run, and needs
  * `ANTHROPIC_API_KEY` in the environment.
  */
@@ -304,14 +317,26 @@ export async function main(argv: readonly string[], deps: EvalDeps): Promise<num
     deps.err(error instanceof Error ? error.message : String(error));
     return 1;
   }
+  // The client of a run stops at `budget.maxCalls` calls, after paying for them, and nothing of the report is kept. So a batch so small that the set needs more calls than that is refused
+  // here, before a client is built or a call is made. (`evaluateVerifier` has no such limit: a scripted client costs nothing.)
+  const batchSize = batch ?? DEFAULT_BATCH_SIZE;
+  const needed = Math.ceil(set.items.length / batchSize);
+  if (needed > config.budget.maxCalls) {
+    const what = batch === undefined ? `a batch of ${batchSize}` : `--batch ${batchSize}`;
+    return usage(`${what} needs ${needed} calls for the ${set.items.length} sentences, and a run may make ${config.budget.maxCalls}: use --batch ${Math.ceil(set.items.length / config.budget.maxCalls)} or more`);
+  }
   let client: ModelClient;
+  let spent = deps.spent;
   if (deps.client !== undefined) {
     client = deps.client;
   } else if (clientKind === 'fake') {
     client = perfectVerifier(set);
   } else {
     try {
-      client = clientFromConfig(config, { kind: 'api' }, deps.env).client;
+      const built = clientFromConfig(config, { kind: 'api' }, deps.env, deps.retry ?? {});
+      built.onRetry?.((line) => deps.out(line));
+      client = built.client;
+      spent = built.spent;
     } catch (error) {
       deps.err(error instanceof Error ? error.message : String(error));
       return 2;
@@ -326,6 +351,8 @@ export async function main(argv: readonly string[], deps: EvalDeps): Promise<num
     return failures.length === 0 ? 0 : 1;
   } catch (error) {
     deps.err(`the evaluation failed: ${error instanceof Error ? error.message : String(error)}`);
+    const spentSoFar = spent?.();
+    if (spentSoFar !== undefined) deps.err(`spent before the failure: ${spentSoFar.calls} model calls, ${spentSoFar.inputTokens} input tokens, ${spentSoFar.outputTokens} output tokens`);
     return 1;
   }
 }

@@ -6,8 +6,8 @@ import { EvalItem, EvalSet, LABELS, Passage, VERIFIER_SET_FILE, loadVerifierSet,
 import { useScratch } from '../support/context';
 import { writeFileSync } from 'node:fs';
 
-// The labelled set that the verifier is measured on: sixty sentences, each with the passages it is judged against, twenty that the passages support, twenty that
-// say something they do not say and twenty that change what they say in a small way. These tests say that the set is what it claims to be, and that the schema that
+// The labelled set that the verifier is measured on: ninety sentences, each with the passages it is judged against, thirty that the passages support, thirty that
+// say something they do not say and thirty that change what they say in a small way (some of them are headings, some analysis). These tests say that the set is what it claims to be, and that the schema that
 // guards it refuses what a hand-edited set could get wrong.
 
 const scratch = useScratch();
@@ -21,23 +21,23 @@ const ITEM: EvalItem = {
   id: 'e-01',
   label: 'supported',
   sentence: 'Fixture Robotics lists the FX-1 from $38,000 per arm.',
-  passages: [{ quote: 'Fixture Robotics lists the FX-1 from $38,000 per arm.', basis: 'press-release', status: 'unspecified' }],
+  passages: [{ quote: 'Fixture Robotics lists the FX-1 from $38,000 per arm.', basis: 'announcement', status: 'unspecified' }],
 };
 
 describe('the committed set', () => {
-  it('has sixty sentences, twenty of each label: supported, unsupported and distorted', () => {
-    expect(SET.items).toHaveLength(60);
-    for (const label of LABELS) expect(SET.items.filter((item) => item.label === label), label).toHaveLength(20);
+  it('has ninety sentences, thirty of each label: supported, unsupported and distorted', () => {
+    expect(SET.items).toHaveLength(90);
+    for (const label of LABELS) expect(SET.items.filter((item) => item.label === label), label).toHaveLength(30);
     expect(LABELS).toEqual(['supported', 'unsupported', 'distorted']);
   });
 
-  it('numbers its items e-01 to e-60, in order, and has no sentence twice', () => {
-    expect(SET.items.map((item) => item.id)).toEqual(Array.from({ length: 60 }, (_, at) => `e-${String(at + 1).padStart(2, '0')}`));
-    expect(new Set(SET.items.map((item) => item.sentence)).size).toBe(60);
+  it('numbers its items e-01 to e-90, in order, and has no sentence twice', () => {
+    expect(SET.items.map((item) => item.id)).toEqual(Array.from({ length: 90 }, (_, at) => `e-${String(at + 1).padStart(2, '0')}`));
+    expect(new Set(SET.items.map((item) => item.sentence)).size).toBe(90);
   });
 
-  it('is made of twenty sets of passages, each with a supported sentence, an unsupported one and a distorted one, in that order, so that any ten items in a row mix the labels', () => {
-    for (let at = 0; at < 60; at += 3) {
+  it('is made of thirty sets of passages, each with a supported sentence, an unsupported one and a distorted one, in that order, so that any ten items in a row mix the labels', () => {
+    for (let at = 0; at < 90; at += 3) {
       const triple = SET.items.slice(at, at + 3);
       expect(triple.map((item) => item.label)).toEqual(['supported', 'unsupported', 'distorted']);
       expect(triple[1]?.passages).toEqual(triple[0]?.passages);
@@ -48,8 +48,8 @@ describe('the committed set', () => {
   it('gives a flaw for every sentence that is not supported, and for no other, and a different flaw each time', () => {
     for (const item of SET.items) expect(item.flaw === undefined, item.id).toBe(item.label === 'supported');
     const flaws = SET.items.flatMap((item) => (item.flaw === undefined ? [] : [item.flaw]));
-    expect(flaws).toHaveLength(40);
-    expect(new Set(flaws).size).toBe(40);
+    expect(flaws).toHaveLength(60);
+    expect(new Set(flaws).size).toBe(60);
   });
 
   it('cites one or two passages for each sentence, of at most 300 characters, as a claim may quote', () => {
@@ -73,9 +73,32 @@ describe('the committed set', () => {
     const text = readFileSync(VERIFIER_SET_FILE, 'utf8');
     expect([...text].every((character) => character.charCodeAt(0) < 128)).toBe(true);
     expect(text).not.toMatch(/https?:|www\./);
-    const names = new Set(text.match(/\b(?:[A-Z][a-z]+ (?:Robotics|Logistics|Machines|Dynamics|Mobility|Foods|Partners|Daily|Wire|Safety Board)|Dana Whitcombe|Hollis Nav|Pallet Pilot|Q-Haul)\b/g));
+    const names = new Set(text.match(/\b(?:[A-Z][a-z]+ (?:Robotics|Logistics|Machines|Dynamics|Mobility|Foods|Partners|Daily|Wire|Safety Board|Pay|Wallet|Protocol|Registry|Labs|Network|Exchange)|Dana Whitcombe|Hollis Nav|Pallet Pilot|Q-Haul)\b/g));
     expect([...names].sort()).toEqual(
-      ['Ashvale Foods', 'Brindle Logistics', 'Corvane Partners', 'Dana Whitcombe', 'Fixture Robotics', 'Gantry Daily', 'Hollis Dynamics', 'Hollis Nav', 'Lowmoor Safety Board', 'Northwind Machines', 'Pallet Pilot', 'Quarry Robotics', 'Q-Haul', 'Tarn Mobility'].sort(),
+      [
+        'Ashvale Foods',
+        'Brindle Logistics',
+        'Corvane Partners',
+        'Dana Whitcombe',
+        'Ember Registry',
+        'Fixture Robotics',
+        'Gantry Daily',
+        'Harbor Pay',
+        'Hollis Dynamics',
+        'Hollis Nav',
+        'Ketch Protocol',
+        'Lowmoor Safety Board',
+        'Lumen Wallet',
+        'Mallow Labs',
+        'Mercer Wire',
+        'Northwind Machines',
+        'Pallet Pilot',
+        'Quarry Robotics',
+        'Q-Haul',
+        'Tarn Mobility',
+        'Tessel Network',
+        'Vantage Exchange',
+      ].sort(),
     );
   });
 
@@ -188,7 +211,7 @@ describe('planOf', () => {
     const claim = planOf([reported]).claims[0] as Claim;
     expect([claim.basis, claim.status, claim.source.tier, claim.source.outlet]).toEqual(['reported', 'planned', 2, 'Gantry Daily']);
     const ordinary = planOf([ITEM]).claims[0] as Claim;
-    expect([ordinary.basis, ordinary.status, ordinary.source.tier, ordinary.source.outlet]).toEqual(['press-release', 'unspecified', 1, undefined]);
+    expect([ordinary.basis, ordinary.status, ordinary.source.tier, ordinary.source.outlet]).toEqual(['announcement', 'unspecified', 1, undefined]);
     expect(ordinary.span).toEqual({ start: 0, end: ITEM.passages[0]?.quote.length, quote: ITEM.passages[0]?.quote });
   });
 

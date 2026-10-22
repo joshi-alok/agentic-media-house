@@ -139,15 +139,18 @@ export async function replayRun(runDir: string, options: ReplayOptions): Promise
         date: record.date,
         before: record.startedAt,
       });
+      // The pages are read in the parts the run read them in: the record says the size, and a record that has none is a run that read each page whole, whatever the settings now say.
+      const { extractChunkWords: _now, ...settings } = options.config;
       const ctx: StageContext = {
         date: record.date,
-        config: options.config,
+        config: record.extractChunkWords === undefined ? settings : { ...settings, extractChunkWords: record.extractChunkWords },
         sources: options.sources,
         fetcher: options.fetcher ?? refusingFetcher,
         client: new RecordedClient(options.cassetteDir ?? path.join(runDir, 'cassettes')),
         evidence: options.evidence,
         runDir: folder,
         published,
+        ...(record.profile === undefined ? {} : { profile: record.profile }),
         log: (line) => void log.push(line),
       };
       const extracted = await runExtract(ctx, snapshots, selected);

@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_BATCH_SIZE, evaluateVerifier, floorFailures, formatReport, loadVerifierSet, main, scoreOf } from '../../evals/run-verifier';
 import type { EvalReport, ItemResult } from '../../evals/run-verifier';
 import { lazyVerifier, perfectVerifier, scriptedVerifier, strictVerifier } from '../../evals/scripted';
+import { defaultConfig } from '../../src/index';
+import type { RetryOptions } from '../../src/index';
 import { ModelError } from '../../src/model/types';
 import type { ModelClient, ModelRequest } from '../../src/model/types';
 import { verifySystem } from '../../src/prompts/verify';
@@ -37,11 +39,11 @@ function spy(inner: ModelClient): { client: ModelClient; requests: ModelRequest<
 describe('evaluateVerifier: a verifier that knows the answers', () => {
   it('scores 1 everywhere: every label right, precision and recall of both, and the accuracy', async () => {
     const report = await evaluateVerifier(perfectVerifier(SET), SET, { model: MODEL });
-    expect(report.items).toBe(60);
+    expect(report.items).toBe(90);
     expect(report.perLabel).toEqual({
-      supported: { items: 20, correct: 20, recall: 1 },
-      unsupported: { items: 20, correct: 20, recall: 1 },
-      distorted: { items: 20, correct: 20, recall: 1 },
+      supported: { items: 30, correct: 30, recall: 1 },
+      unsupported: { items: 30, correct: 30, recall: 1 },
+      distorted: { items: 30, correct: 30, recall: 1 },
     });
     expect(report.cleared).toEqual({ precision: 1, recall: 1 });
     expect(report.flagged).toEqual({ precision: 1, recall: 1 });
@@ -54,13 +56,13 @@ describe('evaluateVerifier: a lazy verifier that clears every sentence', () => {
   it('clears every supported sentence and none of the others are caught: recall 1 for supported and 0 for the rest, and nothing flagged', async () => {
     const report = await evaluateVerifier(lazyVerifier(SET), SET, { model: MODEL });
     expect(report.perLabel).toEqual({
-      supported: { items: 20, correct: 20, recall: 1 },
-      unsupported: { items: 20, correct: 0, recall: 0 },
-      distorted: { items: 20, correct: 0, recall: 0 },
+      supported: { items: 30, correct: 30, recall: 1 },
+      unsupported: { items: 30, correct: 0, recall: 0 },
+      distorted: { items: 30, correct: 0, recall: 0 },
     });
-    expect(report.cleared).toEqual({ precision: 20 / 60, recall: 1 });
+    expect(report.cleared).toEqual({ precision: 30 / 90, recall: 1 });
     expect(report.flagged).toEqual({ precision: null, recall: 0 });
-    expect(report.accuracy).toBe(20 / 60);
+    expect(report.accuracy).toBe(30 / 90);
   });
 });
 
@@ -68,13 +70,13 @@ describe('evaluateVerifier: a verifier that is too strict and clears no sentence
   it('catches every sentence that is not supported and clears no supported one: recall 0 for supported, nothing cleared', async () => {
     const report = await evaluateVerifier(strictVerifier(SET), SET, { model: MODEL });
     expect(report.perLabel).toEqual({
-      supported: { items: 20, correct: 0, recall: 0 },
-      unsupported: { items: 20, correct: 20, recall: 1 },
-      distorted: { items: 20, correct: 20, recall: 1 },
+      supported: { items: 30, correct: 0, recall: 0 },
+      unsupported: { items: 30, correct: 30, recall: 1 },
+      distorted: { items: 30, correct: 30, recall: 1 },
     });
     expect(report.cleared).toEqual({ precision: null, recall: 0 });
-    expect(report.flagged).toEqual({ precision: 40 / 60, recall: 1 });
-    expect(report.accuracy).toBe(40 / 60);
+    expect(report.flagged).toEqual({ precision: 60 / 90, recall: 1 });
+    expect(report.accuracy).toBe(60 / 90);
   });
 });
 
@@ -87,7 +89,7 @@ describe('evaluateVerifier: a verifier that is half right', () => {
     expect(report.perLabel.distorted.recall).toBe(0);
     expect(report.cleared).toEqual({ precision: 0.5, recall: 1 });
     expect(report.flagged).toEqual({ precision: 1, recall: 0.5 });
-    expect(report.accuracy).toBe(40 / 60);
+    expect(report.accuracy).toBe(60 / 90);
   });
 
   it('counts an ambiguous verdict as not clearing, as the Desk does', async () => {
@@ -108,9 +110,9 @@ describe('evaluateVerifier: a verifier that is half right', () => {
       },
     };
     const report = await evaluateVerifier(doubting, SET, { model: MODEL, batchSize: 1 });
-    expect(report.items).toBe(60);
+    expect(report.items).toBe(90);
     expect(report.perLabel.supported.correct).toBe(0);
-    expect(report.perLabel.unsupported.correct).toBe(20);
+    expect(report.perLabel.unsupported.correct).toBe(30);
   });
 });
 
@@ -124,9 +126,9 @@ describe('evaluateVerifier: what it asks, and how', () => {
         return reply;
       },
     };
-    const report = await evaluateVerifier(doubtingTheFirstPassage, SET, { model: MODEL, batchSize: 60 });
+    const report = await evaluateVerifier(doubtingTheFirstPassage, SET, { model: MODEL, batchSize: 90 });
     expect(report.results.filter((result) => !result.cleared === (result.label === 'supported'))).toEqual([{ id: 'e-01', label: 'supported', cleared: false }]);
-    expect(report.perLabel.supported.correct).toBe(19);
+    expect(report.perLabel.supported.correct).toBe(29);
   });
 
   it('adds up what each call cost, token for token', async () => {
@@ -137,57 +139,66 @@ describe('evaluateVerifier: what it asks, and how', () => {
         return { ...reply, usage: { inputTokens: 100, outputTokens: 7 } };
       },
     };
-    expect((await evaluateVerifier(costing, SET, { model: MODEL })).usage).toEqual({ inputTokens: 600, outputTokens: 42 });
-    expect((await evaluateVerifier(costing, SET, { model: MODEL, batchSize: 1 })).usage).toEqual({ inputTokens: 6000, outputTokens: 420 });
+    expect((await evaluateVerifier(costing, SET, { model: MODEL })).usage).toEqual({ inputTokens: 900, outputTokens: 63 });
+    expect((await evaluateVerifier(costing, SET, { model: MODEL, batchSize: 1 })).usage).toEqual({ inputTokens: 9000, outputTokens: 630 });
   });
 
   it('asks the verifier with the real prompt: the role, the model it was given, the system text of the verifier, and the limit of the reply', async () => {
     const { client, requests } = spy(perfectVerifier(SET));
     await evaluateVerifier(client, SET, { model: MODEL });
-    expect(requests).toHaveLength(6);
+    expect(requests).toHaveLength(9);
     for (const request of requests) {
       expect(request.role).toBe('verify');
       expect(request.model).toBe(MODEL);
       expect(request.system).toBe(verifySystem());
       expect(request.maxOutputTokens).toBe(VERIFY_MAX_OUTPUT_TOKENS);
-      expect(Object.keys(request).sort()).toEqual(['maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
+      expect(Object.keys(request).sort()).toEqual(['effort', 'maxOutputTokens', 'model', 'role', 'schema', 'system', 'user']);
     }
   });
 
-  it('puts ten sentences in each call by default, in the order of the set, each sentence once, with the claims of its passages numbered from c-1', async () => {
+  it('puts ten items in each call by default, in the order of the set, each once, with the claims of its passages numbered from c-1', async () => {
     const { client, requests } = spy(perfectVerifier(SET));
     const report = await evaluateVerifier(client, SET, { model: MODEL });
     expect(DEFAULT_BATCH_SIZE).toBe(10);
-    expect(report.calls).toBe(6);
+    expect(report.calls).toBe(9);
     const seen: string[] = [];
-    for (const request of requests) {
+    requests.forEach((request, call) => {
       const blocks = blocksOf(request.user);
-      const sentences = blocks.filter((block) => block.id.startsWith('s'));
-      expect(sentences.map((block) => block.id)).toEqual(Array.from({ length: 10 }, (_, at) => `s${at}`));
+      const batch = SET.items.slice(call * 10, call * 10 + 10);
+      // The id of an item is s or h, by its kind, and its place in the batch.
+      const idOf = (item: (typeof batch)[number], at: number): string => `${item.kind === 'heading' ? 'h' : 's'}${at}`;
+      // The prompt lists the sentences, then the headings, each in the order of the batch: the s ids ascend and the h ids ascend, in the order in which the prompt lists them.
+      const items = blocks.filter((block) => /^[sh]\d+$/.test(block.id));
+      expect(items.filter((block) => block.id.startsWith('s')).map((block) => block.id)).toEqual(batch.flatMap((item, at) => (item.kind === 'heading' ? [] : [idOf(item, at)])));
+      expect(items.filter((block) => block.id.startsWith('h')).map((block) => block.id)).toEqual(batch.flatMap((item, at) => (item.kind === 'heading' ? [idOf(item, at)] : [])));
+      expect(items.map((block) => block.id.charAt(0)).join('')).toMatch(/^s*h*$/);
+      // Each id carries the text of the item at that place.
+      for (const block of items) expect(block.text, block.id).toBe(batch[Number(block.id.slice(1))]?.sentence);
       expect(blocks.filter((block) => block.id.startsWith('c-'))[0]?.id).toBe('c-1');
-      seen.push(...sentences.map((block) => block.text));
-    }
-    expect(seen).toEqual(SET.items.map((item) => item.sentence));
+      seen.push(...items.map((block) => block.text));
+    });
+    expect(seen).toHaveLength(SET.items.length);
+    expect(new Set(seen)).toEqual(new Set(SET.items.map((item) => item.sentence)));
   });
 
-  it('takes the size of a batch from the options: 7 gives nine calls, the last with 4 sentences, and 60 gives one call', async () => {
+  it('takes the size of a batch from the options: 7 gives thirteen calls, the last with 6 items, and 90 gives one call', async () => {
     const seven = spy(perfectVerifier(SET));
-    expect((await evaluateVerifier(seven.client, SET, { model: MODEL, batchSize: 7 })).calls).toBe(9);
-    expect(seven.requests.map((request) => blocksOf(request.user).filter((block) => block.id.startsWith('s')).length)).toEqual([7, 7, 7, 7, 7, 7, 7, 7, 4]);
+    expect((await evaluateVerifier(seven.client, SET, { model: MODEL, batchSize: 7 })).calls).toBe(13);
+    expect(seven.requests.map((request) => blocksOf(request.user).filter((block) => /^[sh]\d+$/.test(block.id)).length)).toEqual([7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 6]);
     const all = spy(perfectVerifier(SET));
-    expect((await evaluateVerifier(all.client, SET, { model: MODEL, batchSize: 60 })).calls).toBe(1);
+    expect((await evaluateVerifier(all.client, SET, { model: MODEL, batchSize: 90 })).calls).toBe(1);
   });
 
-  it('accepts a batch of one sentence, which is a call for each of the sixty', async () => {
+  it('accepts a batch of one sentence, which is a call for each of the ninety', async () => {
     const { client, requests } = spy(perfectVerifier(SET));
     const report = await evaluateVerifier(client, SET, { model: MODEL, batchSize: 1 });
-    expect(report.calls).toBe(60);
-    expect(requests).toHaveLength(60);
+    expect(report.calls).toBe(90);
+    expect(requests).toHaveLength(90);
   });
 
   it('scores the same whatever the size of the batch', async () => {
     const one = await evaluateVerifier(perfectVerifier(SET), SET, { model: MODEL, batchSize: 1 });
-    const many = await evaluateVerifier(perfectVerifier(SET), SET, { model: MODEL, batchSize: 60 });
+    const many = await evaluateVerifier(perfectVerifier(SET), SET, { model: MODEL, batchSize: 90 });
     expect({ ...one, calls: 0, usage: many.usage }).toEqual({ ...many, calls: 0 });
   });
 
@@ -201,7 +212,7 @@ describe('evaluateVerifier: what it asks, and how', () => {
 
   it('adds up what the calls cost', async () => {
     const report = await evaluateVerifier(perfectVerifier(SET), SET, { model: MODEL });
-    expect(report.usage.inputTokens).toBeGreaterThan(6 * 500);
+    expect(report.usage.inputTokens).toBeGreaterThan(9 * 500);
     expect(report.usage.outputTokens).toBeGreaterThan(0);
   });
 
@@ -259,8 +270,8 @@ describe('scoreOf', () => {
 });
 
 describe('floorFailures', () => {
-  const perfect = scoreOf(SET.items.map((item) => ({ id: item.id, label: item.label, cleared: item.label === 'supported' })), 6, { inputTokens: 0, outputTokens: 0 });
-  const lazy = scoreOf(SET.items.map((item) => ({ id: item.id, label: item.label, cleared: true })), 6, { inputTokens: 0, outputTokens: 0 });
+  const perfect = scoreOf(SET.items.map((item) => ({ id: item.id, label: item.label, cleared: item.label === 'supported' })), 9, { inputTokens: 0, outputTokens: 0 });
+  const lazy = scoreOf(SET.items.map((item) => ({ id: item.id, label: item.label, cleared: true })), 9, { inputTokens: 0, outputTokens: 0 });
 
   it('finds nothing wrong with no floor, with a floor of 0, and with a perfect report under the highest floor', () => {
     expect(floorFailures(lazy, {})).toEqual([]);
@@ -283,7 +294,7 @@ describe('floorFailures', () => {
   });
 
   it('accepts a score that is exactly the floor', () => {
-    expect(floorFailures(lazy, { precision: 20 / 60 }).filter((line) => line.includes('cleared'))).toEqual([]);
+    expect(floorFailures(lazy, { precision: 30 / 90 }).filter((line) => line.includes('cleared'))).toEqual([]);
     expect(floorFailures(lazy, { recall: 1 / 3 }).filter((line) => line.includes('for supported'))).toEqual([]);
   });
 });
@@ -293,11 +304,11 @@ describe('formatReport', () => {
     const report = await evaluateVerifier(perfectVerifier(SET), SET, { model: MODEL });
     const lines = formatReport({ ...report, usage: { inputTokens: 1200, outputTokens: 340 } }, MODEL);
     expect(lines).toEqual([
-      'verifier evaluation: 60 sentences in 6 calls, model model-v',
+      'verifier evaluation: 90 sentences in 9 calls, model model-v',
       'label        items correct  recall',
-      'supported       20      20    1.00',
-      'unsupported     20      20    1.00',
-      'distorted       20      20    1.00',
+      'supported       30      30    1.00',
+      'unsupported     30      30    1.00',
+      'distorted       30      30    1.00',
       'cleared (supported):          precision 1.00, recall 1.00',
       'flagged (not supported):      precision 1.00, recall 1.00',
       'accuracy 1.00',
@@ -313,10 +324,17 @@ describe('formatReport', () => {
 });
 
 describe('main', () => {
-  function run(argv: string[], overrides: { client?: ModelClient; env?: Record<string, string> } = {}) {
+  function run(argv: string[], overrides: { client?: ModelClient; env?: Record<string, string>; spent?: () => { calls: number; inputTokens: number; outputTokens: number }; retry?: RetryOptions } = {}) {
     const out: string[] = [];
     const err: string[] = [];
-    const deps = { out: (line: string) => void out.push(line), err: (line: string) => void err.push(line), env: overrides.env ?? {}, ...(overrides.client === undefined ? {} : { client: overrides.client }) };
+    const deps = {
+      out: (line: string) => void out.push(line),
+      err: (line: string) => void err.push(line),
+      env: overrides.env ?? {},
+      ...(overrides.client === undefined ? {} : { client: overrides.client }),
+      ...(overrides.spent === undefined ? {} : { spent: overrides.spent }),
+      ...(overrides.retry === undefined ? {} : { retry: overrides.retry }),
+    };
     return main(argv, deps).then((code) => ({ code, out, err }));
   }
 
@@ -324,14 +342,14 @@ describe('main', () => {
     const { code, out, err } = await run([]);
     expect(code).toBe(0);
     expect(err).toEqual([]);
-    expect(out[0]).toMatch(/^verifier evaluation: 60 sentences in 6 calls, model \S+$/);
+    expect(out[0]).toMatch(/^verifier evaluation: 90 sentences in 9 calls, model \S+$/);
     expect(out).toContain('accuracy 1.00');
     expect(out.some((line) => line.startsWith('below the floor'))).toBe(false);
   });
 
   it('uses the model that it is given, and the batch size that it is given', async () => {
     const { out } = await run(['--client', 'fake', '--model', 'model-z', '--batch', '12']);
-    expect(out[0]).toBe('verifier evaluation: 60 sentences in 5 calls, model model-z');
+    expect(out[0]).toBe('verifier evaluation: 90 sentences in 8 calls, model model-z');
   });
 
   it('exits with 0 for a lazy verifier when no floor is set, because no floor is frozen', async () => {
@@ -389,10 +407,41 @@ describe('main', () => {
     }
   });
 
-  it('accepts a batch of 1, the least there is', async () => {
-    const { code, out } = await run(['--batch', '1']);
+  // A run of the Desk may make `budget.maxCalls` calls (24), and the real client stops at the 25th: a batch so small that the set needs more calls would pay for 24 of them and lose the
+  // report. So `main` refuses it before it builds a client or makes a call. The library function `evaluateVerifier` has no such limit (a scripted client costs nothing), and its test
+  // above that accepts a batch of one sentence stays as it was.
+  it('accepts the smallest batch that fits the calls of a run: 4 gives 23 calls for the 90 sentences, the least that stays within the budget of 24', async () => {
+    const { maxCalls } = defaultConfig().budget;
+    expect(Math.ceil(SET.items.length / 4)).toBeLessThanOrEqual(maxCalls);
+    expect(Math.ceil(SET.items.length / 3)).toBeGreaterThan(maxCalls);
+    const { code, out, err } = await run(['--batch', '4']);
     expect(code).toBe(0);
-    expect(out[0]).toBe(`verifier evaluation: 60 sentences in 60 calls, model ${out[0]?.split('model ')[1]}`);
+    expect(err).toEqual([]);
+    expect(out[0]).toBe(`verifier evaluation: 90 sentences in 23 calls, model ${out[0]?.split('model ')[1]}`);
+  });
+
+  it('refuses a batch that needs more calls than a run may make, with exit 2, the number of calls it needs and the budget, before a client is built or a call is made', async () => {
+    const { maxCalls } = defaultConfig().budget;
+    for (const [batch, needed, least] of [['3', 30, 4], ['1', 90, 4], ['2', 45, 4]] as const) {
+      const calls: string[] = [];
+      const counting: ModelClient = {
+        async json(request) {
+          calls.push(request.role);
+          return perfectVerifier(SET).json(request);
+        },
+      };
+      const { code, out, err } = await run(['--batch', batch], { client: counting });
+      expect(code, batch).toBe(2);
+      expect(out, batch).toEqual([]);
+      expect(err[0], batch).toBe(`evals:verifier: --batch ${batch} needs ${needed} calls for the ${SET.items.length} sentences, and a run may make ${maxCalls}: use --batch ${least} or more`);
+      expect(err[1], batch).toContain('Usage: evals:verifier');
+      expect(calls, batch).toEqual([]);
+    }
+    // With the api client the refusal comes before the client is asked for: no key is needed to be told, and none is read.
+    const { code, err } = await run(['--client', 'api', '--batch', '3']);
+    expect(code).toBe(2);
+    expect(err[0]).toContain('--batch 3 needs 30 calls');
+    expect(err).not.toContain('ANTHROPIC_API_KEY is not set: the api client needs it in the environment');
   });
 
   it('exits with 1 and says so when the labelled set cannot be used, before any call', async () => {
@@ -418,6 +467,15 @@ describe('main', () => {
     expect((await run(['--min-recall', '0', '--min-precision', '1'], { client: perfectVerifier(SET) })).code).toBe(0);
   });
 
+  it('tries a call that could not reach the API again, twice at most, as a run does, says so, and counts the three tries in what it spent (the network is not there in a test, and the SDK says so as a connection error)', async () => {
+    const { code, out, err } = await run(['--client', 'api'], { env: { ANTHROPIC_API_KEY: 'a-key-for-the-test-only' }, retry: { sleep: async () => undefined } });
+    expect(code).toBe(1);
+    expect(out).toEqual(['model: connection error, retrying (2 of 3)', 'model: connection error, retrying (3 of 3)']);
+    expect(err[0]).toContain('the evaluation failed: the Anthropic API could not be reached');
+    expect(err[1]).toBe('spent before the failure: 3 model calls, 0 input tokens, 0 output tokens');
+    expect([...out, ...err].join('\n')).not.toContain('a-key-for-the-test-only');
+  });
+
   it('exits with 1 and says so when the evaluation fails', async () => {
     const failing: ModelClient = {
       async json() {
@@ -427,6 +485,17 @@ describe('main', () => {
     const { code, err } = await run([], { client: failing });
     expect(code).toBe(1);
     expect(err).toEqual(['the evaluation failed: the model declined']);
+  });
+
+  it('says what the calls cost before the evaluation failed, when the client counts it, because those calls were paid for', async () => {
+    const failing: ModelClient = {
+      async json() {
+        throw new ModelError('refused', 'the reply was cut off at the output limit');
+      },
+    };
+    const { code, err } = await run([], { client: failing, spent: () => ({ calls: 4, inputTokens: 31000, outputTokens: 12500 }) });
+    expect(code).toBe(1);
+    expect(err).toEqual(['the evaluation failed: the reply was cut off at the output limit', 'spent before the failure: 4 model calls, 31000 input tokens, 12500 output tokens']);
   });
 });
 
@@ -445,7 +514,7 @@ describe('the program', () => {
   it('runs when it is started as a program, prints the report of the verifier that knows the answers and exits with 0', () => {
     const run = spawnSync('npx', ['tsx', 'desk/evals/run-verifier.ts', '--batch', '30'], { cwd: root, encoding: 'utf8' });
     expect(run.status).toBe(0);
-    expect(run.stdout).toContain('verifier evaluation: 60 sentences in 2 calls');
+    expect(run.stdout).toContain('verifier evaluation: 90 sentences in 3 calls');
     expect(run.stdout).toContain('accuracy 1.00');
   }, 60_000);
 

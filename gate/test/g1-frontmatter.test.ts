@@ -135,19 +135,19 @@ describe('G1_CATEGORY_COUNT', () => {
   });
 
   it('fails for four categories', () => {
-    expect(codesAfter((g) => (g.draft.categories = ['humanoids', 'home-consumer', 'field-mobility', 'funding']))).toEqual([
+    expect(codesAfter((g) => (g.draft.categories = ['payments-commerce', 'wallets-keys', 'identity-trust', 'funding']))).toEqual([
       'G1_CATEGORY_COUNT',
     ]);
   });
 
   it('fails for a duplicated category', () => {
-    expect(codesAfter((g) => (g.draft.categories = ['humanoids', 'humanoids']))).toEqual(['G1_CATEGORY_COUNT']);
+    expect(codesAfter((g) => (g.draft.categories = ['payments-commerce', 'payments-commerce']))).toEqual(['G1_CATEGORY_COUNT']);
   });
 
   it.each([
-    [['humanoids']],
-    [['humanoids', 'funding']],
-    [['humanoids', 'field-mobility', 'funding']],
+    [['payments-commerce']],
+    [['payments-commerce', 'funding']],
+    [['payments-commerce', 'identity-trust', 'funding']],
   ])('passes for %j', (categories) => {
     expect(codesAfter((g) => (g.draft.categories = categories))).toEqual([]);
   });
@@ -155,7 +155,7 @@ describe('G1_CATEGORY_COUNT', () => {
 
 describe('G1_CATEGORY_UNKNOWN', () => {
   it('fails once for each category outside the vocabulary and names it', () => {
-    const out = checkG1(mutate(cloneGolden(), (g) => (g.draft.categories = ['humanoids', 'robots', 'Funding'])), defaultContext());
+    const out = checkG1(mutate(cloneGolden(), (g) => (g.draft.categories = ['payments-commerce', 'robots', 'Funding'])), defaultContext());
     expect(out.failures.map((failure) => failure.code)).toEqual(['G1_CATEGORY_UNKNOWN', 'G1_CATEGORY_UNKNOWN']);
     expect(out.failures[0]?.message).toContain('robots');
     expect(out.failures[1]?.message).toContain('Funding');
@@ -179,7 +179,7 @@ describe('G1_CATEGORY_NO_BEAT', () => {
   });
 
   it('passes when a beat comes with funding', () => {
-    expect(codesAfter((g) => (g.draft.categories = ['funding', 'policy-standards']))).toEqual([]);
+    expect(codesAfter((g) => (g.draft.categories = ['funding', 'policy-regulation']))).toEqual([]);
   });
 });
 
