@@ -132,46 +132,47 @@ describe('extractSystem', () => {
     });
   });
 
+  // Helpers of the tests that hold a form of values to the real checks: the checks of the Extract stage (`claimProblems`) and G4 of the gate, on a claim and a fact sentence that cites it.
+  const number = (raw: string, normalised: string, unit?: string): ClaimValue => (unit === undefined ? { kind: 'number', raw, normalised } : { kind: 'number', raw, normalised, unit });
+  const claimOf = (quote: string, values: ClaimValue[]): Claim => ({
+    id: 'c-1',
+    text: 'A claim.',
+    label: 'a claim',
+    type: 'spec',
+    source: { url: 'https://example.test/a', tier: 1, snapshotHash: 'a'.repeat(64), retrievedAt: '2026-10-04T04:30:00Z' },
+    span: { start: 0, end: quote.length, quote },
+    basis: 'docs',
+    status: 'unspecified',
+    values,
+  });
+  /** The blockers of G4 for a fact sentence (the title of a tiny draft) that cites the claim: what keeps a piece from publishing. */
+  const blockersOf = (claim: Claim, text: string): string[] => {
+    const input: GateInput = {
+      draft: {
+        slug: 'a-slug',
+        publishedAt: '2026-10-04',
+        categories: ['payments-commerce'],
+        author: { name: 'Agentic Media House Desk' },
+        title: { kind: 'fact', text, claimIds: [claim.id] },
+        description: { kind: 'fact', text: 'It is fine.', claimIds: [claim.id] },
+        opening: [],
+        takeaways: [],
+        sections: [],
+        limitations: [],
+      },
+      claims: [claim],
+    };
+    return checkG4(input, defaultContext()).failures.filter((failure) => severityOf(failure.code) === 'blocker').map((failure) => `${failure.code} ${failure.message}`);
+  };
+  /** What the checks of the Extract stage say about a claim whose text is the sentence of the quote, with a label made of words of the quote. */
+  const problemsOf = (quote: string, text: string, label: string, values: ClaimValue[]): string[] =>
+    claimProblems({ text, label, quote, values, basis: 'docs' }, quote, 'research', new Set()).map((problem) => problem.code);
+
   describe('a range is two values, one for each end', () => {
     // In a real trial a claim listed "162 to 235 KiB" and "10 to 20 ms" as one number value each. The checks of the Desk accept that (a raw that is not one number is not compared),
     // but G4 reads the raw text of a value as one number token, finds none, and licenses only the number in `normalised`: the first end. A sentence that states the second end
     // ("235", "20 ms") fails G4_NUMBER_UNSUPPORTED in every round, whatever the writer does. A value for each end licenses both.
     const sentence = 'A range is two values, one for each end, and never one value for the whole range, because the piece may state only the numbers that are values: for "3 to 5 s" list "3" (no unit) and "5 s" (unit s), each "raw" exactly as the quote writes it.';
-
-    const number = (raw: string, normalised: string, unit?: string): ClaimValue => (unit === undefined ? { kind: 'number', raw, normalised } : { kind: 'number', raw, normalised, unit });
-    const claimOf = (quote: string, values: ClaimValue[]): Claim => ({
-      id: 'c-1',
-      text: 'A claim.',
-      label: 'a claim',
-      type: 'spec',
-      source: { url: 'https://example.test/a', tier: 1, snapshotHash: 'a'.repeat(64), retrievedAt: '2026-10-04T04:30:00Z' },
-      span: { start: 0, end: quote.length, quote },
-      basis: 'docs',
-      status: 'unspecified',
-      values,
-    });
-    /** The blockers of G4 for a fact sentence (the title of a tiny draft) that cites the claim: what keeps a piece from publishing. */
-    const blockersOf = (claim: Claim, text: string): string[] => {
-      const input: GateInput = {
-        draft: {
-          slug: 'a-slug',
-          publishedAt: '2026-10-04',
-          categories: ['payments-commerce'],
-          author: { name: 'Agentic Media House Desk' },
-          title: { kind: 'fact', text, claimIds: [claim.id] },
-          description: { kind: 'fact', text: 'It is fine.', claimIds: [claim.id] },
-          opening: [],
-          takeaways: [],
-          sections: [],
-          limitations: [],
-        },
-        claims: [claim],
-      };
-      return checkG4(input, defaultContext()).failures.filter((failure) => severityOf(failure.code) === 'blocker').map((failure) => `${failure.code} ${failure.message}`);
-    };
-    /** What the checks of the Extract stage say about a claim whose text is the sentence of the quote, with a label made of words of the quote. */
-    const problemsOf = (quote: string, text: string, label: string, values: ClaimValue[]): string[] =>
-      claimProblems({ text, label, quote, values, basis: 'docs' }, quote, 'research', new Set()).map((problem) => problem.code);
 
     it('says that a range is two values, one for each end, never one value for the whole range, and how the two are written', () => {
       expect(EXTRACT_INSTRUCTIONS).toContain(sentence);
@@ -215,6 +216,142 @@ describe('extractSystem', () => {
       expect(problemsOf(quote, 'Setup takes 3 to 5 s.', label, [number('3', '3'), number('5 s', '5')])).toEqual(['value-normalised-mismatch']);
       // "3 s" is not in the quote, so the unit cannot be written on both ends
       expect(problemsOf(quote, 'Setup takes 3 to 5 s.', label, [number('3 s', '3', 's'), number('5 s', '5', 's')])).toEqual(['value-not-in-quote']);
+    });
+  });
+
+  describe('an identifier of digits is listed as a number, or left out of the text', () => {
+    // In the third run of the ERC-8403 page a claim said "#12435 (open) proposes that a zero data_hash stands for ..." (a proposal number of a code repository). The claim listed "#12435" as a NAME
+    // (raw and normalised "#12435"). The checks of the Extract stage accept that, because the raw text is in the quote, but G4 reads the digits of a sentence as a NUMBER, whatever the sign before them,
+    // and a name licenses no number: the sentences that kept "#12435" failed G4_NUMBER_UNSUPPORTED in three rounds of revision, and the writer, who was told to state only the listed values, could not
+    // fix it, because the trap was in the claim. A number value that is the digits licenses the number: that is the form the prompt gives.
+    const sentence =
+      'An identifier of digits only, such as an issue, pull request or proposal number that the quote writes "#4821", is not a name: list it as a number, with "raw" its digits ("4821", without the "#"), "normalised" the same and no unit, or leave it out of the text; never write it in the text without listing it.';
+    const bulletLine = (): string => EXTRACT_INSTRUCTIONS.split('\n').find((line) => line.startsWith('- List in "values" every name that the text of the claim contains')) ?? '';
+    /** The value that the prompt tells the model to list for the digits of an identifier: the kind from "list it as a ...", the digits as "raw" and as "normalised", no unit. */
+    const listed = (digits: string): ClaimValue => {
+      const kind = /list it as a (number|name|date)\b/.exec(bulletLine())?.[1];
+      if (kind !== 'number' && kind !== 'name' && kind !== 'date') throw new Error('the prompt does not say which kind of value an identifier of digits is');
+      return { kind, raw: digits, normalised: digits };
+    };
+    const TRIAL_QUOTE = '#12435 (open) proposes that a zero data_hash stands for the signature hash of the containing transaction.';
+    const TRIAL_LABEL = 'zero data_hash stands for signature hash';
+    const OTHER_QUOTE = 'an open proposal tracked as #12435 would let a zero data_hash stand for the signature hash';
+    const OTHER_TEXT = 'An open proposal tracked as #12435 would let a zero data_hash stand for the signature hash.';
+    const OTHER_LABEL = 'zero data_hash stand for signature hash';
+    /** The two claims of the tests: the one of the trial, and one whose quote writes the identifier in the middle of the sentence. Each is the quote, the text, the label. */
+    const CLAIMS = [
+      [TRIAL_QUOTE, TRIAL_QUOTE, TRIAL_LABEL],
+      [OTHER_QUOTE, OTHER_TEXT, OTHER_LABEL],
+    ] as const;
+
+    it('says that an identifier of digits (an issue, pull request or proposal number) is listed as a number with its digits as "raw", or left out of the text, and never written without being listed', () => {
+      expect(EXTRACT_INSTRUCTIONS).toContain(sentence);
+      // it sits at the end of the bullet that asks for every name to be listed, after the sentence about a name that mixes letters and digits, and the sentences that were there are as they were
+      const line = bulletLine();
+      expect(line.endsWith(sentence)).toBe(true);
+      expect(line).toContain('A name that mixes letters and digits, such as "ERC-8004" or "x402", is listed as one name ("ERC-8004"); do not list its digits as a number. An identifier of digits only');
+      expect(line.startsWith('- List in "values" every name that the text of the claim contains: a company, a product, a programme, a place, a person, with kind "name" and "raw" exactly as the quote writes it ("x402", "Ethereum Foundation"). ')).toBe(true);
+      // the example is invented, and the sentence is short
+      expect(sentence).not.toMatch(/zkapi|ethereum|kib|erc-?\d|eip-?\d|x402|a2a|12435|8403|github/i);
+      expect(sentence.split(/\s+/).length).toBeLessThanOrEqual(60);
+    });
+
+    it('gives, for the digits of an identifier, a value of kind number whose raw and normalised are the digits, with no sign', () => {
+      expect(listed('4821')).toEqual({ kind: 'number', raw: '4821', normalised: '4821' });
+    });
+
+    it('is true of the code for the form the prompt gives: the claim passes the checks of the Extract stage, and G4 licenses the digits in every sentence that states them', () => {
+      for (const [quote, text, label] of CLAIMS) {
+        const values = [listed('12435')];
+        expect(problemsOf(quote, text, label, values), quote).toEqual([]);
+        for (const sentenceText of ['The proposal #12435 is open.', 'A proposal tracked as #12435 would change the hash.', 'Proposal 12435 is open.', text]) {
+          expect(blockersOf(claimOf(quote, values), sentenceText), sentenceText).toEqual([]);
+        }
+      }
+    });
+
+    it('is true of the code for the other way the sentence gives: the text without the identifier needs no value for it, and passes both checks', () => {
+      const quote = TRIAL_QUOTE;
+      const text = 'A zero data_hash stands for the signature hash of the containing transaction.';
+      expect(problemsOf(quote, text, TRIAL_LABEL, [])).toEqual([]);
+      expect(blockersOf(claimOf(quote, []), text)).toEqual([]);
+    });
+
+    it('shows what the sentence prevents: with the identifier listed as a name, the checks of the Extract stage accept the claim and G4 refuses the digits in every sentence that states them', () => {
+      for (const [quote, text, label] of CLAIMS) {
+        const asName: ClaimValue[] = [{ kind: 'name', raw: '#12435', normalised: '#12435' }];
+        expect(problemsOf(quote, text, label, asName), quote).toEqual([]);
+        for (const sentenceText of ['The proposal #12435 is open.', 'Proposal 12435 is open.']) {
+          expect(blockersOf(claimOf(quote, asName), sentenceText).join('\n'), sentenceText).toContain('G4_NUMBER_UNSUPPORTED the number "12435"');
+        }
+        // nor does the digits as a name ("12435" with no sign) help, and a claim that lists nothing is no better
+        expect(blockersOf(claimOf(quote, [{ kind: 'name', raw: '12435', normalised: '12435' }]), 'Proposal 12435 is open.').join('\n')).toContain('G4_NUMBER_UNSUPPORTED');
+        expect(blockersOf(claimOf(quote, []), 'Proposal 12435 is open.').join('\n')).toContain('G4_NUMBER_UNSUPPORTED');
+      }
+    });
+
+    it('is true of the code for the forms the sentence does not give: "normalised" with the sign makes G4 refuse the number, and a raw of the digits with it is dropped by the checks of the Extract stage', () => {
+      const [text, label] = [OTHER_TEXT, OTHER_LABEL];
+      // a number with the sign in "normalised" and in "raw": the Desk does not compare a raw that is not a number it can read, and G4 then reads the "normalised" form, which is no number
+      const signed = [number('#12435', '#12435')];
+      expect(problemsOf(OTHER_QUOTE, text, label, signed)).toEqual([]);
+      expect(blockersOf(claimOf(OTHER_QUOTE, signed), 'Proposal 12435 is open.').join('\n')).toContain('G4_NUMBER_UNSUPPORTED');
+      // the digits as "raw" and the sign in "normalised" is a mismatch that the Desk sees, so the claim is dropped before it can trap a writer
+      expect(problemsOf(OTHER_QUOTE, text, label, [number('12435', '#12435')])).toEqual(['value-normalised-mismatch']);
+      // the sign in "raw" and the digits in "normalised" works too, but "raw" is then not a number that the Desk reads: the prompt gives the digits as "raw"
+      expect(problemsOf(OTHER_QUOTE, text, label, [number('#12435', '12435')])).toEqual([]);
+      expect(blockersOf(claimOf(OTHER_QUOTE, [number('#12435', '12435')]), 'Proposal 12435 is open.')).toEqual([]);
+    });
+  });
+
+  describe('a unit that the quote does not have is not added to a figure', () => {
+    // In the third run of the ERC-8403 page a claim whose quote said "the triple costs 30000, step 1 costs 3000 plus ..." had the text "The triple costs 30000 gas." The rule about the words of the text
+    // exempts a word of fewer than four letters (it asks for the four letters or more to be in the quote), and "gas" is not a unit that the gate reads, so the checks of the Extract stage
+    // let it in; only the model check saw that the passage gives no unit, in the last round, and the piece was held. The rule is deliberately unchanged here: the prompt is the remedy.
+    const sentences = [
+      'A short word is no exception: do not add a unit, a currency or any word that the quote does not have ("gas", "USD", "ms").',
+      'Write a figure with its unit only if the quote writes the unit next to it; otherwise write the figure alone.',
+    ];
+    const QUOTE = 'the triple costs 30000, step 1 costs 3000 plus a few keccak calls';
+    const LABEL = 'the triple costs 30000';
+    const values = [number('30000', '30000')];
+    const codesOf = (text: string): string[] => problemsOf(QUOTE, text, LABEL, values);
+
+    it('says not to add a unit, a currency or any word that the quote does not have, even a short one, and to write a figure with a unit only when the quote has the unit next to it', () => {
+      const line = EXTRACT_INSTRUCTIONS.split('\n').find((candidate) => candidate.startsWith('- Every word of the text of four letters or more must be a word of the quote')) ?? '';
+      expect(line.endsWith(sentences.join(' '))).toBe(true);
+      // the sentences that were there are as they were, before the new ones
+      expect(line).toContain('and nothing else that says more, less or other than the quote says. A short word is no exception');
+      // the examples are invented or plain, the addition is short
+      expect(sentences.join(' ')).not.toMatch(/zkapi|ethereum|kib|erc-?\d|eip-?\d|x402|a2a|keccak|8403/i);
+      expect(sentences.join(' ').split(/\s+/).length).toBeLessThanOrEqual(60);
+    });
+
+    it('documents the loophole that the prompt answers: a short word that is no unit of the gate, "gas", passes the checks of the Extract stage after a figure of the quote, and so do other short lowercase words', () => {
+      // the rule is unchanged on purpose: the checks of the Desk are not the remedy of this fault, the words of the prompt are
+      expect(codesOf('The triple costs 30000.')).toEqual([]);
+      expect(codesOf('The triple costs 30000 gas.')).toEqual([]);
+      expect(codesOf('The triple costs 30,000 gas.')).toEqual([]);
+      for (const word of ['eth', 'ops', 'txs', 'kb', 'mb', 'wei', 'cpu', 'it']) expect(codesOf(`The triple costs 30000 ${word}.`), word).toEqual([]);
+      // and G4 does not read a word after a number that is not a unit, so nothing in code holds the piece
+      expect(blockersOf(claimOf(QUOTE, values), 'The triple costs 30000 gas.')).toEqual([]);
+    });
+
+    it('documents what the rules refuse already: a unit the gate reads, a capitalised word, a word of four letters or more, and a negation', () => {
+      for (const text of ['The triple costs 30000 ms.', 'The triple costs 30000 kg.', 'The triple costs 30000 s.', 'The triple costs 30000 sec.']) expect(codesOf(text), text).toEqual(['text-not-in-quote']);
+      for (const text of ['The triple costs 30000 USD.', 'The triple costs 30000 Gas.', 'The triple costs 30000 gwei.', 'The triple costs 30000 units.', 'The triple costs 30000 not gas.']) {
+        expect(codesOf(text), text).toEqual(['text-not-in-quote']);
+      }
+      expect(codesOf('The triple costs $30000.')).toEqual(['text-not-in-quote']);
+    });
+
+    it('is true of the code for what the sentences tell the model to write: the figure alone, with no unit, passes the checks of the Extract stage and G4', () => {
+      expect(codesOf('The triple costs 30000.')).toEqual([]);
+      expect(blockersOf(claimOf(QUOTE, values), 'The triple costs 30000.')).toEqual([]);
+      // and a figure with a unit that the quote does write next to it keeps it
+      const withUnit = 'the part runs in 40 ms';
+      expect(problemsOf(withUnit, 'The part runs in 40 ms.', 'the part runs in 40 ms', [number('40 ms', '40', 'ms')])).toEqual([]);
+      expect(blockersOf(claimOf(withUnit, [number('40 ms', '40', 'ms')]), 'The part runs in 40 ms.')).toEqual([]);
     });
   });
 
