@@ -209,7 +209,7 @@ Run everything from the repository root.
 | `npm run build:fixtures` | The fixture build, into `site/dist` (see Fixtures below). |
 | `npm run audit` | Run the checks A1 to A12 and A14 to A18 on `site/dist`: HTML, links, receipts, the fact card, CSS rules, colours, feeds, and that the old name of the publication is nowhere in the build. Exits 1 on any problem. |
 | `npm run audit:prod` | The same, plus A13: the build has no trace of the fixtures. Run it after `npm run build`. |
-| `npm run lighthouse` | Measure the fixture build in `site/dist` with Lighthouse (home page, lead article and its receipts page, and the first article that carries the Unconfirmed. label with its receipts page) and fail if any score is under 95. |
+| `npm run lighthouse` | Measure the fixture build in `site/dist` with Lighthouse (home page, lead article and its receipts page, and the first article that carries the Unconfirmed. label with its receipts page) and fail if any score is under 95. A page that is below 95 on its first run is measured twice more and judged by the median of the three runs, so that one slow run on a shared machine does not fail the check, and a real regression still does. |
 | `npm run verify` | The checks in CI order: typecheck, tests, seeded evals, fixture drift, the Desk demo, production build, production audit, fixture build, fixture audit, Lighthouse. |
 
 `npm run build` and `npm run build:fixtures` both write `site/dist`, so the second replaces the first. `npm run verify` runs them in the order that each audit needs.
